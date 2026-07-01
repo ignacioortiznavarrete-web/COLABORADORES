@@ -64,7 +64,7 @@ function listarSolicitudes() {
     var solicitante = valueToString_(row[idxSolicitante]);
     var razonSocial = valueToString_(row[idxRazonSocial]);
     var tipoSolicitud = valueToString_(row[idxTipoSolicitud]);
-    var fecha = valueToString_(row[idxFecha]);
+    var fecha = formatearFecha_(row[idxFecha]);
     var estado = valueToString_(row[idxEstado]);
 
     if (!solicitante && !razonSocial) continue;
@@ -105,4 +105,16 @@ function requireHeaderIndex_(headers, nombreColumna, nombreHoja) {
 function valueToString_(value) {
   if (value === null || value === undefined) return '';
   return value.toString().trim();
+}
+
+/**
+ * Sheets suele convertir el texto "dd/MM/yyyy HH:mm" ingresado en la celda
+ * en un valor de fecha real; al leerlo vuelve como objeto Date de JS, cuyo
+ * toString() por defecto es ilegible. Aquí se formatea explícitamente.
+ */
+function formatearFecha_(value) {
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone() || 'America/Santiago', 'dd/MM/yyyy HH:mm');
+  }
+  return valueToString_(value);
 }
