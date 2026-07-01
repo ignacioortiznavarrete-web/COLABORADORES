@@ -15,7 +15,9 @@ var CONFIG = {
   DRIVE_ROOT_FOLDER_ID: '1rPDEn_0_13ym8Z3-svqPtrknYCkGCsVp',
   MAX_RESULTADOS: 200,
   MAX_ARCHIVO_BYTES: 15 * 1024 * 1024, // 15 MB
-  CTA_ASOC_NACIONAL: '2131001' // solo proveedores nacionales
+  CTA_ASOC_NACIONAL: '2131001', // solo proveedores nacionales
+  ESTADOS_SOLICITUD: ['En analisis', 'Actualizando', 'Modificado'],
+  ESTADO_INICIAL: 'En analisis'
 };
 
 var COL_PROVEEDORES = {
@@ -182,11 +184,27 @@ function registrarSolicitudBancaria(payload) {
     archivoGuardado.getUrl(),
     payload.tipoSolicitud,
     fecha,
-    'Pendiente',
+    CONFIG.ESTADO_INICIAL,
     payload.observacion || ''
   ]);
 
+  aplicarComboboxEstado_(hoja, hoja.getLastRow());
+
   return { ok: true, mensaje: 'Solicitud registrada correctamente.', archivoUrl: archivoGuardado.getUrl() };
+}
+
+/**
+ * Deja la celda "Estado" de la fila recién insertada como combobox
+ * (validación de datos) con las opciones: En analisis, Actualizando, Modificado.
+ */
+function aplicarComboboxEstado_(hoja, fila) {
+  var headers = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+  var idxEstado = requireHeaderIndex_(headers, 'Estado', hoja.getName());
+  var regla = SpreadsheetApp.newDataValidation()
+    .requireValueInList(CONFIG.ESTADOS_SOLICITUD, true)
+    .setAllowInvalid(false)
+    .build();
+  hoja.getRange(fila, idxEstado + 1).setDataValidation(regla);
 }
 
 function validarPayload_(payload) {
