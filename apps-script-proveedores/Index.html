@@ -523,6 +523,11 @@
         <div id="modalMensaje" class="hidden"></div>
 
         <form id="formBancario">
+          <div class="field">
+            <label>Solicitante (correo electrónico) <span class="req">*</span></label>
+            <input type="email" id="solicitanteCorreo" placeholder="nombre@masisa.com" required />
+          </div>
+
           <div class="field-row">
             <div class="field">
               <label>Banco <span class="req">*</span></label>
@@ -594,6 +599,7 @@
     var proveedorSeleccionado = null;
     var tipoSolicitudActual = '';
     var archivoSeleccionado = null;
+    var EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     var ICONS = {
       info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -880,6 +886,7 @@
       e.preventDefault();
       if (!proveedorSeleccionado) return;
 
+      var solicitanteCorreo = document.getElementById('solicitanteCorreo').value.trim();
       var bancoSelect = document.getElementById('banco');
       var bancoClave = bancoSelect.value;
       var bancoNombre = bancoSelect.selectedOptions[0] ? bancoSelect.selectedOptions[0].dataset.nombre : '';
@@ -888,8 +895,13 @@
       var observacion = document.getElementById('observacion').value.trim();
       var mantenerRadio = document.querySelector('input[name="mantenerActual"]:checked');
 
-      if (!bancoClave || !numeroCuenta || !tipoCuenta || !mantenerRadio || !archivoSeleccionado) {
+      if (!solicitanteCorreo || !bancoClave || !numeroCuenta || !tipoCuenta || !mantenerRadio || !archivoSeleccionado) {
         modalMensaje('Completa todos los campos obligatorios.', 'error');
+        return;
+      }
+
+      if (!EMAIL_REGEX.test(solicitanteCorreo)) {
+        modalMensaje('Ingresa un correo electrónico válido para el solicitante.', 'error');
         return;
       }
 
@@ -906,6 +918,7 @@
           razonSocial: proveedorSeleccionado.razonSocial,
           identFiscal: proveedorSeleccionado.identFiscal,
           tipoSolicitud: tipoSolicitudActual,
+          solicitanteCorreo: solicitanteCorreo,
           bancoClave: bancoClave,
           bancoNombre: bancoNombre,
           tipoCuenta: tipoCuenta,

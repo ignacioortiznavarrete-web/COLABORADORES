@@ -17,7 +17,8 @@ var CONFIG = {
   MAX_ARCHIVO_BYTES: 15 * 1024 * 1024, // 15 MB
   CTA_ASOC_EXTRANJERO: '2131002', // solo proveedores extranjeros
   ESTADOS_SOLICITUD: ['En analisis', 'Actualizando', 'Modificado'],
-  ESTADO_INICIAL: 'En analisis'
+  ESTADO_INICIAL: 'En analisis',
+  EMAIL_REGEX: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 };
 
 var COL_PROVEEDORES = {
@@ -49,7 +50,8 @@ var COL_MODIFICACIONES = [
   'Tipo de solicitud',
   'Fecha solicitud',
   'Estado',
-  'Observacion'
+  'Observacion',
+  'Solicitante'
 ];
 
 // ---------------------------------------------------------------------------
@@ -170,6 +172,7 @@ function listarPaises() {
  *   swift, iban,                             // opcionales
  *   tipoCuenta, numeroCuenta,
  *   mantenerCuentaActual,                    // boolean
+ *   solicitanteCorreo,                       // correo de quien solicita
  *   observacion,                             // opcional
  *   archivo: { nombre, tipoMime, base64 }
  * }
@@ -204,9 +207,21 @@ function registrarSolicitudBancaria(payload) {
     payload.observacion || ''
   ]);
 
-  aplicarComboboxEstado_(hoja, hoja.getLastRow());
+  var filaInsertada = hoja.getLastRow();
+  aplicarComboboxEstado_(hoja, filaInsertada);
+  guardarSolicitante_(hoja, filaInsertada, payload.solicitanteCorreo);
 
   return { ok: true, mensaje: 'Solicitud registrada correctamente.', archivoUrl: archivoGuardado.getUrl() };
+}
+
+/**
+ * Escribe el correo del solicitante en la columna "Solicitante" de la fila
+ * recién insertada (columna ubicada dinámicamente por su encabezado).
+ */
+function guardarSolicitante_(hoja, fila, correo) {
+  var headers = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
+  var idxSolicitante = requireHeaderIndex_(headers, 'Solicitante', hoja.getName());
+  hoja.getRange(fila, idxSolicitante + 1).setValue(correo);
 }
 
 /**
@@ -224,12 +239,15 @@ function aplicarComboboxEstado_(hoja, fila) {
 }
 
 function validarPayload_(payload) {
-  var requeridos = ['acreedor', 'razonSocial', 'identFiscal', 'tipoSolicitud', 'nombreBanco', 'paisBanco', 'claveBanco', 'tipoCuenta', 'numeroCuenta'];
+  var requeridos = ['acreedor', 'razonSocial', 'identFiscal', 'tipoSolicitud', 'nombreBanco', 'paisBanco', 'claveBanco', 'tipoCuenta', 'numeroCuenta', 'solicitanteCorreo'];
   for (var i = 0; i < requeridos.length; i++) {
     var campo = requeridos[i];
     if (!payload[campo] || payload[campo].toString().trim() === '') {
       throw new Error('Falta el campo obligatorio: ' + campo);
     }
+  }
+  if (!CONFIG.EMAIL_REGEX.test(payload.solicitanteCorreo.toString().trim())) {
+    throw new Error('El correo del solicitante no es válido.');
   }
   if (typeof payload.mantenerCuentaActual !== 'boolean') {
     throw new Error('Debe indicar si desea mantener la cuenta actual o reemplazarla.');
