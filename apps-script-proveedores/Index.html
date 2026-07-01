@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --forest: #1E4D38;
+      --forest2: #2D6A4F;
+      --soft: #E6EFEA;
+      --light: #F7FAF8;
+      --white: #FFFFFF;
+      --text: #24352B;
+      --muted: #738579;
+      --danger: #B3261E;
+      --warning: #C28A22;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: var(--light);
+      color: var(--text);
+      padding: 24px;
+    }
+    h1 { font-size: 20px; color: var(--forest); margin: 0 0 4px; }
+    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    .search-bar input {
+      flex: 1;
+      padding: 11px 14px;
+      border: 1px solid #DCE5DF;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .search-bar input:focus { outline: none; border-color: var(--forest2); }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 11px 18px;
+      transition: filter .15s ease;
+    }
+    button:hover { filter: brightness(1.08); }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-primary { background: var(--forest); color: white; }
+    .btn-secondary { background: var(--soft); color: var(--forest); }
+    .btn-outline {
+      background: white;
+      color: var(--forest2);
+      border: 1px solid var(--forest2);
+      font-size: 12px;
+      padding: 7px 10px;
+    }
+    .btn-outline.alt {
+      color: var(--wood, #8D6E63);
+      border-color: var(--wood, #8D6E63);
+    }
+
+    .card {
+      background: var(--white);
+      border-radius: 16px;
+      border: 1px solid #DCE5DF;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .3px;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--soft);
+    }
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #EEF2EF;
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    .actions-cell { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .msg {
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    .msg-info { background: var(--soft); color: var(--forest); }
+    .msg-error { background: #FBEAE9; color: var(--danger); }
+    .msg-success { background: #E6F4EC; color: var(--forest2); }
+    .hidden { display: none !important; }
+
+    /* Modal */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 30, 25, .45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .modal {
+      background: white;
+      border-radius: 16px;
+      width: 480px;
+      max-width: 92vw;
+      max-height: 88vh;
+      overflow-y: auto;
+      padding: 22px;
+    }
+    .modal h2 { font-size: 16px; color: var(--forest); margin: 0 0 2px; }
+    .modal .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .field .req { color: var(--danger); }
+    .field select, .field input[type="text"], .field input[type="number"], .field textarea, .field input[type="file"] {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid #DCE5DF;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    .field textarea { resize: vertical; min-height: 60px; }
+    .radio-group { display: flex; gap: 16px; }
+    .radio-group label { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  </style>
+</head>
+<body>
+
+  <h1>Buscador de Proveedores</h1>
+  <div class="subtitle">Busca por Acreedor, Razón social o Nº ident.fis.1</div>
+
+  <div class="search-bar">
+    <input id="inputBusqueda" type="text" placeholder="Ingresa Acreedor, Razón social o Nº ident.fis.1..." />
+    <button class="btn-primary" id="btnBuscar">Buscar</button>
+  </div>
+
+  <div id="mensaje" class="hidden"></div>
+
+  <div class="card">
+    <table id="tablaResultados">
+      <thead>
+        <tr>
+          <th>Acreedor</th>
+          <th>Razón social</th>
+          <th>Nº ident.fis.1</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="cuerpoResultados"></tbody>
+    </table>
+  </div>
+
+  <!-- Modal de solicitud bancaria -->
+  <div id="overlay" class="overlay hidden">
+    <div class="modal">
+      <h2 id="modalTitulo">Modificar cuenta bancaria</h2>
+      <div class="modal-sub" id="modalSub"></div>
+
+      <div id="modalMensaje" class="hidden"></div>
+
+      <form id="formBancario">
+        <div class="field">
+          <label>Banco <span class="req">*</span></label>
+          <select id="banco" required>
+            <option value="">Selecciona un banco...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Número de cuenta <span class="req">*</span></label>
+          <input type="text" id="numeroCuenta" required />
+        </div>
+
+        <div class="field">
+          <label>Tipo de cuenta <span class="req">*</span></label>
+          <select id="tipoCuenta" required>
+            <option value="">Selecciona...</option>
+            <option value="CORRIENTE">Cuenta Corriente</option>
+            <option value="VISTA">Cuenta Vista</option>
+            <option value="AHORRO">Cuenta de Ahorro</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>¿Qué desea hacer con la cuenta actual? <span class="req">*</span></label>
+          <div class="radio-group">
+            <label><input type="radio" name="mantenerActual" value="si" required> Mantener cuenta actual</label>
+            <label><input type="radio" name="mantenerActual" value="no" required> Reemplazar por la recién registrada</label>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Observación</label>
+          <textarea id="observacion" placeholder="Opcional"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Documento bancario <span class="req">*</span></label>
+          <input type="file" id="documentoBancario" required />
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="btnCancelar">Cancelar</button>
+          <button type="submit" class="btn-primary" id="btnEnviar">Enviar solicitud</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    var bancos = [];
+    var proveedorSeleccionado = null;
+    var tipoSolicitudActual = '';
+
+    document.addEventListener('DOMContentLoaded', function () {
+      google.script.run.withSuccessHandler(function (lista) {
+        bancos = lista || [];
+        var select = document.getElementById('banco');
+        bancos.forEach(function (b) {
+          var opt = document.createElement('option');
+          opt.value = b.clave;
+          opt.textContent = b.nombre + ' (' + b.clave + ')';
+          opt.dataset.nombre = b.nombre;
+          select.appendChild(opt);
+        });
+      }).listarBancos();
+
+      document.getElementById('btnBuscar').addEventListener('click', buscar);
+      document.getElementById('inputBusqueda').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') buscar();
+      });
+      document.getElementById('btnCancelar').addEventListener('click', cerrarModal);
+      document.getElementById('formBancario').addEventListener('submit', enviarSolicitud);
+    });
+
+    function mostrarMensaje(texto, tipo) {
+      var el = document.getElementById('mensaje');
+      el.className = 'msg msg-' + tipo;
+      el.textContent = texto;
+    }
+
+    function ocultarMensaje() {
+      document.getElementById('mensaje').className = 'hidden';
+    }
+
+    function buscar() {
+      var termino = document.getElementById('inputBusqueda').value.trim();
+      var cuerpo = document.getElementById('cuerpoResultados');
+      cuerpo.innerHTML = '';
+      ocultarMensaje();
+
+      if (!termino) {
+        mostrarMensaje('Ingresa un Acreedor, Razón social o Nº ident.fis.1 para buscar.', 'info');
+        return;
+      }
+
+      document.getElementById('btnBuscar').disabled = true;
+      google.script.run
+        .withSuccessHandler(function (resultados) {
+          document.getElementById('btnBuscar').disabled = false;
+          renderResultados(resultados || []);
+        })
+        .withFailureHandler(function (error) {
+          document.getElementById('btnBuscar').disabled = false;
+          mostrarMensaje('Error al buscar: ' + (error && error.message ? error.message : error), 'error');
+        })
+        .buscarProveedores(termino);
+    }
+
+    function renderResultados(resultados) {
+      var cuerpo = document.getElementById('cuerpoResultados');
+      cuerpo.innerHTML = '';
+
+      if (resultados.length === 0) {
+        mostrarMensaje('No existe el proveedor.', 'error');
+        return;
+      }
+
+      ocultarMensaje();
+      resultados.forEach(function (p) {
+        var tr = document.createElement('tr');
+
+        var tdAcreedor = document.createElement('td');
+        tdAcreedor.textContent = p.acreedor;
+        tr.appendChild(tdAcreedor);
+
+        var tdRazon = document.createElement('td');
+        tdRazon.textContent = p.razonSocial;
+        tr.appendChild(tdRazon);
+
+        var tdIdent = document.createElement('td');
+        tdIdent.textContent = p.identFiscal;
+        tr.appendChild(tdIdent);
+
+        var tdAcciones = document.createElement('td');
+        tdAcciones.className = 'actions-cell';
+
+        var btnModificar = document.createElement('button');
+        btnModificar.className = 'btn-outline';
+        btnModificar.textContent = 'Modificar cuenta bancaria';
+        btnModificar.addEventListener('click', function () {
+          abrirModal(p, 'Modificar Cuenta Bancaria');
+        });
+
+        var btnAgregar = document.createElement('button');
+        btnAgregar.className = 'btn-outline alt';
+        btnAgregar.textContent = 'Agregar cuenta bancaria';
+        btnAgregar.addEventListener('click', function () {
+          abrirModal(p, 'Agregar Cuenta Bancaria');
+        });
+
+        tdAcciones.appendChild(btnModificar);
+        tdAcciones.appendChild(btnAgregar);
+        tr.appendChild(tdAcciones);
+
+        cuerpo.appendChild(tr);
+      });
+    }
+
+    function abrirModal(proveedor, tipoSolicitud) {
+      proveedorSeleccionado = proveedor;
+      tipoSolicitudActual = tipoSolicitud;
+
+      document.getElementById('modalTitulo').textContent = tipoSolicitud;
+      document.getElementById('modalSub').textContent =
+        proveedor.razonSocial + ' · Acreedor ' + proveedor.acreedor + ' · Nº ident.fis.1 ' + proveedor.identFiscal;
+
+      document.getElementById('formBancario').reset();
+      document.getElementById('modalMensaje').className = 'hidden';
+      document.getElementById('overlay').classList.remove('hidden');
+    }
+
+    function cerrarModal() {
+      document.getElementById('overlay').classList.add('hidden');
+      proveedorSeleccionado = null;
+      tipoSolicitudActual = '';
+    }
+
+    function modalMensaje(texto, tipo) {
+      var el = document.getElementById('modalMensaje');
+      el.className = 'msg msg-' + tipo;
+      el.textContent = texto;
+    }
+
+    function enviarSolicitud(e) {
+      e.preventDefault();
+      if (!proveedorSeleccionado) return;
+
+      var bancoSelect = document.getElementById('banco');
+      var bancoClave = bancoSelect.value;
+      var bancoNombre = bancoSelect.selectedOptions[0] ? bancoSelect.selectedOptions[0].dataset.nombre : '';
+      var numeroCuenta = document.getElementById('numeroCuenta').value.trim();
+      var tipoCuenta = document.getElementById('tipoCuenta').value;
+      var observacion = document.getElementById('observacion').value.trim();
+      var mantenerRadio = document.querySelector('input[name="mantenerActual"]:checked');
+      var archivoInput = document.getElementById('documentoBancario');
+
+      if (!bancoClave || !numeroCuenta || !tipoCuenta || !mantenerRadio || !archivoInput.files.length) {
+        modalMensaje('Completa todos los campos obligatorios.', 'error');
+        return;
+      }
+
+      var archivo = archivoInput.files[0];
+      var btnEnviar = document.getElementById('btnEnviar');
+      btnEnviar.disabled = true;
+      btnEnviar.textContent = 'Enviando...';
+
+      var lector = new FileReader();
+      lector.onload = function () {
+        var base64 = lector.result.split(',')[1];
+        var payload = {
+          acreedor: proveedorSeleccionado.acreedor,
+          razonSocial: proveedorSeleccionado.razonSocial,
+          identFiscal: proveedorSeleccionado.identFiscal,
+          tipoSolicitud: tipoSolicitudActual,
+          bancoClave: bancoClave,
+          bancoNombre: bancoNombre,
+          tipoCuenta: tipoCuenta,
+          numeroCuenta: numeroCuenta,
+          mantenerCuentaActual: mantenerRadio.value === 'si',
+          observacion: observacion,
+          archivo: {
+            nombre: archivo.name,
+            tipoMime: archivo.type,
+            base64: base64
+          }
+        };
+
+        google.script.run
+          .withSuccessHandler(function () {
+            btnEnviar.disabled = false;
+            btnEnviar.textContent = 'Enviar solicitud';
+            cerrarModal();
+            mostrarMensaje('Solicitud de "' + tipoSolicitudActual + '" registrada correctamente para ' + payload.razonSocial + '.', 'success');
+          })
+          .withFailureHandler(function (error) {
+            btnEnviar.disabled = false;
+            btnEnviar.textContent = 'Enviar solicitud';
+            modalMensaje('Error al registrar la solicitud: ' + (error && error.message ? error.message : error), 'error');
+          })
+          .registrarSolicitudBancaria(payload);
+      };
+      lector.onerror = function () {
+        btnEnviar.disabled = false;
+        btnEnviar.textContent = 'Enviar solicitud';
+        modalMensaje('No se pudo leer el archivo adjunto.', 'error');
+      };
+      lector.readAsDataURL(archivo);
+    }
+  </script>
+</body>
+</html>
