@@ -3,228 +3,579 @@
 <head>
   <base target="_top">
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
       --forest: #1E4D38;
       --forest2: #2D6A4F;
+      --forest3: #52796F;
       --soft: #E6EFEA;
-      --light: #F7FAF8;
+      --light: #F4F8F6;
       --white: #FFFFFF;
       --text: #24352B;
       --muted: #738579;
+      --border: #DCE5DF;
       --danger: #B3261E;
+      --danger-soft: #FBEAE9;
       --warning: #C28A22;
+      --wood: #8D6E63;
+      --success: #2D6A4F;
+      --success-soft: #E6F4EC;
+      --shadow: 0 8px 24px rgba(30, 77, 56, .08);
+      --shadow-lg: 0 20px 48px rgba(20, 30, 25, .18);
+      --radius: 16px;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
-      font-family: Inter, Arial, sans-serif;
-      background: var(--light);
+      font-family: 'Inter', Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(30,77,56,.08), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(82,121,111,.08), transparent 38%),
+        var(--light);
       color: var(--text);
-      padding: 24px;
+      min-height: 100%;
     }
-    h1 { font-size: 20px; color: var(--forest); margin: 0 0 4px; }
-    .subtitle { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .app { max-width: 1080px; margin: 0 auto; padding: 0 22px 40px; }
 
-    .search-bar {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 18px;
+    /* Header */
+    .hero {
+      background: linear-gradient(120deg, var(--forest), var(--forest2) 60%, var(--forest3));
+      color: white;
+      padding: 30px 34px;
+      border-radius: 0 0 24px 24px;
+      margin-bottom: -26px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
     }
-    .search-bar input {
+    .hero::after {
+      content: '';
+      position: absolute;
+      right: -60px; top: -60px;
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.08);
+    }
+    .hero-top { display: flex; align-items: center; gap: 14px; position: relative; z-index: 1; }
+    .hero-icon {
+      width: 46px; height: 46px;
+      background: rgba(255,255,255,.15);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .hero h1 { font-size: 21px; margin: 0; letter-spacing: -.2px; }
+    .hero .subtitle { color: rgba(255,255,255,.8); font-size: 13px; margin-top: 3px; }
+    .hero-badge {
+      margin-top: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,255,255,.12);
+      border: 1px solid rgba(255,255,255,.25);
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 12px;
+      border-radius: 999px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Search card */
+    .search-card {
+      position: relative;
+      z-index: 2;
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      padding: 20px;
+      margin: 0 0 22px;
+    }
+    .search-bar { display: flex; gap: 10px; }
+    .search-input-wrap {
+      position: relative;
       flex: 1;
-      padding: 11px 14px;
-      border: 1px solid #DCE5DF;
-      border-radius: 10px;
-      font-size: 14px;
+      display: flex;
+      align-items: center;
     }
-    .search-bar input:focus { outline: none; border-color: var(--forest2); }
+    .search-input-wrap svg { position: absolute; left: 14px; color: var(--muted); pointer-events: none; }
+    .search-input-wrap input {
+      width: 100%;
+      padding: 13px 14px 13px 42px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      transition: border-color .15s ease, box-shadow .15s ease;
+      background: var(--light);
+    }
+    .search-input-wrap input:focus {
+      outline: none;
+      border-color: var(--forest2);
+      box-shadow: 0 0 0 4px rgba(45,106,79,.12);
+      background: white;
+    }
+    .search-hint { margin-top: 10px; font-size: 12px; color: var(--muted); }
+
     button {
       cursor: pointer;
       border: none;
-      border-radius: 10px;
+      border-radius: 12px;
       font-size: 13px;
       font-weight: 700;
-      padding: 11px 18px;
-      transition: filter .15s ease;
+      font-family: inherit;
+      padding: 13px 20px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: filter .15s ease, transform .1s ease, box-shadow .15s ease;
     }
-    button:hover { filter: brightness(1.08); }
-    button:disabled { opacity: .6; cursor: not-allowed; }
-    .btn-primary { background: var(--forest); color: white; }
+    button:hover:not(:disabled) { filter: brightness(1.08); }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .btn-primary { background: linear-gradient(120deg, var(--forest), var(--forest2)); color: white; box-shadow: 0 6px 16px rgba(30,77,56,.25); }
     .btn-secondary { background: var(--soft); color: var(--forest); }
     .btn-outline {
       background: white;
       color: var(--forest2);
-      border: 1px solid var(--forest2);
-      font-size: 12px;
-      padding: 7px 10px;
+      border: 1.5px solid var(--forest2);
+      font-size: 12.5px;
+      padding: 8px 12px;
+      border-radius: 10px;
     }
-    .btn-outline.alt {
-      color: var(--wood, #8D6E63);
-      border-color: var(--wood, #8D6E63);
-    }
+    .btn-outline.alt { color: var(--wood); border-color: var(--wood); }
+    .btn-outline svg, .btn-primary svg, .btn-secondary svg { flex-shrink: 0; }
 
-    .card {
-      background: var(--white);
-      border-radius: 16px;
-      border: 1px solid #DCE5DF;
-      padding: 16px;
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(.96) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+
+    /* Messages */
+    .msg {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px 16px;
+      border-radius: 12px;
+      font-size: 13.5px;
       margin-bottom: 18px;
+      animation: fadeInUp .2s ease;
     }
+    .msg svg { flex-shrink: 0; margin-top: 1px; }
+    .msg-info { background: var(--soft); color: var(--forest); }
+    .msg-error { background: var(--danger-soft); color: var(--danger); }
+    .msg-success { background: var(--success-soft); color: var(--success); }
+    .hidden { display: none !important; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th {
+    /* Results */
+    .results-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--soft);
+    }
+    .results-header h3 { margin: 0; font-size: 14px; color: var(--forest); }
+    .results-count {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--forest2);
+      background: var(--soft);
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead th {
       text-align: left;
       color: var(--muted);
-      font-size: 11px;
+      font-size: 10.5px;
       text-transform: uppercase;
-      letter-spacing: .3px;
-      padding: 8px 10px;
-      border-bottom: 2px solid var(--soft);
+      letter-spacing: .4px;
+      font-weight: 800;
+      padding: 10px 20px;
+      background: var(--light);
     }
-    td {
-      padding: 10px;
-      border-bottom: 1px solid #EEF2EF;
-      vertical-align: middle;
-    }
-    tr:last-child td { border-bottom: none; }
-    .actions-cell { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    .msg {
-      padding: 12px 14px;
+    tbody td { padding: 12px 20px; border-top: 1px solid var(--soft); vertical-align: middle; }
+    tbody tr { animation: fadeInUp .25s ease; }
+    tbody tr:hover { background: #FAFCFB; }
+    .provider-cell { display: flex; align-items: center; gap: 12px; }
+    .avatar {
+      width: 36px; height: 36px;
       border-radius: 10px;
+      background: linear-gradient(135deg, var(--forest2), var(--forest3));
+      color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800;
       font-size: 13px;
-      margin-bottom: 14px;
+      flex-shrink: 0;
     }
-    .msg-info { background: var(--soft); color: var(--forest); }
-    .msg-error { background: #FBEAE9; color: var(--danger); }
-    .msg-success { background: #E6F4EC; color: var(--forest2); }
-    .hidden { display: none !important; }
+    .provider-name { font-weight: 700; color: var(--text); line-height: 1.25; }
+    .provider-sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    .chip {
+      display: inline-block;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px;
+      background: var(--soft);
+      color: var(--forest);
+      padding: 4px 9px;
+      border-radius: 7px;
+      font-weight: 700;
+    }
+    .actions-cell { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+    .empty-state, .loading-state {
+      padding: 46px 20px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .empty-state svg, .loading-state svg { margin-bottom: 12px; color: var(--forest3); opacity: .5; }
+    .skeleton-row { display: flex; gap: 14px; align-items: center; padding: 14px 20px; }
+    .skeleton-block { border-radius: 8px; background: var(--soft); animation: pulse 1.2s ease-in-out infinite; }
+
+    footer.note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
 
     /* Modal */
     .overlay {
       position: fixed;
       inset: 0;
-      background: rgba(20, 30, 25, .45);
+      background: rgba(16, 26, 21, .55);
+      backdrop-filter: blur(2px);
       display: flex;
       align-items: center;
       justify-content: center;
       z-index: 50;
+      padding: 20px;
     }
     .modal {
       background: white;
-      border-radius: 16px;
-      width: 480px;
-      max-width: 92vw;
-      max-height: 88vh;
+      border-radius: 20px;
+      width: 540px;
+      max-width: 100%;
+      max-height: 90vh;
       overflow-y: auto;
-      padding: 22px;
+      box-shadow: var(--shadow-lg);
+      animation: scaleIn .18s ease;
     }
-    .modal h2 { font-size: 16px; color: var(--forest); margin: 0 0 2px; }
-    .modal .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
-    .field { margin-bottom: 14px; }
+    .modal-header {
+      padding: 22px 24px 16px;
+      border-bottom: 1px solid var(--soft);
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 1;
+    }
+    .modal-header-top { display: flex; align-items: center; gap: 12px; }
+    .modal-icon {
+      width: 40px; height: 40px;
+      border-radius: 11px;
+      background: var(--soft);
+      color: var(--forest2);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .modal h2 { font-size: 16px; color: var(--forest); margin: 0; }
+    .modal .modal-sub {
+      font-size: 12px; color: var(--muted); margin-top: 8px;
+      display: flex; flex-wrap: wrap; gap: 6px;
+    }
+    .modal-body { padding: 20px 24px; }
+    .field { margin-bottom: 16px; }
+    .field-row { display: flex; gap: 12px; }
+    .field-row .field { flex: 1; }
     .field label {
-      display: block;
-      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12.5px;
       font-weight: 700;
       color: var(--text);
-      margin-bottom: 6px;
+      margin-bottom: 7px;
     }
     .field .req { color: var(--danger); }
-    .field select, .field input[type="text"], .field input[type="number"], .field textarea, .field input[type="file"] {
+    .field select, .field input[type="text"], .field textarea {
       width: 100%;
-      padding: 9px 10px;
-      border: 1px solid #DCE5DF;
-      border-radius: 8px;
+      padding: 10px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
       font-size: 13px;
       font-family: inherit;
+      background: var(--light);
+      transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    .field select:focus, .field input[type="text"]:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--forest2);
+      box-shadow: 0 0 0 4px rgba(45,106,79,.1);
+      background: white;
     }
     .field textarea { resize: vertical; min-height: 60px; }
-    .radio-group { display: flex; gap: 16px; }
-    .radio-group label { display: flex; align-items: center; gap: 6px; font-weight: 500; font-size: 13px; }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+
+    .option-cards { display: flex; gap: 10px; }
+    .option-card {
+      flex: 1;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 12px;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .option-card:hover { border-color: var(--forest3); }
+    .option-card input { accent-color: var(--forest2); width: 16px; height: 16px; flex-shrink: 0; }
+    .option-card.checked { border-color: var(--forest2); background: var(--success-soft); }
+
+    .dropzone {
+      border: 1.5px dashed var(--border);
+      border-radius: 12px;
+      padding: 18px 14px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--light);
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--forest2); background: var(--success-soft); }
+    .dropzone svg { color: var(--forest3); margin-bottom: 6px; }
+    .dropzone .dz-text { font-size: 12.5px; color: var(--muted); }
+    .dropzone .dz-text strong { color: var(--forest2); }
+    .file-chip {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--soft);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      color: var(--forest);
+    }
+    .file-chip svg { flex-shrink: 0; }
+    .file-chip .file-name { flex: 1; font-weight: 700; word-break: break-all; }
+    .file-chip button {
+      padding: 4px; background: none; color: var(--muted); border-radius: 6px;
+    }
+    .file-chip button:hover { background: rgba(0,0,0,.06); }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 24px 22px;
+    }
+
+    /* Toasts */
+    .toast-stack {
+      position: fixed;
+      top: 20px; right: 20px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 340px;
+      max-width: calc(100vw - 40px);
+    }
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      background: white;
+      border-left: 4px solid var(--forest2);
+      border-radius: 10px;
+      box-shadow: var(--shadow-lg);
+      padding: 13px 14px;
+      font-size: 13px;
+      animation: fadeInUp .2s ease;
+    }
+    .toast.error { border-left-color: var(--danger); }
+    .toast svg { flex-shrink: 0; margin-top: 1px; }
+    .toast .toast-close { margin-left: auto; cursor: pointer; color: var(--muted); background: none; border: none; padding: 0; font-size: 15px; }
+
+    @media (max-width: 640px) {
+      .app { padding: 0 12px 30px; }
+      .hero { padding: 24px 18px; border-radius: 0 0 18px 18px; }
+      .search-bar { flex-direction: column; }
+      .field-row { flex-direction: column; }
+      .option-cards { flex-direction: column; }
+      thead { display: none; }
+      table, tbody, tr, td { display: block; width: 100%; }
+      tbody td { border-top: none; padding: 6px 20px; }
+      tbody tr { border-bottom: 1px solid var(--soft); padding: 10px 0; }
+      .actions-cell { justify-content: flex-start; padding-top: 6px; }
+    }
   </style>
 </head>
 <body>
 
-  <h1>Buscador de Proveedores</h1>
-  <div class="subtitle">Busca por Acreedor, Razón social o Nº ident.fis.1</div>
+  <div class="toast-stack" id="toastStack"></div>
 
-  <div class="search-bar">
-    <input id="inputBusqueda" type="text" placeholder="Ingresa Acreedor, Razón social o Nº ident.fis.1..." />
-    <button class="btn-primary" id="btnBuscar">Buscar</button>
+  <div class="hero">
+    <div class="hero-top">
+      <div class="hero-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div>
+        <h1>Buscador de Proveedores</h1>
+        <div class="subtitle">Consulta datos bancarios y gestiona solicitudes de modificación</div>
+      </div>
+    </div>
+    <div class="hero-badge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Solo proveedores nacionales (Cta. asoc. 2131001)
+    </div>
   </div>
 
-  <div id="mensaje" class="hidden"></div>
+  <div class="app">
+    <div class="search-card">
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <input id="inputBusqueda" type="text" placeholder="Busca por Acreedor, Razón social o Nº ident.fis.1..." />
+        </div>
+        <button class="btn-primary" id="btnBuscar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Buscar
+        </button>
+      </div>
+      <div class="search-hint">Presiona Enter o haz clic en Buscar. Se muestran hasta 200 resultados.</div>
+    </div>
 
-  <div class="card">
-    <table id="tablaResultados">
-      <thead>
-        <tr>
-          <th>Acreedor</th>
-          <th>Razón social</th>
-          <th>Nº ident.fis.1</th>
-          <th>Acciones</th>
-        </tr>
-      </thead>
-      <tbody id="cuerpoResultados"></tbody>
-    </table>
+    <div id="mensaje" class="hidden"></div>
+
+    <div class="results-card" id="resultsCard">
+      <div class="results-header">
+        <h3>Resultados</h3>
+        <span class="results-count hidden" id="resultsCount">0</span>
+      </div>
+      <div id="resultsBody">
+        <div class="empty-state">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><path d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div>Ingresa un término para comenzar a buscar.</div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="note">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      La columna Cta.asoc. no se muestra; se usa solo para filtrar proveedores nacionales.
+    </footer>
   </div>
 
   <!-- Modal de solicitud bancaria -->
   <div id="overlay" class="overlay hidden">
     <div class="modal">
-      <h2 id="modalTitulo">Modificar cuenta bancaria</h2>
-      <div class="modal-sub" id="modalSub"></div>
-
-      <div id="modalMensaje" class="hidden"></div>
-
-      <form id="formBancario">
-        <div class="field">
-          <label>Banco <span class="req">*</span></label>
-          <select id="banco" required>
-            <option value="">Selecciona un banco...</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>Número de cuenta <span class="req">*</span></label>
-          <input type="text" id="numeroCuenta" required />
-        </div>
-
-        <div class="field">
-          <label>Tipo de cuenta <span class="req">*</span></label>
-          <select id="tipoCuenta" required>
-            <option value="">Selecciona...</option>
-            <option value="CORRIENTE">Cuenta Corriente</option>
-            <option value="VISTA">Cuenta Vista</option>
-            <option value="AHORRO">Cuenta de Ahorro</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label>¿Qué desea hacer con la cuenta actual? <span class="req">*</span></label>
-          <div class="radio-group">
-            <label><input type="radio" name="mantenerActual" value="si" required> Mantener cuenta actual</label>
-            <label><input type="radio" name="mantenerActual" value="no" required> Reemplazar por la recién registrada</label>
+      <div class="modal-header">
+        <div class="modal-header-top">
+          <div class="modal-icon" id="modalIcon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 21h18M5 21V9l7-5 7 5v12M9 21v-6h6v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
+          <h2 id="modalTitulo">Modificar cuenta bancaria</h2>
         </div>
+        <div class="modal-sub" id="modalSub"></div>
+      </div>
 
-        <div class="field">
-          <label>Observación</label>
-          <textarea id="observacion" placeholder="Opcional"></textarea>
-        </div>
+      <div class="modal-body">
+        <div id="modalMensaje" class="hidden"></div>
 
-        <div class="field">
-          <label>Documento bancario <span class="req">*</span></label>
-          <input type="file" id="documentoBancario" required />
-        </div>
+        <form id="formBancario">
+          <div class="field-row">
+            <div class="field">
+              <label>Banco <span class="req">*</span></label>
+              <select id="banco" required>
+                <option value="">Selecciona un banco...</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tipo de cuenta <span class="req">*</span></label>
+              <select id="tipoCuenta" required>
+                <option value="">Selecciona...</option>
+                <option value="CORRIENTE">Cuenta Corriente</option>
+                <option value="VISTA">Cuenta Vista</option>
+                <option value="AHORRO">Cuenta de Ahorro</option>
+              </select>
+            </div>
+          </div>
 
-        <div class="modal-actions">
-          <button type="button" class="btn-secondary" id="btnCancelar">Cancelar</button>
-          <button type="submit" class="btn-primary" id="btnEnviar">Enviar solicitud</button>
-        </div>
-      </form>
+          <div class="field">
+            <label>Número de cuenta <span class="req">*</span></label>
+            <input type="text" id="numeroCuenta" required />
+          </div>
+
+          <div class="field">
+            <label>¿Qué desea hacer con la cuenta actual? <span class="req">*</span></label>
+            <div class="option-cards" id="opcionesMantener">
+              <label class="option-card" data-value="si">
+                <input type="radio" name="mantenerActual" value="si" required> Mantener cuenta actual
+              </label>
+              <label class="option-card" data-value="no">
+                <input type="radio" name="mantenerActual" value="no" required> Reemplazar por la nueva
+              </label>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Observación</label>
+            <textarea id="observacion" placeholder="Opcional"></textarea>
+          </div>
+
+          <div class="field">
+            <label>Documento bancario <span class="req">*</span></label>
+            <div class="dropzone" id="dropzone">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0 4 4m-4-4-4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <div class="dz-text"><strong>Haz clic para subir</strong> o arrastra el archivo aquí</div>
+              <input type="file" id="documentoBancario" class="hidden" required />
+            </div>
+            <div id="fileChip" class="file-chip hidden">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="file-name" id="fileName"></span>
+              <button type="button" id="btnQuitarArchivo" title="Quitar archivo">✕</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" id="btnCancelar">Cancelar</button>
+        <button type="submit" form="formBancario" class="btn-primary" id="btnEnviar">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Enviar solicitud
+        </button>
+      </div>
     </div>
   </div>
 
@@ -232,6 +583,13 @@
     var bancos = [];
     var proveedorSeleccionado = null;
     var tipoSolicitudActual = '';
+    var archivoSeleccionado = null;
+
+    var ICONS = {
+      info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8v4m0 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      error: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8v5m0 3h.01M10.29 3.86 1.82 18a1.5 1.5 0 0 0 1.29 2.25h17.78A1.5 1.5 0 0 0 22.18 18L13.71 3.86a1.5 1.5 0 0 0-2.63 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      success: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    };
 
     document.addEventListener('DOMContentLoaded', function () {
       google.script.run.withSuccessHandler(function (lista) {
@@ -244,6 +602,8 @@
           opt.dataset.nombre = b.nombre;
           select.appendChild(opt);
         });
+      }).withFailureHandler(function (error) {
+        console.error('No se pudieron cargar los bancos', error);
       }).listarBancos();
 
       document.getElementById('btnBuscar').addEventListener('click', buscar);
@@ -252,65 +612,189 @@
       });
       document.getElementById('btnCancelar').addEventListener('click', cerrarModal);
       document.getElementById('formBancario').addEventListener('submit', enviarSolicitud);
+
+      configurarDropzone();
+      configurarOpcionCards();
     });
+
+    function configurarOpcionCards() {
+      var cards = document.querySelectorAll('#opcionesMantener .option-card');
+      cards.forEach(function (card) {
+        var input = card.querySelector('input');
+        card.addEventListener('click', function () {
+          cards.forEach(function (c) { c.classList.remove('checked'); });
+          input.checked = true;
+          card.classList.add('checked');
+        });
+      });
+    }
+
+    function configurarDropzone() {
+      var dropzone = document.getElementById('dropzone');
+      var input = document.getElementById('documentoBancario');
+
+      dropzone.addEventListener('click', function () { input.click(); });
+      input.addEventListener('change', function () {
+        if (input.files.length) setArchivo(input.files[0]);
+      });
+
+      ['dragover', 'dragenter'].forEach(function (evt) {
+        dropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          dropzone.classList.add('dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (evt) {
+        dropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          dropzone.classList.remove('dragover');
+        });
+      });
+      dropzone.addEventListener('drop', function (e) {
+        if (e.dataTransfer.files.length) {
+          input.files = e.dataTransfer.files;
+          setArchivo(e.dataTransfer.files[0]);
+        }
+      });
+
+      document.getElementById('btnQuitarArchivo').addEventListener('click', function (e) {
+        e.stopPropagation();
+        archivoSeleccionado = null;
+        input.value = '';
+        document.getElementById('fileChip').classList.add('hidden');
+        dropzone.classList.remove('hidden');
+      });
+    }
+
+    function setArchivo(archivo) {
+      archivoSeleccionado = archivo;
+      document.getElementById('fileName').textContent = archivo.name + ' (' + formatBytes(archivo.size) + ')';
+      document.getElementById('fileChip').classList.remove('hidden');
+      document.getElementById('dropzone').classList.add('hidden');
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
 
     function mostrarMensaje(texto, tipo) {
       var el = document.getElementById('mensaje');
       el.className = 'msg msg-' + tipo;
-      el.textContent = texto;
+      el.innerHTML = ICONS[tipo] + '<div>' + texto + '</div>';
     }
 
     function ocultarMensaje() {
       document.getElementById('mensaje').className = 'hidden';
     }
 
+    function mostrarToast(texto, tipo) {
+      var stack = document.getElementById('toastStack');
+      var toast = document.createElement('div');
+      toast.className = 'toast' + (tipo === 'error' ? ' error' : '');
+      toast.innerHTML = ICONS[tipo === 'error' ? 'error' : 'success'] + '<div>' + texto + '</div><button class="toast-close">✕</button>';
+      toast.querySelector('.toast-close').addEventListener('click', function () { toast.remove(); });
+      stack.appendChild(toast);
+      setTimeout(function () { toast.remove(); }, 5000);
+    }
+
+    function renderCargando() {
+      var body = document.getElementById('resultsBody');
+      var filas = '';
+      for (var i = 0; i < 4; i++) {
+        filas += '<div class="skeleton-row">' +
+          '<div class="skeleton-block" style="width:36px;height:36px;"></div>' +
+          '<div style="flex:1"><div class="skeleton-block" style="width:60%;height:12px;margin-bottom:8px;"></div><div class="skeleton-block" style="width:35%;height:10px;"></div></div>' +
+          '<div class="skeleton-block" style="width:80px;height:28px;"></div>' +
+          '</div>';
+      }
+      body.innerHTML = filas;
+      document.getElementById('resultsCount').classList.add('hidden');
+    }
+
+    function renderEstadoInicial() {
+      document.getElementById('resultsBody').innerHTML =
+        '<div class="empty-state">' + ICONS.info.replace('width="18" height="18"', 'width="42" height="42"') +
+        '<div>Ingresa un término para comenzar a buscar.</div></div>';
+      document.getElementById('resultsCount').classList.add('hidden');
+    }
+
     function buscar() {
       var termino = document.getElementById('inputBusqueda').value.trim();
-      var cuerpo = document.getElementById('cuerpoResultados');
-      cuerpo.innerHTML = '';
       ocultarMensaje();
 
       if (!termino) {
+        renderEstadoInicial();
         mostrarMensaje('Ingresa un Acreedor, Razón social o Nº ident.fis.1 para buscar.', 'info');
         return;
       }
 
-      document.getElementById('btnBuscar').disabled = true;
+      var btn = document.getElementById('btnBuscar');
+      btn.disabled = true;
+      var textoOriginal = btn.innerHTML;
+      btn.innerHTML = '<span class="spinner"></span> Buscando...';
+      renderCargando();
+
       google.script.run
         .withSuccessHandler(function (resultados) {
-          document.getElementById('btnBuscar').disabled = false;
+          btn.disabled = false;
+          btn.innerHTML = textoOriginal;
           renderResultados(resultados || []);
         })
         .withFailureHandler(function (error) {
-          document.getElementById('btnBuscar').disabled = false;
+          btn.disabled = false;
+          btn.innerHTML = textoOriginal;
+          document.getElementById('resultsBody').innerHTML = '';
+          document.getElementById('resultsCount').classList.add('hidden');
           mostrarMensaje('Error al buscar: ' + (error && error.message ? error.message : error), 'error');
         })
         .buscarProveedores(termino);
     }
 
+    function iniciales(nombre) {
+      if (!nombre) return '?';
+      var partes = nombre.trim().split(/\s+/);
+      var letras = partes[0].charAt(0) + (partes[1] ? partes[1].charAt(0) : '');
+      return letras.toUpperCase();
+    }
+
     function renderResultados(resultados) {
-      var cuerpo = document.getElementById('cuerpoResultados');
-      cuerpo.innerHTML = '';
+      var body = document.getElementById('resultsBody');
+      var count = document.getElementById('resultsCount');
 
       if (resultados.length === 0) {
-        mostrarMensaje('No existe el proveedor.', 'error');
+        body.innerHTML = '<div class="empty-state">' + ICONS.error.replace('width="18" height="18"', 'width="42" height="42"') +
+          '<div>No existe el proveedor.</div></div>';
+        count.classList.add('hidden');
         return;
       }
 
-      ocultarMensaje();
+      count.textContent = resultados.length + (resultados.length === 1 ? ' resultado' : ' resultados');
+      count.classList.remove('hidden');
+
+      var tabla = document.createElement('table');
+      tabla.innerHTML =
+        '<thead><tr><th>Proveedor</th><th>Acreedor</th><th>Nº ident.fis.1</th><th></th></tr></thead>' +
+        '<tbody></tbody>';
+      var tbody = tabla.querySelector('tbody');
+
       resultados.forEach(function (p) {
         var tr = document.createElement('tr');
 
+        var tdProveedor = document.createElement('td');
+        tdProveedor.innerHTML =
+          '<div class="provider-cell"><div class="avatar">' + iniciales(p.razonSocial) + '</div>' +
+          '<div><div class="provider-name">' + escapeHtml(p.razonSocial) + '</div>' +
+          '<div class="provider-sub">Proveedor nacional</div></div></div>';
+        tr.appendChild(tdProveedor);
+
         var tdAcreedor = document.createElement('td');
-        tdAcreedor.textContent = p.acreedor;
+        tdAcreedor.innerHTML = '<span class="chip">' + escapeHtml(p.acreedor) + '</span>';
         tr.appendChild(tdAcreedor);
 
-        var tdRazon = document.createElement('td');
-        tdRazon.textContent = p.razonSocial;
-        tr.appendChild(tdRazon);
-
         var tdIdent = document.createElement('td');
-        tdIdent.textContent = p.identFiscal;
+        tdIdent.innerHTML = '<span class="chip">' + escapeHtml(p.identFiscal) + '</span>';
         tr.appendChild(tdIdent);
 
         var tdAcciones = document.createElement('td');
@@ -318,14 +802,14 @@
 
         var btnModificar = document.createElement('button');
         btnModificar.className = 'btn-outline';
-        btnModificar.textContent = 'Modificar cuenta bancaria';
+        btnModificar.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Modificar';
         btnModificar.addEventListener('click', function () {
           abrirModal(p, 'Modificar Cuenta Bancaria');
         });
 
         var btnAgregar = document.createElement('button');
         btnAgregar.className = 'btn-outline alt';
-        btnAgregar.textContent = 'Agregar cuenta bancaria';
+        btnAgregar.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Agregar';
         btnAgregar.addEventListener('click', function () {
           abrirModal(p, 'Agregar Cuenta Bancaria');
         });
@@ -334,8 +818,17 @@
         tdAcciones.appendChild(btnAgregar);
         tr.appendChild(tdAcciones);
 
-        cuerpo.appendChild(tr);
+        tbody.appendChild(tr);
       });
+
+      body.innerHTML = '';
+      body.appendChild(tabla);
+    }
+
+    function escapeHtml(texto) {
+      var div = document.createElement('div');
+      div.textContent = texto == null ? '' : texto;
+      return div.innerHTML;
     }
 
     function abrirModal(proveedor, tipoSolicitud) {
@@ -343,10 +836,16 @@
       tipoSolicitudActual = tipoSolicitud;
 
       document.getElementById('modalTitulo').textContent = tipoSolicitud;
-      document.getElementById('modalSub').textContent =
-        proveedor.razonSocial + ' · Acreedor ' + proveedor.acreedor + ' · Nº ident.fis.1 ' + proveedor.identFiscal;
+      document.getElementById('modalSub').innerHTML =
+        '<span class="chip">' + escapeHtml(proveedor.razonSocial) + '</span>' +
+        '<span class="chip">Acreedor ' + escapeHtml(proveedor.acreedor) + '</span>' +
+        '<span class="chip">Nº ident.fis.1 ' + escapeHtml(proveedor.identFiscal) + '</span>';
 
       document.getElementById('formBancario').reset();
+      document.querySelectorAll('#opcionesMantener .option-card').forEach(function (c) { c.classList.remove('checked'); });
+      archivoSeleccionado = null;
+      document.getElementById('fileChip').classList.add('hidden');
+      document.getElementById('dropzone').classList.remove('hidden');
       document.getElementById('modalMensaje').className = 'hidden';
       document.getElementById('overlay').classList.remove('hidden');
     }
@@ -360,7 +859,7 @@
     function modalMensaje(texto, tipo) {
       var el = document.getElementById('modalMensaje');
       el.className = 'msg msg-' + tipo;
-      el.textContent = texto;
+      el.innerHTML = ICONS[tipo] + '<div>' + texto + '</div>';
     }
 
     function enviarSolicitud(e) {
@@ -374,17 +873,16 @@
       var tipoCuenta = document.getElementById('tipoCuenta').value;
       var observacion = document.getElementById('observacion').value.trim();
       var mantenerRadio = document.querySelector('input[name="mantenerActual"]:checked');
-      var archivoInput = document.getElementById('documentoBancario');
 
-      if (!bancoClave || !numeroCuenta || !tipoCuenta || !mantenerRadio || !archivoInput.files.length) {
+      if (!bancoClave || !numeroCuenta || !tipoCuenta || !mantenerRadio || !archivoSeleccionado) {
         modalMensaje('Completa todos los campos obligatorios.', 'error');
         return;
       }
 
-      var archivo = archivoInput.files[0];
       var btnEnviar = document.getElementById('btnEnviar');
       btnEnviar.disabled = true;
-      btnEnviar.textContent = 'Enviando...';
+      var textoOriginal = btnEnviar.innerHTML;
+      btnEnviar.innerHTML = '<span class="spinner"></span> Enviando...';
 
       var lector = new FileReader();
       lector.onload = function () {
@@ -401,8 +899,8 @@
           mantenerCuentaActual: mantenerRadio.value === 'si',
           observacion: observacion,
           archivo: {
-            nombre: archivo.name,
-            tipoMime: archivo.type,
+            nombre: archivoSeleccionado.name,
+            tipoMime: archivoSeleccionado.type,
             base64: base64
           }
         };
@@ -410,23 +908,23 @@
         google.script.run
           .withSuccessHandler(function () {
             btnEnviar.disabled = false;
-            btnEnviar.textContent = 'Enviar solicitud';
+            btnEnviar.innerHTML = textoOriginal;
             cerrarModal();
-            mostrarMensaje('Solicitud de "' + tipoSolicitudActual + '" registrada correctamente para ' + payload.razonSocial + '.', 'success');
+            mostrarToast('Solicitud de "' + tipoSolicitudActual + '" registrada correctamente para ' + payload.razonSocial + '.', 'success');
           })
           .withFailureHandler(function (error) {
             btnEnviar.disabled = false;
-            btnEnviar.textContent = 'Enviar solicitud';
+            btnEnviar.innerHTML = textoOriginal;
             modalMensaje('Error al registrar la solicitud: ' + (error && error.message ? error.message : error), 'error');
           })
           .registrarSolicitudBancaria(payload);
       };
       lector.onerror = function () {
         btnEnviar.disabled = false;
-        btnEnviar.textContent = 'Enviar solicitud';
+        btnEnviar.innerHTML = textoOriginal;
         modalMensaje('No se pudo leer el archivo adjunto.', 'error');
       };
-      lector.readAsDataURL(archivo);
+      lector.readAsDataURL(archivoSeleccionado);
     }
   </script>
 </body>

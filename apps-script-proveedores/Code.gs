@@ -14,7 +14,8 @@ var CONFIG = {
   SHEET_MODIFICACIONES_ALIASES: ['ModificacionBancaria', 'ModificacionesBancaria'],
   DRIVE_ROOT_FOLDER_ID: '1rPDEn_0_13ym8Z3-svqPtrknYCkGCsVp',
   MAX_RESULTADOS: 200,
-  MAX_ARCHIVO_BYTES: 15 * 1024 * 1024 // 15 MB
+  MAX_ARCHIVO_BYTES: 15 * 1024 * 1024, // 15 MB
+  CTA_ASOC_NACIONAL: '2131001' // solo proveedores nacionales
 };
 
 var COL_PROVEEDORES = {
@@ -76,7 +77,8 @@ function abrirBuscador() {
 /**
  * Busca proveedores en ProveedoresCreados por Acreedor, Razón social
  * (columna "Número de cuenta del proveedor") o Nº ident.fis.1.
- * No expone la columna Cta.asoc.
+ * Solo se consideran proveedores nacionales (Cta.asoc. = 2131001).
+ * No expone la columna Cta.asoc. en el resultado.
  */
 function buscarProveedores(termino) {
   termino = (termino || '').toString().trim().toLowerCase();
@@ -90,6 +92,7 @@ function buscarProveedores(termino) {
   var idxAcreedor = requireHeaderIndex_(headers, COL_PROVEEDORES.ACREEDOR, CONFIG.SHEET_PROVEEDORES);
   var idxRazonSocial = requireHeaderIndex_(headers, COL_PROVEEDORES.RAZON_SOCIAL, CONFIG.SHEET_PROVEEDORES);
   var idxIdentFiscal = requireHeaderIndex_(headers, COL_PROVEEDORES.IDENT_FISCAL, CONFIG.SHEET_PROVEEDORES);
+  var idxCtaAsoc = requireHeaderIndex_(headers, COL_PROVEEDORES.CTA_ASOC, CONFIG.SHEET_PROVEEDORES);
 
   var resultados = [];
   for (var i = 1; i < data.length; i++) {
@@ -97,8 +100,10 @@ function buscarProveedores(termino) {
     var acreedor = valueToString_(row[idxAcreedor]);
     var razonSocial = valueToString_(row[idxRazonSocial]);
     var identFiscal = valueToString_(row[idxIdentFiscal]);
+    var ctaAsoc = valueToString_(row[idxCtaAsoc]);
 
     if (!acreedor && !razonSocial && !identFiscal) continue;
+    if (ctaAsoc !== CONFIG.CTA_ASOC_NACIONAL) continue;
 
     var coincide =
       acreedor.toLowerCase().indexOf(termino) > -1 ||
