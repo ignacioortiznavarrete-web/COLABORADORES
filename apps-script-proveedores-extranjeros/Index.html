@@ -897,6 +897,32 @@
       tipoSolicitudActual = '';
     }
 
+    /**
+     * Redirige la página completa tras registrar la solicitud. Algunos
+     * navegadores bloquean la navegación de nivel superior desde el iframe
+     * sandbox de Apps Script cuando ocurre dentro de un callback asíncrono,
+     * así que además del intento automático se muestra un enlace manual
+     * como respaldo para que el usuario nunca quede atascado.
+     */
+    function redirigirTrasEnvio_() {
+      var overlay = document.createElement('div');
+      overlay.style.cssText =
+        'position:fixed;inset:0;z-index:999;background:var(--light);' +
+        'display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;padding:24px;';
+      overlay.innerHTML =
+        '<div class="spinner" style="width:26px;height:26px;border-color:rgba(30,77,56,.25);border-top-color:var(--forest2);"></div>' +
+        '<div style="font-weight:700;color:var(--forest);">Solicitud registrada. Redirigiendo...</div>' +
+        '<a id="enlaceRedireccion" href="' + URL_REDIRECCION + '" target="_top" ' +
+        'style="color:var(--forest2);font-weight:700;text-decoration:underline;">Si no fuiste redirigido, haz clic aquí</a>';
+      document.body.appendChild(overlay);
+
+      try {
+        top.location.href = URL_REDIRECCION;
+      } catch (e) {
+        // La navegación cruzada puede ser bloqueada por el navegador; el enlace manual queda visible.
+      }
+    }
+
     function modalMensaje(texto, tipo) {
       var el = document.getElementById('modalMensaje');
       el.className = 'msg msg-' + tipo;
@@ -960,7 +986,9 @@
 
         google.script.run
           .withSuccessHandler(function () {
-            top.location.href = URL_REDIRECCION;
+            btnEnviar.disabled = false;
+            btnEnviar.innerHTML = textoOriginal;
+            redirigirTrasEnvio_();
           })
           .withFailureHandler(function (error) {
             btnEnviar.disabled = false;
