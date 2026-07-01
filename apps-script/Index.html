@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Dashboard de ingreso de Trozo</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root {
+      --forest: #1E4D38;
+      --forest2: #2D6A4F;
+      --forest3: #52796F;
+      --soft: #E6EFEA;
+      --light: #F7FAF8;
+      --white: #FFFFFF;
+      --text: #24352B;
+      --muted: #738579;
+      --wood: #8D6E63;
+      --danger: #B3261E;
+      --warning: #C28A22;
+    }
+
+    * { box-sizing: border-box; }
+
+    @keyframes fadeIn      { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes valuePulse  { from { background-color: rgba(45,106,79,.18); } to { background-color: rgba(45,106,79,0); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: radial-gradient(circle at top left, rgba(30,77,56,.10), transparent 28%),
+                  linear-gradient(180deg, #F6F8F6, #FFFFFF);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 14px 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(90deg, var(--forest), var(--forest2));
+      color: white;
+      box-shadow: 0 8px 25px rgba(0,0,0,.14);
+      position: sticky;
+      top: 0;
+      z-index: 999;
+    }
+
+    .brand-title {
+      font-size: 26px;
+      font-weight: 800;
+      letter-spacing: -.4px;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      opacity: .88;
+      margin-top: 2px;
+    }
+
+    /* ── FECHA DE ÚLTIMA ACTUALIZACIÓN ── */
+    .brand-update {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.75);
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.20);
+      border-radius: 20px;
+      padding: 3px 10px;
+    }
+
+    .brand-update svg {
+      width: 12px;
+      height: 12px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+
+    .brand-update .update-label { opacity: .75; }
+    .brand-update .update-date  { color: #b7f5d3; font-weight: 700; }
+
+    .actions { display: flex; gap: 10px; align-items: center; }
+
+    button {
+      border: none;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      color: white;
+      background: linear-gradient(90deg, #193F30, var(--forest2));
+      box-shadow: 0 8px 18px rgba(0,0,0,.15);
+      transition: .2s;
+    }
+
+    button:hover  { transform: translateY(-1px); filter: brightness(1.05); }
+    button:active { transform: translateY(0);    filter: brightness(.97); }
+
+    .wrap { max-width: 1850px; margin: auto; padding: 20px; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(6,1fr) auto;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    input, select {
+      padding: 13px 14px;
+      border-radius: 12px;
+      border: 1px solid #DCE5DF;
+      outline: none;
+      background: white;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--forest2);
+      box-shadow: 0 0 0 3px rgba(45,106,79,.10);
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px,1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .card {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 18px;
+      border: 1px solid #E8ECEA;
+      box-shadow: 0 8px 26px rgba(0,0,0,.05);
+      animation: fadeIn .6s ease-out both;
+    }
+
+    .k-label { font-size: 11px; text-transform: uppercase; font-weight: 800; color: var(--muted); letter-spacing: .3px; }
+    .k-value { font-size: 29px; font-weight: 800; margin-top: 8px; color: var(--forest); }
+    .k-small { margin-top: 5px; font-size: 11px; color: var(--muted); }
+
+    .quality-kpis { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 18px; }
+    .quality-kpi  { border-left: 5px solid var(--forest2); }
+    .quality-kpi.siniestrado { border-left-color: var(--danger); }
+    .quality-kpi.manchado    { border-left-color: var(--warning); }
+
+    .kpis .card, .quality-kpis .card {
+      animation: fadeSlideIn .5s ease-out both;
+      transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+    .kpis .card:hover, .quality-kpis .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 16px 34px rgba(30,77,56,.14);
+    }
+
+    .kpis .card:nth-child(1){animation-delay:.03s} .kpis .card:nth-child(2){animation-delay:.07s}
+    .kpis .card:nth-child(3){animation-delay:.11s} .kpis .card:nth-child(4){animation-delay:.15s}
+    .kpis .card:nth-child(5){animation-delay:.19s} .kpis .card:nth-child(6){animation-delay:.23s}
+    .kpis .card:nth-child(7){animation-delay:.27s} .kpis .card:nth-child(8){animation-delay:.31s}
+    .quality-kpis .card:nth-child(1){animation-delay:.35s}
+    .quality-kpis .card:nth-child(2){animation-delay:.39s}
+    .quality-kpis .card:nth-child(3){animation-delay:.43s}
+
+    .value-pulse { animation: valuePulse .9s ease-out; border-radius: 8px; }
+
+    .grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 18px; }
+    .two  { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .full { grid-column: 1/-1; }
+
+    h3 { margin: 0 0 12px; font-size: 17px; color: var(--forest); }
+
+    .chart { height: 365px; background: white; border-radius: 16px; padding: 8px; }
+    .chart-empty {
+      height: 365px; display: grid; place-items: center;
+      color: var(--muted); font-size: 13px; font-weight: 700;
+      background: white; border-radius: 16px;
+    }
+
+    #map, #comunaMap { height: 635px; border-radius: 18px; overflow: hidden; border: 1px solid #DCE5DF; }
+    #comunaMap { height: 480px; }
+
+    .map-layout { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 12px; align-items: stretch; }
+
+    .role-list {
+      height: 635px; overflow: auto;
+      border: 1px solid #DCE5DF; border-radius: 18px; background: #FFFFFF;
+    }
+
+    .role-list-head {
+      position: sticky; top: 0; z-index: 1;
+      padding: 12px 14px; background: var(--forest); color: white;
+      font-size: 12px; font-weight: 800;
+    }
+
+    .role-item {
+      width: 100%; display: block; text-align: left;
+      padding: 12px 14px; border: 0; border-bottom: 1px solid #EEF2EF;
+      border-radius: 0; background: white; color: var(--text);
+      box-shadow: none; cursor: pointer;
+    }
+
+    .role-item:hover  { transform: none; background: #F7FAF8; filter: none; }
+    .role-item.active { background: #E6EFEA; border-left: 4px solid var(--forest2); padding-left: 10px; }
+
+    .role-predio { font-size: 13px; font-weight: 800; color: var(--forest); white-space: normal; line-height: 1.25; }
+    .role-meta   { margin-top: 5px; display: grid; gap: 3px; font-size: 11px; color: var(--muted); line-height: 1.25; }
+    .role-empty  { padding: 16px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .map-tools { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+
+    .pill {
+      border: 1px solid #DCE5DF; background: #F7FAF8; color: var(--forest);
+      padding: 8px 10px; border-radius: 999px; font-size: 12px; font-weight: 800;
+    }
+
+    .table-wrap { max-height: 460px; overflow: auto; border-radius: 14px; border: 1px solid #E8ECEA; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; background: white; }
+
+    th {
+      position: sticky; top: 0; z-index: 2;
+      background: var(--forest); color: white;
+      padding: 10px; text-align: left; white-space: nowrap;
+    }
+
+    /* Columna cumplimiento clickeable */
+    th.sortable { cursor: pointer; user-select: none; }
+    th.sortable:hover { background: var(--forest2); }
+    th.sortable::after { content: ' ↕'; opacity: .5; font-size: 10px; }
+    th.sort-desc::after { content: ' ↓'; opacity: 1; }
+    th.sort-asc::after  { content: ' ↑'; opacity: 1; }
+
+    td { padding: 9px 10px; border-bottom: 1px solid #EEF2EF; white-space: nowrap; }
+    tr:hover td { background: #F7FAF8; }
+
+    .badge {
+      display: inline-block; min-width: 72px; text-align: center;
+      padding: 5px 8px; border-radius: 999px; color: white; font-weight: 800;
+    }
+
+    .inline-toggle {
+      width: auto; padding: 4px 8px; margin-right: 6px;
+      border-radius: 6px; box-shadow: none; font-size: 11px; line-height: 1;
+    }
+
+    .child-row td { background: #F7FAF8; color: var(--muted); font-size: 11px; }
+
+    .totals-row td {
+      background: var(--soft); color: var(--forest); font-weight: 800;
+      border-top: 2px solid var(--forest2); border-bottom: none;
+    }
+    .totals-row:hover td { background: var(--soft); }
+
+    .legend {
+      background: white; padding: 10px 12px; border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.14); font-size: 12px;
+      line-height: 1.6; color: var(--text);
+    }
+    .legend-item  { display: flex; align-items: center; gap: 7px; }
+    .legend-color { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+
+    .status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    @media (max-width: 1200px) {
+      .quality-kpis { grid-template-columns: 1fr; }
+      .grid, .two, .filters { grid-template-columns: 1fr; }
+      #map, #comunaMap { height: 520px; }
+      .map-layout { grid-template-columns: 1fr; }
+      .role-list { height: 360px; }
+    }
+
+    @media (max-width: 700px) {
+      header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .quality-kpis { grid-template-columns: 1fr; }
+      .actions { width: 100%; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <div class="brand-title">Dashboard de Ingeso de Trozos</div>
+      <div class="brand-subtitle">Ingresos · Cubicación · Calidad · ROL · KML/KMZ · Análisis</div>
+
+      <!-- FECHA ÚLTIMA ACTUALIZACIÓN -->
+      <div class="brand-update">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span class="update-label">Última actualización BD:</span>
+        <span id="lastUpdateLabel" class="update-date">cargando...</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button onclick="loadData(true)">Actualizar datos</button>
+      <button onclick="exportCSV()">Exportar matriz</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="filters">
+      <input id="fProveedor" placeholder="Filtrar proveedor..."   oninput="renderAllFilteredDebounced()">
+      <input id="fPredio"    placeholder="Filtrar predio/faena..." oninput="renderAllFilteredDebounced()">
+      <input id="fComuna"    placeholder="Filtrar comuna..."       oninput="renderAllFilteredDebounced()">
+      <input id="fRol"       placeholder="Filtrar ROL..."          oninput="renderAllFilteredDebounced()">
+      <select id="fCalidad" onchange="renderAllFiltered()">
+        <option value="">Todas las calidades</option>
+        <option value="SINIESTRADO">Siniestrado</option>
+        <option value="VERDE">Verde</option>
+        <option value="MANCHADO">Manchado</option>
+      </select>
+      <select id="fLargo" onchange="renderAllFiltered()">
+        <option value="">Todos los largos</option>
+      </select>
+      <select id="metricMap" onchange="redrawRoleLayers()">
+        <option value="cubicacion">Color por cubicación</option>
+        <option value="trozos">Color por trozos</option>
+        <option value="eficiencia">Color por eficiencia</option>
+      </select>
+    </section>
+
+    <section class="kpis">
+      <div class="card">
+        <div class="k-label">Cubicación total</div>
+        <div id="kCub" class="k-value">-</div>
+        <div id="kCubPlanDetalle" class="k-small">m³ ingresados</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Diámetro promedio</div>
+        <div id="kDiam" class="k-value">-</div>
+        <div class="k-small">ponderado por trozos</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Plan mes</div>
+        <div id="kPlanMes" class="k-value">-</div>
+        <div id="kPlanMesLabel" class="k-small">m³ proyectados</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Cumplimiento a fecha</div>
+        <div id="kCumplimientoPlan" class="k-value">-</div>
+        <div id="kCumplimientoPlanLabel" class="k-small">real / plan a fecha</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Dif. plan a fecha</div>
+        <div id="kDiferenciaPlan" class="k-value">-</div>
+        <div class="k-small">m³ real - plan a fecha</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Proyección cierre de mes</div>
+        <div id="kProyeccionCierre" class="k-value">-</div>
+        <div id="kProyeccionCierreLabel" class="k-small">según ritmo actual</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Proveedor líder</div>
+        <div id="kProveedorLider" class="k-value">-</div>
+        <div id="kProveedorLiderLabel" class="k-small">mayor cubicación del mes</div>
+      </div>
+
+    </section>
+
+    <section class="quality-kpis">
+      <div class="card quality-kpi siniestrado">
+        <div class="k-label">Diámetro promedio · Siniestrado</div>
+        <div id="kDiamSiniestrado" class="k-value">-</div>
+        <div id="kVolSiniestrado" class="k-small">m³: -</div>
+      </div>
+      <div class="card quality-kpi">
+        <div class="k-label">Diámetro promedio · Verde</div>
+        <div id="kDiamVerde" class="k-value">-</div>
+        <div id="kVolVerde" class="k-small">m³: -</div>
+      </div>
+      <div class="card quality-kpi manchado">
+        <div class="k-label">Diámetro promedio · Manchado</div>
+        <div id="kDiamManchado" class="k-value">-</div>
+        <div id="kVolManchado" class="k-small">m³: -</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h3>Mapa por ROL</h3>
+        <div class="map-tools">
+          <span id="mapStatus" class="pill">KML/KMZ: cargando...</span>
+
+        </div>
+        <div class="map-layout">
+          <div id="map"></div>
+          <aside class="role-list">
+            <div id="roleListHead" class="role-list-head">Cargando predios</div>
+            <div id="roleList"><div class="role-empty">Cargando predios KML/KMZ...</div></div>
+          </aside>
+        </div>
+
+      </div>
+
+      <div class="card">
+        <h3>Cumplimiento plan proveedores</h3>
+        <div id="tablaProveedor" class="table-wrap"></div>
+      </div>
+
+      <div class="card full">
+        <h3>Top proveedores por cubicación</h3>
+        <div id="chartTopProveedores" class="chart"></div>
+        <div class="status">Ranking de los proveedores con mayor cubicación dentro de la vista filtrada actual (máx. 8).</div>
+      </div>
+
+      <div class="card full">
+        <h3>Mapa analítico por comuna</h3>
+        <div class="map-tools">
+          <span id="comunaMapStatus" class="pill">Comunas: cargando...</span>
+          <select id="metricComunaMap" onchange="redrawComunaLayers()">
+            <option value="cubicacion">Tamaño por cubicación</option>
+            <option value="trozos">Tamaño por trozos</option>
+            <option value="predios">Tamaño por predios</option>
+          </select>
+        </div>
+        <div id="comunaMap"></div>
+        <div class="status">Este mapa agrupa los predios KML/KMZ visibles por comuna.</div>
+      </div>
+
+      <div class="card full">
+        <div class="two">
+          <div>
+            <h3>Trozos por calidad</h3>
+            <div id="chartCalidadTrozos" class="chart"></div>
+          </div>
+          <div>
+            <h3>Cubicación por calidad</h3>
+            <div id="chartCalidadCubicacion" class="chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card full">
+        <h3>Entrega diaria: m³ real vs meta diaria hábil</h3>
+        <div id="chartFecha" class="chart"></div>
+      </div>
+
+      <div class="card full">
+        <h3>Resumen analítico por calidad</h3>
+        <div id="tablaCalidad" class="table-wrap"></div>
+      </div>
+
+      <div class="card full">
+        <h3>Resumen por región</h3>
+        <div id="tablaRegion" class="table-wrap"></div>
+      </div>
+
+      <div class="card full">
+        <h3>Tabla general de recepciones</h3>
+        <div id="tablaGeneral" class="table-wrap"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let DATA = null;
+    let ROLE_MAP_DATA = [];
+    let MAP_DIAGNOSTICS = null;
+    let MAP = null;
+    let ROLE_LAYER_GROUP = null;
+    let ROLE_LAYER_INDEX = {};
+    let COMUNA_MAP = null;
+    let COMUNA_LAYER_GROUP = null;
+    let ALL_BOUNDS = [];
+    let CHART_READY = false;
+    let DATA_REQUESTED = false;
+
+    // Estado de orden de la tabla cumplimiento
+    let COMPLIANCE_SORT = 'cubicacion_desc'; // cubicacion_desc | cubicacion_asc | cumpl_desc | cumpl_asc
+
+    const PLANTA_CABRERO = { lat: -37.034, lng: -72.426, label: 'Ruta 146 N° 2015, Cabrero' };
+
+    google.charts.load('current', { packages: ['corechart', 'bar'] });
+    google.charts.setOnLoadCallback(() => { CHART_READY = true; loadData(false); });
+
+    window.addEventListener('load', () => {
+      setTimeout(() => { if (!DATA_REQUESTED) loadData(false); }, 1800);
+    });
+
+    function loadData(force) {
+      DATA_REQUESTED = true;
+      Swal.fire({
+        title: 'Cargando dashboard',
+        text: 'Leyendo datos y preparando análisis...',
+        allowOutsideClick: false,
+        background: '#FFFFFF',
+        color: '#24352B',
+        didOpen: () => Swal.showLoading()
+      });
+
+      google.script.run
+        .withSuccessHandler(data => {
+          DATA = data;
+
+          // Mostrar fecha de última actualización
+          const el = document.getElementById('lastUpdateLabel');
+          if (el) el.textContent = data.lastUpdate || 'Sin datos';
+
+          populateLargoOptions();
+          renderKPIs();
+          renderCharts();
+          renderTables();
+          initMap();
+          initComunaMap();
+          document.getElementById('mapStatus').textContent = 'KML/KMZ: cargando en segundo plano...';
+          document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
+          setRoleListLoading();
+          Swal.close();
+          setTimeout(loadRoleMapData, 150);
+        })
+        .withFailureHandler(err => {
+          Swal.fire('Error', err.message || String(err), 'error');
+        })
+        .getDashboardData(force);
+    }
+
+    function populateLargoOptions() {
+      const source = DATA.detalleIngresos || DATA.recepciones || [];
+      const valores = [...new Set(source.map(x => String(x.largo || '')))]
+        .filter(v => v && v !== '0')
+        .sort((a, b) => Number(a) - Number(b));
+
+      const select = document.getElementById('fLargo');
+      const actual = select.value;
+      select.innerHTML = '<option value="">Todos los largos</option>' +
+        valores.map(v => `<option value="${v}">${fmt(Number(v))} m</option>`).join('');
+      select.value = actual;
+    }
+
+    function setRoleListLoading() {
+      const head = document.getElementById('roleListHead');
+      const list = document.getElementById('roleList');
+      if (head) head.textContent = 'Cargando predios';
+      if (list) list.innerHTML = '<div class="role-empty">Cargando predios KML/KMZ desde Drive...</div>';
+    }
+
+    function loadRoleMapData() {
+      setRoleListLoading();
+      google.script.run
+        .withSuccessHandler(response => {
+          const payload = Array.isArray(response)
+            ? { items: response, diagnostics: null }
+            : (response || { items: [], diagnostics: null });
+
+          ROLE_MAP_DATA  = payload.items       || [];
+          MAP_DIAGNOSTICS= payload.diagnostics || null;
+
+          const polygonCount = ROLE_MAP_DATA.reduce((sum, item) => sum + ((item.polygons || []).length), 0);
+
+          if (MAP_DIAGNOSTICS) {
+            document.getElementById('mapStatus').textContent =
+              'Polígonos: ' + polygonCount +
+              ' · roles con archivo: ' + MAP_DIAGNOSTICS.rolesConArchivo +
+              ' · sin archivo: ' + MAP_DIAGNOSTICS.rolesSinArchivo;
+          } else {
+            document.getElementById('mapStatus').textContent = 'Polígonos: ' + polygonCount;
+          }
+
+          redrawRoleLayers();
+          redrawComunaLayers();
+        })
+        .withFailureHandler(err => {
+          document.getElementById('mapStatus').textContent = 'KML/KMZ no cargados';
+          document.getElementById('comunaMapStatus').textContent = 'Comunas GIS no cargadas';
+          console.warn('Datos cargados, pero falló el mapa', err);
+        })
+        .getRolesMapData();
+    }
+
+    /* ────────────────────────────────────────────────────
+       KPIs
+    ──────────────────────────────────────────────────── */
+
+    function renderKPIs() {
+      setText('kCub', fmt(DATA.kpis.totalCubicacion) + ' m³');
+      setText('kCubPlanDetalle',
+        'plan a fecha: ' + fmt(DATA.kpis.planAFecha) + ' m³ · dif: ' + fmtSigned(DATA.kpis.diferenciaPlanAFecha) + ' m³');
+      setText('kDiam', fmt(DATA.kpis.diametroPromedio));
+      setText('kPlanMes', fmt(DATA.kpis.planCubicacion) + ' m³');
+      setText('kPlanMesLabel',
+        'plan ' + (DATA.planMonth || 'mensual') + ' · a fecha: ' + fmt(DATA.kpis.planAFecha) + ' m³');
+      setText('kCumplimientoPlan', fmtPercent(DATA.kpis.cumplimientoPlan));
+      setText('kCumplimientoPlanLabel',
+        'día hábil ' + fmt0(DATA.kpis.diasHabilesTranscurridos) + ' de ' + fmt0(DATA.kpis.diasHabilesMes) + ' · faltan ' + fmt0(DATA.kpis.diasHabilesFaltantes) + ' hábiles');
+      setText('kDiferenciaPlan', fmtSigned(DATA.kpis.diferenciaPlanAFecha) + ' m³');
+      setText('kProyeccionCierre', fmt(DATA.kpis.proyeccionCierreMes) + ' m³');
+      setText('kProyeccionCierreLabel',
+        'ritmo: ' + fmt(DATA.kpis.ritmoDiarioActual) + ' m³/día hábil · ' + fmtPercent(DATA.kpis.cumplimientoProyectado) + ' del plan');
+      renderQualityDiameterKPIs(DATA.calidades || []);
+      renderTopProviderKPI();
+
+    }
+
+    function renderTopProviderKPI() {
+      const top = (DATA.proveedores || [])[0];
+      if (!top || !Number(top.cubicacion)) {
+        setText('kProveedorLider', '-');
+        setText('kProveedorLiderLabel', 'sin datos de proveedores este mes');
+        return;
+      }
+      setText('kProveedorLider', fmt(top.cubicacion) + ' m³');
+      setText('kProveedorLiderLabel',
+        top.proveedor + ' · ' + fmtPercent(top.participacionCubicacion) + ' del total del mes');
+    }
+
+
+
+    /* ────────────────────────────────────────────────────
+       GRÁFICOS
+    ──────────────────────────────────────────────────── */
+
+    function renderCharts(stats) {
+      if (!CHART_READY || !DATA) return;
+      stats = stats || buildFilteredStats();
+      const calidades = orderQualities(stats.calidades || []);
+      renderTopProveedoresChart(stats.rows);
+
+      if (!calidades.length) {
+        setChartEmpty('chartCalidadTrozos',   'Sin datos de calidad.');
+        setChartEmpty('chartCalidadCubicacion','Sin datos de calidad.');
+        drawTimeChart(stats.rows);
+        return;
+      }
+
+      const calidadTrozosTable = google.visualization.arrayToDataTable([
+        ['Calidad','Trozos',{type:'string',role:'style'},{type:'string',role:'annotation'}],
+        ...calidades.map(x => [x.calidad, Number(x.trozos)||0, qualityColor(x.calidad), fmt0(x.trozos)])
+      ]);
+      new google.visualization.BarChart(document.getElementById('chartCalidadTrozos')).draw(calidadTrozosTable, {
+        legend:{position:'none'}, chartArea:{width:'72%',height:'74%'},
+        backgroundColor:'transparent', hAxis:{minValue:0},
+        annotations:{alwaysOutside:true,textStyle:{color:'#24352B',fontSize:12,bold:true}}
+      });
+
+      const calidadCubTable = google.visualization.arrayToDataTable([
+        ['Calidad','m³',{type:'string',role:'style'}],
+        ...calidades.map(x => [x.calidad, Number(x.cubicacion)||0, qualityColor(x.calidad)])
+      ]);
+      new google.visualization.ColumnChart(document.getElementById('chartCalidadCubicacion')).draw(calidadCubTable, {
+        legend:{position:'none'}, chartArea:{width:'82%',height:'72%'},
+        backgroundColor:'transparent', vAxis:{minValue:0},
+        hAxis:{textStyle:{color:'#24352B',fontSize:12}}
+      });
+
+      drawTimeChart(stats.rows);
+    }
+
+    function renderTopProveedoresChart(rows) {
+      rows = rows || [];
+      const agg = {};
+      rows.forEach(item => {
+        const key = item.proveedor || 'SIN PROVEEDOR';
+        if (!agg[key]) agg[key] = { proveedor: key, cubicacion: 0 };
+        agg[key].cubicacion += Number(item.cubicacion) || 0;
+      });
+      const top = Object.values(agg)
+        .filter(x => x.cubicacion > 0)
+        .sort((a, b) => b.cubicacion - a.cubicacion)
+        .slice(0, 8).reverse();
+
+      if (!top.length) { setChartEmpty('chartTopProveedores','Sin cubicación para graficar.'); return; }
+
+      const table = google.visualization.arrayToDataTable([
+        ['Proveedor','m³',{type:'string',role:'annotation'}],
+        ...top.map(x => [x.proveedor, x.cubicacion, fmt(x.cubicacion)])
+      ]);
+      new google.visualization.BarChart(document.getElementById('chartTopProveedores')).draw(table, {
+        legend:{position:'none'}, chartArea:{width:'58%',height:'82%'},
+        backgroundColor:'transparent', colors:['#2D6A4F'], hAxis:{minValue:0,title:'m³'},
+        annotations:{alwaysOutside:true,textStyle:{color:'#24352B',fontSize:12,bold:true}}
+      });
+    }
+
+    function renderQualityDiameterKPIs(calidades) {
+      calidades = calidades || buildFilteredStats().calidades || [];
+      const byQuality = {};
+      calidades.forEach(item => { byQuality[clean(item.calidad)] = item; });
+      setText('kDiamSiniestrado', fmt(qualityDiameterValue(byQuality,'SINIESTRADO')));
+      setText('kDiamVerde',       fmt(qualityDiameterValue(byQuality,'VERDE')));
+      setText('kDiamManchado',    fmt(qualityDiameterValue(byQuality,'MANCHADO')));
+      setText('kVolSiniestrado',  'm³: ' + fmt(qualityVolumeValue(byQuality,'SINIESTRADO')));
+      setText('kVolVerde',        'm³: ' + fmt(qualityVolumeValue(byQuality,'VERDE')));
+      setText('kVolManchado',     'm³: ' + fmt(qualityVolumeValue(byQuality,'MANCHADO')));
+    }
+
+    function qualityDiameterValue(byQuality, key) { return byQuality[key] ? byQuality[key].diametroPromedio : 0; }
+    function qualityVolumeValue(byQuality, key)   { return byQuality[key] ? byQuality[key].cubicacion : 0; }
+
+    function drawTimeChart(rows) {
+      rows = rows || getFilteredDetailRows();
+      const realByBusinessDay = {};
+      const projectionByBusinessDay = buildProjectionByBusinessDay();
+      let maxDataDay = 0;
+
+      rows.forEach(item => {
+        const day = Number(item.dia || 0);
+        if (!day) return;
+        realByBusinessDay[day] = (realByBusinessDay[day] || 0) + (Number(item.cubicacion) || 0);
+        maxDataDay = Math.max(maxDataDay, day);
+      });
+
+      Object.keys(projectionByBusinessDay).forEach(day => {
+        maxDataDay = Math.max(maxDataDay, Number(day) || 0);
+      });
+
+      const elapsedBusinessDays = Number(DATA.kpis.diasHabilesTranscurridos || 0);
+      const totalBusinessDays = Number(DATA.kpis.diasHabilesMes || 0);
+      const chartDays = Math.max(totalBusinessDays, elapsedBusinessDays, maxDataDay);
+
+      if (!chartDays) { setChartEmpty('chartFecha','Sin entregas diarias para graficar.'); return; }
+
+      const metaDiaria = metaDiariaForFilter();
+      const metaLabel  = val('fProveedor') ? 'Meta diaria del proveedor filtrado' : 'Meta diaria hábil';
+
+      const chartRows = [];
+      for (let day = 1; day <= chartDays; day++) {
+        chartRows.push([
+          day,
+          projectionByBusinessDay[day] || 0,
+          realByBusinessDay[day] || 0,
+          metaDiaria
+        ]);
+      }
+
+      const fechaTable = google.visualization.arrayToDataTable([
+        ['Día hábil','Proyección camiones m³','m³ real', metaLabel],
+        ...chartRows
+      ]);
+
+      new google.visualization.ComboChart(document.getElementById('chartFecha')).draw(fechaTable, {
+        legend:{position:'top',textStyle:{color:'#24352B',fontSize:12}},
+        colors:['#DCE5DF','#2D6A4F','#B3261E'], seriesType:'bars',
+        series:{2:{type:'line',lineWidth:3,pointSize:5}},
+        bar:{groupWidth:'78%'},
+        vAxes:{0:{title:'m³',minValue:0}},
+        hAxis:{title:'Día hábil del mes',format:'0',gridlines:{count:chartDays}},
+        chartArea:{width:'88%',height:'72%'}, backgroundColor:'transparent'
+      });
+    }
+
+    function getFilteredProjectionRows() {
+      const source = DATA.proyeccionCamiones || [];
+      const fp = val('fProveedor');
+      const fPredio = val('fPredio');
+
+      // La proyección solo tiene proveedor/origen/fecha/camiones. Si se filtra por comuna,
+      // ROL, calidad o largo, no se puede asignar la proyección con precisión a esas dimensiones.
+      if (val('fComuna') || val('fRol') || val('fCalidad') || clean(document.getElementById('fLargo').value)) return [];
+
+      return source.filter(x => {
+        if (fp && !clean(x.proveedor).includes(fp) && !clean(x.origen).includes(fp)) return false;
+        if (fPredio && !clean(x.origen).includes(fPredio)) return false;
+        return true;
+      });
+    }
+
+    function buildProjectionByBusinessDay() {
+      const out = {};
+      getFilteredProjectionRows().forEach(item => {
+        const day = Number(item.dia || 0);
+        if (!day) return;
+        out[day] = (out[day] || 0) + (Number(item.cubicacion) || 0);
+      });
+      return out;
+    }
+
+    function metaDiariaForFilter() {
+      const fp = val('fProveedor');
+      const diasHabilesMes = Number(DATA.kpis.diasHabilesMes || 0);
+      if (fp && diasHabilesMes) {
+        const matches = (DATA.cumplimientoProveedores || []).filter(passesProviderPlanFilter);
+        if (matches.length === 1) return Number(matches[0].plan || 0) / diasHabilesMes;
+      }
+      return Number(DATA.kpis.planDiarioHabil || 0);
+    }
+
+    function setChartEmpty(id, message) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = '<div class="chart-empty">' + escapeHtml(message) + '</div>';
+    }
+
+    /* ────────────────────────────────────────────────────
+       TABLAS
+    ──────────────────────────────────────────────────── */
+
+    function renderTables(stats) {
+      stats = stats || buildFilteredStats();
+
+      // Tabla cumplimiento — se ordena según estado actual del botón
+      const cumplimientoBase = buildFilteredCompliance(stats.rows).slice(0, 80);
+      const cumplimientoFiltrada = applyDifFilter(cumplimientoBase);
+      const cumplimientoOrdenada = sortCompliance(cumplimientoFiltrada, COMPLIANCE_SORT);
+      document.getElementById('tablaProveedor').innerHTML = makeComplianceTable(cumplimientoOrdenada);
+
+      document.getElementById('tablaCalidad').innerHTML = makeTable(
+        ['Calidad','Trozos','m³','% trozos','% m³','Diám. prom.','Eficiencia'],
+        orderQualities(stats.calidades || []).map(x => [
+          x.calidad, fmt0(x.trozos), fmt(x.cubicacion),
+          badge(fmtPercent(x.participacionTrozos),    qualityColor(x.calidad)),
+          badge(fmtPercent(x.participacionCubicacion),qualityColor(x.calidad)),
+          fmt(x.diametroPromedio), fmt(x.eficiencia)
+        ])
+      );
+
+      document.getElementById('tablaRegion').innerHTML = makeTable(
+        ['Región','Comunas','Trozos','m³','% m³','Diám. prom.','Eficiencia'],
+        buildRegionRows(stats.rows).map(x => [
+          x.region,
+          escapeHtml(x.comunas.join(', ')),
+          fmt0(x.trozos), fmt(x.cubicacion),
+          badge(fmtPercent(x.cubicacion / safe(stats.totalCubicacion)), heat(x.cubicacion / safe(stats.totalCubicacion))),
+          fmt(x.diametroPromedio), fmt(x.eficiencia)
+        ])
+      );
+
+      const recepcionesTotales = buildGeneralRows(stats.rows);
+      const recepciones = recepcionesTotales.slice(0, 250);
+      document.getElementById('tablaGeneral').innerHTML = makeTable(
+        ['Proveedor','Predio/Faena','Comuna','Calidad','Largo','Trozos','m³','Diám. prom.','Eficiencia'],
+        recepciones.map(x => [
+          x.proveedor, x.predio, x.comuna, x.calidad, fmt(x.largo),
+          fmt0(x.trozos), fmt(x.cubicacion), fmt(x.diametroPromedio), fmt(x.eficiencia)
+        ]),
+        generalTotalsRow(recepcionesTotales)
+      );
+    }
+
+    /* ── Filtro por diferencia en tabla cumplimiento ── */
+    function applyDifFilter(rows) {
+      const mode = COMPLIANCE_SORT;
+      if (mode === 'dif_neg')  return rows.filter(x => (Number(x.diferencia)||0) < -0.01);
+      if (mode === 'dif_pos')  return rows.filter(x => (Number(x.diferencia)||0) >  0.01);
+      return rows;
+    }
+
+    function renderComplianceFiltered() {
+      const stats  = buildFilteredStats();
+      const cumpl  = buildFilteredCompliance(stats.rows).slice(0, 80);
+      const sorted = sortCompliance(applyDifFilter(cumpl), COMPLIANCE_SORT);
+      document.getElementById('tablaProveedor').innerHTML = makeComplianceTable(sorted);
+    }
+
+    /* ── Ordena la tabla de cumplimiento ── */
+    function sortCompliance(rows, mode) {
+      return [...rows].sort((a, b) => {
+        if (mode === 'cubicacion_desc') return b.cubicacion - a.cubicacion;
+        if (mode === 'cubicacion_asc')  return a.cubicacion - b.cubicacion;
+        if (mode === 'cumpl_desc')      return b.cumplimiento - a.cumplimiento;
+        if (mode === 'cumpl_asc')       return a.cumplimiento - b.cumplimiento;
+        if (mode === 'dif_desc')        return b.diferencia - a.diferencia;
+        if (mode === 'dif_asc')         return a.diferencia - b.diferencia;
+        if (mode === 'dif_neg')         return a.diferencia - b.diferencia; // más negativo primero
+        if (mode === 'dif_pos')         return b.diferencia - a.diferencia; // más positivo primero
+        return b.cubicacion - a.cubicacion;
+      });
+    }
+
+    function cycleSortCompliance(col) {
+      const modes = {
+        cubicacion: ['cubicacion_desc','cubicacion_asc'],
+        cumpl:      ['cumpl_desc','cumpl_asc'],
+        dif:        ['dif_desc','dif_asc','dif_neg','dif_pos']
+      };
+      const list = modes[col];
+      const next = list[(list.indexOf(COMPLIANCE_SORT) + 1) % list.length] || list[0];
+      COMPLIANCE_SORT = next;
+      const stats  = buildFilteredStats();
+      const cumpl  = buildFilteredCompliance(stats.rows).slice(0, 80);
+      const sorted = sortCompliance(applyDifFilter(cumpl), COMPLIANCE_SORT);
+      document.getElementById('tablaProveedor').innerHTML = makeComplianceTable(sorted);
+    }
+
+    function generalTotalsRow(rows) {
+      const totals = (rows || []).reduce((acc, x) => {
+        const trozos = Number(x.trozos) || 0;
+        acc.trozos += trozos;
+        acc.cubicacion += Number(x.cubicacion) || 0;
+        acc.diametroPonderado += (Number(x.diametroPromedio) || 0) * trozos;
+        return acc;
+      }, { trozos: 0, cubicacion: 0, diametroPonderado: 0 });
+
+      return [
+        'Total · ' + fmt0((rows || []).length) + ' filas',
+        '', '', '', '',
+        fmt0(totals.trozos), fmt(totals.cubicacion),
+        fmt(totals.trozos ? totals.diametroPonderado / totals.trozos : 0),
+        fmt(totals.trozos ? totals.cubicacion / totals.trozos : 0)
+      ];
+    }
+
+    function makeComplianceTable(rows) {
+      const cubSort   = COMPLIANCE_SORT.startsWith('cubicacion') ? (COMPLIANCE_SORT.endsWith('desc') ? 'sort-desc' : 'sort-asc') : '';
+      const cumplSort = COMPLIANCE_SORT.startsWith('cumpl')      ? (COMPLIANCE_SORT.endsWith('desc') ? 'sort-desc' : 'sort-asc') : '';
+      const difSort   = COMPLIANCE_SORT.startsWith('dif')        ? (COMPLIANCE_SORT.endsWith('desc') || COMPLIANCE_SORT === 'dif_pos' ? 'sort-desc' : 'sort-asc') : '';
+      // Etiqueta dinámica según estado del filtro dif
+      const difLabel  = COMPLIANCE_SORT === 'dif_neg' ? 'Dif. ↓&lt;0'
+                      : COMPLIANCE_SORT === 'dif_pos' ? 'Dif. ↑&gt;0'
+                      : 'Dif.';
+      return `
+        <table>
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th>Plan mes</th>
+              <th>Plan a fecha</th>
+              <th class="sortable ${cubSort}" onclick="cycleSortCompliance('cubicacion')" title="Ordenar por m³">Real m³</th>
+              <th class="sortable ${cumplSort}" onclick="cycleSortCompliance('cumpl')" title="Ordenar por cumplimiento">Cumpl.</th>
+              <th class="sortable ${difSort}" onclick="cycleSortCompliance('dif')" title="Clic para ordenar/filtrar: ↓mayor→menor · ↑menor→mayor · &lt;0 déficit · &gt;0 superávit">${difLabel}</th>
+              <th>Diám. prom.</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((x, index) => makeComplianceRow(x, index)).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function makeComplianceRow(x, index) {
+      const canExpand  = clean(x.proveedor) === 'MASISA SA' && (x.faenas || []).length;
+      const groupId    = 'faenas_' + index;
+      const providerCell = canExpand
+        ? `<button class="inline-toggle" type="button" onclick="toggleFaenas('${groupId}')">+</button>${escapeHtml(x.proveedor)}`
+        : escapeHtml(x.proveedor);
+      const children = canExpand ? (x.faenas || []).map(f => makeFaenaRow(f, groupId)).join('') : '';
+      return `
+        <tr>
+          <td>${providerCell}</td>
+          <td>${fmt(x.plan)}</td>
+          <td>${fmt(x.planToDate)}</td>
+          <td>${fmt(x.cubicacion)}</td>
+          <td>${badge(fmtPercent(x.cumplimiento), complianceColor(x.cumplimiento, x.planToDate))}</td>
+          <td>${fmtSigned(x.diferencia)}</td>
+          <td>${fmt(x.diametroPromedio)}</td>
+        </tr>${children}`;
+    }
+
+    function makeFaenaRow(faena, groupId) {
+      return `
+        <tr class="child-row ${groupId}" style="display:none">
+          <td>↳ ${escapeHtml(faena.faena || 'SIN FAENA')}</td>
+          <td>${fmt(faena.plan)}</td>
+          <td>${fmt(faena.planToDate)}</td>
+          <td>${fmt(faena.cubicacion)}</td>
+          <td>${faena.planToDate ? badge(fmtPercent(faena.cumplimiento), complianceColor(faena.cumplimiento, faena.planToDate)) : '-'}</td>
+          <td>${fmtSigned(faena.diferencia)}</td>
+          <td>${fmt(faena.diametroPromedio)}</td>
+        </tr>`;
+    }
+
+    function toggleFaenas(groupId) {
+      document.querySelectorAll('.' + groupId).forEach(row => {
+        row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+      });
+    }
+
+    /* ────────────────────────────────────────────────────
+       FILTROS Y STATS
+    ──────────────────────────────────────────────────── */
+
+    function renderAllFiltered() {
+      const stats = buildFilteredStats();
+      renderCharts(stats);
+      renderTables(stats);
+      redrawRoleLayers();
+      redrawComunaLayers();
+    }
+
+    function debounce(fn, wait) {
+      let timer = null;
+      return function() {
+        const args = arguments;
+        clearTimeout(timer);
+        timer = setTimeout(() => fn.apply(null, args), wait);
+      };
+    }
+
+    const renderAllFilteredDebounced = debounce(renderAllFiltered, 220);
+
+    /* ────────────────────────────────────────────────────
+       MAPAS
+    ──────────────────────────────────────────────────── */
+
+    function initMap() {
+      if (MAP) MAP.remove();
+      MAP = L.map('map', { preferCanvas: true }).setView([-36.7, -72.5], 9);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(MAP);
+      ROLE_LAYER_GROUP = L.layerGroup().addTo(MAP);
+      ROLE_LAYER_INDEX = {};
+
+      const legend = L.control({ position: 'bottomright' });
+      legend.onAdd = function() {
+        const div = L.DomUtil.create('div', 'legend');
+        div.innerHTML = `
+          <b>Intensidad</b>
+          <div class="legend-item"><span class="legend-color" style="background:#1E4D38"></span> Alta</div>
+          <div class="legend-item"><span class="legend-color" style="background:#2D6A4F"></span> Media alta</div>
+          <div class="legend-item"><span class="legend-color" style="background:#52796F"></span> Media</div>
+          <div class="legend-item"><span class="legend-color" style="background:#84A98C"></span> Baja</div>`;
+        return div;
+      };
+      legend.addTo(MAP);
+    }
+
+    function initComunaMap() {
+      if (COMUNA_MAP) COMUNA_MAP.remove();
+      COMUNA_MAP = L.map('comunaMap', { preferCanvas: true }).setView([-36.7, -72.5], 8);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(COMUNA_MAP);
+      COMUNA_LAYER_GROUP = L.layerGroup().addTo(COMUNA_MAP);
+    }
+
+    function redrawRoleLayers() {
+      if (!MAP || !ROLE_LAYER_GROUP || !DATA) return;
+      ROLE_LAYER_GROUP.clearLayers();
+      ROLE_LAYER_INDEX = {};
+      ALL_BOUNDS = [];
+
+      if (!ROLE_MAP_DATA.length) { renderRoleList([], 0); document.getElementById('mapStatus').textContent = 'KML/KMZ cargados: 0'; return; }
+
+      const metric = document.getElementById('metricMap').value;
+      const fp = val('fProveedor'), fPredio = val('fPredio'), fc = val('fComuna'), fr = val('fRol');
+      let visibleCount = 0;
+      const visibleItems = [];
+
+      ROLE_MAP_DATA.forEach(item => {
+        if (fp      && !clean(item.proveedor).includes(fp))      return;
+        if (fPredio && !clean(item.predio).includes(fPredio))    return;
+        if (fc      && !clean(item.comuna).includes(fc))         return;
+        if (fr      && !clean(item.rol).includes(fr))            return;
+
+        const polygons   = item.polygons || [];
+        const itemKey    = itemKeyForList(item);
+        const center     = itemCenter(item);
+        const distanceKm = center ? distanceKmBetween(center, PLANTA_CABRERO) : null;
+
+        ROLE_LAYER_INDEX[itemKey] = { item, layers: [], bounds: [], center, distanceKm };
+        visibleItems.push(item);
+
+        polygons.forEach(coords => {
+          if (!coords.length) return;
+          const value  = mapValue(item, metric);
+          const color  = heat(value);
+          const polygon = L.polygon(coords, { color, fillColor: color, fillOpacity: .48, weight: 2 });
+          polygon.bindPopup(`
+            <b>ROL:</b> ${escapeHtml(item.rol||'')}<br>
+            <b>Predio:</b> ${escapeHtml(item.predio||'')}<br>
+            <b>Proveedor:</b> ${escapeHtml(item.proveedor||'')}<br>
+            <b>Comuna:</b> ${escapeHtml(item.comuna||'')}<br>
+            <b>Región:</b> ${escapeHtml(item.region||regionForComunaClient(item.comuna))}<br>
+            <b>Archivo:</b> ${escapeHtml(item.fileName||'')}<br>
+            <b>Distancia a planta:</b> ${formatDistance(distanceKm)}<br>
+            <b>Área aprox.:</b> ${formatArea(itemAreaHectares(item))}<br>
+            <b>m³:</b> ${fmt(item.cubicacion)}<br>
+            <b>Trozos:</b> ${fmt0(item.trozos)}<br>
+            <b>Eficiencia:</b> ${fmt((Number(item.cubicacion)||0)/safe(Number(item.trozos)||0))}`);
+          polygon.addTo(ROLE_LAYER_GROUP);
+          ROLE_LAYER_INDEX[itemKey].layers.push(polygon);
+          ROLE_LAYER_INDEX[itemKey].bounds.push(...coords);
+          ALL_BOUNDS.push(...coords);
+          visibleCount++;
+        });
+      });
+
+      renderRoleList(visibleItems, visibleCount);
+      document.getElementById('mapStatus').textContent =
+        'Polígonos visibles: ' + visibleCount + ' · predios cargados: ' + visibleItems.length;
+      if (ALL_BOUNDS.length) MAP.fitBounds(ALL_BOUNDS, { padding: [20, 20] });
+    }
+
+    function redrawComunaLayers() {
+      if (!COMUNA_MAP || !COMUNA_LAYER_GROUP || !DATA) return;
+      COMUNA_LAYER_GROUP.clearLayers();
+
+      if (!ROLE_MAP_DATA.length) { document.getElementById('comunaMapStatus').textContent = 'Comunas cargadas: 0'; return; }
+
+      const metric  = document.getElementById('metricComunaMap').value;
+      const comunas = aggregateComunasFromRoles();
+      const values  = comunas.map(x => comunaMetricValue(x, metric));
+      const maxValue= Math.max(...values, 1);
+      const bounds  = [];
+
+      comunas.forEach(item => {
+        const value  = comunaMetricValue(item, metric);
+        const radius = 8 + (value / maxValue) * 26;
+        const color  = heat(value / maxValue);
+        const marker = L.circleMarker([item.lat, item.lng], { radius, color, fillColor: color, fillOpacity: .56, weight: 2 });
+        marker.bindPopup(`
+          <b>Comuna:</b> ${escapeHtml(item.comuna)}<br>
+          <b>Región:</b> ${escapeHtml(item.region||regionForComunaClient(item.comuna))}<br>
+          <b>Predios GIS:</b> ${fmt0(item.predios)}<br>
+          <b>m³:</b> ${fmt(item.cubicacion)}<br>
+          <b>Trozos:</b> ${fmt0(item.trozos)}<br>
+          <b>Promedio m³/predio:</b> ${fmt(item.cubicacion/safe(item.predios))}`);
+        marker.addTo(COMUNA_LAYER_GROUP);
+        bounds.push([item.lat, item.lng]);
+      });
+
+      document.getElementById('comunaMapStatus').textContent = 'Comunas visibles: ' + comunas.length;
+      if (bounds.length) COMUNA_MAP.fitBounds(bounds, { padding: [35, 35], maxZoom: 11 });
+    }
+
+    function aggregateComunasFromRoles() {
+      const fp = val('fProveedor'), fPredio = val('fPredio'), fc = val('fComuna'), fr = val('fRol');
+      const out = {};
+
+      ROLE_MAP_DATA.forEach(item => {
+        if (fp      && !clean(item.proveedor).includes(fp))   return;
+        if (fPredio && !clean(item.predio).includes(fPredio)) return;
+        if (fc      && !clean(item.comuna||'SIN COMUNA').includes(fc)) return;
+        if (fr      && !clean(item.rol).includes(fr))         return;
+
+        const points = allPolygonPoints(item.polygons || []);
+        if (!points.length) return;
+        const center     = averagePoint(points);
+        const comunaKey  = clean(item.comuna || 'SIN COMUNA');
+
+        if (!out[comunaKey]) {
+          out[comunaKey] = {
+            comuna: item.comuna || 'SIN COMUNA',
+            region: item.region || regionForComunaClient(item.comuna),
+            cubicacion: 0, trozos: 0, predios: 0, latSum: 0, lngSum: 0
+          };
+        }
+        out[comunaKey].cubicacion += Number(item.cubicacion) || 0;
+        out[comunaKey].trozos     += Number(item.trozos)     || 0;
+        out[comunaKey].predios    += 1;
+        out[comunaKey].latSum     += center.lat;
+        out[comunaKey].lngSum     += center.lng;
+      });
+
+      return Object.values(out).map(item => ({
+        ...item,
+        lat: item.latSum / safe(item.predios),
+        lng: item.lngSum / safe(item.predios)
+      })).sort((a, b) => b.cubicacion - a.cubicacion);
+    }
+
+    function comunaMetricValue(item, metric) {
+      if (metric === 'trozos') return Number(item.trozos)  || 0;
+      if (metric === 'predios') return Number(item.predios) || 0;
+      return Number(item.cubicacion) || 0;
+    }
+
+    function allPolygonPoints(polygons) { return polygons.reduce((pts, p) => pts.concat(p || []), []); }
+
+    function averagePoint(points) {
+      const sums = points.reduce((acc, c) => { acc.lat += Number(c[0])||0; acc.lng += Number(c[1])||0; return acc; }, { lat:0, lng:0 });
+      return { lat: sums.lat / safe(points.length), lng: sums.lng / safe(points.length) };
+    }
+
+    function renderRoleList(items, polygonCount) {
+      const head = document.getElementById('roleListHead');
+      const list = document.getElementById('roleList');
+      if (!head || !list) return;
+      head.textContent = 'Predios cargados: ' + items.length + ' · polígonos: ' + polygonCount;
+      if (!items.length) { list.innerHTML = '<div class="role-empty">No hay predios KML/KMZ visibles con los filtros actuales.</div>'; return; }
+
+      list.innerHTML = items.map(item => {
+        const key    = escapeHtml(itemKeyForList(item));
+        const record = ROLE_LAYER_INDEX[itemKeyForList(item)];
+        const distance = record ? record.distanceKm : null;
+        return `
+          <button class="role-item" type="button" data-role-key="${key}" onclick="focusRoleFromButton(this)">
+            <div class="role-predio">${escapeHtml(item.predio || 'SIN PREDIO')}</div>
+            <div class="role-meta">
+              <span><b>ROL:</b> ${escapeHtml(item.rol||'')}</span>
+              <span><b>Archivo:</b> ${escapeHtml(item.fileName||'')}</span>
+              <span><b>Proveedor:</b> ${escapeHtml(item.proveedor||'')}</span>
+              <span><b>Región:</b> ${escapeHtml(item.region||regionForComunaClient(item.comuna))}</span>
+              <span><b>Distancia planta:</b> ${formatDistance(distance)}</span>
+              <span><b>Área aprox.:</b> ${formatArea(itemAreaHectares(item))}</span>
+              <span><b>m³:</b> ${fmt(item.cubicacion)} · <b>Trozos:</b> ${fmt0(item.trozos)}</span>
+            </div>
+          </button>`;
+      }).join('');
+    }
+
+    function focusRoleFromButton(button) { focusRole(button.dataset.roleKey || ''); }
+
+    function focusRole(key) {
+      const record = ROLE_LAYER_INDEX[key];
+      if (!record || !record.bounds.length || !MAP) return;
+      document.querySelectorAll('.role-item.active').forEach(el => el.classList.remove('active'));
+      const button = document.querySelector('.role-item[data-role-key="' + cssEscape(key) + '"]');
+      if (button) { button.classList.add('active'); button.scrollIntoView({ block: 'nearest' }); }
+      MAP.fitBounds(record.bounds, { padding: [35, 35], maxZoom: 15 });
+      if (record.layers.length) record.layers[0].openPopup();
+    }
+
+    function itemKeyForList(item) { return clean(item.rol) + '|' + clean(item.fileName); }
+
+    function cssEscape(value) {
+      if (window.CSS && CSS.escape) return CSS.escape(value);
+      return String(value || '').replace(/["\\]/g, '\\$&');
+    }
+
+    function mapValue(item, metric) {
+      if (metric === 'trozos') return (Number(item.trozos)||0) / safe(DATA.kpis.totalTrozos);
+      if (metric === 'eficiencia') { const e = (Number(item.cubicacion)||0) / safe(Number(item.trozos)||0); return Math.min(e/0.35,1); }
+      return (Number(item.cubicacion)||0) / safe(DATA.kpis.totalCubicacion);
+    }
+
+    function heat(v) {
+      if (v > .40) return '#1E4D38';
+      if (v > .25) return '#2D6A4F';
+      if (v > .10) return '#52796F';
+      return '#84A98C';
+    }
+
+    function qualityColor(value) {
+      const c = clean(value);
+      if (c === 'VERDE')      return '#2D6A4F';
+      if (c === 'MANCHADO')   return '#C28A22';
+      if (c === 'SINIESTRADO')return '#B3261E';
+      return '#52796F';
+    }
+
+    function complianceColor(value, plan) {
+      if (!plan)     return '#738579';
+      if (value >= 1)  return '#1E4D38';
+      if (value >= .75)return '#2D6A4F';
+      if (value >= .50)return '#C28A22';
+      return '#B3261E';
+    }
+
+    function orderQualities(arr) {
+      const order = { SINIESTRADO:1, VERDE:2, MANCHADO:3 };
+      return [...arr].sort((a, b) => {
+        const ak = order[clean(a.calidad)] || 99;
+        const bk = order[clean(b.calidad)] || 99;
+        return ak - bk || String(a.calidad||'').localeCompare(String(b.calidad||''));
+      });
+    }
+
+    /* ────────────────────────────────────────────────────
+       DATA HELPERS
+    ──────────────────────────────────────────────────── */
+
+    function buildRegionRows(rows) {
+      const regions = {};
+      (rows || getFilteredDetailRows()).forEach(item => {
+        const region  = item.region || regionForComunaClient(item.comuna);
+        const comuna  = item.comuna || 'SIN COMUNA';
+        const trozos  = Number(item.trozos)       || 0;
+        const cub     = Number(item.cubicacion)    || 0;
+        const diam    = Number(item.diametroPromedio)||0;
+
+        if (!regions[region]) regions[region] = { region, comunas:[], trozos:0, cubicacion:0, diametroPonderado:0 };
+        regions[region].comunas.push(comuna);
+        regions[region].trozos          += trozos;
+        regions[region].cubicacion      += cub;
+        regions[region].diametroPonderado += diam * trozos;
+      });
+
+      return Object.values(regions).map(item => {
+        item.comunas          = [...new Set(item.comunas)].sort();
+        item.diametroPromedio = item.trozos ? item.diametroPonderado / item.trozos : 0;
+        item.eficiencia       = item.trozos ? item.cubicacion / item.trozos : 0;
+        return item;
+      }).sort((a, b) => b.cubicacion - a.cubicacion);
+    }
+
+    function regionForComunaClient(value) {
+      const key = clean(value);
+      const map = {
+        CABRERO:'Biobío',FLORIDA:'Biobío','LA FLORIDA':'Biobío',HUALQUI:'Biobío',
+        LAJA:'Biobío','LOS ANGELES':'Biobío',PENCO:'Biobío',QUILLECO:'Biobío',YUMBEL:'Biobío',
+        CHILLAN:'Ñuble','SAN FABIAN':'Ñuble','SAN IGNACIO':'Ñuble',COIHUECO:'Ñuble',
+        'EL CARMEN':'Ñuble',NINHUE:'Ñuble',PEMUCO:'Ñuble',PORTEZUELO:'Ñuble',QUIRIHUE:'Ñuble',
+        CAUQUENES:'Maule',PARRAL:'Maule',RETIRO:'Maule',
+        LUMACO:'La Araucanía','LOS SAUCES':'La Araucanía'
+      };
+      return map[key] || 'Sin región asignada';
+    }
+
+    function itemCenter(item) {
+      const points = allPolygonPoints(item.polygons || []);
+      if (!points.length) return null;
+      return averagePoint(points);
+    }
+
+    function distanceKmBetween(a, b) {
+      if (!a || !b) return null;
+      const earthKm = 6371;
+      const dLat = toRadians(b.lat - a.lat);
+      const dLng = toRadians(b.lng - a.lng);
+      const lat1  = toRadians(a.lat), lat2 = toRadians(b.lat);
+      const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+      return 2 * earthKm * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+    }
+
+    function toRadians(v) { return Number(v||0)*Math.PI/180; }
+    function formatDistance(v) { return (!v||!isFinite(v)) ? 'Sin coordenadas' : fmt(v) + ' km'; }
+
+    const METERS_PER_DEGREE_LAT = (Math.PI/180)*6371000;
+
+    function ringAreaHectares(ring) {
+      if (!ring || ring.length < 3) return 0;
+      const mpl = METERS_PER_DEGREE_LAT * Math.cos(toRadians(ring[0][0]));
+      let sum = 0;
+      for (let i = 0; i < ring.length; i++) {
+        const a = ring[i], b = ring[(i+1)%ring.length];
+        const xa = (Number(a[1])||0)*mpl, ya = (Number(a[0])||0)*METERS_PER_DEGREE_LAT;
+        const xb = (Number(b[1])||0)*mpl, yb = (Number(b[0])||0)*METERS_PER_DEGREE_LAT;
+        sum += xa*yb - xb*ya;
+      }
+      return Math.abs(sum)/2/10000;
+    }
+
+    function itemAreaHectares(item) { return (item.polygons||[]).reduce((t,r) => t+ringAreaHectares(r),0); }
+    function formatArea(v) { return (!v||!isFinite(v)) ? 'Sin datos' : fmt(v)+' ha'; }
+
+    function getFilteredDetailRows() {
+      const source  = DATA.detalleIngresos || DATA.recepciones || [];
+      const fp      = val('fProveedor'), fPredio = val('fPredio'), fc = val('fComuna');
+      const fr      = val('fRol'), fCalidad = val('fCalidad');
+      const fLargo  = clean(document.getElementById('fLargo').value);
+
+      return source.filter(x => {
+        if (fp      && !clean(x.proveedor).includes(fp))      return false;
+        if (fPredio && !clean(x.predio).includes(fPredio))    return false;
+        if (fc      && !clean(x.comuna).includes(fc))         return false;
+        if (fr      && !clean(x.rol||'').includes(fr))        return false;
+        if (fCalidad && clean(x.calidad) !== fCalidad)        return false;
+        if (fLargo  && String(x.largo||'') !== fLargo)        return false;
+        return true;
+      });
+    }
+
+    function buildFilteredStats() {
+      const rows = getFilteredDetailRows();
+      const calidades = {};
+      let totalTrozos = 0, totalCubicacion = 0, diametroPonderado = 0;
+
+      rows.forEach(row => {
+        const trozos = Number(row.trozos)||0, cub = Number(row.cubicacion)||0, diam = Number(row.diametroPromedio)||0;
+        const calidad = row.calidad || 'SIN CALIDAD';
+        totalTrozos    += trozos; totalCubicacion += cub; diametroPonderado += diam*trozos;
+        if (!calidades[calidad]) calidades[calidad] = { calidad, trozos:0, cubicacion:0, diametroPonderado:0 };
+        calidades[calidad].trozos          += trozos;
+        calidades[calidad].cubicacion      += cub;
+        calidades[calidad].diametroPonderado += diam*trozos;
+      });
+
+      const calidadRows = Object.values(calidades).map(item => {
+        item.diametroPromedio       = item.trozos ? item.diametroPonderado/item.trozos : 0;
+        item.eficiencia             = item.trozos ? item.cubicacion/item.trozos : 0;
+        item.participacionTrozos     = totalTrozos     ? item.trozos/totalTrozos     : 0;
+        item.participacionCubicacion = totalCubicacion ? item.cubicacion/totalCubicacion : 0;
+        return item;
+      });
+
+      return { rows, totalTrozos, totalCubicacion, diametroPromedio: totalTrozos ? diametroPonderado/totalTrozos : 0, calidades: calidadRows };
+    }
+
+    function buildFilteredCompliance(rows) {
+      const base = {};
+
+      if (!hasRowLevelFilters()) {
+        (DATA.cumplimientoProveedores || []).forEach(item => {
+          if (!passesProviderPlanFilter(item)) return;
+          base[item.proveedor] = {
+            proveedor: item.proveedor, nombrePlan: item.nombrePlan,
+            plan: item.plan, planToDate: item.planToDate,
+            faenas: item.faenas || [], estado: item.estado,
+            trozos: 0, cubicacion: 0, diametroPromedio: 0,
+            cumplimiento: 0, diferencia: 0
+          };
+        });
+      }
+
+      rows.forEach(row => {
+        const proveedor = row.proveedor || 'SIN PROVEEDOR';
+        const trozos = Number(row.trozos)||0, cub = Number(row.cubicacion)||0, diam = Number(row.diametroPromedio)||0;
+        if (!base[proveedor]) {
+          base[proveedor] = { proveedor, nombrePlan:'', plan:0, planToDate:0, trozos:0, cubicacion:0, diametroPromedio:0, faenas:[], cumplimiento:0, diferencia:0 };
+        }
+        base[proveedor].trozos += trozos;
+        base[proveedor].cubicacion += cub;
+        base[proveedor]._diametroPonderado = (base[proveedor]._diametroPonderado||0) + diam*trozos;
+      });
+
+      return Object.values(base)
+        .map(item => {
+          item.diametroPromedio = item.trozos ? (item._diametroPonderado||0)/item.trozos : 0;
+          item.cumplimiento = item.planToDate ? item.cubicacion/item.planToDate : 0;
+          item.diferencia   = item.cubicacion - (Number(item.planToDate)||0);
+          delete item._diametroPonderado;
+          return item;
+        })
+        .filter(item => item.plan || item.cubicacion || item.trozos)
+        .sort((a, b) => {
+          if (a.plan && !b.plan) return -1;
+          if (!a.plan && b.plan) return 1;
+          return b.cubicacion - a.cubicacion;
+        });
+    }
+
+    function buildGeneralRows(rows) {
+      const out = {};
+      (rows||[]).forEach(row => {
+        const key = [row.proveedor||'',row.predio||'',row.comuna||'',row.calidad||'',row.largo||''].join('|');
+        const t = Number(row.trozos)||0, c = Number(row.cubicacion)||0, d = Number(row.diametroPromedio)||0;
+        if (!out[key]) out[key] = { proveedor:row.proveedor||'SIN PROVEEDOR', predio:row.predio||'SIN PREDIO', comuna:row.comuna||'SIN COMUNA', calidad:row.calidad||'SIN CALIDAD', largo:row.largo||0, trozos:0, cubicacion:0, diametroPonderado:0 };
+        out[key].trozos += t; out[key].cubicacion += c; out[key].diametroPonderado += d*t;
+      });
+      return Object.values(out).map(item => {
+        item.diametroPromedio = item.trozos ? item.diametroPonderado/item.trozos : 0;
+        item.eficiencia       = item.trozos ? item.cubicacion/item.trozos : 0;
+        return item;
+      }).sort((a,b) => b.cubicacion - a.cubicacion);
+    }
+
+    function passesProviderPlanFilter(item) {
+      const fp = val('fProveedor');
+      return !fp || clean(item.proveedor).includes(fp) || clean(item.nombrePlan).includes(fp);
+    }
+
+    function hasRowLevelFilters() {
+      return Boolean(val('fPredio')||val('fComuna')||val('fRol')||val('fCalidad')||clean(document.getElementById('fLargo').value));
+    }
+
+    function hasActiveFilters() {
+      return Boolean(val('fProveedor')||val('fPredio')||val('fComuna')||val('fRol')||val('fCalidad')||clean(document.getElementById('fLargo').value));
+    }
+
+    /* ────────────────────────────────────────────────────
+       TABLA UTILS
+    ──────────────────────────────────────────────────── */
+
+    function makeTable(headers, rows, totalsRow) {
+      const totalsHtml = totalsRow
+        ? `<tr class="totals-row">${totalsRow.map(c => `<td>${c}</td>`).join('')}</tr>`
+        : '';
+      return `
+        <table>
+          <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+          <tbody>${rows.map(row => `<tr>${row.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}${totalsHtml}</tbody>
+        </table>`;
+    }
+
+    function badge(text, color) {
+      return `<span class="badge" style="background:${color}">${text}</span>`;
+    }
+
+    /* ────────────────────────────────────────────────────
+       EXPORT CSV
+    ──────────────────────────────────────────────────── */
+
+    function exportCSV() {
+      if (!DATA) return;
+      const rows = [
+        ['Diametro','Largo','Trozos','Cubicacion','Eficiencia'],
+        ...DATA.matriz.map(x => [x.diametro,x.largo,x.trozos,x.cubicacion,x.eficiencia])
+      ];
+      const csv  = rows.map(r => r.join(';')).join('\n');
+      const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'matriz_eficiencia.csv'; a.click();
+      URL.revokeObjectURL(url);
+      Swal.fire({ icon:'success', title:'Exportado', text:'Matriz descargada correctamente.', timer:1200, showConfirmButton:false });
+    }
+
+    /* ────────────────────────────────────────────────────
+       FORMAT HELPERS
+    ──────────────────────────────────────────────────── */
+
+    function fmt(v)        { return Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:2}); }
+    function fmt0(v)       { return Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0}); }
+    function fmtPercent(v) { return (Number(v||0)*100).toLocaleString('es-CL',{maximumFractionDigits:1})+'%'; }
+    function fmtSigned(v)  { const n=Number(v||0); const t=Math.abs(n).toLocaleString('es-CL',{maximumFractionDigits:2}); return (n>0?'+':n<0?'-':'')+t; }
+    function safe(v)       { return Number(v||0)||1; }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const text = String(value);
+      if (el.textContent === text) return;
+      el.textContent = text;
+      el.classList.remove('value-pulse');
+      void el.offsetWidth;
+      el.classList.add('value-pulse');
+    }
+
+    function val(id)   { return clean(document.getElementById(id).value); }
+    function clean(v)  { return String(v||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+    function escapeHtml(str) {
+      return String(str||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+    }
+
+    window.addEventListener('resize', () => {
+      if (DATA) renderCharts();
+      if (MAP)       setTimeout(() => MAP.invalidateSize(),       250);
+      if (COMUNA_MAP) setTimeout(() => COMUNA_MAP.invalidateSize(), 250);
+    });
+  </script>
+</body>
+</html>
