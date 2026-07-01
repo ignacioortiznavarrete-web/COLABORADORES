@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     :root {
       --forest: #1E4D38;
@@ -898,25 +899,22 @@
     }
 
     /**
-     * Muestra un aviso de confirmación tras registrar la solicitud; al
-     * presionar "Aceptar" recién ahí se redirige. Redirigir desde un clic
+     * Muestra un SweetAlert de confirmación tras registrar la solicitud;
+     * al presionar "OK" recién ahí se redirige. Redirigir desde un clic
      * real del usuario (en vez de directamente desde el callback async)
      * también evita que el navegador bloquee la navegación de nivel
      * superior fuera del iframe sandbox de Apps Script.
      */
     function redirigirTrasEnvio_() {
-      var overlay = document.createElement('div');
-      overlay.className = 'overlay';
-      overlay.innerHTML =
-        '<div class="modal" style="width:420px;text-align:center;padding:32px 28px;">' +
-        '<div class="toast-icon-wrap" style="width:52px;height:52px;margin:0 auto 16px;">' + ICONS.success + '</div>' +
-        '<h2 style="margin:0 0 8px;">Solicitud ingresada correctamente</h2>' +
-        '<div class="modal-sub" style="justify-content:center;margin-bottom:22px;">La solicitud quedó registrada con éxito.</div>' +
-        '<button type="button" class="btn-primary" id="btnOkRedireccion" style="width:100%;justify-content:center;">Aceptar</button>' +
-        '</div>';
-      document.body.appendChild(overlay);
-
-      document.getElementById('btnOkRedireccion').addEventListener('click', function () {
+      Swal.fire({
+        icon: 'success',
+        title: 'Solicitud ingresada correctamente',
+        text: 'La solicitud quedó registrada con éxito.',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#2D6A4F',
+        allowOutsideClick: false,
+        allowEscapeKey: false
+      }).then(function () {
         top.location.href = URL_REDIRECCION;
       });
     }
