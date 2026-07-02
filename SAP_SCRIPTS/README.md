@@ -7,6 +7,10 @@ productivo, uno por orden de compra, organizados en carpetas por proveedor.
 
 - **`MES_ACTUAL/`**: fechas de validez del primer al **último día del mes en
   curso** al momento de ejecutar el script.
+- **`MES_ACTUAL_DOBLE_ENTER/`**: igual que `MES_ACTUAL`, pero da **doble
+  Enter en el encabezado**. Úsela cuando ya no es día 1: la fecha de inicio
+  del contrato queda en el pasado y SAP muestra una advertencia que exige un
+  Enter adicional para continuar.
 - **`MES_SIGUIENTE/`**: fechas de validez del primer al **último día del mes
   siguiente** al momento de ejecutar el script.
 
