@@ -13,6 +13,13 @@ productivo, uno por orden de compra, organizados en carpetas por proveedor.
   Enter adicional para continuar.
 - **`MES_SIGUIENTE/`**: fechas de validez del primer al **último día del mes
   siguiente** al momento de ejecutar el script.
+- **`PEDIDOS_48/`**: crea el **pedido de compras (48xxxxxxxx) con referencia
+  al contrato marco (46xxxxxxxx)** en ME21N. Al ejecutar, el script pide en
+  una ventana el número del contrato marco (se puede pegar); luego carga cada
+  posición con contrato + posición del contrato (10, 20, 30…) + cantidad, y
+  SAP trae el material, precio, centro y demás datos desde el contrato. No
+  guarda: usted revisa y presiona GUARDAR. Requiere que la tabla de
+  posiciones de ME21N tenga visibles las columnas Acuerdo marco y Posición.
 
 Ambas carpetas contienen los mismos 47 scripts con los mismos valores
 (proveedor, monto, moneda y posiciones); solo cambia el mes de las fechas,
