@@ -334,17 +334,17 @@
 
   <main class="wrap">
     <section class="filters">
-      <input id="fProveedor" placeholder="Filtrar proveedor..."   oninput="renderAllFilteredDebounced()">
-      <input id="fPredio"    placeholder="Filtrar predio/faena..." oninput="renderAllFilteredDebounced()">
-      <input id="fComuna"    placeholder="Filtrar comuna..."       oninput="renderAllFilteredDebounced()">
-      <input id="fRol"       placeholder="Filtrar ROL..."          oninput="renderAllFilteredDebounced()">
-      <select id="fCalidad" onchange="renderAllFiltered()">
+      <input id="fProveedor" placeholder="Filtrar proveedor..."   oninput="renderAllFilteredDebounced()" disabled>
+      <input id="fPredio"    placeholder="Filtrar predio/faena..." oninput="renderAllFilteredDebounced()" disabled>
+      <input id="fComuna"    placeholder="Filtrar comuna..."       oninput="renderAllFilteredDebounced()" disabled>
+      <input id="fRol"       placeholder="Filtrar ROL..."          oninput="renderAllFilteredDebounced()" disabled>
+      <select id="fCalidad" onchange="renderAllFiltered()" disabled>
         <option value="">Todas las calidades</option>
         <option value="SINIESTRADO">Siniestrado</option>
         <option value="VERDE">Verde</option>
         <option value="MANCHADO">Manchado</option>
       </select>
-      <select id="fLargo" onchange="renderAllFiltered()">
+      <select id="fLargo" onchange="renderAllFiltered()" disabled>
         <option value="">Todos los largos</option>
       </select>
       <select id="metricMap" onchange="redrawRoleLayers()">
@@ -353,6 +353,7 @@
         <option value="eficiencia">Color por eficiencia</option>
       </select>
     </section>
+    <div id="filtersHint" class="status" style="margin:-10px 0 14px;">Cargando datos para habilitar los filtros...</div>
 
     <section class="kpis">
       <div class="card">
@@ -499,34 +500,41 @@
     let COMUNA_LAYER_GROUP = null;
     let ALL_BOUNDS = [];
     let CHART_READY = false;
-    let DATA_REQUESTED = false;
+    let DETALLE_READY = false;
+
+    const FILTER_IDS = ['fProveedor', 'fPredio', 'fComuna', 'fRol', 'fCalidad', 'fLargo'];
 
     // Estado de orden de la tabla cumplimiento
     let COMPLIANCE_SORT = 'cubicacion_desc'; // cubicacion_desc | cubicacion_asc | cumpl_desc | cumpl_asc
 
     const PLANTA_CABRERO = { lat: -37.034, lng: -72.426, label: 'Ruta 146 N° 2015, Cabrero' };
 
+    // La librería de gráficos se carga en paralelo con los datos: no bloquea el pedido al servidor.
     google.charts.load('current', { packages: ['corechart', 'bar'] });
-    google.charts.setOnLoadCallback(() => { CHART_READY = true; loadData(false); });
-
-    window.addEventListener('load', () => {
-      setTimeout(() => { if (!DATA_REQUESTED) loadData(false); }, 1800);
+    google.charts.setOnLoadCallback(() => {
+      CHART_READY = true;
+      if (DATA) renderCharts();
     });
 
+    loadData(false);
+
     function loadData(force) {
-      DATA_REQUESTED = true;
       Swal.fire({
         title: 'Cargando dashboard',
-        text: 'Leyendo datos y preparando análisis...',
+        text: 'Leyendo KPIs y gráficos...',
         allowOutsideClick: false,
         background: '#FFFFFF',
         color: '#24352B',
         didOpen: () => Swal.showLoading()
       });
 
+      DETALLE_READY = false;
+      setFiltersLoading(true);
+
       google.script.run
         .withSuccessHandler(data => {
           DATA = data;
+          DATA.detalleIngresos = null;
 
           // Mostrar fecha de última actualización
           const el = document.getElementById('lastUpdateLabel');
@@ -542,12 +550,43 @@
           document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
           setRoleListLoading();
           Swal.close();
+
+          // KMZ/KML y detalle de ingresos (usado por los filtros) se cargan aparte,
+          // en paralelo, sin bloquear el render de KPIs/gráficos/tablas de arriba.
           setTimeout(loadRoleMapData, 150);
+          setTimeout(() => loadDetalleIngresos(force), 150);
         })
         .withFailureHandler(err => {
           Swal.fire('Error', err.message || String(err), 'error');
         })
         .getDashboardData(force);
+    }
+
+    function loadDetalleIngresos(force) {
+      google.script.run
+        .withSuccessHandler(detalle => {
+          DATA.detalleIngresos = detalle || [];
+          DETALLE_READY = true;
+          setFiltersLoading(false);
+          populateLargoOptions();
+          renderAllFiltered();
+        })
+        .withFailureHandler(err => {
+          setFiltersLoading(false, 'Filtros no disponibles: reintenta "Actualizar datos".');
+          console.warn('No se pudo cargar el detalle de ingresos para los filtros', err);
+        })
+        .getDetalleIngresos(force);
+    }
+
+    function setFiltersLoading(loading, message) {
+      FILTER_IDS.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = loading;
+      });
+      const hint = document.getElementById('filtersHint');
+      if (!hint) return;
+      hint.style.display = loading || message ? 'block' : 'none';
+      hint.textContent = message || 'Cargando datos para habilitar los filtros...';
     }
 
     function populateLargoOptions() {

@@ -4,9 +4,10 @@ const CONFIG = {
   PLAN_SHEET_NAME: 'Hoja 2',
   PROJECTION_SHEET_NAME: 'ProyeccionCamiones',
   M3_PER_CAMION: 26,
-  CACHE_KEY: 'MASISA_DASHBOARD_V17',
+  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V18',
+  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V18',
   CACHE_SECONDS: 21600,
-  MAX_CACHE_CHARS: 90000,
+  CACHE_CHUNK_CHARS: 45000, // margen de sobra bajo el límite de 100KB por clave de CacheService, incluso con acentos en UTF-8
   MAX_ROLES_MAPA: 150
 };
 
@@ -164,7 +165,8 @@ function include(fileName) {
 
 function limpiarCache() {
   const cache = CacheService.getScriptCache();
-  cache.remove(CONFIG.CACHE_KEY);
+  clearCacheChunked_(cache, CONFIG.CACHE_KEY);
+  clearCacheChunked_(cache, CONFIG.DETAIL_CACHE_KEY);
   clearGisCache_(cache);
   SpreadsheetApp.getUi().alert('Caché limpiada correctamente.');
 }
@@ -278,10 +280,36 @@ function getDashboardData(force) {
   const cache = CacheService.getScriptCache();
 
   if (!force) {
-    const cached = cache.get(CONFIG.CACHE_KEY);
-    if (cached) return JSON.parse(cached);
+    const cached = getCacheChunked_(cache, CONFIG.CACHE_KEY);
+    if (cached) return cached;
   }
 
+  const built = buildDashboardCore_();
+  cacheDashboardCore_(cache, built);
+
+  return built.summary;
+}
+
+function getDetalleIngresos(force) {
+  const cache = CacheService.getScriptCache();
+
+  if (!force) {
+    const cached = getCacheChunked_(cache, CONFIG.DETAIL_CACHE_KEY);
+    if (cached) return cached;
+  }
+
+  const built = buildDashboardCore_();
+  cacheDashboardCore_(cache, built);
+
+  return built.detalle;
+}
+
+function cacheDashboardCore_(cache, built) {
+  putCacheChunked_(cache, CONFIG.CACHE_KEY, built.summary, CONFIG.CACHE_SECONDS);
+  putCacheChunked_(cache, CONFIG.DETAIL_CACHE_KEY, built.detalle, CONFIG.CACHE_SECONDS);
+}
+
+function buildDashboardCore_() {
   const ss = getSpreadsheet_();
   const sh = getDataSheet_(ss);
   const values = sh.getDataRange().getValues();
@@ -492,7 +520,6 @@ function getDashboardData(force) {
 
     calidades: objectToArray_(calidades, 'calidad'),
     recepciones: recepcionesToArray_(recepciones),
-    detalleIngresos,
     roles: Object.keys(roles),
 
     matriz: Object.values(matriz)
@@ -503,20 +530,78 @@ function getDashboardData(force) {
       .sort((a, b) => a.diametro - b.diametro || a.largo - b.largo)
   };
 
-  putCacheSafe_(cache, CONFIG.CACHE_KEY, output, CONFIG.CACHE_SECONDS);
-
-  return output;
+  return { summary: output, detalle: detalleIngresos };
 }
+
+/*******************************************************
+ CACHÉ (por chunks, para no toparse con el límite de
+ 100KB por clave de CacheService en payloads grandes)
+*******************************************************/
 
 function putCacheSafe_(cache, key, value, seconds) {
   try {
     const text = JSON.stringify(value);
-    if (text.length <= CONFIG.MAX_CACHE_CHARS) {
+    if (text.length <= CONFIG.CACHE_CHUNK_CHARS) {
       cache.put(key, text, seconds);
     }
   } catch (err) {
-    Logger.log('No se pudo guardar cache dashboard: ' + err);
+    Logger.log('No se pudo guardar cache (' + key + '): ' + err);
   }
+}
+
+function putCacheChunked_(cache, key, value, seconds) {
+  try {
+    const text = JSON.stringify(value);
+    const chunkSize = CONFIG.CACHE_CHUNK_CHARS;
+    const count = Math.max(1, Math.ceil(text.length / chunkSize));
+
+    for (let i = 0; i < count; i++) {
+      cache.put(key + '_' + i, text.slice(i * chunkSize, (i + 1) * chunkSize), seconds);
+    }
+
+    cache.put(key + '_meta', String(count), seconds);
+  } catch (err) {
+    Logger.log('No se pudo guardar cache (' + key + '): ' + err);
+  }
+}
+
+function getCacheChunked_(cache, key) {
+  try {
+    const countRaw = cache.get(key + '_meta');
+    if (!countRaw) return null;
+
+    const count = Number(countRaw) || 0;
+    if (!count) return null;
+
+    let text = '';
+
+    for (let i = 0; i < count; i++) {
+      const part = cache.get(key + '_' + i);
+      if (part === null) return null;
+      text += part;
+    }
+
+    return JSON.parse(text);
+  } catch (err) {
+    Logger.log('No se pudo leer cache (' + key + '): ' + err);
+    return null;
+  }
+}
+
+function clearCacheChunked_(cache, key) {
+  const countRaw = cache.get(key + '_meta');
+
+  if (!countRaw) {
+    cache.remove(key);
+    return;
+  }
+
+  const count = Number(countRaw) || 0;
+  const keys = [key + '_meta'];
+
+  for (let i = 0; i < count; i++) keys.push(key + '_' + i);
+
+  cache.removeAll(keys);
 }
 
 /*******************************************************
