@@ -3,6 +3,17 @@
 47 scripts VBS (SAP GUI Scripting) para crear contratos/pedidos ME31K en SAP R/3
 productivo, uno por orden de compra, organizados en carpetas por proveedor.
 
+## Dos juegos de scripts según el mes de validez
+
+- **`MES_ACTUAL/`**: fechas de validez del primer al **último día del mes en
+  curso** al momento de ejecutar el script.
+- **`MES_SIGUIENTE/`**: fechas de validez del primer al **último día del mes
+  siguiente** al momento de ejecutar el script.
+
+Ambas carpetas contienen los mismos 47 scripts con los mismos valores
+(proveedor, monto, moneda y posiciones); solo cambia el mes de las fechas,
+que se calculan automáticamente al ejecutar. Use el juego que corresponda.
+
 ## Qué hace cada script
 
 1. Abre la transacción `ME31K` en la sesión SAP activa.
