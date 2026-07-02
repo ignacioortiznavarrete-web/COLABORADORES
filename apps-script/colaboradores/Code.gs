@@ -10,7 +10,7 @@ const FOLDER_ID_DOCS = "1HdLq4SdlpQGX5u6P8NfFnpnnX7WQlD25";
 // URL del panel al que se redirige tras procesar la carga.
 // IMPORTANTE: debe ser la URL /exec de una implementación publicada,
 // nunca la URL /dev (esa solo funciona para el dueño del script).
-const REDIRECT_URL = "https://script.google.com/a/macros/masisa.com/s/AKfycbynKNpT6ndZb_DqtkrLF9s5dFf-5yokdMxcV1mJPFnL/exec";
+const REDIRECT_URL = "https://script.google.com/a/macros/masisa.com/s/AKfycbxWJkikF74_eJ4NjxepPSxu9dbNK6rwaXZJMtRu9nv8w2-a3gDcmSJlJ0LXKpLn99GuZw/exec";
 
 const ESTADOS_REGISTRO = [
   "SOLICITADO",
