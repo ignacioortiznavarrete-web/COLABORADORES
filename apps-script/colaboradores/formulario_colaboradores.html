@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulario Colaboradores</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/limonte-sweetalert2/11.7.3/sweetalert2.min.css" rel="stylesheet">
+
+  <style>
+    /* ── Variables ── */
+    :root {
+      --g1: #0d3b1e;
+      --g2: #1a5c32;
+      --g3: #2e7d32;
+      --g4: #43a047;
+      --g5: #81c784;
+      --g6: #c8e6c9;
+      --cream: #f9fbf7;
+      --white: #ffffff;
+      --gray-1: #f4f6f4;
+      --gray-2: #e8ece8;
+      --gray-3: #b0bcb0;
+      --gray-4: #6e7e6e;
+      --gray-5: #3a453a;
+      --red: #c62828;
+      --amber: #e65100;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,.07);
+      --shadow-md: 0 6px 24px rgba(0,0,0,.10);
+      --shadow-lg: 0 16px 48px rgba(0,0,0,.14);
+      --font: 'DM Sans', sans-serif;
+      --mono: 'DM Mono', monospace;
+      --trans: .18s ease;
+    }
+
+    /* ── Reset / Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--g1);
+      min-height: 100vh;
+      color: var(--gray-5);
+    }
+
+    /* ── Background texture ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(67,160,71,.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 80% at 80% 90%, rgba(13,59,30,.35) 0%, transparent 60%),
+        repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 24px,
+          rgba(255,255,255,.012) 24px,
+          rgba(255,255,255,.012) 25px
+        );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Wrapper ── */
+    .app-wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      text-align: center;
+      padding: 36px 24px 28px;
+      margin-bottom: 28px;
+    }
+
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 999px;
+      padding: 6px 18px 6px 10px;
+      margin-bottom: 18px;
+      backdrop-filter: blur(8px);
+    }
+
+    .logo-dot {
+      width: 28px; height: 28px;
+      background: linear-gradient(135deg, var(--g4), var(--g5));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .logo-dot svg { width: 16px; height: 16px; fill: #fff; }
+
+    .logo-badge span {
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.7);
+    }
+
+    .app-header h1 {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.15;
+      margin-bottom: 10px;
+      letter-spacing: -.02em;
+    }
+
+    .app-header h1 span { color: var(--g5); }
+
+    .app-header p {
+      font-size: .92rem;
+      color: rgba(255,255,255,.5);
+      font-weight: 400;
+    }
+
+    /* ── Steps indicator ── */
+    .steps-bar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-bottom: 28px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-circle {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.2);
+      display: flex; align-items: center; justify-content: center;
+      font-size: .82rem;
+      font-weight: 700;
+      color: rgba(255,255,255,.4);
+      transition: var(--trans);
+      background: rgba(255,255,255,.06);
+    }
+
+    .step-circle.active {
+      background: var(--g4);
+      border-color: var(--g4);
+      color: #fff;
+      box-shadow: 0 0 0 4px rgba(67,160,71,.3);
+    }
+
+    .step-circle.done {
+      background: var(--g3);
+      border-color: var(--g3);
+      color: #fff;
+    }
+
+    .step-label {
+      font-size: .8rem;
+      font-weight: 600;
+      color: rgba(255,255,255,.45);
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+
+    .step-label.active { color: rgba(255,255,255,.9); }
+
+    .step-connector {
+      width: 60px; height: 2px;
+      background: rgba(255,255,255,.1);
+      margin: 0 8px;
+    }
+
+    .step-connector.done { background: var(--g3); }
+
+    /* ── Card ── */
+    .form-card {
+      background: var(--white);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: slideUp .4s ease both;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0);    }
+    }
+
+    /* ── Card header ── */
+    .card-header-strip {
+      background: linear-gradient(90deg, var(--g2), var(--g3));
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card-header-strip .icon-wrap {
+      width: 36px; height: 36px;
+      background: rgba(255,255,255,.15);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .card-header-strip .icon-wrap svg { width: 18px; height: 18px; fill: #fff; }
+
+    .card-header-strip h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.01em;
+    }
+
+    .card-header-strip p {
+      font-size: .78rem;
+      color: rgba(255,255,255,.65);
+      margin: 0;
+    }
+
+    /* ── Card body ── */
+    .card-body-pad { padding: 28px; }
+
+    /* ── Sections ── */
+    .section-block {
+      background: var(--gray-1);
+      border: 1px solid var(--gray-2);
+      border-radius: var(--radius-md);
+      padding: 22px 22px 18px;
+      margin-bottom: 20px;
+    }
+
+    .section-block-title {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--g3);
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-block-title::before {
+      content: '';
+      display: inline-block;
+      width: 3px; height: 14px;
+      background: var(--g4);
+      border-radius: 2px;
+    }
+
+    /* ── Form controls ── */
+    .form-label {
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--gray-4);
+      margin-bottom: 6px;
+      display: block;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+
+    .req::after {
+      content: " *";
+      color: var(--red);
+    }
+
+    .form-control,
+    .form-select {
+      border: 1.5px solid var(--gray-2);
+      border-radius: var(--radius-sm);
+      padding: 10px 13px;
+      font-family: var(--font);
+      font-size: .9rem;
+      color: var(--gray-5);
+      background: var(--white);
+      transition: border-color var(--trans), box-shadow var(--trans);
+      width: 100%;
+    }
+
+    .form-control:focus,
+    .form-select:focus {
+      border-color: var(--g4);
+      box-shadow: 0 0 0 3px rgba(67,160,71,.18);
+      outline: none;
+    }
+
+    .field-invalid {
+      border-color: var(--red) !important;
+      box-shadow: 0 0 0 3px rgba(198,40,40,.16) !important;
+      background: #fffafa !important;
+    }
+
+    .field-error-text {
+      display: block;
+      margin-top: 5px;
+      font-size: .74rem;
+      font-weight: 600;
+      color: var(--red);
+    }
+
+    .form-control[readonly] {
+      background: var(--gray-1);
+      color: var(--gray-4);
+      cursor: default;
+    }
+
+    textarea.form-control {
+      min-height: 200px;
+      resize: vertical;
+      font-family: var(--mono);
+      font-size: .85rem;
+      line-height: 1.55;
+    }
+
+    .hint {
+      font-size: .76rem;
+      color: var(--gray-3);
+      margin-top: 5px;
+    }
+
+    /* ── Paste order pill list ── */
+    .paste-order-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 14px;
+      background: #f0f7f0;
+      border: 1px dashed #a5d6a7;
+      border-radius: var(--radius-sm);
+    }
+
+    .paste-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--white);
+      border: 1px solid #c8e6c9;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: .76rem;
+      font-weight: 600;
+      color: var(--g3);
+    }
+
+    .paste-pill .pill-num {
+      width: 17px; height: 17px;
+      background: var(--g4);
+      color: #fff;
+      border-radius: 50%;
+      font-size: .65rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ── Org badge ── */
+    .org-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: .88rem;
+      font-weight: 700;
+      color: var(--g3);
+      min-height: 42px;
+    }
+
+    .org-badge.empty { color: var(--gray-3); background: var(--gray-1); border-color: var(--gray-2); }
+
+    /* ── Buttons ── */
+    .btn-primary-custom {
+      background: linear-gradient(135deg, var(--g3), var(--g4));
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 11px 28px;
+      font-family: var(--font);
+      font-size: .9rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--trans);
+      box-shadow: 0 4px 14px rgba(46,125,50,.35);
+    }
+
+    .btn-primary-custom:hover {
+      background: linear-gradient(135deg, var(--g2), var(--g3));
+      box-shadow: 0 6px 20px rgba(46,125,50,.45);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary-custom:active { transform: translateY(0); }
+
+    .btn-secondary-custom {
+      background: var(--white);
+      color: var(--gray-4);
+      border: 1.5px solid var(--gray-2);
+      border-radius: 999px;
+      padding: 11px 22px;
+      font-family: var(--font);
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: var(--trans);
+    }
+
+    .btn-secondary-custom:hover {
+      border-color: var(--gray-3);
+      color: var(--gray-5);
+      background: var(--gray-1);
+    }
+
+    .btn-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+    /* ── Preview rows ── */
+    .preview-row-card {
+      border: 1.5px solid var(--gray-2);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin-bottom: 20px;
+      transition: box-shadow var(--trans);
+    }
+
+    .preview-row-card:hover { box-shadow: var(--shadow-md); }
+
+    .preview-row-header {
+      background: linear-gradient(90deg, var(--g1), var(--g2));
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .preview-row-num {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--g5);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    .preview-row-body { padding: 20px 20px 16px; background: var(--white); }
+
+    .fields-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    @media (max-width: 1200px) { .fields-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 900px)  { .fields-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px)  { .fields-grid { grid-template-columns: 1fr; } }
+
+    /* ── File upload zone ── */
+    .file-zone {
+      border: 2px dashed var(--gray-2);
+      border-radius: var(--radius-md);
+      padding: 18px;
+      background: #fafcfa;
+      transition: border-color var(--trans), background var(--trans);
+      cursor: pointer;
+    }
+
+    .file-zone:hover, .file-zone.drag-over {
+      border-color: var(--g4);
+      background: #f0f8f1;
+    }
+
+    .file-zone-label {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-icon {
+      width: 40px; height: 40px;
+      background: #e8f5e9;
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .file-icon svg { width: 20px; height: 20px; fill: var(--g3); }
+
+    .file-text strong {
+      display: block;
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--gray-5);
+    }
+
+    .file-text small {
+      font-size: .75rem;
+      color: var(--gray-3);
+    }
+
+    .file-optional-badge {
+      margin-left: auto;
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: .7rem;
+      font-weight: 700;
+      color: var(--amber);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .file-chosen {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #e8f5e9;
+      border-radius: var(--radius-sm);
+      padding: 7px 12px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--g3);
+    }
+
+    .file-chosen svg { width: 14px; height: 14px; fill: var(--g4); }
+
+    .file-chosen.hidden { display: none; }
+
+    input[type="file"].hidden-file { display: none; }
+
+    /* ── Clave banco preview ── */
+    .banco-clave-preview {
+      display: none;
+      margin-top: 6px;
+    }
+
+    .banco-clave-preview.visible { display: flex; align-items: center; gap: 6px; }
+
+    .clave-tag {
+      background: #e8f5e9;
+      border: 1px solid #a5d6a7;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-family: var(--mono);
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--g3);
+    }
+
+    .clave-label {
+      font-size: .72rem;
+      color: var(--gray-3);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    /* ── Progress ── */
+    .progress-wrap { margin-top: 20px; }
+
+    .progress-label {
+      font-size: .82rem;
+      font-weight: 600;
+      color: var(--gray-4);
+      margin-bottom: 8px;
+    }
+
+    .progress { height: 8px; border-radius: 999px; background: var(--gray-2); overflow: hidden; }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--g3), var(--g5));
+      border-radius: 999px;
+      transition: width .4s ease;
+      font-size: 0; /* hide text inside bar */
+    }
+
+    /* ── Utilities ── */
+    .hidden { display: none !important; }
+    .mt-2 { margin-top: 8px; }
+    .mb-3 { margin-bottom: 16px; }
+    .mb-4 { margin-bottom: 22px; }
+    .row { display: flex; flex-wrap: wrap; gap: 16px; }
+    .col-3 { flex: 1 1 220px; }
+    .col-4 { flex: 0 0 auto; min-width: 200px; }
+
+    /* ── SweetAlert override ── */
+    .swal2-confirm { background: var(--g3) !important; border-radius: 999px !important; }
+    .swal2-popup { border-radius: var(--radius-lg) !important; font-family: var(--font) !important; }
+  </style>
+</head>
+<body>
+
+<div class="app-wrapper">
+
+  <!-- Header -->
+  <div class="app-header">
+    <div class="logo-badge">
+      <div class="logo-dot">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+      </div>
+      <span>Batch Input · Proveedores RRHH</span>
+    </div>
+    <h1>Formulario <span>Colaboradores</span></h1>
+    <p>Pegar datos · Validar · Adjuntar documento · Procesar</p>
+  </div>
+
+  <!-- Steps bar -->
+  <div class="steps-bar">
+    <div class="step-item">
+      <div class="step-circle active" id="sc1">1</div>
+      <span class="step-label active" id="sl1">Datos generales</span>
+    </div>
+    <div class="step-connector" id="scn1"></div>
+    <div class="step-item">
+      <div class="step-circle" id="sc2">2</div>
+      <span class="step-label" id="sl2">Validación</span>
+    </div>
+  </div>
+
+  <!-- ══ PASO 1 ══ -->
+  <div id="step1" class="form-card">
+    <div class="card-header-strip">
+      <div class="icon-wrap">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/></svg>
+      </div>
+      <div>
+        <h2>Paso 1 — Datos generales y pegado</h2>
+        <p>Completa la información base y pega las filas del Excel</p>
+      </div>
+    </div>
+
+    <div class="card-body-pad">
+
+      <!-- Sección cabecera -->
+      <div class="section-block mb-4">
+        <div class="section-block-title">Información del solicitante</div>
+        <div class="row">
+          <div class="col-3">
+            <label class="form-label req" for="solicitante">Solicitante</label>
+            <input type="text" id="solicitante" class="form-control" maxlength="80" placeholder="Nombre completo">
+          </div>
+          <div class="col-3">
+            <label class="form-label req" for="tipoIngreso">Tipo de ingreso</label>
+            <select id="tipoIngreso" class="form-select">
+              <option value="">Seleccione</option>
+              <option value="Alumno en práctica">Alumno en práctica</option>
+              <option value="Colaborador">Colaborador</option>
+            </select>
+          </div>
+          <div class="col-3">
+            <label class="form-label req" for="sociedad">Sociedad</label>
+            <select id="sociedad" class="form-select" onchange="syncOrgCompras()">
+              <option value="">Seleccione</option>
+              <option value="TERR">TERR</option>
+              <option value="PCL1">PCL1</option>
+            </select>
+          </div>
+          <div class="col-3">
+            <label class="form-label">Organización de compras</label>
+            <div class="org-badge empty" id="orgBadge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+              <span id="orgBadgeText">Se asigna automáticamente</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección pegado -->
+      <div class="section-block mb-4">
+        <div class="section-block-title">Datos a cargar</div>
+
+        <div class="mb-3">
+          <label class="form-label">Orden de pegado esperado</label>
+          <div class="paste-order-wrap" id="pasteOrderBox">
+            <span style="font-size:.78rem;color:var(--gray-3)">Cargando...</span>
+          </div>
+          <p class="hint">Copie las columnas en este orden desde Excel o Google Sheets. Cada fila = un colaborador.</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label req" for="data">Pegar datos</label>
+          <textarea id="data" class="form-control" placeholder="Pega aquí las filas copiadas. Cada línea es una fila, las columnas separadas por tabulación (Tab)."></textarea>
+        </div>
+
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary-custom" onclick="goToPreview()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          Siguiente
+        </button>
+        <button class="btn-secondary-custom" onclick="limpiarTodo()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6m4-6v6"/></svg>
+          Limpiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PASO 2 ══ -->
+  <div id="step2" class="form-card hidden">
+    <div class="card-header-strip">
+      <div class="icon-wrap">
+        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/></svg>
+      </div>
+      <div>
+        <h2>Paso 2 — Validación de datos</h2>
+        <p>Revisa cada colaborador, confirma banco y región, y adjunta el documento bancario si corresponde</p>
+      </div>
+    </div>
+
+    <div class="card-body-pad">
+      <div id="previewContainer"></div>
+
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn-secondary-custom" onclick="backToPaste()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          Anterior
+        </button>
+        <button class="btn-primary-custom" id="btnProcesarCarga" onclick="guardarTodo()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Procesar carga
+        </button>
+      </div>
+
+      <!-- Progress -->
+      <div id="progressWrap" class="progress-wrap hidden">
+        <p class="progress-label" id="progressLabel">Preparando envío...</p>
+        <div class="progress">
+          <div id="progressBar" class="progress-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- app-wrapper -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/limonte-sweetalert2/11.7.3/sweetalert2.min.js"></script>
+
+<script>
+  /* ══════════════════════════════════
+     STATE
+  ══════════════════════════════════ */
+  let pasteOrder  = [];
+  let previewRows = [];
+  let bancos      = [];    // nombres visibles (sin clave)
+  let regiones    = [];
+  let monedas     = ['CLP', 'USD'];
+
+  // URL del panel tras procesar. Debe ser SIEMPRE una URL /exec publicada
+  // (la URL /dev solo funciona para el dueño del script y Google la rechaza
+  // para el resto de los usuarios).
+  const REDIRECT_URL = "https://script.google.com/a/macros/masisa.com/s/AKfycbynKNpT6ndZb_DqtkrLF9s5dFf-5yokdMxcV1mJPFnL/exec";
+  let redirectUrlFromServer = '';
+
+  const OPTIONAL_FIELDS = ['Codigo Postal', 'Observacion', 'Observaciones', 'Documento Bancario'];
+
+  function normalizeFieldName(text) {
+    return String(text || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function isOptionalPasteField(field) {
+    const f = normalizeFieldName(field);
+    return f === 'CODIGO POSTAL' ||
+           f === 'OBSERVACION' ||
+           f === 'OBSERVACIONES' ||
+           f === 'DOCUMENTO BANCARIO';
+  }
+
+  function isRequiredPasteField(field) {
+    return !isOptionalPasteField(field);
+  }
+
+  function normalizeCurrencyInput(value) {
+    const key = normalizeKey(value)
+      .replace(/\./g, '')
+      .replace(/\$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const clpAliases = [
+      'CLP', 'PESO', 'PESOS', 'PESO CHILENO', 'PESOS CHILENOS',
+      'MONEDA LOCAL', 'MONEDA NACIONAL', 'CHILE', 'CHILENO', 'CHILENOS'
+    ];
+
+    const usdAliases = [
+      'USD', 'US', 'US DOLLAR', 'US DOLLARS', 'DOLLAR', 'DOLLARS',
+      'DOLAR', 'DOLARES', 'DOLAR AMERICANO', 'DOLARES AMERICANOS',
+      'DOLAR EEUU', 'DOLAR EE UU', 'DOLAR ESTADOUNIDENSE', 'DOLARES ESTADOUNIDENSES'
+    ];
+
+    if (clpAliases.includes(key)) return 'CLP';
+    if (usdAliases.includes(key)) return 'USD';
+    return '';
+  }
+
+  /* ══════════════════════════════════
+     INIT
+  ══════════════════════════════════ */
+  document.addEventListener('DOMContentLoaded', loadTemplate);
+
+  function loadTemplate() {
+    google.script.run
+      .withSuccessHandler(function(resp) {
+        pasteOrder = resp.pasteOrder || [];
+        bancos     = resp.bancos       || [];
+        regiones   = resp.regiones     || [];
+        monedas    = resp.monedas      || ['CLP', 'USD'];
+        bankClavesFromSheet = resp.bancosClaves || {};
+        redirectUrlFromServer = resp.redirectUrl || '';
+
+        // Render paste order pills
+        const box = document.getElementById('pasteOrderBox');
+        box.innerHTML = pasteOrder.map((f, i) =>
+          `<span class="paste-pill"><span class="pill-num">${i+1}</span>${escapeHtml(f)}</span>`
+        ).join('');
+      })
+      .withFailureHandler(function(err) {
+        showError('Error al cargar configuración', err);
+      })
+      .getTemplateInfo();
+  }
+
+  /* ══════════════════════════════════
+     ORG COMPRAS
+  ══════════════════════════════════ */
+  function syncOrgCompras() {
+    const sociedad = document.getElementById('sociedad').value;
+    const badge    = document.getElementById('orgBadge');
+    const text     = document.getElementById('orgBadgeText');
+
+    const map = { TERR: 'TCSE', PCL1: 'PCL1' };
+
+    if (map[sociedad]) {
+      badge.classList.remove('empty');
+      text.textContent = map[sociedad];
+    } else {
+      badge.classList.add('empty');
+      text.textContent = 'Se asigna automáticamente';
+    }
+  }
+
+  /* ══════════════════════════════════
+     PASO 1 → PASO 2
+  ══════════════════════════════════ */
+  function validateStep1() {
+    if (!document.getElementById('solicitante').value.trim()) return 'Debe ingresar el solicitante.';
+    if (!document.getElementById('tipoIngreso').value)        return 'Debe seleccionar el tipo de ingreso.';
+    if (!document.getElementById('sociedad').value)           return 'Debe seleccionar la sociedad.';
+    if (!document.getElementById('data').value.trim())        return 'Debe pegar al menos una fila de datos.';
+    return '';
+  }
+
+  function parseRows(text) {
+    const raw = String(text || '').replace(/\r/g, '').trim();
+    if (!raw) return [];
+    return raw.split('\n').map(line => line.split('\t'));
+  }
+
+  function goToPreview() {
+    const err = validateStep1();
+    if (err) { showWarning('Validación', err); return; }
+
+    const rows = parseRows(document.getElementById('data').value);
+    if (!rows.length) { showWarning('Validación', 'No se encontraron filas válidas.'); return; }
+
+    previewRows = rows.map(r => {
+      const row = new Array(pasteOrder.length).fill('');
+      for (let i = 0; i < pasteOrder.length; i++) row[i] = r[i] || '';
+      return row;
+    });
+
+    renderPreview();
+    setStep(2);
+  }
+
+  /* ══════════════════════════════════
+     RENDER PREVIEW
+  ══════════════════════════════════ */
+  function normalizeKey(text) {
+    return String(text || '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function renderPreview() {
+    const container = document.getElementById('previewContainer');
+    container.innerHTML = '';
+
+    previewRows.forEach((row, rowIdx) => {
+      const card = document.createElement('div');
+      card.className = 'preview-row-card';
+
+      // build fields HTML
+      let fieldsHtml = '';
+
+      pasteOrder.forEach((field, colIdx) => {
+        const value = row[colIdx] || '';
+
+        if (field === 'Moneda Del Pedido') {
+          const monedaNormalizada = normalizeCurrencyInput(value);
+          const opts = [
+            '<option value="">Seleccione moneda</option>',
+            ...monedas.map(m => {
+              const sel = monedaNormalizada === m ? 'selected' : '';
+              return `<option value="${escapeHtml(m)}" ${sel}>${escapeHtml(m)}</option>`;
+            })
+          ].join('');
+
+          fieldsHtml += `
+            <div>
+              <label class="form-label req">${escapeHtml(field)}</label>
+              <select class="form-select preview-field"
+                      data-row="${rowIdx}" data-col="${colIdx}"
+                      onchange="this.classList.remove('field-invalid')">
+                ${opts}
+              </select>
+            </div>
+          `;
+          return;
+        }
+
+        if (field === 'Banco') {
+          const opts = [
+            '<option value="">Seleccione banco</option>',
+            ...bancos.map(b => {
+              const sel = bankInputMatchesBanco(value, b) ? 'selected' : '';
+              return `<option value="${escapeHtml(b)}" ${sel}>${escapeHtml(b)}</option>`;
+            })
+          ].join('');
+
+          fieldsHtml += `
+            <div>
+              <label class="form-label req">${escapeHtml(field)}</label>
+              <select class="form-select preview-field"
+                      data-row="${rowIdx}" data-col="${colIdx}"
+                      onchange="this.classList.remove('field-invalid'); updateBancoClave(this, ${rowIdx})">
+                ${opts}
+              </select>
+              <div class="banco-clave-preview" id="bancoClave_${rowIdx}">
+                <span class="clave-label">Clave SAP:</span>
+                <span class="clave-tag" id="bancoClaveTag_${rowIdx}"></span>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        if (field === 'Region') {
+          const opts = [
+            '<option value="">Seleccione región</option>',
+            ...regiones.map(r => {
+              const sel = normalizeKey(value) === normalizeKey(r) ? 'selected' : '';
+              return `<option value="${escapeHtml(r)}" ${sel}>${escapeHtml(r)}</option>`;
+            })
+          ].join('');
+
+          fieldsHtml += `
+            <div>
+              <label class="form-label req">${escapeHtml(field)}</label>
+              <select class="form-select preview-field"
+                      data-row="${rowIdx}" data-col="${colIdx}"
+                      onchange="this.classList.remove('field-invalid')">
+                ${opts}
+              </select>
+            </div>
+          `;
+          return;
+        }
+
+        const labelClass = isRequiredPasteField(field) ? 'form-label req' : 'form-label';
+
+        fieldsHtml += `
+          <div>
+            <label class="${labelClass}">${escapeHtml(field)}</label>
+            <input type="text"
+                   class="form-control preview-field"
+                   data-row="${rowIdx}" data-col="${colIdx}"
+                   value="${escapeHtml(value)}"
+                   placeholder="${escapeHtml(field)}"
+                   oninput="this.classList.remove('field-invalid'); const e=this.parentElement.querySelector('.field-error-text'); if(e) e.remove();">
+          </div>
+        `;
+      });
+
+      card.innerHTML = `
+        <div class="preview-row-header">
+          <span class="preview-row-num">Colaborador ${rowIdx + 1}</span>
+        </div>
+        <div class="preview-row-body">
+          <div class="fields-grid">${fieldsHtml}</div>
+
+          <!-- Documento bancario: OPCIONAL -->
+          <div class="file-zone" id="fileZone_${rowIdx}" onclick="document.getElementById('fileInput_${rowIdx}').click()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleFileDrop(event,${rowIdx})">
+            <input type="file" id="fileInput_${rowIdx}" class="hidden-file row-file"
+                   data-row="${rowIdx}"
+                   accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                   onchange="handleFileSelect(this,${rowIdx})">
+            <label class="file-zone-label" style="cursor:pointer;pointer-events:none;">
+              <div class="file-icon">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM9 13h6v1.5H9zm0 3h6v1.5H9zm0-6h4v1.5H9z"/></svg>
+              </div>
+              <div class="file-text">
+                <strong>Documento bancario</strong>
+                <small>PDF, JPG, PNG, DOC, XLS — Arrastrar o hacer clic</small>
+              </div>
+              <span class="file-optional-badge">Opcional</span>
+            </label>
+            <div class="file-chosen hidden" id="fileChosen_${rowIdx}">
+              <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+              <span id="fileChosenName_${rowIdx}"></span>
+            </div>
+          </div>
+
+        </div>
+      `;
+
+      container.appendChild(card);
+
+      // Si ya hay banco seleccionado al renderizar, mostrar clave
+      const bancoSel = document.querySelector(`.preview-field[data-row="${rowIdx}"][data-col="${pasteOrder.indexOf('Banco')}"]`);
+      if (bancoSel && bancoSel.value) updateBancoClave(bancoSel, rowIdx);
+    });
+  }
+
+  /* ══════════════════════════════════
+     BANCO: mostrar clave SAP desde mapas
+     La clave se muestra en la UI pero
+     NO se envía al servidor (el servidor
+     la resuelve internamente).
+  ══════════════════════════════════ */
+
+  // Mapas de claves para visualización local.
+  // El servidor vuelve a validar y resolver la clave SAP internamente.
+  const BANK_SAP_MAP_LOCAL = {
+    "BANCO DE CHILE":"001","BANCO CHILE":"001","CHILE":"001","BANCO EDWARDS":"001","EDWARDS":"001",
+    "BANCO INTERNACIONAL":"009","INTERNACIONAL":"009",
+    "BANCO DEL ESTADO DE CHILE":"012","BANCO ESTADO":"012","BANCOESTADO":"012","ESTADO":"012",
+    "SCOTIABANK CHILE":"014","SCOTIABANK":"014",
+    "BANCO DE CREDITO E INVERSIONES":"016","BANCO DE CRÉDITO E INVERSIONES":"016","BCI":"016",
+    "BANCO BICE":"028","BICE":"028",
+    "HSBC BANK (CHILE)":"031","HSBC":"031",
+    "BANCO SANTANDER-CHILE":"037","BANCO SANTANDER CHILE":"037","SANTANDER":"037",
+    "BANCO ITAU CHILE":"039","BANCO ITAÚ CHILE":"039","ITAU":"039","ITAÚ":"039",
+    "BANCO SECURITY":"049","SECURITY":"049",
+    "BANCO FALABELLA":"051","FALABELLA":"051",
+    "BANCO RIPLEY":"053","RIPLEY":"053","BCO. RIPLEY":"053",
+    "BANCO CONSORCIO":"055","CONSORCIO":"055",
+    "BANCO BTG PACTUAL CHILE":"059","BTG":"059","BTG PACTUAL":"059",
+    "TANNER BANCO DIGITAL":"062","TANNER":"062"
+  };
+
+  // Se rellena desde getTemplateInfo(): alias/código normalizado -> clave SAP.
+  let bankClavesFromSheet = {};
+
+  function formatBankCodeLocal(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.padStart(3, '0');
+  }
+
+  function normalizeBankLookup(text) {
+    return normalizeKey(text)
+      .replace(/^BANCO\s+/, '')
+      .replace(/^BCO\.?\s+/, '')
+      .replace(/\bBANCO\b/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function getBankClaveLocalFromValue(value) {
+    const raw = String(value || '').trim();
+    const key = normalizeKey(raw);
+    const lookupKey = normalizeBankLookup(raw);
+    const code3 = formatBankCodeLocal(raw);
+
+    return bankClavesFromSheet[code3] ||
+           bankClavesFromSheet[key] ||
+           bankClavesFromSheet[lookupKey] ||
+           BANK_SAP_MAP_LOCAL[key] ||
+           BANK_SAP_MAP_LOCAL[lookupKey] ||
+           '';
+  }
+
+  function bankInputMatchesBanco(inputValue, bancoNombre) {
+    const inputRaw = String(inputValue || '').trim();
+    if (!inputRaw) return false;
+
+    const inputKey = normalizeKey(inputRaw);
+    const inputLookup = normalizeBankLookup(inputRaw);
+    const bancoKey = normalizeKey(bancoNombre);
+    const bancoLookup = normalizeBankLookup(bancoNombre);
+
+    const inputCode = formatBankCodeLocal(inputRaw);
+    const bancoCode = getBankClaveLocalFromValue(bancoNombre);
+
+    if (inputCode && bancoCode && inputCode === bancoCode) return true;
+    if (inputKey === bancoKey || inputLookup === bancoLookup) return true;
+    if (inputLookup && bancoLookup && (bancoLookup.includes(inputLookup) || inputLookup.includes(bancoLookup))) return true;
+
+    return false;
+  }
+
+  function updateBancoClave(selectEl, rowIdx) {
+    const clave = getBankClaveLocalFromValue(selectEl.value);
+
+    const previewDiv = document.getElementById(`bancoClave_${rowIdx}`);
+    const claveTag   = document.getElementById(`bancoClaveTag_${rowIdx}`);
+
+    if (clave && selectEl.value) {
+      previewDiv.classList.add('visible');
+      claveTag.textContent = clave;
+    } else {
+      previewDiv.classList.remove('visible');
+    }
+  }
+
+
+  /* ══════════════════════════════════
+     FILE HANDLING
+  ══════════════════════════════════ */
+  function handleFileSelect(input, rowIdx) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    showFileChosen(rowIdx, file.name);
+    document.getElementById(`fileZone_${rowIdx}`).classList.remove('drag-over');
+  }
+
+  function handleFileDrop(event, rowIdx) {
+    event.preventDefault();
+    const zone  = document.getElementById(`fileZone_${rowIdx}`);
+    const input = document.getElementById(`fileInput_${rowIdx}`);
+    zone.classList.remove('drag-over');
+
+    const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+    if (!file) return;
+
+    // Asignamos al input
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    showFileChosen(rowIdx, file.name);
+  }
+
+  function showFileChosen(rowIdx, name) {
+    const chosenDiv  = document.getElementById(`fileChosen_${rowIdx}`);
+    const chosenName = document.getElementById(`fileChosenName_${rowIdx}`);
+    chosenDiv.classList.remove('hidden');
+    chosenName.textContent = name;
+  }
+
+  /* ══════════════════════════════════
+     CAPTURE PREVIEW ROWS
+  ══════════════════════════════════ */
+  function capturePreviewRows() {
+    const rows = previewRows.map(r => [...r]);
+    document.querySelectorAll('.preview-field').forEach(input => {
+      const row = Number(input.dataset.row);
+      const col = Number(input.dataset.col);
+      rows[row][col] = input.value || '';
+    });
+    previewRows = rows;
+  }
+
+  /* ══════════════════════════════════
+     BACK
+  ══════════════════════════════════ */
+  function backToPaste() {
+    capturePreviewRows();
+    setStep(1);
+  }
+
+  function clearPreviewValidationMarks() {
+    document.querySelectorAll('.preview-field').forEach(el => {
+      el.classList.remove('field-invalid');
+      const parent = el.closest('div');
+      if (!parent) return;
+      parent.querySelectorAll('.field-error-text').forEach(msg => msg.remove());
+    });
+  }
+
+  function markPreviewFieldInvalid(rowIdx, colIdx, message) {
+    const el = document.querySelector(`.preview-field[data-row="${rowIdx}"][data-col="${colIdx}"]`);
+    if (!el) return null;
+
+    el.classList.add('field-invalid');
+
+    const parent = el.closest('div');
+    if (parent && !parent.querySelector('.field-error-text')) {
+      const msg = document.createElement('span');
+      msg.className = 'field-error-text';
+      msg.textContent = message || 'Campo obligatorio';
+      parent.appendChild(msg);
+    }
+
+    return el;
+  }
+
+  function validatePreviewRows() {
+    clearPreviewValidationMarks();
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const errors = [];
+    let firstInvalidEl = null;
+
+    previewRows.forEach((row, rowIdx) => {
+      pasteOrder.forEach((field, colIdx) => {
+        if (!isRequiredPasteField(field)) return;
+
+        const value = String(row[colIdx] || '').trim();
+        if (!value) {
+          errors.push(`Colaborador ${rowIdx + 1}: falta ${field}.`);
+          const el = markPreviewFieldInvalid(rowIdx, colIdx, 'Campo obligatorio');
+          if (!firstInvalidEl && el) firstInvalidEl = el;
+        }
+      });
+
+      const monedaIdx = pasteOrder.indexOf('Moneda Del Pedido');
+      if (monedaIdx >= 0) {
+        const moneda = String(row[monedaIdx] || '').trim();
+        if (moneda && !normalizeCurrencyInput(moneda)) {
+          errors.push(`Colaborador ${rowIdx + 1}: moneda inválida. Solo se permite CLP o USD.`);
+          const el = markPreviewFieldInvalid(rowIdx, monedaIdx, 'Solo CLP o USD');
+          if (!firstInvalidEl && el) firstInvalidEl = el;
+        }
+      }
+
+      const correoIdx = pasteOrder.indexOf('Correo');
+      if (correoIdx >= 0) {
+        const correo = String(row[correoIdx] || '').trim();
+        if (correo && !emailRegex.test(correo)) {
+          errors.push(`Colaborador ${rowIdx + 1}: correo inválido.`);
+          const el = markPreviewFieldInvalid(rowIdx, correoIdx, 'Correo inválido');
+          if (!firstInvalidEl && el) firstInvalidEl = el;
+        }
+      }
+    });
+
+    if (errors.length) {
+      if (firstInvalidEl) {
+        firstInvalidEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => firstInvalidEl.focus(), 250);
+      }
+
+      const maxShown = 10;
+      const shown = errors.slice(0, maxShown).join('\n');
+      const extra = errors.length > maxShown ? `\n... y ${errors.length - maxShown} error(es) más.` : '';
+
+      return shown + extra + '\n\nOpcionales: Código Postal, Observación/Observaciones y Documento Bancario. Todos los demás campos son obligatorios. Moneda del Pedido solo acepta CLP o USD.';
+    }
+
+    return '';
+  }
+
+  /* ══════════════════════════════════
+     GUARDAR
+  ══════════════════════════════════ */
+  async function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = e => resolve({ bytes: e.target.result.split(',')[1], mimeType: file.type, name: file.name });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function guardarTodo() {
+    capturePreviewRows();
+
+    const validationError = validatePreviewRows();
+    if (validationError) {
+      showWarning('Campos obligatorios pendientes', validationError);
+      return;
+    }
+
+    const solicitante = document.getElementById('solicitante').value.trim();
+    const tipoIngreso = document.getElementById('tipoIngreso').value;
+    const sociedad    = document.getElementById('sociedad').value;
+
+    setProgress(true, 'Procesando archivos...', 20);
+
+    try {
+      const rowsPayload = [];
+      const fileInputs  = Array.from(document.querySelectorAll('.row-file'));
+
+      for (let i = 0; i < previewRows.length; i++) {
+        const input   = fileInputs[i];
+        const file    = input && input.files && input.files[0];
+        const fileObj = file ? await fileToBase64(file) : null;  // null si no hay archivo
+
+        rowsPayload.push({ values: previewRows[i], fileObj });
+      }
+
+      setProgress(true, 'Enviando datos al servidor...', 55);
+
+      google.script.run
+        .withSuccessHandler(function(resp) {
+          setProgress(true, 'Finalizado', 100);
+
+          const urlDestino = (resp && resp.redirectUrl) || redirectUrlFromServer || REDIRECT_URL;
+
+          // La redirección debe salir del click del botón: el iframe sandbox
+          // de Apps Script solo permite navegar la ventana superior con un
+          // gesto de usuario reciente, y nunca hay que cargar
+          // script.google.com dentro del iframe (produce el error
+          // "www.google.com rechazó la conexión").
+          Swal.fire({
+            icon: 'success',
+            title: 'Proveedor creado correctamente',
+            text: resp && resp.message ? resp.message : 'Carga realizada correctamente.',
+            confirmButtonColor: '#2e7d32',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            confirmButtonText: 'Continuar'
+          }).then(() => {
+            redirigirAlPanel(urlDestino);
+          });
+        })
+        .withFailureHandler(function(err) {
+          setProgress(false);
+          showError('Error al procesar', err);
+        })
+        .procesarMasivoColaboradores({ solicitante, tipoIngreso, sociedad, rows: rowsPayload });
+
+    } catch(e) {
+      setProgress(false);
+      showError('Error al procesar archivos', e);
+    }
+  }
+
+  function redirigirAlPanel(url) {
+    if (!url) return;
+
+    try {
+      window.top.location.href = url;
+      return;
+    } catch (err) {}
+
+    const winTop = window.open(url, '_top');
+    if (winTop) return;
+
+    const winBlank = window.open(url, '_blank');
+    if (!winBlank) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Redirección bloqueada',
+        html: 'Su navegador bloqueó la redirección automática. ' +
+              '<a href="' + url + '" target="_top" rel="noopener">Haga clic aquí para continuar</a>.',
+        confirmButtonColor: '#2e7d32'
+      });
+    }
+  }
+
+  /* ══════════════════════════════════
+     UI HELPERS
+  ══════════════════════════════════ */
+  function setStep(n) {
+    document.getElementById('step1').classList.toggle('hidden', n !== 1);
+    document.getElementById('step2').classList.toggle('hidden', n !== 2);
+
+    // Update step circles
+    ['sc1','sc2'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      el.classList.remove('active','done');
+      if (i + 1 === n) el.classList.add('active');
+      else if (i + 1 < n) el.classList.add('done');
+    });
+
+    ['sl1','sl2'].forEach((id, i) => {
+      document.getElementById(id).classList.toggle('active', i + 1 === n);
+    });
+
+    document.getElementById('scn1').classList.toggle('done', n > 1);
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function setProgress(show, label, pct) {
+    const wrap = document.getElementById('progressWrap');
+    wrap.classList.toggle('hidden', !show);
+    if (!show) return;
+    document.getElementById('progressLabel').textContent = label || '';
+    document.getElementById('progressBar').style.width   = (pct || 0) + '%';
+  }
+
+  function limpiarTodo() {
+    document.getElementById('solicitante').value = '';
+    document.getElementById('tipoIngreso').value = '';
+    document.getElementById('sociedad').value    = '';
+    syncOrgCompras();
+    document.getElementById('data').value = '';
+    previewRows = [];
+    document.getElementById('previewContainer').innerHTML = '';
+    setProgress(false);
+    setStep(1);
+  }
+
+  function showWarning(title, msg) {
+    Swal.fire({ icon:'warning', title, text: typeof msg === 'string' ? msg : (msg && msg.message) || String(msg), confirmButtonColor:'#2e7d32' });
+  }
+
+  function showError(title, err) {
+    Swal.fire({ icon:'error', title, text: (err && err.message) ? err.message : String(err), confirmButtonColor:'#2e7d32' });
+  }
+
+  function escapeHtml(text) {
+    return String(text || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+</script>
+
+</body>
+</html>
