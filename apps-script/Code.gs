@@ -975,7 +975,16 @@ function getProviderPlanData_(ss, lastIngresoDate) {
 
   if (values.length < 2) return empty;
 
-  const headers = values[0].map(rawText_);
+  // Los encabezados de mes en "Hoja 2" suelen quedar como fecha real (Sheets
+  // autodetecta texto tipo "jul-2026" y lo convierte a una celda con formato
+  // mmm-yyyy), no como texto plano. Por eso se conserva el valor crudo de la
+  // celda (rawHeaders) para la columna de mes, en vez de forzarlo a String()
+  // antes de comparar.
+  const rawHeaders = values[0];
+  const headers = rawHeaders.map(rawText_);
+
+  const providerColumn = findPlanColumn_(headers, ['proveedores', 'proveedor']);
+  const originColumn = findPlanColumn_(headers, ['origen', 'predio', 'faena']);
 
   // El mes del plan y los días hábiles transcurridos deben calcularse SIEMPRE
   // sobre la misma fecha de referencia: la del último ingreso cargado en la
@@ -984,14 +993,12 @@ function getProviderPlanData_(ss, lastIngresoDate) {
   // el mes calendario, aunque los datos cargados todavía sean del mes anterior
   // (ej: datos cargados el 30, hoy ya es día 1 del mes nuevo).
   const refDate = lastIngresoDate || new Date();
-  const monthColumn = findPlanMonthColumn_(headers, refDate);
-  const providerColumn = findPlanColumn_(headers, ['proveedores', 'proveedor']);
-  const originColumn = findPlanColumn_(headers, ['origen', 'predio', 'faena']);
+  const monthColumn = findPlanMonthColumn_(rawHeaders, refDate, [providerColumn, originColumn]);
 
   if (monthColumn === -1) return empty;
 
   const out = {
-    monthLabel: headers[monthColumn],
+    monthLabel: planHeaderLabel_(rawHeaders[monthColumn]),
     monthColumn,
     totalPlan: 0,
     planToDate: 0,
@@ -1431,10 +1438,11 @@ function qualityLabel_(calTrz, fallback) {
   return text_(fallback) || 'SIN CALIDAD';
 }
 
-function findPlanMonthColumn_(headers, now) {
+function findPlanMonthColumn_(headers, now, excludeColumns) {
   now = now || new Date();
 
   const monthKey = planMonthKey_(now);
+  const exclude = new Set((excludeColumns || []).filter(i => i !== -1));
 
   for (let i = 1; i < headers.length; i++) {
     if (planHeaderKey_(headers[i]) === monthKey) {
@@ -1443,12 +1451,18 @@ function findPlanMonthColumn_(headers, now) {
   }
 
   for (let j = 1; j < headers.length; j++) {
-    if (rawText_(headers[j])) {
+    if (exclude.has(j)) continue;
+    if (hasHeaderContent_(headers[j])) {
       return j;
     }
   }
 
   return -1;
+}
+
+function hasHeaderContent_(value) {
+  if (value instanceof Date) return !isNaN(value);
+  return Boolean(rawText_(value));
 }
 
 function findPlanColumn_(headers, names) {
@@ -1483,9 +1497,30 @@ function planMonthKey_(date) {
 }
 
 function planHeaderKey_(value) {
-  return normalize_(value)
-    .replace(/\s+/g, '')
-    .replace('sep-', 'sept-');
+  // Si Sheets convirtió el encabezado en una fecha real (p.ej. al escribir
+  // "jul-2026" en una columna con formato mmm-yyyy), se calcula la clave
+  // directamente desde la fecha en vez de comparar texto.
+  if (value instanceof Date && !isNaN(value)) {
+    return planMonthKey_(value);
+  }
+
+  const text = normalize_(value).replace(/\s+/g, '');
+  // Acepta año en 2 o 4 dígitos y "sep" o "sept" ("jul-26", "jul-2026", "jul2026"...).
+  const match = text.match(/^([a-z]+)-?(\d+)$/);
+
+  if (!match) return text.replace('sep-', 'sept-');
+
+  const month = match[1] === 'sep' ? 'sept' : match[1];
+  const year = match[2].slice(-2);
+
+  return month + '-' + year;
+}
+
+function planHeaderLabel_(value) {
+  if (value instanceof Date && !isNaN(value)) {
+    return planMonthKey_(value);
+  }
+  return rawText_(value);
 }
 
 function isPlanTotalRow_(value) {
