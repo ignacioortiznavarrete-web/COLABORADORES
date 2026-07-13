@@ -1121,7 +1121,24 @@
           });
         })
         .withFailureHandler(err => {
-          Swal.fire('Error', err.message || String(err), 'error');
+          const mensaje = (err && err.message) ? err.message : String(err);
+
+          // Si el módulo opcional Slides.gs no está en el proyecto, la función no existe.
+          if (/no se encontr|not found|no existe la función|is not defined/i.test(mensaje)) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Módulo de Slides no instalado',
+              html: 'Para enviar gráficos a Google Slides, agrega el archivo opcional <b>Slides.gs</b> ' +
+                'al proyecto de Apps Script (Editor → + → Secuencia de comandos → pega el contenido) ' +
+                'y autoriza el permiso de Presentaciones cuando Google lo pida.<br><br>' +
+                'El dashboard funciona completo sin ese módulo.',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#2D6A4F'
+            });
+            return;
+          }
+
+          Swal.fire('Error', mensaje, 'error');
         })
         .enviarGraficoDirectoASlides(chartKey, urlPresentacion || null);
     }
