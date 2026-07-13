@@ -3,6 +3,8 @@
   <head>
     <base target="_top">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       :root {
         /* Marca forest/mint */
@@ -41,7 +43,7 @@
       * { box-sizing: border-box; }
       html, body { margin: 0; min-height: 100%; }
       body {
-        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
         color: var(--ink);
         background:
           radial-gradient(circle at 10% 0%, rgba(142, 231, 200, .12), transparent 36%),
@@ -217,6 +219,12 @@
         background: var(--forest-700);
         border-color: var(--forest-700);
       }
+      .toggles .btn.active:before {
+        content: "✓";
+        margin-right: 6px;
+        font-size: 11px;
+        font-weight: 800;
+      }
 
       /* ---------- Franja de estado + mini estadísticas ---------- */
       .info-strip {
@@ -239,16 +247,45 @@
         font-variant-numeric: tabular-nums;
       }
       .status.error { color: var(--danger); font-weight: 700; }
+      .status.loading:before {
+        content: "";
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        margin-right: 7px;
+        vertical-align: -2px;
+        border: 2px solid var(--line);
+        border-top-color: var(--forest-500);
+        border-radius: 999px;
+        animation: spin .7s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .status.loading:before { animation: none; }
+      }
 
       /* ---------- Matriz ---------- */
       .matrix-scroll {
-        height: calc(100vh - 196px);
+        height: calc(100vh - 202px);
         min-height: 440px;
         overflow: auto;
         background: var(--paper);
         transition: opacity .15s ease;
       }
       .matrix-scroll.loading { opacity: .45; pointer-events: none; }
+      .matrix-scroll::-webkit-scrollbar,
+      .detail-body::-webkit-scrollbar { width: 10px; height: 10px; }
+      .matrix-scroll::-webkit-scrollbar-thumb,
+      .detail-body::-webkit-scrollbar-thumb {
+        background: #c2d5ca;
+        border-radius: 999px;
+        border: 2px solid var(--paper);
+      }
+      .matrix-scroll::-webkit-scrollbar-thumb:hover,
+      .detail-body::-webkit-scrollbar-thumb:hover { background: #a9c2b5; }
+      .matrix-scroll::-webkit-scrollbar-track,
+      .detail-body::-webkit-scrollbar-track { background: transparent; }
+      .matrix-scroll::-webkit-scrollbar-corner { background: transparent; }
 
       table.matrix {
         border-collapse: separate;
@@ -263,6 +300,7 @@
         position: sticky;
         top: 0;
         z-index: 8;
+        height: 44px;
         background: var(--forest-800);
         color: #dff5ea;
         font-size: 11px;
@@ -290,13 +328,28 @@
         text-overflow: ellipsis;
         font-variant-numeric: tabular-nums;
       }
+      .date-head .d1 {
+        display: block;
+        font-weight: 700;
+        color: #f2fdf8;
+        line-height: 1.25;
+      }
+      .date-head .d2 {
+        display: block;
+        font-size: 10px;
+        font-weight: 500;
+        color: rgba(223, 245, 234, .55);
+        line-height: 1.2;
+      }
       .date-head.total {
         color: var(--mint-200);
         font-weight: 700;
-        border-left: 1px solid var(--forest-600);
+        border-left: 2px solid var(--forest-600);
       }
+      thead th.col-hot { background: var(--forest-700); }
 
       tbody td { border-bottom: 1px solid var(--line-soft); background: #fff; }
+      tbody td.col-hot { background: #f1f9f4; }
       tbody tr:hover td { background: #f1f9f4; }
       tbody tr:hover .product-cell,
       tbody tr:hover .text-cell { background: #ecf7f1; }
@@ -323,7 +376,9 @@
         color: var(--ink-2);
         overflow: hidden;
         border-right: 1px solid var(--line);
-        box-shadow: 6px 0 10px -8px rgba(10, 36, 28, .18);
+      }
+      .matrix-scroll.x-scrolled .text-cell {
+        box-shadow: 8px 0 12px -8px rgba(10, 36, 28, .28);
       }
       .cell-text { display: block; overflow: hidden; text-overflow: ellipsis; }
 
@@ -428,6 +483,49 @@
       .empty-detail { color: var(--muted); font-size: 13px; line-height: 1.5; padding: 14px 4px; }
 
       .detail-grid { display: grid; gap: 9px; }
+
+      .detail-hero {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px 13px;
+        background: linear-gradient(180deg, #ffffff, #f0faf5);
+      }
+      .detail-hero .eyebrow {
+        display: block;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        margin-bottom: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .detail-hero .hero-m3 {
+        color: var(--forest-800);
+        font-size: 27px;
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -.01em;
+      }
+      .detail-hero .hero-m3 small {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+        letter-spacing: 0;
+      }
+      .detail-hero p {
+        margin: 6px 0 0;
+        color: var(--ink-2);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .detail-hero .hero-meta {
+        display: block;
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
       .detail-block {
         border: 1px solid var(--line);
         border-radius: 12px;
@@ -475,10 +573,14 @@
       }
       .entry-card {
         border: 1px solid var(--line);
+        border-left-width: 3px;
         border-radius: 12px;
         background: #fff;
         overflow: hidden;
       }
+      .entry-card.asignado { border-left-color: var(--forest-500); }
+      .entry-card.negociacion { border-left-color: var(--status-good); }
+      .entry-card.pendiente { border-left-color: #d8a021; }
       .entry-card-head {
         display: flex;
         align-items: center;
@@ -752,11 +854,25 @@
         });
 
         els.matrix.addEventListener('mousemove', onMatrixMouseMove);
-        els.matrix.addEventListener('mouseleave', hideTooltip);
+        els.matrix.addEventListener('mouseleave', function() { hideTooltip(); setHotColumn(null); });
         els.matrix.addEventListener('click', onMatrixClick);
         els.matrix.addEventListener('keydown', onMatrixKeyDown);
         els.matrix.addEventListener('focusin', onMatrixFocusIn);
         els.matrix.addEventListener('focusout', hideTooltip);
+        els.matrixScroll.addEventListener('scroll', function() {
+          this.classList.toggle('x-scrolled', this.scrollLeft > 2);
+        });
+      }
+
+      var hotCol = null;
+      function setHotColumn(col) {
+        if (hotCol === col) return;
+        var prev = els.matrix.querySelectorAll('.col-hot');
+        for (var i = 0; i < prev.length; i++) prev[i].classList.remove('col-hot');
+        hotCol = col;
+        if (col == null) return;
+        var next = els.matrix.querySelectorAll('[data-c="' + col + '"]');
+        for (var j = 0; j < next.length; j++) next[j].classList.add('col-hot');
       }
 
       function setToggle(button, active) {
@@ -765,7 +881,7 @@
       }
 
       function loadData(sync) {
-        setStatus(sync ? 'Reconstruyendo vista desde Bd...' : 'Cargando seguimiento...');
+        setStatus(sync ? 'Reconstruyendo vista desde Bd...' : 'Cargando seguimiento...', true);
         els.matrixScroll.classList.add('loading');
         var runner = google.script.run
           .withSuccessHandler(function(data) {
@@ -826,6 +942,7 @@
       }
 
       function renderMatrix() {
+        hotCol = null;
         var headers = state.visibleHeaders;
         var rows = state.visibleRows;
 
@@ -839,7 +956,7 @@
         html.push('<th class="head-product" colspan="2">Material / texto comercial</th>');
         headers.forEach(function(h) {
           var label = cleanDateText(h.label || h.top || '');
-          html.push('<th class="date-head' + (h.isTotal ? ' total' : '') + '" title="' + escAttr(label) + '">' + esc(label) + '</th>');
+          html.push('<th class="date-head' + (h.isTotal ? ' total' : '') + '" data-c="' + h.index + '" title="' + escAttr(label) + '">' + formatDateHead(label, h.isTotal) + '</th>');
         });
         html.push('</tr></thead><tbody>');
 
@@ -887,6 +1004,7 @@
 
       function onMatrixMouseMove(event) {
         var cellEl = event.target.closest('td.value-cell');
+        setHotColumn(cellEl ? cellEl.getAttribute('data-c') : null);
         if (!cellEl) { hideTooltip(); return; }
         var info = getCellInfoFromElement(cellEl);
         if (!info || !info.cell || !info.cell.hasValue) { hideTooltip(); return; }
@@ -900,11 +1018,33 @@
       }
 
       function onMatrixKeyDown(event) {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
         var cellEl = event.target.closest('td.value-cell');
         if (!cellEl) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectCell(cellEl);
+          return;
+        }
+        if (event.key.indexOf('Arrow') !== 0) return;
         event.preventDefault();
-        selectCell(cellEl);
+        var target = null;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+          var dir = event.key === 'ArrowRight' ? 'nextElementSibling' : 'previousElementSibling';
+          var sib = cellEl[dir];
+          while (sib && !target) {
+            if (sib.matches && sib.matches('td.value-cell[tabindex]')) target = sib;
+            sib = sib[dir];
+          }
+        } else {
+          var vdir = event.key === 'ArrowDown' ? 'nextElementSibling' : 'previousElementSibling';
+          var col = cellEl.getAttribute('data-c');
+          var tr = cellEl.parentElement[vdir];
+          while (tr && !target) {
+            target = tr.querySelector('td.value-cell[tabindex][data-c="' + col + '"]');
+            tr = tr[vdir];
+          }
+        }
+        if (target) target.focus();
       }
 
       function onMatrixFocusIn(event) {
@@ -962,15 +1102,15 @@
         var info = state.selected;
         var dateLabel = cleanDateText(info.header.label || '');
         var entries = getEntries(info);
+        var nRegistros = entries.length || 0;
         els.detail.innerHTML =
           '<div class="detail-grid">' +
-            '<div class="summary-grid">' +
-              '<div class="detail-block"><b>Material</b><span>' + esc(info.row.material) + '</span></div>' +
-              '<div class="detail-block"><b>Fecha</b><span>' + esc(dateLabel) + '</span></div>' +
-              '<div class="detail-block"><b>Volumen total celda</b><span class="pill">' + esc(info.cell.value) + ' m3</span></div>' +
-              '<div class="detail-block"><b>Registros BD</b><span>' + esc(entries.length || 0) + '</span></div>' +
+            '<div class="detail-hero">' +
+              '<span class="eyebrow">' + esc(info.row.material) + ' · ' + esc(dateLabel) + '</span>' +
+              '<div class="hero-m3">' + esc(info.cell.value) + '<small> m3</small></div>' +
+              '<p>' + esc(info.row.textoComercial) + '</p>' +
+              '<span class="hero-meta">' + esc(nRegistros) + (nRegistros === 1 ? ' registro en Bd' : ' registros en Bd') + '</span>' +
             '</div>' +
-            '<div class="detail-block"><b>Texto comercial</b><span>' + esc(info.row.textoComercial) + '</span></div>' +
             '<div class="entry-section-title">Detalle operativo</div>' +
             buildDetailEntries(entries, info.cell.comment) +
           '</div>';
@@ -1007,9 +1147,10 @@
           if (!notaHtml) notaHtml = '<div class="entry-field full"><b>Nota</b><span>Sin nota cargada.</span></div>';
 
           var estado = item.estado || 'Pendiente';
+          var estadoClass = stateBadgeClass(estado);
           html.push(
-            '<article class="entry-card">' +
-              '<div class="entry-card-head"><strong>Registro ' + esc(index + 1) + '</strong><span class="state-badge ' + stateBadgeClass(estado) + '">' + esc(estado) + '</span></div>' +
+            '<article class="entry-card ' + estadoClass + '">' +
+              '<div class="entry-card-head"><strong>Registro ' + esc(index + 1) + '</strong><span class="state-badge ' + estadoClass + '">' + esc(estado) + '</span></div>' +
               '<div class="entry-grid">' +
                 '<div class="entry-field"><b>Pedido</b><span>' + esc(item.pedido || '-') + '</span></div>' +
                 '<div class="entry-field"><b>Proveedor</b><span>' + esc(item.proveedor || 'Pendiente de asignar') + '</span></div>' +
@@ -1058,8 +1199,8 @@
         return null;
       }
 
-      function setStatus(message) {
-        els.status.className = '';
+      function setStatus(message, loading) {
+        els.status.className = loading ? 'status loading' : '';
         els.status.textContent = message || '';
       }
       function setError(err) {
@@ -1097,6 +1238,15 @@
       }
       function cleanDateText(value) {
         return String(value || '').trim();
+      }
+      var MESES_ES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+      function formatDateHead(label, isTotal) {
+        if (isTotal) return '<span class="d1">Total</span><span class="d2">m3</span>';
+        var m = /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/.exec(label);
+        if (!m) return esc(label);
+        var mes = MESES_ES[Number(m[2]) - 1];
+        if (!mes) return esc(label);
+        return '<span class="d1">' + esc(m[1] + ' ' + mes) + '</span><span class="d2">' + esc(m[3]) + '</span>';
       }
       function cleanNoteText(value) {
         return String(value || '')
