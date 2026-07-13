@@ -4,8 +4,8 @@ const CONFIG = {
   PLAN_SHEET_NAME: 'Hoja 2',
   PROJECTION_SHEET_NAME: 'ProyeccionCamiones',
   M3_PER_CAMION: 26,
-  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V18',
-  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V18',
+  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V19',
+  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V19',
   CACHE_SECONDS: 21600,
   CACHE_CHUNK_CHARS: 45000, // margen de sobra bajo el límite de 100KB por clave de CacheService, incluso con acentos en UTF-8
   MAX_ROLES_MAPA: 150
@@ -141,22 +141,37 @@ function onOpen() {
     .addToUi();
 }
 
-function doGet() {
-  return HtmlService
-    .createTemplateFromFile('Index')
+function doGet(e) {
+  const template = HtmlService.createTemplateFromFile('Index');
+
+  // Con ?present=1 el dashboard entra directo en modo presentación:
+  // ideal para proyectarlo o dejarlo en una pantalla durante reuniones.
+  template.autoPresent = Boolean(e && e.parameter && e.parameter.present);
+
+  return template
     .evaluate()
     .setTitle('MASISA Dashboard GIS')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function abrirDashboard() {
-  const html = HtmlService
-    .createTemplateFromFile('Index')
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.autoPresent = false;
+
+  const html = template
     .evaluate()
     .setWidth(1600)
     .setHeight(950);
 
   SpreadsheetApp.getUi().showModalDialog(html, 'MASISA GIS');
+}
+
+function getWebAppUrl() {
+  try {
+    return ScriptApp.getService().getUrl() || '';
+  } catch (err) {
+    return '';
+  }
 }
 
 function include(fileName) {
@@ -270,6 +285,47 @@ function businessDayNumberFromValue_(value) {
 
   const effective = prevOrSameBusinessDay_(date);
   return businessDayNumberInMonth_(effective);
+}
+
+function buildCalendarData_(refDate) {
+  const base = (refDate instanceof Date && !isNaN(refDate)) ? refDate : new Date();
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+
+  const monthNames = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+
+  const days = [];
+  let numHabil = 0;
+
+  for (let day = 1; day <= lastDay; day++) {
+    const date = new Date(year, month, day);
+    const dow = date.getDay();
+    const feriado = isFeriado_(date);
+    const habil = isBusinessDay_(date);
+
+    if (habil) numHabil++;
+
+    days.push({
+      day,
+      dow,
+      fecha: Utilities.formatDate(date, 'America/Santiago', 'yyyy-MM-dd'),
+      feriado,
+      habil,
+      numHabil: habil ? numHabil : 0
+    });
+  }
+
+  return {
+    year,
+    month,
+    monthLabel: monthNames[month] + ' ' + year,
+    refDay: base.getDate(),
+    days
+  };
 }
 
 /*******************************************************
@@ -506,6 +562,7 @@ function buildDashboardCore_() {
     comunas: enrichComunasWithRegion_(objectToArray_(comunas, 'comuna')),
     regiones: objectToArray_(regiones, 'region'),
     fechas: dateAggToArray_(fechas, plan),
+    calendario: buildCalendarData_(lastIngresoDate || new Date()),
 
     proyeccionCamiones: projection.rows,
 

@@ -292,6 +292,179 @@
 
     .status { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
+    .k-value, td, .pill, .badge { font-variant-numeric: tabular-nums; }
+
+    h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      border-radius: 2px;
+      background: linear-gradient(180deg, var(--forest2), var(--forest3));
+      flex-shrink: 0;
+    }
+
+    /* ── CALENDARIO DE DÍAS HÁBILES ── */
+    .cal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .cal-month { font-size: 16px; font-weight: 800; color: var(--forest); text-transform: capitalize; }
+    .cal-summary { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 6px;
+    }
+
+    .cal-dow {
+      text-align: center;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: var(--muted);
+      padding: 4px 0;
+    }
+
+    .cal-day {
+      min-height: 74px;
+      border: 1px solid #E8ECEA;
+      border-radius: 12px;
+      padding: 6px 8px;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 11px;
+      position: relative;
+    }
+
+    .cal-day .cal-num { font-weight: 800; font-size: 13px; color: var(--text); }
+    .cal-day .cal-habil-tag {
+      align-self: flex-start;
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--forest2);
+      background: var(--soft);
+      border-radius: 999px;
+      padding: 2px 6px;
+    }
+
+    .cal-day .cal-m3 { font-weight: 800; font-size: 12px; color: var(--forest); }
+    .cal-day .cal-pct { font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px; }
+    .cal-day .cal-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .cal-day .cal-tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); }
+
+    .cal-day.is-weekend { background: #F2F5F3; border-style: dashed; }
+    .cal-day.is-weekend .cal-num { color: var(--muted); }
+
+    .cal-day.is-feriado { background: #FBF6EC; border-color: #E8D9B8; }
+    .cal-day.is-feriado .cal-tag { color: var(--warning); }
+
+    .cal-day.is-futuro { background: #FDFEFD; }
+    .cal-day.is-futuro .cal-num { color: var(--forest3); }
+
+    .cal-day.is-ref {
+      border: 2px solid var(--forest2);
+      box-shadow: 0 0 0 3px rgba(45,106,79,.14);
+    }
+
+    .cal-day.sin-ingreso { background: #FBF1F0; border-color: #E9C9C6; }
+
+    .cal-empty-cell { border: none; background: transparent; min-height: 0; }
+
+    .cal-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .cal-legend .legend-item { gap: 5px; }
+    .cal-legend .legend-color { width: 11px; height: 11px; border: 1px solid #DCE5DF; }
+
+    /* ── MODO PRESENTACIÓN ── */
+    body.presenting .filters,
+    body.presenting #filtersHint,
+    body.presenting .actions .btn-hide-present { display: none !important; }
+
+    body.presenting header { padding: 10px 22px; }
+    body.presenting .k-value { font-size: 36px; }
+    body.presenting main .card,
+    body.presenting main section { scroll-margin-top: 84px; }
+
+    body.presenting .present-current {
+      outline: 3px solid rgba(45,106,79,.45);
+      outline-offset: 3px;
+      border-radius: 20px;
+    }
+
+    #presentBar {
+      display: none;
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1200;
+      background: var(--forest);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 14px;
+      box-shadow: 0 14px 36px rgba(0,0,0,.30);
+      align-items: center;
+      gap: 10px;
+    }
+
+    body.presenting #presentBar { display: flex; }
+
+    #presentBar button {
+      background: rgba(255,255,255,.14);
+      box-shadow: none;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    #presentBar button:hover { background: rgba(255,255,255,.26); transform: none; }
+
+    #presentBar .present-info {
+      font-size: 11px;
+      font-weight: 700;
+      opacity: .9;
+      min-width: 130px;
+      text-align: center;
+    }
+
+    .live-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #7CE3A8;
+      display: inline-block;
+      animation: livePulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes livePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(124,227,168,.55); }
+      50%      { box-shadow: 0 0 0 6px rgba(124,227,168,0); }
+    }
+
     @media (max-width: 1200px) {
       .quality-kpis { grid-template-columns: 1fr; }
       .grid, .two, .filters { grid-template-columns: 1fr; }
@@ -327,8 +500,10 @@
     </div>
 
     <div class="actions">
-      <button onclick="loadData(true)">Actualizar datos</button>
-      <button onclick="exportCSV()">Exportar matriz</button>
+      <button onclick="togglePresentation()">▶ Modo presentación</button>
+      <button class="btn-hide-present" onclick="copyLiveLink()">Copiar enlace en vivo</button>
+      <button class="btn-hide-present" onclick="loadData(true)">Actualizar datos</button>
+      <button class="btn-hide-present" onclick="exportCSV()">Exportar matriz</button>
     </div>
   </header>
 
@@ -412,6 +587,11 @@
       </div>
     </section>
 
+    <section id="secCalendario" class="card" style="margin-bottom:18px;">
+      <h3>Calendario de días hábiles del mes</h3>
+      <div id="calContainer"><div class="status">Cargando calendario...</div></div>
+    </section>
+
     <section class="grid">
       <div class="card">
         <h3>Mapa por ROL</h3>
@@ -489,6 +669,16 @@
     </section>
   </main>
 
+  <!-- BARRA DE CONTROL DEL MODO PRESENTACIÓN -->
+  <div id="presentBar">
+    <span class="live-dot" title="Datos en vivo"></span>
+    <button type="button" onclick="presentPrev()" title="Sección anterior">◀</button>
+    <button type="button" id="presentPauseBtn" onclick="togglePresentPause()" title="Pausar/reanudar rotación">⏸</button>
+    <button type="button" onclick="presentNext()" title="Sección siguiente">▶</button>
+    <span id="presentInfo" class="present-info">-</span>
+    <button type="button" onclick="exitPresentation()" title="Salir (Esc)">✕ Salir</button>
+  </div>
+
   <script>
     let DATA = null;
     let ROLE_MAP_DATA = [];
@@ -508,6 +698,24 @@
     let COMPLIANCE_SORT = 'cubicacion_desc'; // cubicacion_desc | cubicacion_asc | cumpl_desc | cumpl_asc
 
     const PLANTA_CABRERO = { lat: -37.034, lng: -72.426, label: 'Ruta 146 N° 2015, Cabrero' };
+
+    // true cuando el web app se abre con ?present=1 (enlace "en vivo" para presentaciones)
+    const AUTO_PRESENT = <?!= JSON.stringify(autoPresent || false) ?>;
+
+    // Estado del modo presentación
+    const PRESENT = {
+      active: false,
+      paused: false,
+      slideIndex: 0,
+      slides: [],
+      rotateTimer: null,
+      countdownTimer: null,
+      refreshTimer: null,
+      secondsLeft: 0
+    };
+    const PRESENT_SLIDE_SECONDS = 15;
+    const PRESENT_REFRESH_MINUTES = 10;
+    let WEB_APP_URL = '';
 
     // La librería de gráficos se carga en paralelo con los datos: no bloquea el pedido al servidor.
     google.charts.load('current', { packages: ['corechart', 'bar'] });
@@ -542,6 +750,7 @@
 
           populateLargoOptions();
           renderKPIs();
+          renderCalendar();
           renderCharts();
           renderTables();
           initMap();
@@ -550,6 +759,8 @@
           document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
           setRoleListLoading();
           Swal.close();
+
+          if (AUTO_PRESENT && !PRESENT.active) setTimeout(startPresentation, 600);
 
           // KMZ/KML y detalle de ingresos (usado por los filtros) se cargan aparte,
           // en paralelo, sin bloquear el render de KPIs/gráficos/tablas de arriba.
@@ -679,6 +890,308 @@
     }
 
 
+
+    /* ────────────────────────────────────────────────────
+       CALENDARIO DE DÍAS HÁBILES
+    ──────────────────────────────────────────────────── */
+
+    function renderCalendar() {
+      const container = document.getElementById('calContainer');
+      if (!container) return;
+
+      const cal = DATA && DATA.calendario;
+      if (!cal || !Array.isArray(cal.days) || !cal.days.length) {
+        container.innerHTML = '<div class="status">Sin datos de calendario. Presiona "Actualizar datos" para regenerarlos.</div>';
+        return;
+      }
+
+      const realPorDia = buildRealPorDiaCalendario(cal);
+      const meta = Number(DATA.kpis.planDiarioHabil) || 0;
+      const dows = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+      const habilesTotal = cal.days.filter(d => d.habil).length;
+      const habilesTranscurridos = cal.days.filter(d => d.habil && d.day <= cal.refDay).length;
+
+      let html = `
+        <div class="cal-head">
+          <span class="cal-month">${escapeHtml(cal.monthLabel)}</span>
+          <span class="cal-summary">Día hábil ${fmt0(habilesTranscurridos)} de ${fmt0(habilesTotal)}${meta ? ' · meta diaria hábil: ' + fmt(meta) + ' m³' : ''}</span>
+        </div>
+        <div class="cal-grid">`;
+
+      html += dows.map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+      // La semana parte en lunes: se rellenan celdas vacías hasta el día 1.
+      const offset = (cal.days[0].dow + 6) % 7;
+      for (let i = 0; i < offset; i++) html += '<div class="cal-day cal-empty-cell"></div>';
+
+      cal.days.forEach(d => {
+        const past = d.day <= cal.refDay;
+        const real = realPorDia[d.day] || 0;
+        const classes = ['cal-day'];
+        let inner = `<span class="cal-num">${d.day}</span>`;
+
+        if (d.feriado) {
+          classes.push('is-feriado');
+          inner += '<span class="cal-tag">Feriado</span>';
+        } else if (d.dow === 0 || d.dow === 6) {
+          classes.push('is-weekend');
+          inner += '<span class="cal-tag">Fin de semana</span>';
+        }
+
+        if (d.habil) {
+          inner += `<span class="cal-habil-tag">Hábil ${d.numHabil}</span>`;
+
+          if (past) {
+            if (real > 0) {
+              const pct = meta ? real / meta : 0;
+              inner += `<span class="cal-m3">${fmt(real)} m³</span>`;
+              if (meta) {
+                inner += `<span class="cal-pct"><span class="cal-dot" style="background:${complianceColor(pct, meta)}"></span>${fmtPercent(pct)} de la meta</span>`;
+              }
+            } else {
+              classes.push('sin-ingreso');
+              inner += '<span class="cal-tag" style="color:var(--danger)">Sin ingreso</span>';
+            }
+          } else {
+            classes.push('is-futuro');
+          }
+        }
+
+        if (d.day === cal.refDay) {
+          classes.push('is-ref');
+          inner += '<span class="cal-tag" style="color:var(--forest2)">Último ingreso</span>';
+        }
+
+        html += `<div class="${classes.join(' ')}">${inner}</div>`;
+      });
+
+      html += `</div>
+        <div class="cal-legend">
+          <span class="legend-item"><span class="legend-color" style="background:#FFFFFF"></span> Hábil con ingreso (el punto indica % de la meta diaria)</span>
+          <span class="legend-item"><span class="legend-color" style="background:#FBF1F0"></span> Hábil sin ingreso</span>
+          <span class="legend-item"><span class="legend-color" style="background:#FBF6EC"></span> Feriado</span>
+          <span class="legend-item"><span class="legend-color" style="background:#F2F5F3"></span> Fin de semana</span>
+          <span class="legend-item"><span class="legend-color" style="border:2px solid var(--forest2); background:#FFFFFF"></span> Día del último ingreso</span>
+        </div>`;
+
+      container.innerHTML = html;
+    }
+
+    function buildRealPorDiaCalendario(cal) {
+      const out = {};
+      (DATA.fechas || []).forEach(item => {
+        const date = parseDateKeyClient(item.fecha);
+        if (!date || date.getFullYear() !== cal.year || date.getMonth() !== cal.month) return;
+        out[date.getDate()] = (out[date.getDate()] || 0) + (Number(item.cubicacion) || 0);
+      });
+      return out;
+    }
+
+    function parseDateKeyClient(value) {
+      const text = String(value || '').trim();
+      let m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      m = text.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+      if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      return null;
+    }
+
+    /* ────────────────────────────────────────────────────
+       MODO PRESENTACIÓN (dashboard en vivo)
+    ──────────────────────────────────────────────────── */
+
+    function togglePresentation() {
+      if (PRESENT.active) exitPresentation();
+      else startPresentation();
+    }
+
+    function buildPresentSlides() {
+      const slides = [];
+      const kpis = document.querySelector('.kpis');
+      const calidad = document.querySelector('.quality-kpis');
+      const calendario = document.getElementById('secCalendario');
+
+      if (kpis) slides.push(kpis);
+      if (calendario) slides.push(calendario);
+      if (calidad) slides.push(calidad);
+      document.querySelectorAll('.grid > .card').forEach(card => slides.push(card));
+
+      return slides;
+    }
+
+    function startPresentation() {
+      if (PRESENT.active) return;
+
+      PRESENT.active = true;
+      PRESENT.paused = false;
+      PRESENT.slideIndex = 0;
+      PRESENT.slides = buildPresentSlides();
+      document.body.classList.add('presenting');
+
+      // Pantalla completa cuando el navegador lo permite (en el modal de Sheets puede fallar).
+      const root = document.documentElement;
+      if (root.requestFullscreen) root.requestFullscreen().catch(() => {});
+
+      goToSlide(0);
+      PRESENT.secondsLeft = PRESENT_SLIDE_SECONDS;
+      updatePresentInfo();
+
+      clearInterval(PRESENT.countdownTimer);
+      PRESENT.countdownTimer = setInterval(() => {
+        if (!PRESENT.active || PRESENT.paused) { updatePresentInfo(); return; }
+        PRESENT.secondsLeft--;
+        if (PRESENT.secondsLeft <= 0) advanceSlide(1);
+        else updatePresentInfo();
+      }, 1000);
+
+      clearInterval(PRESENT.refreshTimer);
+      PRESENT.refreshTimer = setInterval(refreshLiveData, PRESENT_REFRESH_MINUTES * 60 * 1000);
+
+      // Los gráficos se redibujan por si cambió el ancho útil al ocultar filtros / entrar a fullscreen.
+      setTimeout(() => { if (DATA) renderCharts(); }, 450);
+    }
+
+    function exitPresentation() {
+      if (!PRESENT.active) return;
+
+      PRESENT.active = false;
+      clearInterval(PRESENT.countdownTimer);
+      clearInterval(PRESENT.refreshTimer);
+      document.body.classList.remove('presenting');
+      document.querySelectorAll('.present-current').forEach(el => el.classList.remove('present-current'));
+
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+
+      setTimeout(() => { if (DATA) renderCharts(); }, 450);
+    }
+
+    function advanceSlide(delta) {
+      if (!PRESENT.slides.length) return;
+      PRESENT.slideIndex = (PRESENT.slideIndex + delta + PRESENT.slides.length) % PRESENT.slides.length;
+      goToSlide(PRESENT.slideIndex);
+      PRESENT.secondsLeft = PRESENT_SLIDE_SECONDS;
+      updatePresentInfo();
+    }
+
+    function goToSlide(index) {
+      document.querySelectorAll('.present-current').forEach(el => el.classList.remove('present-current'));
+      const el = PRESENT.slides[index];
+      if (!el) return;
+      el.classList.add('present-current');
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function presentNext() { advanceSlide(1); }
+    function presentPrev() { advanceSlide(-1); }
+
+    function togglePresentPause() {
+      PRESENT.paused = !PRESENT.paused;
+      const btn = document.getElementById('presentPauseBtn');
+      if (btn) btn.textContent = PRESENT.paused ? '▶' : '⏸';
+      updatePresentInfo();
+    }
+
+    function updatePresentInfo() {
+      const el = document.getElementById('presentInfo');
+      if (!el) return;
+      const total = PRESENT.slides.length || 1;
+      el.textContent = 'Sección ' + (PRESENT.slideIndex + 1) + ' / ' + total +
+        (PRESENT.paused ? ' · en pausa' : ' · ' + Math.max(0, PRESENT.secondsLeft) + 's');
+    }
+
+    // Refresco silencioso: actualiza datos sin popups mientras se presenta.
+    function refreshLiveData() {
+      if (!PRESENT.active) return;
+
+      google.script.run
+        .withSuccessHandler(data => {
+          if (!PRESENT.active || !data) return;
+
+          const detalle = DATA ? DATA.detalleIngresos : null;
+          DATA = data;
+          DATA.detalleIngresos = detalle;
+
+          const el = document.getElementById('lastUpdateLabel');
+          if (el) el.textContent = data.lastUpdate || 'Sin datos';
+
+          renderKPIs();
+          renderCalendar();
+          renderCharts();
+          renderTables();
+
+          google.script.run
+            .withSuccessHandler(det => {
+              if (!DATA) return;
+              DATA.detalleIngresos = det || [];
+              renderAllFiltered();
+            })
+            .withFailureHandler(() => {})
+            .getDetalleIngresos(true);
+        })
+        .withFailureHandler(err => console.warn('Refresco en vivo falló', err))
+        .getDashboardData(true);
+    }
+
+    function copyLiveLink() {
+      const finish = url => {
+        if (!url) {
+          Swal.fire(
+            'Enlace no disponible',
+            'Publica el proyecto como aplicación web (Implementar → Nueva implementación) para obtener el enlace en vivo.',
+            'info'
+          );
+          return;
+        }
+
+        const liveUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'present=1';
+
+        copyTextToClipboard(liveUrl)
+          .then(() => Swal.fire({
+            icon: 'success',
+            title: 'Enlace en vivo copiado',
+            html: 'Pégalo en tu presentación (Google Slides / PowerPoint) como enlace, o ábrelo en una pestaña durante la reunión.<br><br>Se abre directo en modo presentación con datos en vivo.',
+            timer: 4200,
+            showConfirmButton: false
+          }))
+          .catch(() => Swal.fire('Enlace en vivo', liveUrl, 'info'));
+      };
+
+      if (WEB_APP_URL) { finish(WEB_APP_URL); return; }
+
+      google.script.run
+        .withSuccessHandler(url => { WEB_APP_URL = url || ''; finish(WEB_APP_URL); })
+        .withFailureHandler(() => finish(''))
+        .getWebAppUrl();
+    }
+
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise((resolve, reject) => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error('No se pudo copiar'));
+      });
+    }
+
+    document.addEventListener('keydown', e => {
+      if (!PRESENT.active) return;
+      if (e.key === 'Escape') exitPresentation();
+      else if (e.key === 'ArrowRight') presentNext();
+      else if (e.key === 'ArrowLeft') presentPrev();
+      else if (e.key === ' ') { e.preventDefault(); togglePresentPause(); }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && PRESENT.active) exitPresentation();
+    });
 
     /* ────────────────────────────────────────────────────
        GRÁFICOS
