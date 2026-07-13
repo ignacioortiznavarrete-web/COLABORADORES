@@ -623,6 +623,37 @@
   </div>
 
   <script>
+    // ── RED DE SEGURIDAD ──────────────────────────────────
+    // Si una librería externa no carga o algo falla al iniciar,
+    // se muestra un aviso visible en vez de una página muerta.
+    (function () {
+      let avisado = false;
+
+      window.mostrarErrorFatal = function (mensaje) {
+        if (avisado) return;
+        avisado = true;
+        const div = document.createElement('div');
+        div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;' +
+          'background:#B3261E;color:#fff;padding:12px 18px;font:700 13px Arial,sans-serif;text-align:center;';
+        div.textContent = 'Error al iniciar el dashboard: ' + mensaje +
+          ' — Revisa la conexión a internet (librerías externas) o reporta este mensaje.';
+        document.body.appendChild(div);
+      };
+
+      window.addEventListener('error', function (e) {
+        if (e && e.message) window.mostrarErrorFatal(e.message);
+      });
+
+      if (typeof Swal === 'undefined') {
+        window.Swal = {
+          fire: function () { return Promise.resolve({}); },
+          close: function () {},
+          showLoading: function () {}
+        };
+        window.mostrarErrorFatal('no se pudo cargar la librería de avisos (SweetAlert)');
+      }
+    })();
+
     let DATA = null;
     let ROLE_MAP_DATA = [];
     let MAP_DIAGNOSTICS = null;
@@ -644,8 +675,9 @@
     const PLANTA_CABRERO = { lat: -37.034, lng: -72.426, label: 'Ruta 146 N° 2015, Cabrero' };
 
     // true cuando el web app se abre con ?present=1 (enlace "en vivo" para presentaciones)
-    // typeof-guard: no rompe la plantilla si Code.gs aún no define autoPresent.
-    const AUTO_PRESENT = <?!= (typeof autoPresent !== 'undefined' && autoPresent) ? 'true' : 'false' ?>;
+    // Se detecta ?present=1 con la API de Apps Script (sin scriptlets de
+    // plantilla, para que el HTML funcione tal cual, sin depender de Code.gs).
+    let AUTO_PRESENT = false;
 
     // Estado del modo presentación
     const PRESENT = {
@@ -661,14 +693,33 @@
     const PRESENT_SLIDE_SECONDS = 15;
     const PRESENT_REFRESH_MINUTES = 10;
 
-    // La librería de gráficos se carga en paralelo con los datos: no bloquea el pedido al servidor.
-    google.charts.load('current', { packages: ['corechart', 'bar'] });
-    google.charts.setOnLoadCallback(() => {
-      CHART_READY = true;
-      if (DATA) renderCharts();
-    });
-
+    // Los datos se piden PRIMERO: aunque falle una librería externa
+    // (gráficos, mapas), los KPIs y tablas cargan igual.
     loadData(false);
+
+    // La librería de gráficos se carga en paralelo: no bloquea el pedido al servidor.
+    try {
+      google.charts.load('current', { packages: ['corechart', 'bar'] });
+      google.charts.setOnLoadCallback(() => {
+        CHART_READY = true;
+        if (DATA) renderCharts();
+      });
+    } catch (err) {
+      console.warn('Google Charts no disponible:', err);
+      window.mostrarErrorFatal('no se pudo cargar la librería de gráficos de Google');
+    }
+
+    // Detección de ?present=1 vía API oficial (asíncrona, tolerante a fallas).
+    try {
+      if (google.script && google.script.url && google.script.url.getLocation) {
+        google.script.url.getLocation(loc => {
+          AUTO_PRESENT = Boolean(loc && loc.parameter && loc.parameter.present);
+          if (AUTO_PRESENT && DATA && !PRESENT.active) startPresentation();
+        });
+      }
+    } catch (err) {
+      console.warn('No se pudo leer la URL:', err);
+    }
 
     function safeRender(fn, nombre) {
       try {

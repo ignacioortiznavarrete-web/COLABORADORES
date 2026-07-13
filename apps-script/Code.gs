@@ -146,24 +146,19 @@ function onOpen() {
     .addToUi();
 }
 
-function doGet(e) {
-  const template = HtmlService.createTemplateFromFile('Index');
-
-  // Con ?present=1 el dashboard entra directo en modo presentación:
-  // ideal para proyectarlo o dejarlo en una pantalla durante reuniones.
-  template.autoPresent = Boolean(e && e.parameter && e.parameter.present);
-
-  return template
+// El parámetro ?present=1 (modo presentación directo) lo lee el propio
+// HTML con google.script.url; aquí no se necesita plantilla con variables.
+function doGet() {
+  return HtmlService
+    .createTemplateFromFile('Index')
     .evaluate()
     .setTitle('MASISA Dashboard GIS')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
 function abrirDashboard() {
-  const template = HtmlService.createTemplateFromFile('Index');
-  template.autoPresent = false;
-
-  const html = template
+  const html = HtmlService
+    .createTemplateFromFile('Index')
     .evaluate()
     .setWidth(1600)
     .setHeight(950);
