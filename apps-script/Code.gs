@@ -3,6 +3,7 @@ const CONFIG = {
   SHEET_NAME: 'Hoja 1',
   PLAN_SHEET_NAME: 'Hoja 2',
   PROJECTION_SHEET_NAME: 'ProyeccionCamiones',
+  CHARTS_SHEET_NAME: 'GraficosSlides',
   M3_PER_CAMION: 26,
   CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V19',
   DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V19',
@@ -137,6 +138,9 @@ function onOpen() {
     .createMenu('MASISA GIS')
     .addItem('Abrir Dashboard', 'abrirDashboard')
     .addSeparator()
+    .addItem('Actualizar gráficos para Slides', 'menuActualizarGraficosSlides')
+    .addItem('Auto-actualizar gráficos Slides (cada 1 h)', 'activarActualizacionAutomaticaGraficos')
+    .addSeparator()
     .addItem('Limpiar caché', 'limpiarCache')
     .addToUi();
 }
@@ -166,13 +170,6 @@ function abrirDashboard() {
   SpreadsheetApp.getUi().showModalDialog(html, 'MASISA GIS');
 }
 
-function getWebAppUrl() {
-  try {
-    return ScriptApp.getService().getUrl() || '';
-  } catch (err) {
-    return '';
-  }
-}
 
 function include(fileName) {
   return HtmlService.createHtmlOutputFromFile(fileName).getContent();
@@ -285,6 +282,192 @@ function businessDayNumberFromValue_(value) {
 
   const effective = prevOrSameBusinessDay_(date);
   return businessDayNumberInMonth_(effective);
+}
+
+/*******************************************************
+ GRÁFICOS NATIVOS PARA GOOGLE SLIDES
+ Crea/actualiza gráficos incrustados en la hoja
+ "GraficosSlides". Esos gráficos se insertan en una
+ presentación con Insertar → Gráfico → Desde Hojas de
+ cálculo (vinculado) y se actualizan con datos nuevos.
+*******************************************************/
+
+function actualizarGraficosPresentacion(force) {
+  const data = getDashboardData(force === true);
+  const ss = getSpreadsheet_();
+
+  let sh = ss.getSheetByName(CONFIG.CHARTS_SHEET_NAME);
+  if (!sh) sh = ss.insertSheet(CONFIG.CHARTS_SHEET_NAME);
+
+  sh.getCharts().forEach(chart => sh.removeChart(chart));
+  sh.clear();
+
+  const monthLabel = data.planMonth || '';
+
+  // ── Bloque 1: entrega diaria (día calendario en el eje X) ──
+  const dayLabelByBusinessDay = {};
+  (((data.calendario || {}).days) || []).forEach(d => {
+    if (d.habil && d.numHabil) dayLabelByBusinessDay[d.numHabil] = d.day;
+  });
+
+  const realByDay = {};
+  const projByDay = {};
+  let maxDay = Number(data.kpis.diasHabilesMes) || 0;
+
+  (data.fechas || []).forEach(f => {
+    const dia = Number(f.dia) || 0;
+    if (!dia) return;
+    realByDay[dia] = (realByDay[dia] || 0) + (Number(f.cubicacion) || 0);
+    maxDay = Math.max(maxDay, dia);
+  });
+
+  (data.proyeccionCamiones || []).forEach(p => {
+    const dia = Number(p.dia) || 0;
+    if (!dia) return;
+    projByDay[dia] = (projByDay[dia] || 0) + (Number(p.cubicacion) || 0);
+    maxDay = Math.max(maxDay, dia);
+  });
+
+  const meta = Number(data.kpis.planDiarioHabil) || 0;
+  const entrega = [['Día del mes', 'Proyección camiones m³', 'm³ real', 'Meta diaria hábil']];
+
+  for (let dia = 1; dia <= maxDay; dia++) {
+    entrega.push([
+      String(dayLabelByBusinessDay[dia] || dia),
+      projByDay[dia] || 0,
+      realByDay[dia] || 0,
+      meta
+    ]);
+  }
+
+  sh.getRange(1, 1, entrega.length, 4).setValues(entrega);
+
+  // ── Bloque 2: top proveedores por cubicación ──
+  const top = [['Proveedor', 'm³']].concat(
+    (data.proveedores || [])
+      .filter(p => Number(p.cubicacion) > 0)
+      .slice(0, 8)
+      .map(p => [p.proveedor, Number(p.cubicacion) || 0])
+  );
+
+  sh.getRange(1, 6, top.length, 2).setValues(top);
+
+  // ── Bloques 3 y 4: calidad (trozos y m³) ──
+  const ordenCalidad = { SINIESTRADO: 1, VERDE: 2, MANCHADO: 3 };
+  const calidades = (data.calidades || []).slice().sort((a, b) => {
+    return (ordenCalidad[a.calidad] || 99) - (ordenCalidad[b.calidad] || 99);
+  });
+
+  const calidadTrozos = [['Calidad', 'Trozos']].concat(
+    calidades.map(c => [c.calidad, Number(c.trozos) || 0])
+  );
+  const calidadCub = [['Calidad', 'm³']].concat(
+    calidades.map(c => [c.calidad, Number(c.cubicacion) || 0])
+  );
+
+  sh.getRange(1, 9, calidadTrozos.length, 2).setValues(calidadTrozos);
+  sh.getRange(1, 12, calidadCub.length, 2).setValues(calidadCub);
+
+  // ── Gráficos incrustados (mismos colores del dashboard) ──
+  const chartRowStart = Math.max(entrega.length, top.length, calidadTrozos.length) + 3;
+
+  sh.insertChart(
+    sh.newChart()
+      .setChartType(Charts.ChartType.COMBO)
+      .addRange(sh.getRange(1, 1, entrega.length, 4))
+      .setPosition(chartRowStart, 1, 0, 0)
+      .setOption('title', 'Entrega diaria: m³ real vs meta diaria hábil' + (monthLabel ? ' · ' + monthLabel : ''))
+      .setOption('seriesType', 'bars')
+      .setOption('series', {
+        0: { color: '#DCE5DF' },
+        1: { color: '#2D6A4F' },
+        2: { type: 'line', color: '#B3261E' }
+      })
+      .setOption('legend', { position: 'top' })
+      .setOption('hAxis', { title: 'Día del mes (días hábiles)' })
+      .setOption('vAxis', { title: 'm³' })
+      .setOption('width', 900)
+      .setOption('height', 420)
+      .build()
+  );
+
+  sh.insertChart(
+    sh.newChart()
+      .setChartType(Charts.ChartType.BAR)
+      .addRange(sh.getRange(1, 6, top.length, 2))
+      .setPosition(chartRowStart + 24, 1, 0, 0)
+      .setOption('title', 'Top proveedores por cubicación' + (monthLabel ? ' · ' + monthLabel : ''))
+      .setOption('colors', ['#2D6A4F'])
+      .setOption('legend', { position: 'none' })
+      .setOption('hAxis', { title: 'm³' })
+      .setOption('width', 900)
+      .setOption('height', 420)
+      .build()
+  );
+
+  sh.insertChart(
+    sh.newChart()
+      .setChartType(Charts.ChartType.BAR)
+      .addRange(sh.getRange(1, 9, calidadTrozos.length, 2))
+      .setPosition(chartRowStart + 48, 1, 0, 0)
+      .setOption('title', 'Trozos por calidad' + (monthLabel ? ' · ' + monthLabel : ''))
+      .setOption('colors', ['#52796F'])
+      .setOption('legend', { position: 'none' })
+      .setOption('width', 700)
+      .setOption('height', 380)
+      .build()
+  );
+
+  sh.insertChart(
+    sh.newChart()
+      .setChartType(Charts.ChartType.COLUMN)
+      .addRange(sh.getRange(1, 12, calidadCub.length, 2))
+      .setPosition(chartRowStart + 48, 8, 0, 0)
+      .setOption('title', 'Cubicación por calidad' + (monthLabel ? ' · ' + monthLabel : ''))
+      .setOption('colors', ['#2D6A4F'])
+      .setOption('legend', { position: 'none' })
+      .setOption('vAxis', { title: 'm³' })
+      .setOption('width', 700)
+      .setOption('height', 380)
+      .build()
+  );
+
+  return {
+    url: ss.getUrl(),
+    sheetName: CONFIG.CHARTS_SHEET_NAME,
+    planMonth: monthLabel,
+    actualizadoEn: Utilities.formatDate(new Date(), 'America/Santiago', 'dd/MM/yyyy HH:mm')
+  };
+}
+
+function menuActualizarGraficosSlides() {
+  const res = actualizarGraficosPresentacion(true);
+  SpreadsheetApp.getUi().alert(
+    'Gráficos actualizados en la hoja "' + res.sheetName + '" (' + res.actualizadoEn + ').\n\n' +
+    'En Google Slides: Insertar → Gráfico → Desde Hojas de cálculo → elige esta planilla → ' +
+    'selecciona el gráfico y deja marcado "Vincular a la hoja de cálculo".'
+  );
+}
+
+function refrescarGraficosSlidesTrigger() {
+  actualizarGraficosPresentacion(true);
+}
+
+function activarActualizacionAutomaticaGraficos() {
+  const handler = 'refrescarGraficosSlidesTrigger';
+  const yaExiste = ScriptApp.getProjectTriggers()
+    .some(t => t.getHandlerFunction() === handler);
+
+  if (!yaExiste) {
+    ScriptApp.newTrigger(handler).timeBased().everyHours(1).create();
+  }
+
+  SpreadsheetApp.getUi().alert(
+    yaExiste
+      ? 'La actualización automática ya estaba activa (cada 1 hora).'
+      : 'Listo: los gráficos de la hoja "' + CONFIG.CHARTS_SHEET_NAME + '" se actualizarán solos cada 1 hora.\n\n' +
+        'En Slides, el gráfico vinculado mostrará el botón "Actualizar" cuando haya datos nuevos.'
+  );
 }
 
 function buildCalendarData_(refDate) {

@@ -309,6 +309,32 @@
       flex-shrink: 0;
     }
 
+    /* Encabezado de tarjeta de gráfico con botón "Usar en Slides" */
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chart-head h3 { margin-bottom: 12px; }
+
+    .chart-send {
+      padding: 8px 12px;
+      font-size: 11px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      background: white;
+      color: var(--forest);
+      border: 1px solid #DCE5DF;
+      box-shadow: none;
+    }
+
+    .chart-send:hover { background: var(--soft); filter: none; }
+
+    body.presenting .chart-send { display: none; }
+
     /* ── MODO PRESENTACIÓN ── */
     body.presenting .filters,
     body.presenting #filtersHint,
@@ -412,7 +438,6 @@
 
     <div class="actions">
       <button onclick="togglePresentation()">▶ Modo presentación</button>
-      <button class="btn-hide-present" onclick="copyLiveLink()">Copiar enlace en vivo</button>
       <button class="btn-hide-present" onclick="loadData(true)">Actualizar datos</button>
       <button class="btn-hide-present" onclick="exportCSV()">Exportar matriz</button>
     </div>
@@ -521,7 +546,10 @@
       </div>
 
       <div class="card full">
-        <h3>Top proveedores por cubicación</h3>
+        <div class="chart-head">
+          <h3>Top proveedores por cubicación</h3>
+          <button class="chart-send" type="button" onclick="enviarGraficoASlides('Top proveedores por cubicación')">📽 Usar en Slides</button>
+        </div>
         <div id="chartTopProveedores" class="chart"></div>
         <div class="status">Ranking de los proveedores con mayor cubicación dentro de la vista filtrada actual (máx. 8).</div>
       </div>
@@ -543,18 +571,27 @@
       <div class="card full">
         <div class="two">
           <div>
-            <h3>Trozos por calidad</h3>
+            <div class="chart-head">
+              <h3>Trozos por calidad</h3>
+              <button class="chart-send" type="button" onclick="enviarGraficoASlides('Trozos por calidad')">📽 Usar en Slides</button>
+            </div>
             <div id="chartCalidadTrozos" class="chart"></div>
           </div>
           <div>
-            <h3>Cubicación por calidad</h3>
+            <div class="chart-head">
+              <h3>Cubicación por calidad</h3>
+              <button class="chart-send" type="button" onclick="enviarGraficoASlides('Cubicación por calidad')">📽 Usar en Slides</button>
+            </div>
             <div id="chartCalidadCubicacion" class="chart"></div>
           </div>
         </div>
       </div>
 
       <div class="card full">
-        <h3>Entrega diaria: m³ real vs meta diaria hábil</h3>
+        <div class="chart-head">
+          <h3>Entrega diaria: m³ real vs meta diaria hábil</h3>
+          <button class="chart-send" type="button" onclick="enviarGraficoASlides('Entrega diaria: m³ real vs meta diaria hábil')">📽 Usar en Slides</button>
+        </div>
         <div id="chartFecha" class="chart"></div>
       </div>
 
@@ -621,7 +658,6 @@
     };
     const PRESENT_SLIDE_SECONDS = 15;
     const PRESENT_REFRESH_MINUTES = 10;
-    let WEB_APP_URL = '';
 
     // La librería de gráficos se carga en paralelo con los datos: no bloquea el pedido al servidor.
     google.charts.load('current', { packages: ['corechart', 'bar'] });
@@ -931,51 +967,50 @@
         .getDashboardData(true);
     }
 
-    function copyLiveLink() {
-      const finish = url => {
-        if (!url) {
-          Swal.fire(
-            'Enlace no disponible',
-            'Publica el proyecto como aplicación web (Implementar → Nueva implementación) para obtener el enlace en vivo.',
-            'info'
-          );
-          return;
-        }
+    /* ────────────────────────────────────────────────────
+       GRÁFICOS VINCULADOS A GOOGLE SLIDES
+    ──────────────────────────────────────────────────── */
 
-        const liveUrl = url + (url.indexOf('?') === -1 ? '?' : '&') + 'present=1';
-
-        copyTextToClipboard(liveUrl)
-          .then(() => Swal.fire({
-            icon: 'success',
-            title: 'Enlace en vivo copiado',
-            html: 'Pégalo en tu presentación (Google Slides / PowerPoint) como enlace, o ábrelo en una pestaña durante la reunión.<br><br>Se abre directo en modo presentación con datos en vivo.',
-            timer: 4200,
-            showConfirmButton: false
-          }))
-          .catch(() => Swal.fire('Enlace en vivo', liveUrl, 'info'));
-      };
-
-      if (WEB_APP_URL) { finish(WEB_APP_URL); return; }
+    function enviarGraficoASlides(nombreGrafico) {
+      Swal.fire({
+        title: 'Preparando gráfico para Slides',
+        text: 'Actualizando los gráficos vinculados en la planilla...',
+        allowOutsideClick: false,
+        background: '#FFFFFF',
+        color: '#24352B',
+        didOpen: () => Swal.showLoading()
+      });
 
       google.script.run
-        .withSuccessHandler(url => { WEB_APP_URL = url || ''; finish(WEB_APP_URL); })
-        .withFailureHandler(() => finish(''))
-        .getWebAppUrl();
-    }
-
-    function copyTextToClipboard(text) {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
-      }
-      return new Promise((resolve, reject) => {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand('copy');
-        document.body.removeChild(ta);
-        ok ? resolve() : reject(new Error('No se pudo copiar'));
-      });
+        .withSuccessHandler(res => {
+          Swal.fire({
+            icon: 'success',
+            title: 'Gráfico listo para tu presentación',
+            width: 660,
+            html: `
+              <div style="text-align:left; font-size:14px; line-height:1.7;">
+                El gráfico <b>"${escapeHtml(nombreGrafico)}"</b> ya está actualizado en la hoja
+                <b>${escapeHtml(res.sheetName)}</b> (${escapeHtml(res.actualizadoEn)}).
+                <br><br>
+                <b>Para llevarlo a Google Slides (una sola vez):</b><br>
+                1. Abre tu presentación.<br>
+                2. Menú <b>Insertar → Gráfico → Desde Hojas de cálculo</b>.<br>
+                3. Elige esta planilla (<a href="${escapeHtml(res.url)}" target="_blank" rel="noopener">abrirla aquí</a>).<br>
+                4. Selecciona <b>"${escapeHtml(nombreGrafico)}"</b> y deja marcado
+                   <b>"Vincular a la hoja de cálculo"</b> → Insertar.<br><br>
+                <b>Actualización en vivo:</b> el gráfico queda vinculado. Cuando haya datos nuevos,
+                en Slides aparece el botón <b>"Actualizar"</b> sobre el gráfico (o Herramientas →
+                Objetos vinculados → Actualizar todo). Puedes dejar los gráficos refrescándose solos
+                cada 1 hora desde el menú <b>MASISA GIS → Auto-actualizar gráficos Slides</b> en la planilla.
+              </div>`,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#2D6A4F'
+          });
+        })
+        .withFailureHandler(err => {
+          Swal.fire('Error', err.message || String(err), 'error');
+        })
+        .actualizarGraficosPresentacion(false);
     }
 
     document.addEventListener('keydown', e => {
