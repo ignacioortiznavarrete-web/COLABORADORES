@@ -138,6 +138,7 @@ function onOpen() {
     .createMenu('MASISA GIS')
     .addItem('Abrir Dashboard', 'abrirDashboard')
     .addSeparator()
+    .addItem('Conectar presentación de Slides...', 'menuConfigurarPresentacion')
     .addItem('Actualizar gráficos para Slides', 'menuActualizarGraficosSlides')
     .addItem('Auto-actualizar gráficos Slides (cada 1 h)', 'activarActualizacionAutomaticaGraficos')
     .addSeparator()
@@ -285,12 +286,126 @@ function businessDayNumberFromValue_(value) {
 }
 
 /*******************************************************
- GRÁFICOS NATIVOS PARA GOOGLE SLIDES
- Crea/actualiza gráficos incrustados en la hoja
- "GraficosSlides". Esos gráficos se insertan en una
- presentación con Insertar → Gráfico → Desde Hojas de
- cálculo (vinculado) y se actualizan con datos nuevos.
+ GRÁFICOS DIRECTOS A GOOGLE SLIDES
+ El dashboard envía cada gráfico directo a la presentación
+ conectada (SlidesApp): lo inserta como imagen etiquetada y
+ en los envíos/refrescos siguientes la reemplaza en el mismo
+ lugar y tamaño. La hoja oculta "GraficosSlides" se usa solo
+ como motor interno para renderizar el PNG de cada gráfico.
 *******************************************************/
+
+const SLIDES_PROP_KEY = 'MASISA_SLIDES_PRESENTATION_ID';
+
+const SLIDES_CHARTS = {
+  entregaDiaria: { titulo: 'Entrega diaria: m³ real vs meta diaria hábil' },
+  topProveedores: { titulo: 'Top proveedores por cubicación' },
+  calidadTrozos: { titulo: 'Trozos por calidad' },
+  calidadCubicacion: { titulo: 'Cubicación por calidad' }
+};
+
+function extractSlidesId_(url) {
+  const text = String(url || '').trim();
+  const byUrl = text.match(/\/presentation\/d\/([a-zA-Z0-9-_]+)/);
+  if (byUrl) return byUrl[1];
+  const bare = text.match(/^([a-zA-Z0-9-_]{20,})$/);
+  return bare ? bare[1] : '';
+}
+
+function configurarPresentacionSlides(url) {
+  const id = extractSlidesId_(url);
+
+  if (!id) {
+    throw new Error('El enlace no parece de Google Slides. Pega la URL completa de la presentación.');
+  }
+
+  // Valida que la presentación exista y sea accesible antes de guardarla.
+  SlidesApp.openById(id);
+  PropertiesService.getScriptProperties().setProperty(SLIDES_PROP_KEY, id);
+
+  return id;
+}
+
+function enviarGraficoDirectoASlides(chartKey, presentationUrl) {
+  if (!SLIDES_CHARTS[chartKey]) {
+    throw new Error('Gráfico desconocido: ' + chartKey);
+  }
+
+  const props = PropertiesService.getScriptProperties();
+
+  if (presentationUrl) configurarPresentacionSlides(presentationUrl);
+
+  const presId = props.getProperty(SLIDES_PROP_KEY);
+  if (!presId) return { needsConfig: true };
+
+  actualizarGraficosPresentacion(false);
+
+  const blob = getChartBlob_(chartKey);
+  const pres = SlidesApp.openById(presId);
+  const upsert = upsertChartImage_(pres, chartKey, blob);
+
+  return {
+    needsConfig: false,
+    created: upsert.created,
+    url: pres.getUrl(),
+    nombrePresentacion: pres.getName(),
+    actualizadoEn: Utilities.formatDate(new Date(), 'America/Santiago', 'dd/MM/yyyy HH:mm')
+  };
+}
+
+function getChartBlob_(chartKey) {
+  const ss = getSpreadsheet_();
+  const sh = ss.getSheetByName(CONFIG.CHARTS_SHEET_NAME);
+  const baseTitle = SLIDES_CHARTS[chartKey].titulo;
+
+  if (!sh) {
+    throw new Error('No existe la hoja interna ' + CONFIG.CHARTS_SHEET_NAME);
+  }
+
+  const chart = sh.getCharts().find(c => {
+    const title = String(c.getOptions().get('title') || '');
+    return title.indexOf(baseTitle) === 0;
+  });
+
+  if (!chart) {
+    throw new Error('No se encontró el gráfico "' + baseTitle + '" para exportar.');
+  }
+
+  return chart.getAs('image/png').setName(baseTitle + '.png');
+}
+
+function upsertChartImage_(pres, chartKey, blob) {
+  const tag = 'MASISA_CHART:' + chartKey;
+  const slides = pres.getSlides();
+
+  for (let s = 0; s < slides.length; s++) {
+    const images = slides[s].getImages();
+
+    for (let i = 0; i < images.length; i++) {
+      if (images[i].getDescription() === tag) {
+        // Reemplaza la imagen manteniendo posición y tamaño en la diapositiva.
+        images[i].replace(blob);
+        return { created: false };
+      }
+    }
+  }
+
+  const slide = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+  const image = slide.insertImage(blob);
+  const pageWidth = pres.getPageWidth();
+  const pageHeight = pres.getPageHeight();
+  const scale = Math.min(
+    (pageWidth * 0.92) / image.getWidth(),
+    (pageHeight * 0.86) / image.getHeight()
+  );
+
+  image.setWidth(image.getWidth() * scale);
+  image.setHeight(image.getHeight() * scale);
+  image.setLeft((pageWidth - image.getWidth()) / 2);
+  image.setTop((pageHeight - image.getHeight()) / 2);
+  image.setDescription(tag);
+
+  return { created: true };
+}
 
 function actualizarGraficosPresentacion(force) {
   const data = getDashboardData(force === true);
@@ -432,6 +547,9 @@ function actualizarGraficosPresentacion(force) {
       .build()
   );
 
+  // Hoja de trabajo interna: se mantiene oculta para el usuario.
+  if (!sh.isSheetHidden()) sh.hideSheet();
+
   return {
     url: ss.getUrl(),
     sheetName: CONFIG.CHARTS_SHEET_NAME,
@@ -440,17 +558,59 @@ function actualizarGraficosPresentacion(force) {
   };
 }
 
+function menuConfigurarPresentacion() {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.prompt(
+    'Conectar presentación de Google Slides',
+    'Pega el enlace de la presentación donde quieres los gráficos en vivo:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+
+  configurarPresentacionSlides(res.getResponseText());
+  ui.alert('Presentación conectada. Ahora usa "Usar en Slides" en el dashboard o "Actualizar gráficos para Slides".');
+}
+
 function menuActualizarGraficosSlides() {
-  const res = actualizarGraficosPresentacion(true);
+  const refrescados = refrescarGraficosSlidesTrigger();
   SpreadsheetApp.getUi().alert(
-    'Gráficos actualizados en la hoja "' + res.sheetName + '" (' + res.actualizadoEn + ').\n\n' +
-    'En Google Slides: Insertar → Gráfico → Desde Hojas de cálculo → elige esta planilla → ' +
-    'selecciona el gráfico y deja marcado "Vincular a la hoja de cálculo".'
+    refrescados === -1
+      ? 'Gráficos regenerados, pero no hay presentación conectada.\n\nUsa "Conectar presentación de Slides..." o el botón "Usar en Slides" del dashboard.'
+      : 'Gráficos regenerados y ' + refrescados + ' gráfico(s) actualizados en la presentación conectada.'
   );
 }
 
+// También lo ejecuta el trigger horario: regenera los gráficos y reemplaza
+// las imágenes etiquetadas en la presentación conectada, sin intervención.
 function refrescarGraficosSlidesTrigger() {
   actualizarGraficosPresentacion(true);
+
+  const presId = PropertiesService.getScriptProperties().getProperty(SLIDES_PROP_KEY);
+  if (!presId) return -1;
+
+  const pres = SlidesApp.openById(presId);
+  let refrescados = 0;
+
+  Object.keys(SLIDES_CHARTS).forEach(chartKey => {
+    try {
+      const tag = 'MASISA_CHART:' + chartKey;
+      let blob = null;
+
+      pres.getSlides().forEach(slide => {
+        slide.getImages().forEach(img => {
+          if (img.getDescription() !== tag) return;
+          if (!blob) blob = getChartBlob_(chartKey);
+          img.replace(blob);
+          refrescados++;
+        });
+      });
+    } catch (err) {
+      Logger.log('No se pudo refrescar en Slides el gráfico ' + chartKey + ': ' + err);
+    }
+  });
+
+  return refrescados;
 }
 
 function activarActualizacionAutomaticaGraficos() {
@@ -465,8 +625,8 @@ function activarActualizacionAutomaticaGraficos() {
   SpreadsheetApp.getUi().alert(
     yaExiste
       ? 'La actualización automática ya estaba activa (cada 1 hora).'
-      : 'Listo: los gráficos de la hoja "' + CONFIG.CHARTS_SHEET_NAME + '" se actualizarán solos cada 1 hora.\n\n' +
-        'En Slides, el gráfico vinculado mostrará el botón "Actualizar" cuando haya datos nuevos.'
+      : 'Listo: cada 1 hora los gráficos se regeneran con los datos nuevos y se reemplazan ' +
+        'automáticamente en la presentación de Slides conectada, sin que tengas que hacer nada.'
   );
 }
 

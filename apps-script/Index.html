@@ -548,7 +548,7 @@
       <div class="card full">
         <div class="chart-head">
           <h3>Top proveedores por cubicación</h3>
-          <button class="chart-send" type="button" onclick="enviarGraficoASlides('Top proveedores por cubicación')">📽 Usar en Slides</button>
+          <button class="chart-send" type="button" onclick="enviarGraficoASlides('topProveedores', 'Top proveedores por cubicación')">📽 Enviar a Slides</button>
         </div>
         <div id="chartTopProveedores" class="chart"></div>
         <div class="status">Ranking de los proveedores con mayor cubicación dentro de la vista filtrada actual (máx. 8).</div>
@@ -573,14 +573,14 @@
           <div>
             <div class="chart-head">
               <h3>Trozos por calidad</h3>
-              <button class="chart-send" type="button" onclick="enviarGraficoASlides('Trozos por calidad')">📽 Usar en Slides</button>
+              <button class="chart-send" type="button" onclick="enviarGraficoASlides('calidadTrozos', 'Trozos por calidad')">📽 Enviar a Slides</button>
             </div>
             <div id="chartCalidadTrozos" class="chart"></div>
           </div>
           <div>
             <div class="chart-head">
               <h3>Cubicación por calidad</h3>
-              <button class="chart-send" type="button" onclick="enviarGraficoASlides('Cubicación por calidad')">📽 Usar en Slides</button>
+              <button class="chart-send" type="button" onclick="enviarGraficoASlides('calidadCubicacion', 'Cubicación por calidad')">📽 Enviar a Slides</button>
             </div>
             <div id="chartCalidadCubicacion" class="chart"></div>
           </div>
@@ -590,7 +590,7 @@
       <div class="card full">
         <div class="chart-head">
           <h3>Entrega diaria: m³ real vs meta diaria hábil</h3>
-          <button class="chart-send" type="button" onclick="enviarGraficoASlides('Entrega diaria: m³ real vs meta diaria hábil')">📽 Usar en Slides</button>
+          <button class="chart-send" type="button" onclick="enviarGraficoASlides('entregaDiaria', 'Entrega diaria: m³ real vs meta diaria hábil')">📽 Enviar a Slides</button>
         </div>
         <div id="chartFecha" class="chart"></div>
       </div>
@@ -968,13 +968,13 @@
     }
 
     /* ────────────────────────────────────────────────────
-       GRÁFICOS VINCULADOS A GOOGLE SLIDES
+       ENVÍO DIRECTO DE GRÁFICOS A GOOGLE SLIDES
     ──────────────────────────────────────────────────── */
 
-    function enviarGraficoASlides(nombreGrafico) {
+    function enviarGraficoASlides(chartKey, nombreGrafico, urlPresentacion) {
       Swal.fire({
-        title: 'Preparando gráfico para Slides',
-        text: 'Actualizando los gráficos vinculados en la planilla...',
+        title: 'Enviando gráfico a Slides',
+        text: 'Generando "' + nombreGrafico + '" y actualizando tu presentación...',
         allowOutsideClick: false,
         background: '#FFFFFF',
         color: '#24352B',
@@ -983,25 +983,28 @@
 
       google.script.run
         .withSuccessHandler(res => {
+          if (res && res.needsConfig) {
+            pedirUrlPresentacion(chartKey, nombreGrafico);
+            return;
+          }
+
           Swal.fire({
             icon: 'success',
-            title: 'Gráfico listo para tu presentación',
-            width: 660,
+            title: res.created ? 'Gráfico agregado a tu presentación' : 'Gráfico actualizado en tu presentación',
+            width: 620,
             html: `
               <div style="text-align:left; font-size:14px; line-height:1.7;">
-                El gráfico <b>"${escapeHtml(nombreGrafico)}"</b> ya está actualizado en la hoja
-                <b>${escapeHtml(res.sheetName)}</b> (${escapeHtml(res.actualizadoEn)}).
+                <b>"${escapeHtml(nombreGrafico)}"</b> ${res.created
+                  ? 'se insertó en una diapositiva nueva de'
+                  : 'se actualizó con los datos actuales en'}
+                <b>${escapeHtml(res.nombrePresentacion || 'tu presentación')}</b>
+                (${escapeHtml(res.actualizadoEn || '')}).
                 <br><br>
-                <b>Para llevarlo a Google Slides (una sola vez):</b><br>
-                1. Abre tu presentación.<br>
-                2. Menú <b>Insertar → Gráfico → Desde Hojas de cálculo</b>.<br>
-                3. Elige esta planilla (<a href="${escapeHtml(res.url)}" target="_blank" rel="noopener">abrirla aquí</a>).<br>
-                4. Selecciona <b>"${escapeHtml(nombreGrafico)}"</b> y deja marcado
-                   <b>"Vincular a la hoja de cálculo"</b> → Insertar.<br><br>
-                <b>Actualización en vivo:</b> el gráfico queda vinculado. Cuando haya datos nuevos,
-                en Slides aparece el botón <b>"Actualizar"</b> sobre el gráfico (o Herramientas →
-                Objetos vinculados → Actualizar todo). Puedes dejar los gráficos refrescándose solos
-                cada 1 hora desde el menú <b>MASISA GIS → Auto-actualizar gráficos Slides</b> en la planilla.
+                <a href="${escapeHtml(res.url)}" target="_blank" rel="noopener"><b>Abrir la presentación</b></a>
+                <br><br>
+                Puedes mover o redimensionar el gráfico en la diapositiva: los próximos envíos
+                lo reemplazan en el mismo lugar. Para que se refresque solo cada 1 hora, activa
+                <b>MASISA GIS → Auto-actualizar gráficos Slides</b> en la planilla.
               </div>`,
             confirmButtonText: 'Entendido',
             confirmButtonColor: '#2D6A4F'
@@ -1010,7 +1013,24 @@
         .withFailureHandler(err => {
           Swal.fire('Error', err.message || String(err), 'error');
         })
-        .actualizarGraficosPresentacion(false);
+        .enviarGraficoDirectoASlides(chartKey, urlPresentacion || null);
+    }
+
+    function pedirUrlPresentacion(chartKey, nombreGrafico) {
+      Swal.fire({
+        title: 'Conecta tu presentación',
+        input: 'url',
+        inputLabel: 'Pega el enlace de tu presentación de Google Slides (solo la primera vez)',
+        inputPlaceholder: 'https://docs.google.com/presentation/d/...',
+        showCancelButton: true,
+        confirmButtonText: 'Conectar y enviar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2D6A4F'
+      }).then(result => {
+        if (result.isConfirmed && result.value) {
+          enviarGraficoASlides(chartKey, nombreGrafico, result.value);
+        }
+      });
     }
 
     document.addEventListener('keydown', e => {
