@@ -634,6 +634,7 @@
     let ALL_BOUNDS = [];
     let CHART_READY = false;
     let DETALLE_READY = false;
+    let LOAD_WATCHDOG = null;
 
     const FILTER_IDS = ['fProveedor', 'fPredio', 'fComuna', 'fRol', 'fCalidad', 'fLargo'];
 
@@ -643,7 +644,8 @@
     const PLANTA_CABRERO = { lat: -37.034, lng: -72.426, label: 'Ruta 146 N° 2015, Cabrero' };
 
     // true cuando el web app se abre con ?present=1 (enlace "en vivo" para presentaciones)
-    const AUTO_PRESENT = <?!= JSON.stringify(autoPresent || false) ?>;
+    // typeof-guard: no rompe la plantilla si Code.gs aún no define autoPresent.
+    const AUTO_PRESENT = <?!= (typeof autoPresent !== 'undefined' && autoPresent) ? 'true' : 'false' ?>;
 
     // Estado del modo presentación
     const PRESENT = {
@@ -668,6 +670,14 @@
 
     loadData(false);
 
+    function safeRender(fn, nombre) {
+      try {
+        fn();
+      } catch (err) {
+        console.error('Error de render (' + (nombre || fn.name) + '):', err);
+      }
+    }
+
     function loadData(force) {
       Swal.fire({
         title: 'Cargando dashboard',
@@ -681,25 +691,58 @@
       DETALLE_READY = false;
       setFiltersLoading(true);
 
+      // Watchdog: si el servidor no responde en 2 minutos, se informa el
+      // motivo más común (permisos nuevos pendientes de autorizar) en vez
+      // de quedar pegado en "cargando".
+      clearTimeout(LOAD_WATCHDOG);
+      LOAD_WATCHDOG = setTimeout(() => {
+        Swal.fire({
+          icon: 'warning',
+          title: 'La carga está tardando demasiado',
+          width: 620,
+          html: `
+            <div style="text-align:left; font-size:14px; line-height:1.7;">
+              El servidor no respondió. Lo más común después de una actualización del script
+              es que falten <b>permisos nuevos por autorizar</b>:
+              <br><br>
+              1. Abre el editor de Apps Script (Extensiones → Apps Script).<br>
+              2. Selecciona la función <b>onOpen</b> y presiona <b>Ejecutar</b>.<br>
+              3. Acepta los permisos que pida Google (Presentaciones, triggers).<br>
+              4. Vuelve a abrir el dashboard.
+              <br><br>
+              Si ya autorizaste, prueba con el botón "Actualizar datos".
+            </div>`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#2D6A4F'
+        });
+      }, 120000);
+
       google.script.run
         .withSuccessHandler(data => {
-          DATA = data;
-          DATA.detalleIngresos = null;
+          clearTimeout(LOAD_WATCHDOG);
 
-          // Mostrar fecha de última actualización
-          const el = document.getElementById('lastUpdateLabel');
-          if (el) el.textContent = data.lastUpdate || 'Sin datos';
+          try {
+            DATA = data;
+            DATA.detalleIngresos = null;
 
-          populateLargoOptions();
-          renderKPIs();
-          renderCharts();
-          renderTables();
-          initMap();
-          initComunaMap();
-          document.getElementById('mapStatus').textContent = 'KML/KMZ: cargando en segundo plano...';
-          document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
-          setRoleListLoading();
-          Swal.close();
+            // Mostrar fecha de última actualización
+            const el = document.getElementById('lastUpdateLabel');
+            if (el) el.textContent = data.lastUpdate || 'Sin datos';
+
+            // Cada bloque se renderiza protegido: si uno falla, el resto
+            // del dashboard sigue funcionando y el "cargando" se cierra igual.
+            safeRender(populateLargoOptions, 'largos');
+            safeRender(renderKPIs, 'KPIs');
+            safeRender(renderCharts, 'gráficos');
+            safeRender(renderTables, 'tablas');
+            safeRender(initMap, 'mapa ROL');
+            safeRender(initComunaMap, 'mapa comunas');
+            document.getElementById('mapStatus').textContent = 'KML/KMZ: cargando en segundo plano...';
+            document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
+            setRoleListLoading();
+          } finally {
+            Swal.close();
+          }
 
           if (AUTO_PRESENT && !PRESENT.active) setTimeout(startPresentation, 600);
 
@@ -709,7 +752,23 @@
           setTimeout(() => loadDetalleIngresos(force), 150);
         })
         .withFailureHandler(err => {
-          Swal.fire('Error', err.message || String(err), 'error');
+          clearTimeout(LOAD_WATCHDOG);
+          const mensaje = err && err.message ? err.message : String(err);
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al cargar datos',
+            width: 620,
+            html: `
+              <div style="text-align:left; font-size:14px; line-height:1.7;">
+                <b>Detalle:</b> ${escapeHtml(mensaje)}
+                <br><br>
+                Si el error menciona permisos o autorización: abre Extensiones → Apps Script,
+                ejecuta la función <b>onOpen</b> y acepta los permisos nuevos
+                (se agregaron Presentaciones y triggers para el envío a Slides).
+              </div>`,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#2D6A4F'
+          });
         })
         .getDashboardData(force);
     }
