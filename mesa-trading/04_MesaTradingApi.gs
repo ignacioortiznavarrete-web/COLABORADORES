@@ -168,7 +168,8 @@ function actualizarPedidoMesaTrading(payload) {
     ]]);
 
     var provInfo = buscarProveedor_(provColor, proveedor);
-    hojaUnica.getRange(fila, 5).setBackground(provInfo ? provInfo.hex : TRADING_CONFIG.pendingColor);
+    var hexProv = provInfo ? provInfo.hex : TRADING_CONFIG.pendingColor;
+    hojaUnica.getRange(fila, 5).setBackground(hexProv).setFontColor(colorTextoLegible_(hexProv));
     hojaUnica.getRange(fila, 6).setBackground(normalizarTexto(comentarioVentas) === "negociacion" ? TRADING_CONFIG.negotiationColor : "#ffffff");
     hojaUnica.getRange(fila, 7).setBackground("#ffffff");
     hojaUnica.getRange(fila, 7).setNote("Ultima actualizacion web: " + new Date());

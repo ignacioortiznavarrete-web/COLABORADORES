@@ -121,6 +121,21 @@ function rgbToHex(r, g, b) {
   return "#" + toHex(r) + toHex(g) + toHex(b);
 }
 
+/**
+ * Texto negro o blanco segun la luminancia del fondo, para que los colores
+ * oscuros del catalogo sigan siendo legibles en las celdas de Sheets.
+ */
+function colorTextoLegible_(hex) {
+  var rgb = hexToRgb_(hex);
+  var lin = [];
+  for (var i = 0; i < 3; i++) {
+    var v = rgb[i] / 255;
+    lin.push(v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  }
+  var luminancia = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+  return luminancia < 0.36 ? "#ffffff" : "#14231c";
+}
+
 function promedioRgbAHex_(coloresRgb) {
   var rSum = 0;
   var gSum = 0;

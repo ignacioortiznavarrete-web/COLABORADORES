@@ -56,7 +56,8 @@ function actualizarColoresTablaSeguimientoCompleta() {
     hojaUnica.getRange(fIdx, 6).setBackground(esNegociacion ? TRADING_CONFIG.negotiationColor : "#ffffff");
 
     var provInfo = buscarProveedor_(provColor, info.proveedor);
-    hojaUnica.getRange(fIdx, 5).setBackground(provInfo ? provInfo.hex : TRADING_CONFIG.pendingColor);
+    var hexProv = provInfo ? provInfo.hex : TRADING_CONFIG.pendingColor;
+    hojaUnica.getRange(fIdx, 5).setBackground(hexProv).setFontColor(colorTextoLegible_(hexProv));
   }
 
   var datosBd = hojaBd.getDataRange().getValues();
@@ -125,6 +126,7 @@ function actualizarColoresTablaSeguimientoCompleta() {
   if (datosSeguimiento.length > 2 && colSumaTotal > 2) {
     var rangoCeldasDatos = hojaSeguimiento.getRange(3, 3, datosSeguimiento.length - 2, colSumaTotal - 2);
     rangoCeldasDatos.setBackground("#ffffff");
+    rangoCeldasDatos.setFontColor("#14231c");
     rangoCeldasDatos.clearComment();
   }
 
@@ -193,6 +195,7 @@ function actualizarColoresTablaSeguimientoCompleta() {
         var textoComentarioCompleto = tituloSeccionComentario + lineasComentario.join("\n");
         var celdaDestinoReal = hojaSeguimiento.getRange(f + 1, col + 1);
         celdaDestinoReal.setBackground(hexFinalCelda);
+        celdaDestinoReal.setFontColor(colorTextoLegible_(hexFinalCelda));
         celdaDestinoReal.setComment(textoComentarioCompleto);
       }
     }

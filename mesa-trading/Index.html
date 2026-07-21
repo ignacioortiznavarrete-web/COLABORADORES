@@ -143,7 +143,7 @@
         transition: filter .12s ease, transform .08s ease;
       }
       .btn:hover { filter: brightness(1.08); }
-      .btn:active { transform: translateY(1px); }
+      .btn:active { transform: translateY(1px) scale(.98); }
       .btn:disabled { opacity: .55; cursor: not-allowed; }
       .btn.ghost {
         color: var(--mint-100);
@@ -194,6 +194,7 @@
         background: var(--seg-dot, var(--muted));
       }
       .seg:hover { box-shadow: var(--soft-shadow); transform: translateY(-1px); }
+      .seg:active { transform: scale(.98); }
       .seg.active { background: var(--seg-bg, var(--panel)); border-color: var(--seg-dot, var(--line)); box-shadow: var(--soft-shadow); }
       .seg .n {
         font-family: var(--font-mono);
@@ -315,6 +316,18 @@
       .table-scroll { flex: 1; min-height: 0; overflow: auto; transition: opacity .15s ease; }
       .table-scroll.loading { opacity: .45; pointer-events: none; }
 
+      /* Skeleton shimmer para la primera carga */
+      .sk {
+        display: inline-block;
+        height: 12px;
+        border-radius: 6px;
+        background: linear-gradient(90deg, #edf1e9 25%, #dfe6dc 37%, #edf1e9 63%);
+        background-size: 400% 100%;
+        animation: shimmer 1.2s ease infinite;
+      }
+      @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+      .sk.w40 { width: 40%; } .sk.w60 { width: 60%; } .sk.w80 { width: 80%; }
+
       table.mesa {
         border-collapse: separate; border-spacing: 0;
         width: 100%; min-width: 1080px;
@@ -340,7 +353,13 @@
         white-space: nowrap;
       }
       table.mesa tbody tr { cursor: pointer; }
+      table.mesa tbody tr.row-in {
+        animation: rowIn .3s cubic-bezier(.16, 1, .3, 1) both;
+        animation-delay: calc(var(--i, 0) * 24ms);
+      }
+      @keyframes rowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
       table.mesa tbody tr:hover td { background: #f2f8f2; }
+      table.mesa tbody tr:active td { background: #eaf3ec; }
       table.mesa tbody tr:focus-visible { outline: 2px solid var(--forest-500); outline-offset: -2px; }
       table.mesa tbody tr.selected td { background: var(--mint-100); }
 
@@ -972,7 +991,7 @@
             <div class="legend">
               <div class="legend-row"><span class="box" style="background:#fff2cc"></span> Pendiente / sin proveedor</div>
               <div class="legend-row"><span class="box" style="background:#39ff14"></span> Negociacion</div>
-              <div class="legend-row"><span class="box" style="background:#c9daf8"></span> Color de proveedor</div>
+              <div class="legend-row"><span class="box" style="background:#1f4fa8"></span> Color de proveedor</div>
             </div>
           </div>
         </aside>
@@ -1150,7 +1169,8 @@
 
       function loadMesa(sync) {
         setMesaStatus(sync ? 'Sincronizando pedidos desde Bd...' : 'Cargando pedidos...');
-        E.mesaScroll.classList.add('loading');
+        if (!app.mesa) showMesaSkeleton();
+        else E.mesaScroll.classList.add('loading');
         var runner = google.script.run
           .withSuccessHandler(function(data) {
             app.mesa = data;
@@ -1170,6 +1190,25 @@
 
         if (sync) runner.sincronizarMesaTradingDesdeWeb();
         else runner.obtenerDatosMesaTrading();
+      }
+
+      function showMesaSkeleton() {
+        if (!E.mesaScroll.contains(E.mesaTable)) {
+          E.mesaScroll.innerHTML = '';
+          E.mesaScroll.appendChild(E.mesaTable);
+        }
+        var widths = ['w60', 'w80', 'w60', 'w40', 'w60', 'w40', 'w80', 'w60', 'w40'];
+        var rows = [];
+        for (var i = 0; i < 8; i++) {
+          rows.push('<tr>' + widths.map(function(w) {
+            return '<td><span class="sk ' + w + '"></span></td>';
+          }).join('') + '</tr>');
+        }
+        E.mesaTable.innerHTML = '<thead><tr>' +
+          '<th>Pedido</th><th>Material / texto comercial</th><th>Cliente</th>' +
+          '<th class="num">Vol. producir</th><th>Embarque</th><th>Puerto</th>' +
+          '<th>Proveedor</th><th>Estado</th><th>Notas</th>' +
+        '</tr></thead><tbody>' + rows.join('') + '</tbody>';
       }
 
       function pedidosFiltrados() {
@@ -1281,7 +1320,7 @@
           '<th>Proveedor</th><th>Estado</th><th>Notas</th>',
         '</tr></thead><tbody>'];
 
-        pedidos.forEach(function(p) {
+        pedidos.forEach(function(p, idx) {
           m3Filtrado += Number(p.cantidad || 0);
           var provHtml;
           if (p.proveedor) {
@@ -1296,7 +1335,8 @@
           if (p.comentarioCompras) notas += '<span class="note-tag" title="Compras: ' + escAttr(p.comentarioCompras) + '">C</span>';
 
           var selected = app.selectedId === p.id ? ' selected' : '';
-          html.push('<tr data-id="' + escAttr(p.id) + '" tabindex="0" class="' + selected + '" ' +
+          html.push('<tr data-id="' + escAttr(p.id) + '" tabindex="0" class="row-in' + selected + '" ' +
+            'style="--i:' + Math.min(idx, 15) + '" ' +
             'aria-label="' + escAttr('Pedido ' + p.docVenta + ', ' + p.material + ', ' + p.estado) + '">' +
             '<td class="mono">' + esc(p.docVenta || '-') + '</td>' +
             '<td><div class="cell-2l"><strong title="' + escAttr(p.material) + '">' + esc(p.material || '-') + '</strong>' +

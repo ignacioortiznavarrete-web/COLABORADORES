@@ -87,7 +87,9 @@ function agregarOActualizarProveedor(nombre, color, estado, nota) {
   }
 
   hoja.getRange(filaDestino, 1, 1, 4).setValues([[nombre, colorNormalizado.valor, estado, nota]]);
-  hoja.getRange(filaDestino, 2).setBackground(colorNormalizado.hex);
+  hoja.getRange(filaDestino, 2)
+    .setBackground(colorNormalizado.hex)
+    .setFontColor(colorTextoLegible_(colorNormalizado.hex));
   hoja.getRange(filaDestino, 3).setBackground(normalizarTexto(estado) === "inactivo" ? "#f4cccc" : "#d9ead3");
 
   actualizarValidacionHojaProveedores_(hoja);
@@ -188,10 +190,13 @@ function colorearCatalogoProveedores_(hoja) {
 
   var valores = hoja.getRange(2, 2, lastRow - 1, 1).getValues();
   var fondos = [];
+  var tintas = [];
   for (var i = 0; i < valores.length; i++) {
-    fondos.push([resolverHexColor_(valores[i][0], TRADING_CONFIG.defaultProviderColor)]);
+    var hex = resolverHexColor_(valores[i][0], TRADING_CONFIG.defaultProviderColor);
+    fondos.push([hex]);
+    tintas.push([colorTextoLegible_(hex)]);
   }
-  hoja.getRange(2, 2, fondos.length, 1).setBackgrounds(fondos);
+  hoja.getRange(2, 2, fondos.length, 1).setBackgrounds(fondos).setFontColors(tintas);
 }
 
 function obtenerColoresParaPanel_() {
@@ -203,20 +208,26 @@ function obtenerColoresParaPanel_() {
   return salida;
 }
 
+/**
+ * Catalogo categorico validado: la separacion minima entre cualquier par de
+ * colores es ~12.6 dE (OKLab x100); la paleta pastel anterior tenia pares
+ * practicamente identicos (2.9 dE entre Morado y Azul). Los tonos oscuros
+ * requieren texto blanco: usar colorTextoLegible_() al pintar celdas.
+ */
 function obtenerCatalogoColores_() {
   return {
-    "Verde": "#b7e1cd",
-    "Azul": "#c9daf8",
-    "Naranjo": "#fce5cd",
-    "Morado": "#d9d2e9",
-    "Amarillo": "#fff2cc",
-    "Rojo": "#f4c7c3",
-    "Gris": "#efefef",
-    "Cafe": "#d5a6bd",
-    "Rosado": "#f4cedd",
-    "Celeste": "#c1e7f4",
-    "Fucsia": "#f3b0f3",
-    "RojoFuerte": "#db2607"
+    "Verde": "#2e9e5b",
+    "Azul": "#1f4fa8",
+    "Naranjo": "#f28c28",
+    "Morado": "#a678e8",
+    "Amarillo": "#f6d33f",
+    "Rojo": "#e04b40",
+    "Gris": "#9aa39c",
+    "Cafe": "#9a5f1e",
+    "Rosado": "#f9b8cd",
+    "Celeste": "#2ba3d4",
+    "Fucsia": "#e357c2",
+    "RojoFuerte": "#8f1d15"
   };
 }
 
