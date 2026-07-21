@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      :root {
+        --text: #14231c;
+        --muted: #75857c;
+        --line: #dfe5db;
+        --surface: #fffdf9;
+        --soft: #f1f4ec;
+        --accent: #175843;
+        --accent-dark: #103a2b;
+        --danger: #b42318;
+        --ok: #1e6f55;
+        --ink-panel: #2c3a33;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 14px;
+        font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        color: var(--text);
+        background: var(--surface);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.25;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.25;
+      }
+
+      label {
+        display: block;
+        margin: 12px 0 6px;
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--muted);
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 9px 10px;
+        background: #fff;
+        color: var(--text);
+      }
+
+      textarea {
+        min-height: 88px;
+        resize: vertical;
+        line-height: 1.35;
+      }
+
+      button {
+        border: 0;
+        border-radius: 6px;
+        padding: 10px 12px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--accent-dark);
+      }
+
+      button.secondary {
+        background: #eef3f4;
+        color: var(--ink-panel);
+        border: 1px solid var(--line);
+      }
+
+      button.secondary:hover {
+        background: #e4ebee;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      .head {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+
+      .subtle {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .tabs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin: 12px 0;
+      }
+
+      .tab {
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink-panel);
+        min-height: 38px;
+      }
+
+      .tab.active {
+        border-color: var(--accent);
+        background: #d9f0e7;
+        color: var(--accent-dark);
+      }
+
+      .panel {
+        display: none;
+      }
+
+      .panel.active {
+        display: block;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+        background: var(--soft);
+        margin-bottom: 12px;
+      }
+
+      .facts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .fact {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 9px;
+        background: #fff;
+      }
+
+      .fact b {
+        display: block;
+        color: var(--muted);
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+
+      .fact span {
+        font-weight: 800;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 50px;
+        gap: 8px;
+        align-items: end;
+      }
+
+      .swatch {
+        height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .status {
+        min-height: 18px;
+        margin: 9px 0 0;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.35;
+      }
+
+      .status.error {
+        color: var(--danger);
+        font-weight: 800;
+      }
+
+      .status.ok {
+        color: var(--ok);
+        font-weight: 800;
+      }
+
+      .provider-list {
+        margin-top: 14px;
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+
+      .provider {
+        display: grid;
+        grid-template-columns: 18px 1fr auto;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid #edf0f4;
+        cursor: pointer;
+      }
+
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid #cfd6df;
+      }
+
+      .name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 3px 8px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .empty {
+        padding: 18px 10px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="head">
+      <h1>Sidebar Trading</h1>
+      <div class="subtle">Pedido seleccionado, proveedor y comunicacion compras/ventas.</div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab" id="tabPedido" type="button">Pedido</button>
+      <button class="tab" id="tabProveedores" type="button">Proveedores</button>
+    </nav>
+
+    <section class="panel" id="panelPedido">
+      <div id="pedidoCard" class="card">
+        <div class="empty">Selecciona una fila de Hoja Unica y presiona recargar.</div>
+      </div>
+
+      <label for="pedidoProveedor">Proveedor asignado</label>
+      <select id="pedidoProveedor"></select>
+
+      <label for="comentarioVentas">Mensaje ventas</label>
+      <textarea id="comentarioVentas" placeholder="Ej: negociacion, fecha requerida, prioridad cliente"></textarea>
+
+      <label for="comentarioCompras">Respuesta compras</label>
+      <textarea id="comentarioCompras" placeholder="Ej: proveedor confirma, pendiente precio, fecha de despacho"></textarea>
+
+      <div class="actions">
+        <button id="guardarPedido" type="button">Guardar</button>
+        <button id="recargarPedido" class="secondary" type="button">Recargar</button>
+        <button id="registrarHistorial" class="secondary" type="button">Historial</button>
+      </div>
+      <div id="pedidoStatus" class="status"></div>
+    </section>
+
+    <section class="panel" id="panelProveedores">
+      <form id="providerForm">
+        <label for="nombre">Proveedor</label>
+        <input id="nombre" name="nombre" autocomplete="off" placeholder="Ej: Nuevo proveedor" required>
+
+        <label for="color">Color</label>
+        <div class="row">
+          <select id="color" name="color"></select>
+          <div id="swatch" class="swatch"></div>
+        </div>
+        <div class="subtle">Puedes elegir un color o escribir un HEX como #88CCFF.</div>
+
+        <label for="hex">Color personalizado</label>
+        <input id="hex" name="hex" placeholder="#88CCFF" maxlength="7">
+
+        <label for="estado">Estado</label>
+        <select id="estado" name="estado">
+          <option value="Activo">Activo</option>
+          <option value="Inactivo">Inactivo</option>
+        </select>
+
+        <label for="nota">Nota</label>
+        <textarea id="nota" name="nota" placeholder="Opcional"></textarea>
+
+        <button type="submit">Guardar proveedor</button>
+        <div id="providerStatus" class="status"></div>
+      </form>
+
+      <section class="provider-list">
+        <h2>Proveedores actuales</h2>
+        <div id="providers"></div>
+      </section>
+    </section>
+
+    <script>
+      var INITIAL_TAB = "<?= initialTab ?>";
+      var state = {
+        activeTab: INITIAL_TAB || "pedido",
+        colores: [],
+        proveedores: [],
+        pedido: null,
+        saving: false
+      };
+
+      var els = {
+        tabPedido: document.getElementById("tabPedido"),
+        tabProveedores: document.getElementById("tabProveedores"),
+        panelPedido: document.getElementById("panelPedido"),
+        panelProveedores: document.getElementById("panelProveedores"),
+        pedidoCard: document.getElementById("pedidoCard"),
+        pedidoProveedor: document.getElementById("pedidoProveedor"),
+        comentarioVentas: document.getElementById("comentarioVentas"),
+        comentarioCompras: document.getElementById("comentarioCompras"),
+        guardarPedido: document.getElementById("guardarPedido"),
+        recargarPedido: document.getElementById("recargarPedido"),
+        registrarHistorial: document.getElementById("registrarHistorial"),
+        pedidoStatus: document.getElementById("pedidoStatus"),
+        providerForm: document.getElementById("providerForm"),
+        color: document.getElementById("color"),
+        hex: document.getElementById("hex"),
+        swatch: document.getElementById("swatch"),
+        providerStatus: document.getElementById("providerStatus"),
+        providers: document.getElementById("providers")
+      };
+
+      window.addEventListener("load", function() {
+        bindEvents();
+        setTab(state.activeTab);
+        cargarTodo();
+      });
+
+      function bindEvents() {
+        els.tabPedido.addEventListener("click", function() { setTab("pedido"); });
+        els.tabProveedores.addEventListener("click", function() { setTab("proveedores"); });
+        els.recargarPedido.addEventListener("click", cargarTodo);
+        els.registrarHistorial.addEventListener("click", registrarHistorial);
+        els.guardarPedido.addEventListener("click", guardarPedido);
+        els.color.addEventListener("change", actualizarMuestra);
+        els.hex.addEventListener("input", actualizarMuestra);
+        els.providerForm.addEventListener("submit", guardarProveedor);
+      }
+
+      function setTab(tab) {
+        state.activeTab = tab;
+        els.tabPedido.className = "tab" + (tab === "pedido" ? " active" : "");
+        els.tabProveedores.className = "tab" + (tab === "proveedores" ? " active" : "");
+        els.panelPedido.className = "panel" + (tab === "pedido" ? " active" : "");
+        els.panelProveedores.className = "panel" + (tab === "proveedores" ? " active" : "");
+      }
+
+      function cargarTodo() {
+        setStatus(els.pedidoStatus, "Cargando fila seleccionada...");
+        google.script.run
+          .withSuccessHandler(function(data) {
+            state.colores = data.colores || [];
+            state.proveedores = data.proveedores || [];
+            state.pedido = data.pedido || null;
+            renderColores();
+            renderProveedores();
+            renderPedido(data.mensaje || "");
+          })
+          .withFailureHandler(function(err) {
+            setError(els.pedidoStatus, err);
+          })
+          .obtenerDatosSidebarTrading();
+      }
+
+      function renderPedido(mensaje) {
+        renderProveedorSelect();
+        if (!state.pedido) {
+          els.pedidoCard.innerHTML = '<div class="empty">' + esc(mensaje || "Selecciona una fila de Hoja Unica.") + '</div>';
+          els.comentarioVentas.value = "";
+          els.comentarioCompras.value = "";
+          els.guardarPedido.disabled = true;
+          setStatus(els.pedidoStatus, mensaje || "");
+          return;
+        }
+
+        var p = state.pedido;
+        els.guardarPedido.disabled = false;
+        els.pedidoProveedor.value = p.proveedor || "";
+        els.comentarioVentas.value = p.comentarioVentas || "";
+        els.comentarioCompras.value = p.comentarioCompras || "";
+        els.pedidoCard.innerHTML =
+          '<h2>' + esc(p.docVenta || "Pedido") + '</h2>' +
+          '<div class="subtle">' + esc(p.material || "") + '<br>' + esc(p.textoComercial || "") + '</div>' +
+          '<div class="facts">' +
+            '<div class="fact"><b>Fecha</b><span>' + esc(p.fechaCompromiso || "-") + '</span></div>' +
+            '<div class="fact"><b>Vol. producir</b><span>' + esc(p.cantidadTexto || "0") + '</span></div>' +
+            '<div class="fact"><b>Cliente</b><span>' + esc(p.cliente || "-") + '</span></div>' +
+            '<div class="fact"><b>Puerto</b><span>' + esc(p.puertoDestino || "-") + '</span></div>' +
+            '<div class="fact"><b>Estado</b><span>' + esc(p.estado || "-") + '</span></div>' +
+          '</div>';
+        setStatus(els.pedidoStatus, "");
+      }
+
+      function renderProveedorSelect() {
+        var current = state.pedido ? state.pedido.proveedor : els.pedidoProveedor.value;
+        els.pedidoProveedor.innerHTML = '<option value="">Pendiente de asignar</option>';
+        state.proveedores.forEach(function(prov) {
+          var option = document.createElement("option");
+          option.value = prov.nombre;
+          option.textContent = prov.nombre;
+          els.pedidoProveedor.appendChild(option);
+        });
+        els.pedidoProveedor.value = current || "";
+      }
+
+      function guardarPedido() {
+        if (!state.pedido || state.saving) return;
+        state.saving = true;
+        els.guardarPedido.disabled = true;
+        setStatus(els.pedidoStatus, "Guardando y sincronizando...");
+
+        var payload = {
+          rowIndex: state.pedido.rowIndex,
+          docVenta: state.pedido.docVenta,
+          material: state.pedido.material,
+          proveedor: els.pedidoProveedor.value,
+          comentarioVentas: els.comentarioVentas.value,
+          comentarioCompras: els.comentarioCompras.value
+        };
+
+        google.script.run
+          .withSuccessHandler(function() {
+            state.saving = false;
+            setOk(els.pedidoStatus, "Pedido guardado. Tabla Seguimiento sincronizada.");
+            cargarTodo();
+          })
+          .withFailureHandler(function(err) {
+            state.saving = false;
+            els.guardarPedido.disabled = false;
+            setError(els.pedidoStatus, err);
+          })
+          .guardarPedidoSidebarTrading(payload);
+      }
+
+      function registrarHistorial() {
+        setStatus(els.pedidoStatus, "Registrando historial de volumen...");
+        google.script.run
+          .withSuccessHandler(function(result) {
+            setOk(
+              els.pedidoStatus,
+              "Historial actualizado: " + (result.registrosAgregados || 0) + " cambios registrados."
+            );
+          })
+          .withFailureHandler(function(err) {
+            setError(els.pedidoStatus, err);
+          })
+          .registrarHistorialVolumenPorProducir(false);
+      }
+
+      function renderColores() {
+        els.color.innerHTML = "";
+        state.colores.forEach(function(color) {
+          var option = document.createElement("option");
+          option.value = color.nombre;
+          option.textContent = color.nombre;
+          option.dataset.hex = color.hex;
+          els.color.appendChild(option);
+        });
+        actualizarMuestra();
+      }
+
+      function renderProveedores() {
+        els.providers.innerHTML = "";
+        if (!state.proveedores.length) {
+          els.providers.innerHTML = '<div class="empty">Aun no hay proveedores.</div>';
+          return;
+        }
+
+        state.proveedores.forEach(function(prov) {
+          var item = document.createElement("div");
+          item.className = "provider";
+          item.onclick = function() {
+            document.getElementById("nombre").value = prov.nombre;
+            document.getElementById("estado").value = prov.estado || "Activo";
+            document.getElementById("nota").value = prov.nota || "";
+            els.hex.value = prov.color && prov.color.charAt(0) === "#" ? prov.color : "";
+            els.color.value = prov.color && prov.color.charAt(0) !== "#" ? prov.color : els.color.value;
+            actualizarMuestra();
+          };
+
+          item.innerHTML =
+            '<div class="dot" style="background:' + safeColor(prov.hex) + '"></div>' +
+            '<div class="name">' + esc(prov.nombre) + '</div>' +
+            '<div class="pill">' + esc(prov.estado || "Activo") + '</div>';
+          els.providers.appendChild(item);
+        });
+      }
+
+      function guardarProveedor(event) {
+        event.preventDefault();
+        var hex = els.hex.value.trim();
+        var payload = {
+          nombre: document.getElementById("nombre").value.trim(),
+          color: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : els.color.value,
+          estado: document.getElementById("estado").value,
+          nota: document.getElementById("nota").value.trim()
+        };
+
+        setStatus(els.providerStatus, "Guardando proveedor...");
+        google.script.run
+          .withSuccessHandler(function(result) {
+            state.proveedores = result.proveedores || [];
+            renderProveedores();
+            renderProveedorSelect();
+            setOk(els.providerStatus, result.mensaje || "Proveedor guardado.");
+          })
+          .withFailureHandler(function(err) {
+            setError(els.providerStatus, err);
+          })
+          .guardarProveedorDesdePanel(payload);
+      }
+
+      function actualizarMuestra() {
+        var hex = els.hex.value.trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+          els.swatch.style.background = hex;
+          return;
+        }
+
+        var selected = els.color.options[els.color.selectedIndex];
+        els.swatch.style.background = selected ? selected.dataset.hex : "#ffffff";
+      }
+
+      function setStatus(el, text) {
+        el.className = "status";
+        el.textContent = text || "";
+      }
+
+      function setOk(el, text) {
+        el.className = "status ok";
+        el.textContent = text || "";
+      }
+
+      function setError(el, err) {
+        el.className = "status error";
+        el.textContent = err && err.message ? err.message : String(err || "Error");
+      }
+
+      function esc(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function safeColor(value) {
+        return /^#[0-9a-fA-F]{6}$/.test(String(value || "")) ? value : "#fff2cc";
+      }
+    </script>
+  </body>
+</html>

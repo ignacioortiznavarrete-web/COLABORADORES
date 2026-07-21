@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        /* Bosque: identidad del material. Menta: luz sobre la madera. */
+        --forest-950: #071a13;
+        --forest-900: #0b2a1f;
+        --forest-800: #103a2b;
+        --forest-700: #175843;
+        --forest-600: #1e6f55;
+        --forest-500: #27876a;
+        --mint-300: #8ee7c8;
+        --mint-200: #c4f6e4;
+        --mint-100: #e9fcf4;
+
+        --paper: #f6f3ec;
+        --card: #fffdf9;
+        --panel: #f1f4ec;
+        --ink: #14231c;
+        --ink-2: #4b5c53;
+        --muted: #75857c;
+        --line: #dfe5db;
+        --line-soft: #ebefe6;
+        --danger: #b42318;
+
+        /* Estados del flujo: pendiente=ambar (como la hoja), negociacion=lima
+           (eco del verde de la hoja), asignado=bosque, cerrado=gris. */
+        --pend-bg: #f8ecd2;  --pend-ink: #7d4b0f;  --pend-dot: #c9822f;
+        --neg-bg:  #e9f6d2;  --neg-ink:  #48660e;  --neg-dot:  #7fc926;
+        --asig-bg: #d9f0e7;  --asig-ink: #0f5c49;  --asig-dot: #1e6f55;
+        --cerr-bg: #e9ebe6;  --cerr-ink: #59645d;  --cerr-dot: #98a29b;
+
+        --shadow: 0 16px 40px rgba(7, 26, 19, .18);
+        --soft-shadow: 0 6px 16px rgba(16, 58, 43, .10);
+        --radius: 14px;
+
+        --font-display: "Fraunces", ui-serif, Georgia, serif;
+        --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+        /* Metricas de la matriz */
+        --row-h: 38px;
+        --date-w: 96px;
+        --mat-w: 172px;
+        --txt-w: 330px;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: var(--font-sans);
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 8% -4%, rgba(142, 231, 200, .14), transparent 34%),
+          radial-gradient(circle at 94% 0%, rgba(39, 135, 106, .18), transparent 30%),
+          linear-gradient(160deg, var(--forest-950) 0%, var(--forest-900) 46%, #0d211a 100%);
+        -webkit-font-smoothing: antialiased;
+      }
+      button, input, select, textarea { font: inherit; color: inherit; }
+      button { cursor: pointer; }
+      :focus-visible { outline: 2px solid var(--mint-300); outline-offset: 2px; }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+      }
+
+      .app { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+      /* ============ Barra superior ============ */
+      .topbar {
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 12px 18px;
+        color: #fff;
+        border-bottom: 1px solid rgba(196, 246, 228, .14);
+      }
+      .brand { display: inline-flex; align-items: center; gap: 11px; min-width: 0; }
+      .brand-icon {
+        flex: none;
+        width: 38px; height: 38px;
+        display: grid; place-items: center;
+        border-radius: 11px;
+        background: linear-gradient(135deg, var(--mint-300), var(--forest-500));
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.45);
+      }
+      .brand-icon svg { width: 22px; height: 22px; display: block; }
+      .brand h1 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 19px; font-weight: 600;
+        letter-spacing: -.01em; line-height: 1.15;
+        white-space: nowrap;
+      }
+      .brand p {
+        margin: 2px 0 0;
+        color: rgba(232, 255, 247, .62);
+        font-size: 11.5px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        max-width: 420px;
+      }
+
+      .views {
+        display: inline-flex;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 12px;
+        background: rgba(255,255,255,.07);
+        border: 1px solid rgba(196,246,228,.18);
+      }
+      .view-tab {
+        border: 0;
+        border-radius: 9px;
+        padding: 7px 15px;
+        background: transparent;
+        color: rgba(232,255,247,.72);
+        font-size: 13px; font-weight: 600;
+        transition: background-color .15s ease, color .15s ease;
+      }
+      .view-tab:hover { color: #fff; }
+      .view-tab.active {
+        color: var(--forest-900);
+        background: linear-gradient(135deg, #eafff8, #c9f7e3);
+      }
+
+      .top-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+      .btn {
+        min-height: 36px;
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 8px 14px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--forest-600), var(--forest-700));
+        font-size: 13px; font-weight: 700;
+        transition: filter .12s ease, transform .08s ease;
+      }
+      .btn:hover { filter: brightness(1.08); }
+      .btn:active { transform: translateY(1px); }
+      .btn:disabled { opacity: .55; cursor: not-allowed; }
+      .btn.ghost {
+        color: var(--mint-100);
+        background: rgba(255,255,255,.07);
+        border-color: rgba(196,246,228,.22);
+      }
+
+      /* ============ Vistas ============ */
+      .view { display: none; flex: 1; min-height: 0; }
+      #viewMesa.active { display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 16px; }
+      #viewMatriz.active {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 340px;
+        gap: 12px;
+        padding: 14px 18px 16px;
+      }
+      #viewMatriz.active.panel-collapsed { grid-template-columns: 1fr; }
+      #viewMatriz.active.panel-collapsed .detail-card { display: none; }
+
+      /* ============ La cinta del flujo (pipeline) ============ */
+      .flowstrip {
+        flex: none;
+        display: flex;
+        align-items: stretch;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .flow-segs { display: flex; align-items: stretch; gap: 2px; flex: 1 1 520px; min-width: 0; }
+      .seg {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 108px;
+        border: 1px solid var(--line);
+        background: var(--card);
+        text-align: left;
+        padding: 9px 12px 9px 16px;
+        display: grid;
+        gap: 1px;
+        transition: box-shadow .15s ease, transform .12s ease, background-color .15s ease;
+      }
+      .seg:first-child { border-radius: 12px 4px 4px 12px; }
+      .seg:last-child { border-radius: 4px 12px 12px 4px; }
+      .seg:before {
+        content: "";
+        position: absolute;
+        left: 6px; top: 9px; bottom: 9px;
+        width: 4px; border-radius: 3px;
+        background: var(--seg-dot, var(--muted));
+      }
+      .seg:hover { box-shadow: var(--soft-shadow); transform: translateY(-1px); }
+      .seg.active { background: var(--seg-bg, var(--panel)); border-color: var(--seg-dot, var(--line)); box-shadow: var(--soft-shadow); }
+      .seg .n {
+        font-family: var(--font-mono);
+        font-size: 20px; font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--seg-ink, var(--ink));
+        line-height: 1.1;
+      }
+      .seg .l {
+        font-size: 10.5px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em;
+        color: var(--seg-ink, var(--ink-2));
+      }
+      .seg .v {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .seg.pendiente   { --seg-bg: var(--pend-bg); --seg-ink: var(--pend-ink); --seg-dot: var(--pend-dot); }
+      .seg.negociacion { --seg-bg: var(--neg-bg);  --seg-ink: var(--neg-ink);  --seg-dot: var(--neg-dot); }
+      .seg.asignado    { --seg-bg: var(--asig-bg); --seg-ink: var(--asig-ink); --seg-dot: var(--asig-dot); }
+      .seg.cerrado     { --seg-bg: var(--cerr-bg); --seg-ink: var(--cerr-ink); --seg-dot: var(--cerr-dot); }
+
+      .flow-totals {
+        flex: none;
+        display: flex;
+        gap: 2px;
+        align-items: stretch;
+      }
+      .tile {
+        min-width: 108px;
+        border: 1px solid rgba(196,246,228,.2);
+        background: linear-gradient(135deg, rgba(16,58,43,.92), rgba(9,32,24,.92));
+        color: #fff;
+        padding: 9px 14px;
+        display: grid; gap: 1px;
+        align-content: center;
+      }
+      .tile:first-child { border-radius: 12px 4px 4px 12px; }
+      .tile:last-child { border-radius: 4px 12px 12px 4px; }
+      .tile .n {
+        font-family: var(--font-mono);
+        font-size: 18px; font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--mint-200);
+      }
+      .tile .l {
+        font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em;
+        color: rgba(232,255,247,.6);
+      }
+
+      /* ============ Tarjetas ============ */
+      .card-shell {
+        border: 1px solid rgba(220, 233, 227, .9);
+        border-radius: var(--radius);
+        background: var(--card);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .mesa-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+      .toolbar {
+        flex: none;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 11px 14px;
+        background: #fff;
+        border-bottom: 1px solid var(--line);
+      }
+      .search-wrap { position: relative; flex: 1 1 260px; min-width: 200px; }
+      .search-wrap svg {
+        position: absolute; left: 12px; top: 50%;
+        transform: translateY(-50%);
+        width: 15px; height: 15px;
+        color: var(--muted); pointer-events: none;
+      }
+      .search {
+        width: 100%;
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 12px 8px 34px;
+        color: var(--ink);
+        background: var(--panel);
+        outline: none;
+        transition: border-color .12s ease, box-shadow .12s ease, background-color .12s ease;
+      }
+      .search::placeholder { color: var(--muted); }
+      .search:focus {
+        background: #fff;
+        border-color: var(--forest-500);
+        box-shadow: 0 0 0 3px rgba(39, 135, 106, .14);
+      }
+      select.field {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 7px 10px;
+        background: var(--panel);
+        color: var(--ink);
+        max-width: 230px;
+      }
+      .toolbar .chip-btn {
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 5px 12px;
+        background: var(--panel);
+        color: var(--ink-2);
+        font-size: 12px; font-weight: 600;
+      }
+      .toolbar .chip-btn:hover { background: #eaf1e8; }
+
+      .table-scroll { flex: 1; min-height: 0; overflow: auto; transition: opacity .15s ease; }
+      .table-scroll.loading { opacity: .45; pointer-events: none; }
+
+      table.mesa {
+        border-collapse: separate; border-spacing: 0;
+        width: 100%; min-width: 1080px;
+        font-size: 12.5px;
+      }
+      table.mesa thead th {
+        position: sticky; top: 0; z-index: 4;
+        background: var(--forest-800);
+        color: #dff5ea;
+        font-size: 11px; font-weight: 600;
+        letter-spacing: .03em; text-transform: uppercase;
+        text-align: left;
+        padding: 9px 12px;
+        border-bottom: 2px solid var(--forest-600);
+        white-space: nowrap;
+      }
+      table.mesa thead th.num { text-align: right; }
+      table.mesa tbody td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--line-soft);
+        background: #fff;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+      table.mesa tbody tr { cursor: pointer; }
+      table.mesa tbody tr:hover td { background: #f2f8f2; }
+      table.mesa tbody tr:focus-visible { outline: 2px solid var(--forest-500); outline-offset: -2px; }
+      table.mesa tbody tr.selected td { background: var(--mint-100); }
+
+      .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+      td.num { text-align: right; }
+      td.c-m3 { font-weight: 600; color: var(--forest-800); }
+      .cell-2l { line-height: 1.25; }
+      .cell-2l strong { display: block; font-weight: 700; color: var(--forest-900); max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+      .cell-2l small { display: block; color: var(--ink-2); font-size: 11.5px; max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+      td.c-cliente { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+
+      .prov-chip {
+        display: inline-flex; align-items: center; gap: 7px;
+        max-width: 180px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 3px 10px 3px 5px;
+        font-size: 12px; font-weight: 600;
+        overflow: hidden;
+      }
+      .prov-chip i {
+        flex: none;
+        width: 14px; height: 14px;
+        border-radius: 999px;
+        box-shadow: inset 0 0 0 1px rgba(16,35,29,.18);
+      }
+      .prov-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .prov-chip.none { color: var(--pend-ink); background: var(--pend-bg); border-color: #ecd9ae; padding-left: 10px; }
+
+      .badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .03em;
+        white-space: nowrap;
+      }
+      .badge:before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: .85; }
+      .badge.pendiente   { background: var(--pend-bg); color: var(--pend-ink); }
+      .badge.negociacion { background: var(--neg-bg);  color: var(--neg-ink); }
+      .badge.asignado    { background: var(--asig-bg); color: var(--asig-ink); }
+      .badge.cerrado     { background: var(--cerr-bg); color: var(--cerr-ink); }
+
+      .note-tags { display: inline-flex; gap: 4px; }
+      .note-tag {
+        display: inline-grid; place-items: center;
+        width: 20px; height: 20px;
+        border-radius: 6px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        color: var(--ink-2);
+        font-size: 10px; font-weight: 700;
+      }
+
+      .mesa-foot {
+        flex: none;
+        display: flex; justify-content: space-between; gap: 12px; align-items: center;
+        padding: 7px 14px;
+        background: var(--panel);
+        border-top: 1px solid var(--line-soft);
+        color: var(--muted);
+        font-size: 12px;
+        min-height: 34px;
+      }
+      .mesa-foot .mono strong { color: var(--forest-700); font-weight: 600; }
+      .status.error { color: var(--danger); font-weight: 700; }
+
+      .empty-block {
+        padding: 48px 24px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+        display: grid; gap: 12px; justify-items: center;
+      }
+      .empty-block .btn { color: #fff; }
+
+      /* ============ Drawer de pedido ============ */
+      .drawer-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(7, 26, 19, .45);
+        opacity: 0; pointer-events: none;
+        transition: opacity .2s ease;
+        z-index: 60;
+      }
+      .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+      .drawer {
+        position: fixed; top: 0; right: 0; bottom: 0;
+        width: min(430px, 100vw);
+        z-index: 70;
+        display: flex; flex-direction: column;
+        background: var(--card);
+        border-left: 1px solid var(--line);
+        box-shadow: -18px 0 48px rgba(7,26,19,.28);
+        transform: translateX(102%);
+        transition: transform .24s cubic-bezier(.32,.72,.28,1);
+      }
+      .drawer.open { transform: translateX(0); }
+      .drawer-head {
+        flex: none;
+        padding: 15px 18px 13px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--forest-800), var(--forest-900));
+      }
+      .drawer-head .row1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .drawer-head h2 {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 18px; font-weight: 600;
+      }
+      .drawer-head h2 .mono { font-size: 16px; }
+      .drawer-head p { margin: 5px 0 0; color: rgba(232,255,247,.68); font-size: 12px; line-height: 1.4; }
+      .drawer-close {
+        border: 1px solid rgba(196,246,228,.25);
+        background: rgba(255,255,255,.08);
+        color: var(--mint-100);
+        border-radius: 9px;
+        width: 30px; height: 30px;
+        display: grid; place-items: center;
+        font-size: 15px; line-height: 1;
+      }
+      .drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 14px 18px; display: grid; gap: 12px; align-content: start; }
+
+      .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      .fact {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: #fff;
+        padding: 8px 10px;
+        min-width: 0;
+      }
+      .fact b {
+        display: block;
+        color: var(--muted);
+        font-size: 10px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em;
+        margin-bottom: 3px;
+      }
+      .fact span { font-size: 13px; line-height: 1.3; word-break: break-word; }
+      .fact.m3 span { font-family: var(--font-mono); font-weight: 600; font-size: 15px; color: var(--forest-800); }
+
+      .field-label {
+        display: block;
+        margin: 2px 0 5px;
+        color: var(--ink-2);
+        font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em;
+      }
+      .prov-row { display: grid; grid-template-columns: 1fr 34px; gap: 8px; align-items: center; }
+      .prov-row select {
+        width: 100%;
+        min-height: 40px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 8px 10px;
+        background: #fff;
+      }
+      .prov-preview {
+        width: 34px; height: 34px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        box-shadow: inset 0 0 0 1px rgba(16,35,29,.06);
+      }
+      .quick-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+      .qchip {
+        display: inline-flex; align-items: center; gap: 7px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 6px 13px;
+        font-size: 12px; font-weight: 700;
+        color: var(--ink-2);
+        transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+      }
+      .qchip:before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--line); }
+      .qchip.neg.on  { background: var(--neg-bg); border-color: var(--neg-dot); color: var(--neg-ink); }
+      .qchip.neg.on:before { background: var(--neg-dot); }
+      .qchip.cerr.on { background: var(--cerr-bg); border-color: var(--cerr-dot); color: var(--cerr-ink); }
+      .qchip.cerr.on:before { background: var(--cerr-dot); }
+      .quick-hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
+
+      .drawer textarea {
+        width: 100%;
+        min-height: 76px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 11px;
+        background: #fff;
+        resize: vertical;
+        line-height: 1.4;
+        font-size: 13px;
+      }
+      .drawer textarea:focus { border-color: var(--forest-500); box-shadow: 0 0 0 3px rgba(39,135,106,.14); outline: none; }
+
+      .drawer-foot {
+        flex: none;
+        display: grid; grid-template-columns: 1fr auto; gap: 8px;
+        padding: 12px 18px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+      }
+      .drawer-foot .btn.ghost { color: var(--ink-2); background: #fff; border-color: var(--line); }
+      .drawer-status { grid-column: 1 / -1; font-size: 12px; color: var(--muted); min-height: 16px; }
+      .drawer-status.error { color: var(--danger); font-weight: 700; }
+      .drawer-status.ok { color: var(--forest-600); font-weight: 700; }
+
+      /* ============ Matriz (vista seguimiento) ============ */
+      .matrix-card { min-height: 0; display: grid; grid-template-rows: auto auto 1fr; }
+      .info-strip {
+        display: flex; justify-content: space-between; gap: 12px; align-items: center;
+        min-height: 34px;
+        padding: 4px 14px;
+        color: var(--muted);
+        background: var(--panel);
+        border-bottom: 1px solid var(--line-soft);
+        font-size: 12px;
+      }
+      .mini-stats { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--font-mono); }
+      .mini-stats .stat { white-space: nowrap; }
+      .mini-stats .stat strong { color: var(--forest-700); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+      .toggles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+      .toggles .tbtn {
+        min-height: 32px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 6px 11px;
+        font-size: 12px; font-weight: 600;
+        color: var(--ink-2);
+        background: var(--panel);
+      }
+      .toggles .tbtn:hover { background: #eaf1e8; }
+      .toggles .tbtn.active { color: #fff; background: var(--forest-700); border-color: var(--forest-700); }
+
+      .matrix-scroll {
+        min-height: 0;
+        overflow: auto;
+        background: var(--card);
+        transition: opacity .15s ease;
+      }
+      .matrix-scroll.loading { opacity: .45; pointer-events: none; }
+
+      table.matrix {
+        border-collapse: separate; border-spacing: 0;
+        width: max-content; min-width: 100%;
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
+      table.matrix th, table.matrix td { height: var(--row-h); padding: 0 10px; white-space: nowrap; }
+      table.matrix thead th {
+        position: sticky; top: 0; z-index: 8;
+        background: var(--forest-800);
+        color: #dff5ea;
+        font-family: var(--font-sans);
+        font-size: 11px; font-weight: 600;
+        letter-spacing: .02em;
+        text-align: right;
+        border-bottom: 2px solid var(--forest-600);
+      }
+      .head-product {
+        left: 0; z-index: 14 !important;
+        width: calc(var(--mat-w) + var(--txt-w));
+        min-width: calc(var(--mat-w) + var(--txt-w));
+        text-align: left !important;
+        font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em;
+        font-size: 10px;
+      }
+      .date-head {
+        width: var(--date-w); min-width: var(--date-w); max-width: var(--date-w);
+        overflow: hidden; text-overflow: ellipsis;
+        font-variant-numeric: tabular-nums;
+      }
+      .date-head.total { color: var(--mint-200); font-weight: 700; border-left: 1px solid var(--forest-600); }
+      .date-head .dh { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+      .date-head .dh-d { font-weight: 700; font-variant-numeric: tabular-nums; }
+      .date-head .dh-y { font-size: 9px; font-weight: 500; color: rgba(223, 245, 234, .6); letter-spacing: .04em; }
+
+      table.matrix tbody td { border-bottom: 1px solid var(--line-soft); background: #fff; }
+      table.matrix tbody tr:hover td { background: #f1f9f4; }
+      table.matrix tbody tr:hover .product-cell,
+      table.matrix tbody tr:hover .text-cell { background: #ecf7f1; }
+
+      .product-cell, .text-cell { position: sticky; z-index: 5; background: #fff; }
+      .product-cell {
+        left: 0;
+        width: var(--mat-w); min-width: var(--mat-w); max-width: var(--mat-w);
+        font-family: var(--font-sans); font-weight: 700;
+        color: var(--forest-900);
+        overflow: hidden;
+      }
+      .text-cell {
+        left: var(--mat-w);
+        width: var(--txt-w); min-width: var(--txt-w); max-width: var(--txt-w);
+        font-family: var(--font-sans);
+        color: var(--ink-2);
+        overflow: hidden;
+        border-right: 1px solid var(--line);
+        box-shadow: 6px 0 10px -8px rgba(10, 36, 28, .18);
+      }
+      .cell-text { display: block; overflow: hidden; text-overflow: ellipsis; }
+
+      td.value-cell {
+        width: var(--date-w); min-width: var(--date-w); max-width: var(--date-w);
+        padding: 0 6px;
+        text-align: right;
+        border-left: 1px solid var(--line-soft);
+      }
+      td.value-cell.has-value { cursor: pointer; }
+      td.value-cell:focus-visible { outline: 2px solid var(--forest-500); outline-offset: -2px; border-radius: 6px; }
+      td.value-cell.selected { box-shadow: inset 0 0 0 2px var(--forest-500); border-radius: 6px; }
+
+      .v-pill {
+        position: relative;
+        display: inline-flex; align-items: center; justify-content: flex-end;
+        min-width: 64px; max-width: 100%;
+        border-radius: 8px;
+        padding: 4px 8px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        box-shadow: inset 0 0 0 1px rgba(16, 35, 29, .12);
+        transition: box-shadow .12s ease;
+      }
+      table.matrix tbody tr:hover .v-pill,
+      td.value-cell:focus-visible .v-pill { box-shadow: inset 0 0 0 1px rgba(16, 35, 29, .22), 0 3px 8px rgba(10, 36, 28, .16); }
+      .v-pill .dot {
+        position: absolute; top: -3px; right: -3px;
+        width: 8px; height: 8px; border-radius: 999px;
+        background: var(--forest-800);
+        box-shadow: 0 0 0 2px #fff;
+      }
+      .v-pill .dot.negotiation { background: var(--neg-dot); }
+
+      td.value-cell.total-col {
+        background: var(--panel);
+        border-left: 1px solid var(--line);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--forest-800);
+      }
+      table.matrix tbody tr:hover td.value-cell.total-col { background: #e9f3ed; }
+
+      table.matrix tbody tr.total-row td {
+        position: sticky; bottom: 0; z-index: 6;
+        background: #e6f1ea;
+        border-top: 2px solid #c8dcd1;
+        border-bottom: 0;
+        font-weight: 700;
+        color: var(--forest-950);
+        font-variant-numeric: tabular-nums;
+      }
+      table.matrix tbody tr.total-row .product-cell,
+      table.matrix tbody tr.total-row .text-cell { z-index: 7; background: #e6f1ea; }
+      table.matrix tbody tr.total-row td.value-cell.total-col { background: #dcebe2; }
+
+      .empty-matrix { padding: 40px 24px; color: var(--muted); font-family: var(--font-sans); font-size: 13px; text-align: center; }
+
+      table.matrix.fit-dense { font-size: 10.5px; }
+      table.matrix.fit-dense th, table.matrix.fit-dense td { padding: 0 4px; }
+      table.matrix.fit-dense .head-product { font-size: 9px; }
+      table.matrix.fit-dense .v-pill { min-width: 0; padding: 3px 5px; border-radius: 6px; }
+      table.matrix.fit-dense td.value-cell { padding: 0 3px; }
+
+      table.matrix.hide-text .text-cell { display: none; }
+      table.matrix.hide-text .head-product { width: var(--mat-w); min-width: var(--mat-w); }
+      table.matrix.hide-text .product-cell {
+        border-right: 1px solid var(--line);
+        box-shadow: 6px 0 10px -8px rgba(10, 36, 28, .18);
+      }
+
+      /* ---- Panel de detalle de la matriz ---- */
+      .detail-card { min-height: 0; display: grid; grid-template-rows: auto 1fr auto; }
+      .detail-head {
+        padding: 14px 16px;
+        color: #fff;
+        background: linear-gradient(135deg, var(--forest-800), var(--forest-900));
+      }
+      .detail-head h2 { margin: 0; font-family: var(--font-display); font-size: 17px; font-weight: 600; line-height: 1.2; }
+      .detail-head p { margin: 5px 0 0; color: rgba(232,255,247,.66); font-size: 12px; line-height: 1.4; }
+      .detail-body { overflow: auto; padding: 13px; }
+      .empty-detail { color: var(--muted); font-size: 13px; line-height: 1.5; padding: 14px 4px; }
+
+      .detail-grid { display: grid; gap: 9px; }
+      .detail-block { border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; background: #fff; }
+      .detail-block b {
+        display: block;
+        color: var(--muted);
+        font-size: 10px; font-weight: 700;
+        margin-bottom: 4px;
+        text-transform: uppercase; letter-spacing: .05em;
+      }
+      .detail-block span, .detail-block pre {
+        margin: 0;
+        color: var(--ink);
+        font-size: 13px; line-height: 1.4;
+        white-space: pre-wrap; word-break: break-word;
+      }
+      .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+      .pill {
+        display: inline-flex; align-items: baseline; gap: 4px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: var(--mint-100);
+        color: var(--forest-800);
+        font-family: var(--font-mono);
+        font-size: 14px; font-weight: 600;
+      }
+      .entry-section-title {
+        margin: 6px 0 0;
+        color: var(--forest-800);
+        font-size: 11px; font-weight: 700;
+        text-transform: uppercase; letter-spacing: .05em;
+      }
+      .entry-card { border: 1px solid var(--line); border-radius: 12px; background: #fff; overflow: hidden; }
+      .entry-card-head {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        padding: 8px 11px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .entry-card-head strong { color: var(--forest-900); font-size: 12px; }
+      .entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px; }
+      .entry-field { min-width: 0; }
+      .entry-field.full { grid-column: 1 / -1; }
+      .entry-field b {
+        display: block; margin-bottom: 2px;
+        color: var(--muted);
+        font-size: 10px; font-weight: 700; line-height: 1;
+        text-transform: uppercase; letter-spacing: .05em;
+      }
+      .entry-field span, .entry-field pre {
+        display: block; margin: 0;
+        color: var(--ink);
+        font-size: 12px; line-height: 1.4;
+        white-space: pre-wrap; word-break: break-word;
+      }
+      .m3-field span { color: var(--forest-800); font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+
+      .side-foot {
+        padding: 11px 14px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink-2);
+        font-size: 12px;
+      }
+      .legend { display: grid; gap: 7px; }
+      .legend-row { display: flex; align-items: center; gap: 8px; }
+      .box { flex: none; width: 14px; height: 14px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(16,35,29,.16); }
+
+      /* ============ Tooltip ============ */
+      .tooltip {
+        position: fixed;
+        pointer-events: none;
+        z-index: 80;
+        max-width: 420px;
+        display: none;
+        border: 1px solid rgba(196, 246, 228, .35);
+        border-radius: 14px;
+        padding: 12px 13px;
+        color: #eafff8;
+        background: linear-gradient(135deg, rgba(11,42,31,.98), rgba(7,22,17,.98));
+        box-shadow: 0 20px 56px rgba(0, 0, 0, .4);
+        font-size: 12px;
+      }
+      .tooltip .t-title {
+        display: flex; justify-content: space-between; gap: 12px;
+        font-family: var(--font-sans);
+        font-size: 13px; font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .tooltip .t-value { font-family: var(--font-mono); color: var(--mint-200); white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .tooltip .t-meta { color: rgba(232,255,247,.64); line-height: 1.4; margin-bottom: 9px; }
+      .tooltip pre { margin: 0; max-height: 210px; overflow: hidden; white-space: pre-wrap; word-break: break-word; line-height: 1.4; }
+      .tooltip-grid { display: grid; gap: 6px; max-height: 230px; overflow: hidden; }
+      .tooltip-item {
+        display: grid; grid-template-columns: 1fr auto; gap: 4px 10px;
+        padding: 7px 9px;
+        border-radius: 10px;
+        background: rgba(232,255,247,.07);
+        border: 1px solid rgba(196,246,228,.12);
+      }
+      .tooltip-item b { color: #eafff8; font-family: var(--font-sans); font-size: 12px; }
+      .tooltip-item .m3 { font-family: var(--font-mono); color: var(--mint-200); font-weight: 600; font-variant-numeric: tabular-nums; }
+      .tooltip-item small { grid-column: 1 / -1; color: rgba(232,255,247,.62); line-height: 1.4; }
+
+      /* ============ Toast ============ */
+      .toast {
+        position: fixed;
+        left: 50%; bottom: 22px;
+        transform: translate(-50%, 12px);
+        z-index: 90;
+        max-width: min(460px, calc(100vw - 32px));
+        border-radius: 12px;
+        border: 1px solid rgba(196,246,228,.3);
+        background: linear-gradient(135deg, rgba(11,42,31,.97), rgba(7,22,17,.97));
+        color: var(--mint-100);
+        padding: 11px 16px;
+        font-size: 13px; font-weight: 600;
+        box-shadow: 0 16px 40px rgba(0,0,0,.35);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s ease, transform .2s ease;
+      }
+      .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+      /* ============ Responsive ============ */
+      @media (max-width: 1180px) {
+        #viewMatriz.active { grid-template-columns: 1fr; overflow: auto; }
+        .matrix-card { grid-template-rows: auto auto minmax(340px, 62vh); }
+        .brand p { max-width: 240px; }
+      }
+      @media (max-width: 820px) {
+        .topbar { gap: 10px; padding: 10px 12px; }
+        .views { order: 3; width: 100%; }
+        .view-tab { flex: 1; text-align: center; }
+        #viewMesa.active, #viewMatriz.active { padding: 10px 12px 12px; }
+        .flow-segs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+        .flow-segs .seg, .flow-segs .seg:first-child, .flow-segs .seg:last-child { border-radius: 10px; min-width: 0; }
+        .flow-totals { width: 100%; }
+        .tile { flex: 1; }
+        .facts { grid-template-columns: 1fr 1fr; }
+        :root { --mat-w: 132px; --txt-w: 210px; --date-w: 84px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="3" fill="#071a13"/>
+              <circle cx="12" cy="12" r="6.5" stroke="#071a13" stroke-width="1.3"/>
+              <circle cx="12" cy="12" r="10" stroke="#071a13" stroke-width="1.3" stroke-dasharray="1.4 3.4"/>
+            </svg>
+          </div>
+          <div>
+            <h1><?= appTitle ?></h1>
+            <p id="subtitle">Cargando datos de la mesa...</p>
+          </div>
+        </div>
+
+        <nav class="views" role="tablist" aria-label="Vistas de la mesa">
+          <button class="view-tab active" id="tabMesa" type="button" role="tab" aria-selected="true">Mesa de pedidos</button>
+          <button class="view-tab" id="tabMatriz" type="button" role="tab" aria-selected="false">Matriz de embarques</button>
+        </nav>
+
+        <div class="top-actions">
+          <button class="btn ghost" id="reloadBtn" type="button">Recargar</button>
+          <button class="btn" id="syncBtn" type="button">Sincronizar desde Bd</button>
+        </div>
+      </header>
+
+      <!-- ================= Vista: Mesa de pedidos ================= -->
+      <section class="view active" id="viewMesa">
+        <div class="flowstrip" aria-label="Flujo de pedidos por estado">
+          <div class="flow-segs" id="flowSegs"></div>
+          <div class="flow-totals" id="flowTotals"></div>
+        </div>
+
+        <div class="card-shell mesa-card">
+          <div class="toolbar">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+              </svg>
+              <input class="search" id="mesaSearch" type="search"
+                     placeholder="Buscar pedido, material, cliente, proveedor, puerto o nota"
+                     aria-label="Buscar pedidos">
+            </div>
+            <select class="field" id="provFilter" aria-label="Filtrar por proveedor">
+              <option value="">Todos los proveedores</option>
+            </select>
+            <button class="chip-btn" id="clearFilters" type="button">Limpiar filtros</button>
+          </div>
+
+          <div class="table-scroll" id="mesaScroll">
+            <table class="mesa" id="mesaTable"></table>
+          </div>
+
+          <footer class="mesa-foot">
+            <div id="mesaStatus" role="status">Cargando pedidos...</div>
+            <div class="mono" id="mesaCount"></div>
+          </footer>
+        </div>
+      </section>
+
+      <!-- ================= Vista: Matriz de embarques ================= -->
+      <section class="view" id="viewMatriz">
+        <section class="card-shell matrix-card">
+          <div class="toolbar">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+              </svg>
+              <input class="search" id="mxSearch" type="search"
+                     placeholder="Buscar material, texto comercial, pedido, proveedor o nota"
+                     aria-label="Buscar en la matriz">
+            </div>
+            <div class="toggles" role="group" aria-label="Opciones de la matriz">
+              <button class="tbtn active" id="tgVacios" type="button" aria-pressed="true">Ocultar vacios</button>
+              <button class="tbtn" id="tgCompacto" type="button" aria-pressed="false">Compacto</button>
+              <button class="tbtn active" id="tgAncho" type="button" aria-pressed="true">Ajustar ancho</button>
+              <button class="tbtn" id="tgTexto" type="button" aria-pressed="false">Ocultar texto</button>
+              <button class="tbtn" id="tgPanel" type="button" aria-pressed="false">Ocultar panel</button>
+            </div>
+          </div>
+          <div class="info-strip">
+            <div id="mxStatus" role="status">La matriz se carga al abrir esta vista.</div>
+            <div class="mini-stats" id="mxStats"></div>
+          </div>
+          <div class="matrix-scroll" id="matrixScroll">
+            <table class="matrix fit-dense" id="matrix"></table>
+          </div>
+        </section>
+
+        <aside class="card-shell detail-card">
+          <div class="detail-head">
+            <h2>Detalle operativo</h2>
+            <p>Deja el mouse sobre una celda para vista rapida. Haz clic (o Enter) para fijar el detalle.</p>
+          </div>
+          <div class="detail-body" id="detail">
+            <div class="empty-detail">Selecciona una celda con volumen para ver material, fecha, m3 y nota.</div>
+          </div>
+          <div class="side-foot">
+            <div class="legend">
+              <div class="legend-row"><span class="box" style="background:#fff2cc"></span> Pendiente / sin proveedor</div>
+              <div class="legend-row"><span class="box" style="background:#39ff14"></span> Negociacion</div>
+              <div class="legend-row"><span class="box" style="background:#c9daf8"></span> Color de proveedor</div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </div>
+
+    <!-- ================= Drawer de edicion ================= -->
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="Editar pedido">
+      <div class="drawer-head">
+        <div class="row1">
+          <h2>Pedido <span class="mono" id="dDoc">-</span></h2>
+          <button class="drawer-close" id="dClose" type="button" aria-label="Cerrar">&#10005;</button>
+        </div>
+        <p id="dSub">-</p>
+      </div>
+      <div class="drawer-body">
+        <div class="facts" id="dFacts"></div>
+
+        <div>
+          <label class="field-label" for="dProveedor">Proveedor asignado</label>
+          <div class="prov-row">
+            <select id="dProveedor"></select>
+            <div class="prov-preview" id="dProvPreview" aria-hidden="true"></div>
+          </div>
+        </div>
+
+        <div>
+          <span class="field-label">Estado rapido</span>
+          <div class="quick-chips">
+            <button class="qchip neg" id="dNegChip" type="button" aria-pressed="false">En negociacion</button>
+            <button class="qchip cerr" id="dCerrChip" type="button" aria-pressed="false">Cerrado</button>
+          </div>
+          <p class="quick-hint">Estos botones escriben las palabras clave en los comentarios; la hoja y la matriz toman el color automaticamente.</p>
+        </div>
+
+        <div>
+          <label class="field-label" for="dComVentas">Mensaje ventas</label>
+          <textarea id="dComVentas" placeholder="Ej: negociacion, fecha requerida, prioridad cliente"></textarea>
+        </div>
+
+        <div>
+          <label class="field-label" for="dComCompras">Respuesta compras</label>
+          <textarea id="dComCompras" placeholder="Ej: proveedor confirma, pendiente precio, fecha de despacho"></textarea>
+        </div>
+      </div>
+      <div class="drawer-foot">
+        <button class="btn" id="dGuardar" type="button">Guardar y sincronizar</button>
+        <button class="btn ghost" id="dCancelar" type="button">Cancelar</button>
+        <div class="drawer-status" id="dStatus"></div>
+      </div>
+    </aside>
+
+    <div class="tooltip" id="tooltip" role="tooltip"></div>
+    <div class="toast" id="toast" role="status"></div>
+
+    <script>
+      /* =================== Estado global =================== */
+      var app = {
+        view: 'mesa',
+        mesa: null,
+        filters: { q: '', estado: '', proveedor: '' },
+        selectedId: null,
+        saving: false
+      };
+
+      var mx = {
+        data: null,
+        loaded: false,
+        query: '',
+        hideEmpty: true,
+        compact: false,
+        fitWidth: true,
+        hideText: false,
+        panelCollapsed: false,
+        visibleHeaders: [],
+        visibleRows: [],
+        selected: null
+      };
+
+      var ESTADOS = [
+        { key: 'Pendiente',   clase: 'pendiente',   label: 'Pendientes' },
+        { key: 'Negociacion', clase: 'negociacion', label: 'En negociacion' },
+        { key: 'Asignado',    clase: 'asignado',    label: 'Asignados' },
+        { key: 'Cerrado',     clase: 'cerrado',     label: 'Cerrados' }
+      ];
+
+      var E = {};
+      [
+        'subtitle', 'tabMesa', 'tabMatriz', 'reloadBtn', 'syncBtn',
+        'viewMesa', 'viewMatriz',
+        'flowSegs', 'flowTotals', 'mesaSearch', 'provFilter', 'clearFilters',
+        'mesaScroll', 'mesaTable', 'mesaStatus', 'mesaCount',
+        'mxSearch', 'tgVacios', 'tgCompacto', 'tgAncho', 'tgTexto', 'tgPanel',
+        'mxStatus', 'mxStats', 'matrixScroll', 'matrix', 'detail',
+        'drawer', 'drawerBackdrop', 'dDoc', 'dSub', 'dFacts', 'dProveedor', 'dProvPreview',
+        'dNegChip', 'dCerrChip', 'dComVentas', 'dComCompras', 'dGuardar', 'dCancelar', 'dStatus', 'dClose',
+        'tooltip', 'toast'
+      ].forEach(function(id) { E[id] = document.getElementById(id); });
+
+      window.addEventListener('load', function() {
+        bindTopbar();
+        bindMesa();
+        bindDrawer();
+        bindMatriz();
+        loadMesa(false);
+      });
+
+      /* =================== Barra superior =================== */
+      function bindTopbar() {
+        E.tabMesa.addEventListener('click', function() { setView('mesa'); });
+        E.tabMatriz.addEventListener('click', function() { setView('matriz'); });
+        E.reloadBtn.addEventListener('click', function() {
+          if (app.view === 'mesa') loadMesa(false);
+          else loadMatriz(false);
+        });
+        E.syncBtn.addEventListener('click', function() {
+          if (app.view === 'mesa') loadMesa(true);
+          else loadMatriz(true);
+        });
+      }
+
+      function setView(view) {
+        app.view = view;
+        var esMesa = view === 'mesa';
+        E.tabMesa.classList.toggle('active', esMesa);
+        E.tabMatriz.classList.toggle('active', !esMesa);
+        E.tabMesa.setAttribute('aria-selected', esMesa ? 'true' : 'false');
+        E.tabMatriz.setAttribute('aria-selected', esMesa ? 'false' : 'true');
+        E.viewMesa.classList.toggle('active', esMesa);
+        E.viewMatriz.classList.toggle('active', !esMesa);
+        E.syncBtn.textContent = esMesa ? 'Sincronizar desde Bd' : 'Reconstruir matriz';
+        hideTooltip();
+        if (!esMesa) {
+          if (!mx.loaded) loadMatriz(false);
+          else applyFitWidth();
+        }
+        updateSubtitle();
+      }
+
+      function updateSubtitle() {
+        var d = app.view === 'mesa' ? app.mesa : mx.data;
+        if (!d) { E.subtitle.textContent = 'Cargando datos de la mesa...'; return; }
+        E.subtitle.textContent = d.spreadsheetName + ' · actualizado ' + d.updatedAt;
+      }
+
+      /* =================== Mesa de pedidos =================== */
+      function bindMesa() {
+        E.mesaSearch.addEventListener('input', function() {
+          app.filters.q = normalize(this.value);
+          renderMesa();
+        });
+        E.provFilter.addEventListener('change', function() {
+          app.filters.proveedor = this.value;
+          renderMesa();
+        });
+        E.clearFilters.addEventListener('click', function() {
+          app.filters = { q: '', estado: '', proveedor: '' };
+          E.mesaSearch.value = '';
+          E.provFilter.value = '';
+          renderMesa();
+        });
+        E.mesaTable.addEventListener('click', function(event) {
+          var tr = event.target.closest('tr[data-id]');
+          if (tr) openDrawerById(tr.getAttribute('data-id'));
+        });
+        E.mesaTable.addEventListener('keydown', function(event) {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          var tr = event.target.closest('tr[data-id]');
+          if (!tr) return;
+          event.preventDefault();
+          openDrawerById(tr.getAttribute('data-id'));
+        });
+      }
+
+      function loadMesa(sync) {
+        setMesaStatus(sync ? 'Sincronizando pedidos desde Bd...' : 'Cargando pedidos...');
+        E.mesaScroll.classList.add('loading');
+        var runner = google.script.run
+          .withSuccessHandler(function(data) {
+            app.mesa = data;
+            E.mesaScroll.classList.remove('loading');
+            fillProvFilter();
+            renderMesa();
+            setMesaStatus('');
+            updateSubtitle();
+            if (sync && data.sync) {
+              showToast('Sincronizado: ' + data.sync.nuevasFilas + ' pedidos nuevos, ' + data.sync.historial + ' cambios de volumen.');
+            }
+          })
+          .withFailureHandler(function(err) {
+            E.mesaScroll.classList.remove('loading');
+            setMesaError(err);
+          });
+
+        if (sync) runner.sincronizarMesaTradingDesdeWeb();
+        else runner.obtenerDatosMesaTrading();
+      }
+
+      function pedidosFiltrados() {
+        if (!app.mesa) return [];
+        var f = app.filters;
+        return (app.mesa.pedidos || []).filter(function(p) {
+          if (f.estado && p.estado !== f.estado) return false;
+          if (f.proveedor === '__none__') { if (p.proveedor) return false; }
+          else if (f.proveedor && p.proveedor !== f.proveedor) return false;
+          if (f.q) {
+            var blob = normalize([
+              p.docVenta, p.material, p.textoComercial, p.cliente, p.proveedor,
+              p.puertoDestino, p.comentarioVentas, p.comentarioCompras, p.vendedor
+            ].join(' '));
+            if (blob.indexOf(f.q) === -1) return false;
+          }
+          return true;
+        }).sort(function(a, b) {
+          var fa = a.fechaOrden || '99999999';
+          var fb = b.fechaOrden || '99999999';
+          if (fa !== fb) return fa < fb ? -1 : 1;
+          return String(a.docVenta).localeCompare(String(b.docVenta));
+        });
+      }
+
+      function renderMesa() {
+        if (!app.mesa) return;
+        renderFlow();
+        renderTable();
+      }
+
+      function renderFlow() {
+        var pedidos = app.mesa.pedidos || [];
+        var porEstado = {};
+        ESTADOS.forEach(function(e) { porEstado[e.key] = { n: 0, m3: 0 }; });
+        pedidos.forEach(function(p) {
+          var slot = porEstado[p.estado] || porEstado['Asignado'];
+          slot.n++;
+          slot.m3 += Number(p.cantidad || 0);
+        });
+
+        E.flowSegs.innerHTML = ESTADOS.map(function(e) {
+          var s = porEstado[e.key];
+          var active = app.filters.estado === e.key;
+          return '<button class="seg ' + e.clase + (active ? ' active' : '') + '" type="button" ' +
+            'data-estado="' + e.key + '" aria-pressed="' + (active ? 'true' : 'false') + '" ' +
+            'title="Filtrar: ' + escAttr(e.label) + '">' +
+            '<span class="n">' + esc(s.n) + '</span>' +
+            '<span class="l">' + esc(e.label) + '</span>' +
+            '<span class="v">' + esc(fmtM3(s.m3)) + ' m3</span>' +
+          '</button>';
+        }).join('');
+
+        Array.prototype.forEach.call(E.flowSegs.querySelectorAll('.seg'), function(btn) {
+          btn.addEventListener('click', function() {
+            var estado = this.getAttribute('data-estado');
+            app.filters.estado = app.filters.estado === estado ? '' : estado;
+            renderMesa();
+          });
+        });
+
+        var k = app.mesa.kpis || {};
+        E.flowTotals.innerHTML =
+          '<div class="tile"><span class="n">' + esc(k.totalPedidos || 0) + '</span><span class="l">Pedidos</span></div>' +
+          '<div class="tile"><span class="n">' + esc(k.totalM3Texto || '0') + '</span><span class="l">m3 totales</span></div>' +
+          '<div class="tile"><span class="n">' + esc(k.proveedoresUsados || 0) + '</span><span class="l">Proveedores</span></div>';
+      }
+
+      function fillProvFilter() {
+        var current = app.filters.proveedor;
+        var options = ['<option value="">Todos los proveedores</option>',
+                       '<option value="__none__">Sin proveedor</option>'];
+        (app.mesa.proveedores || []).forEach(function(prov) {
+          options.push('<option value="' + escAttr(prov.nombre) + '">' + esc(prov.nombre) + '</option>');
+        });
+        E.provFilter.innerHTML = options.join('');
+        E.provFilter.value = current || '';
+      }
+
+      function renderTable() {
+        var pedidos = pedidosFiltrados();
+        var total = (app.mesa.pedidos || []).length;
+
+        if (!total) {
+          E.mesaTable.innerHTML = '';
+          E.mesaScroll.innerHTML = '<div class="empty-block">' +
+            '<div>Aun no hay pedidos en la mesa.<br>Sincroniza desde Bd para traer las ventas con origen Trading.</div>' +
+            '<button class="btn" type="button" onclick="loadMesa(true)">Sincronizar desde Bd</button></div>';
+          E.mesaCount.textContent = '';
+          return;
+        }
+
+        if (!E.mesaScroll.contains(E.mesaTable)) {
+          E.mesaScroll.innerHTML = '';
+          E.mesaScroll.appendChild(E.mesaTable);
+        }
+
+        if (!pedidos.length) {
+          E.mesaTable.innerHTML = '<tbody><tr><td colspan="9"><div class="empty-block">' +
+            '<div>Ningun pedido coincide con la busqueda o los filtros.</div></div></td></tr></tbody>';
+          E.mesaCount.textContent = '0 de ' + total + ' pedidos';
+          return;
+        }
+
+        var m3Filtrado = 0;
+        var html = ['<thead><tr>',
+          '<th>Pedido</th><th>Material / texto comercial</th><th>Cliente</th>',
+          '<th class="num">m3</th><th>Embarque</th><th>Puerto</th>',
+          '<th>Proveedor</th><th>Estado</th><th>Notas</th>',
+        '</tr></thead><tbody>'];
+
+        pedidos.forEach(function(p) {
+          m3Filtrado += Number(p.cantidad || 0);
+          var provHtml;
+          if (p.proveedor) {
+            provHtml = '<span class="prov-chip" title="' + escAttr(p.proveedor + (p.proveedorNota ? ' · ' + p.proveedorNota : '')) + '">' +
+              '<i style="background:' + safeColor(p.proveedorColor, '#efefef') + '"></i><span>' + esc(p.proveedor) + '</span></span>';
+          } else {
+            provHtml = '<span class="prov-chip none">Sin asignar</span>';
+          }
+
+          var notas = '';
+          if (p.comentarioVentas) notas += '<span class="note-tag" title="Ventas: ' + escAttr(p.comentarioVentas) + '">V</span>';
+          if (p.comentarioCompras) notas += '<span class="note-tag" title="Compras: ' + escAttr(p.comentarioCompras) + '">C</span>';
+
+          var selected = app.selectedId === p.id ? ' selected' : '';
+          html.push('<tr data-id="' + escAttr(p.id) + '" tabindex="0" class="' + selected + '" ' +
+            'aria-label="' + escAttr('Pedido ' + p.docVenta + ', ' + p.material + ', ' + p.estado) + '">' +
+            '<td class="mono">' + esc(p.docVenta || '-') + '</td>' +
+            '<td><div class="cell-2l"><strong title="' + escAttr(p.material) + '">' + esc(p.material || '-') + '</strong>' +
+              '<small title="' + escAttr(p.textoComercial) + '">' + esc(p.textoComercial || '') + '</small></div></td>' +
+            '<td class="c-cliente" title="' + escAttr(p.cliente) + '">' + esc(p.cliente || '-') + '</td>' +
+            '<td class="mono num c-m3">' + esc(p.cantidadTexto || '0') + '</td>' +
+            '<td class="mono">' + esc(p.fechaCompromiso || '-') + '</td>' +
+            '<td>' + esc(p.puertoDestino || '-') + '</td>' +
+            '<td>' + provHtml + '</td>' +
+            '<td><span class="badge ' + esc(p.estadoClave || 'pendiente') + '">' + esc(p.estado) + '</span></td>' +
+            '<td><span class="note-tags">' + (notas || '<span style="color:var(--muted)">-</span>') + '</span></td>' +
+          '</tr>');
+        });
+
+        html.push('</tbody>');
+        E.mesaTable.innerHTML = html.join('');
+        E.mesaCount.innerHTML = '<strong>' + pedidos.length + '</strong> de ' + total +
+          ' pedidos · <strong>' + fmtM3(m3Filtrado) + '</strong> m3';
+      }
+
+      function setMesaStatus(message) {
+        E.mesaStatus.className = '';
+        E.mesaStatus.textContent = message || '';
+      }
+      function setMesaError(err) {
+        E.mesaStatus.className = 'status error';
+        E.mesaStatus.textContent = err && err.message ? err.message : String(err || 'Error');
+      }
+
+      /* =================== Drawer de edicion =================== */
+      function bindDrawer() {
+        E.dClose.addEventListener('click', closeDrawer);
+        E.dCancelar.addEventListener('click', closeDrawer);
+        E.drawerBackdrop.addEventListener('click', closeDrawer);
+        document.addEventListener('keydown', function(event) {
+          if (event.key === 'Escape' && E.drawer.classList.contains('open')) closeDrawer();
+        });
+        E.dProveedor.addEventListener('change', updateProvPreview);
+        E.dNegChip.addEventListener('click', function() {
+          toggleKeywordChip(this, E.dComVentas, 'Negociacion', /negociaci[oó]n[.,]?\s*/gi);
+        });
+        E.dCerrChip.addEventListener('click', function() {
+          toggleKeywordChip(this, E.dComCompras, 'Cerrado', /cerrad[oa][.,]?\s*/gi);
+        });
+        E.dComVentas.addEventListener('input', syncChipsFromText);
+        E.dComCompras.addEventListener('input', syncChipsFromText);
+        E.dGuardar.addEventListener('click', guardarPedido);
+      }
+
+      function pedidoById(id) {
+        var pedidos = (app.mesa && app.mesa.pedidos) || [];
+        for (var i = 0; i < pedidos.length; i++) {
+          if (String(pedidos[i].id) === String(id)) return pedidos[i];
+        }
+        return null;
+      }
+
+      function openDrawerById(id) {
+        var p = pedidoById(id);
+        if (!p) return;
+        app.selectedId = p.id;
+        renderTable();
+
+        E.dDoc.textContent = p.docVenta || '-';
+        E.dSub.textContent = (p.material || '') + (p.textoComercial ? ' · ' + p.textoComercial : '');
+        E.dFacts.innerHTML =
+          '<div class="fact"><b>Cliente</b><span>' + esc(p.cliente || '-') + '</span></div>' +
+          '<div class="fact m3"><b>Vol. producir</b><span>' + esc(p.cantidadTexto || '0') + ' m3</span></div>' +
+          '<div class="fact"><b>Embarque</b><span class="mono">' + esc(p.fechaCompromiso || '-') + '</span></div>' +
+          '<div class="fact"><b>Puerto</b><span>' + esc(p.puertoDestino || '-') + '</span></div>' +
+          (p.vendedor ? '<div class="fact"><b>Vendedor</b><span>' + esc(p.vendedor) + '</span></div>' : '') +
+          (p.centro ? '<div class="fact"><b>Centro</b><span>' + esc(p.centro) + '</span></div>' : '');
+
+        var options = ['<option value="">Pendiente de asignar</option>'];
+        (app.mesa.proveedores || []).forEach(function(prov) {
+          options.push('<option value="' + escAttr(prov.nombre) + '">' + esc(prov.nombre) + '</option>');
+        });
+        E.dProveedor.innerHTML = options.join('');
+        E.dProveedor.value = p.proveedor || '';
+        updateProvPreview();
+
+        E.dComVentas.value = p.comentarioVentas || '';
+        E.dComCompras.value = p.comentarioCompras || '';
+        syncChipsFromText();
+        setDrawerStatus('', '');
+
+        E.drawer.classList.add('open');
+        E.drawerBackdrop.classList.add('open');
+        E.dProveedor.focus();
+      }
+
+      function closeDrawer() {
+        E.drawer.classList.remove('open');
+        E.drawerBackdrop.classList.remove('open');
+        app.selectedId = null;
+        if (app.mesa) renderTable();
+      }
+
+      function updateProvPreview() {
+        var nombre = E.dProveedor.value;
+        var hex = '#fff2cc';
+        (app.mesa.proveedores || []).forEach(function(prov) {
+          if (prov.nombre === nombre) hex = prov.hex || hex;
+        });
+        E.dProvPreview.style.background = nombre ? safeColor(hex, '#efefef') : 'var(--pend-bg)';
+      }
+
+      function toggleKeywordChip(chip, textarea, keyword, pattern) {
+        var on = chip.classList.contains('on');
+        var value = textarea.value;
+        if (on) {
+          value = value.replace(pattern, '').trim();
+        } else if (normalize(value).indexOf(normalize(keyword)) === -1) {
+          value = value ? keyword + '. ' + value : keyword;
+        }
+        textarea.value = value;
+        syncChipsFromText();
+      }
+
+      function syncChipsFromText() {
+        var neg = normalize(E.dComVentas.value).indexOf('negociacion') !== -1;
+        var cerr = normalize(E.dComCompras.value + ' ' + E.dComVentas.value).indexOf('cerrado') !== -1;
+        E.dNegChip.classList.toggle('on', neg);
+        E.dNegChip.setAttribute('aria-pressed', neg ? 'true' : 'false');
+        E.dCerrChip.classList.toggle('on', cerr);
+        E.dCerrChip.setAttribute('aria-pressed', cerr ? 'true' : 'false');
+      }
+
+      function guardarPedido() {
+        var p = pedidoById(app.selectedId);
+        if (!p || app.saving) return;
+        app.saving = true;
+        E.dGuardar.disabled = true;
+        setDrawerStatus('Guardando y sincronizando la hoja...', '');
+
+        var payload = {
+          rowIndex: p.rowIndex,
+          docVenta: p.docVenta,
+          material: p.material,
+          proveedor: E.dProveedor.value,
+          comentarioVentas: E.dComVentas.value,
+          comentarioCompras: E.dComCompras.value
+        };
+
+        google.script.run
+          .withSuccessHandler(function(data) {
+            app.saving = false;
+            E.dGuardar.disabled = false;
+            app.mesa = data;
+            mx.loaded = false; /* la matriz se recarga al volver a abrirla */
+            fillProvFilter();
+            closeDrawer();
+            renderMesa();
+            updateSubtitle();
+            showToast('Pedido ' + payload.docVenta + ' guardado y sincronizado.');
+          })
+          .withFailureHandler(function(err) {
+            app.saving = false;
+            E.dGuardar.disabled = false;
+            setDrawerStatus(err && err.message ? err.message : String(err || 'Error'), 'error');
+          })
+          .actualizarPedidoMesaTrading(payload);
+      }
+
+      function setDrawerStatus(message, kind) {
+        E.dStatus.className = 'drawer-status' + (kind ? ' ' + kind : '');
+        E.dStatus.textContent = message || '';
+      }
+
+      /* =================== Matriz de embarques =================== */
+      function bindMatriz() {
+        E.mxSearch.addEventListener('input', function() {
+          mx.query = normalize(this.value);
+          renderMatrizView();
+        });
+        E.tgVacios.addEventListener('click', function() {
+          mx.hideEmpty = !mx.hideEmpty;
+          setToggle(this, mx.hideEmpty);
+          renderMatrizView();
+        });
+        E.tgCompacto.addEventListener('click', function() {
+          mx.compact = !mx.compact;
+          setToggle(this, mx.compact);
+          applyFitWidth();
+        });
+        E.tgAncho.addEventListener('click', function() {
+          mx.fitWidth = !mx.fitWidth;
+          setToggle(this, mx.fitWidth);
+          E.matrix.classList.toggle('fit-dense', mx.fitWidth);
+          applyFitWidth();
+        });
+        E.tgTexto.addEventListener('click', function() {
+          mx.hideText = !mx.hideText;
+          setToggle(this, mx.hideText);
+          E.matrix.classList.toggle('hide-text', mx.hideText);
+          applyFitWidth();
+        });
+        E.tgPanel.addEventListener('click', function() {
+          mx.panelCollapsed = !mx.panelCollapsed;
+          setToggle(this, mx.panelCollapsed);
+          E.viewMatriz.classList.toggle('panel-collapsed', mx.panelCollapsed);
+          applyFitWidth();
+        });
+        window.addEventListener('resize', applyFitWidth);
+
+        E.matrix.addEventListener('mousemove', onMatrixMouseMove);
+        E.matrix.addEventListener('mouseleave', hideTooltip);
+        E.matrix.addEventListener('click', onMatrixClick);
+        E.matrix.addEventListener('keydown', onMatrixKeyDown);
+        E.matrix.addEventListener('focusin', onMatrixFocusIn);
+        E.matrix.addEventListener('focusout', hideTooltip);
+      }
+
+      function setToggle(button, active) {
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      }
+
+      function loadMatriz(sync) {
+        setMxStatus(sync ? 'Reconstruyendo vista desde Bd...' : 'Cargando matriz de embarques...');
+        E.matrixScroll.classList.add('loading');
+        var runner = google.script.run
+          .withSuccessHandler(function(data) {
+            mx.data = data;
+            mx.loaded = true;
+            mx.selected = null;
+            E.matrixScroll.classList.remove('loading');
+            renderMatrizView();
+            setMxStatus('');
+            updateSubtitle();
+          })
+          .withFailureHandler(function(err) {
+            E.matrixScroll.classList.remove('loading');
+            setMxError(err);
+          });
+
+        if (sync) runner.sincronizarYObtenerTablaSeguimientoWeb();
+        else runner.obtenerDatosTablaSeguimientoWeb();
+      }
+
+      function renderMatrizView() {
+        if (!mx.data) return;
+        computeVisible();
+        renderMxStats();
+        renderMatrix();
+        renderDetail();
+        applyFitWidth();
+      }
+
+      var FIT_MIN_COL = 40;
+      var FIT_MAT_W = 118;
+      var FIT_TXT_W = 190;
+      var DEFAULT_MAT_W = 172;
+      var DEFAULT_TXT_W = 330;
+      var DEFAULT_DATE_W = 96;
+
+      function applyFitWidth() {
+        var root = document.documentElement.style;
+        if (!mx.fitWidth) {
+          root.setProperty('--mat-w', DEFAULT_MAT_W + 'px');
+          root.setProperty('--txt-w', DEFAULT_TXT_W + 'px');
+          root.setProperty('--date-w', DEFAULT_DATE_W + 'px');
+          root.setProperty('--row-h', mx.compact ? '30px' : '38px');
+          return;
+        }
+        var numCols = mx.visibleHeaders.length || 1;
+        var containerWidth = E.matrixScroll.clientWidth || 900;
+        var fixed = FIT_MAT_W + (mx.hideText ? 0 : FIT_TXT_W);
+        var available = containerWidth - fixed - 4;
+        var perCol = Math.max(FIT_MIN_COL, Math.floor(available / numCols));
+        root.setProperty('--mat-w', FIT_MAT_W + 'px');
+        root.setProperty('--txt-w', FIT_TXT_W + 'px');
+        root.setProperty('--date-w', perCol + 'px');
+
+        var numRows = (mx.visibleRows.length || 1) + 1;
+        var containerHeight = E.matrixScroll.clientHeight || 500;
+        var perRow = Math.floor(containerHeight / numRows);
+        var rowH = Math.min(mx.compact ? 30 : 38, Math.max(22, perRow));
+        root.setProperty('--row-h', rowH + 'px');
+      }
+
+      function computeVisible() {
+        var q = mx.query;
+        var rows = (mx.data.rows || []).filter(function(row) {
+          if (mx.hideEmpty && !row.hasValue && !row.isTotalRow) return false;
+          if (!q) return true;
+          return row.searchText.indexOf(q) !== -1 || normalize(row.material + ' ' + row.textoComercial).indexOf(q) !== -1;
+        });
+
+        var headers = (mx.data.headers || []).slice();
+        if (mx.hideEmpty) {
+          headers = headers.filter(function(header) {
+            if (header.isTotal) return true;
+            return rows.some(function(row) {
+              var cell = findCellByCol(row, header.index);
+              return cell && cell.hasValue;
+            });
+          });
+        }
+
+        mx.visibleRows = rows;
+        mx.visibleHeaders = headers;
+      }
+
+      function renderMxStats() {
+        var k = mx.data.kpis || {};
+        E.mxStats.innerHTML =
+          '<span class="stat"><strong>' + esc(mx.visibleRows.length || 0) + '</strong> materiales</span>' +
+          '<span class="stat"><strong>' + esc(mx.visibleHeaders.length || 0) + '</strong> fechas</span>' +
+          '<span class="stat"><strong>' + esc(k.celdasDato || 0) + '</strong> celdas con m3</span>' +
+          '<span class="stat"><strong>' + esc(k.sumaM3Texto || '0') + '</strong> m3</span>';
+      }
+
+      function renderMatrix() {
+        var headers = mx.visibleHeaders;
+        var rows = mx.visibleRows;
+
+        if (!headers.length || !rows.length) {
+          E.matrix.innerHTML = '<tbody><tr><td class="empty-matrix">Sin datos para mostrar. Ajusta la busqueda o los filtros.</td></tr></tbody>';
+          return;
+        }
+
+        var html = [];
+        html.push('<thead><tr>');
+        html.push('<th class="head-product" colspan="2">Material / texto comercial</th>');
+        headers.forEach(function(h) {
+          var label = cleanDateText(h.label || h.top || '');
+          html.push('<th class="date-head' + (h.isTotal ? ' total' : '') + '" title="' + escAttr(label) + '">' + formatDateHead(label, h.isTotal) + '</th>');
+        });
+        html.push('</tr></thead><tbody>');
+
+        rows.forEach(function(row, rIdx) {
+          html.push('<tr class="' + (row.isTotalRow ? 'total-row' : '') + '">');
+          html.push('<td class="product-cell" title="' + escAttr(row.material) + '"><span class="cell-text">' + esc(row.material || '-') + '</span></td>');
+          html.push('<td class="text-cell" title="' + escAttr(row.textoComercial) + '"><span class="cell-text">' + esc(row.textoComercial || '-') + '</span></td>');
+
+          headers.forEach(function(header) {
+            var cell = findCellByCol(row, header.index) || { value: '', bg: '#ffffff', fg: '#111111', hasValue: false, comment: '', isTotal: header.isTotal };
+            var isTotalCol = header.isTotal || cell.isTotal;
+            var comment = cleanNoteText(cell.comment || '');
+            var isNegotiation = normalize(comment).indexOf('negociacion') !== -1;
+
+            var classes = ['value-cell'];
+            if (cell.hasValue) classes.push('has-value'); else classes.push('empty');
+            if (isTotalCol) classes.push('total-col');
+
+            var attrs = ' data-r="' + rIdx + '" data-c="' + header.index + '"';
+            if (cell.hasValue && !row.isTotalRow && !isTotalCol) {
+              attrs += ' tabindex="0" role="button" aria-label="' + escAttr(row.material + ', ' + cleanDateText(header.label || '') + ': ' + cell.value + ' m3') + '"';
+            }
+
+            var inner = '';
+            if (!cell.hasValue) {
+              inner = '';
+            } else if (isTotalCol || row.isTotalRow) {
+              inner = esc(cell.value);
+            } else {
+              var pillBg = safeColor(cell.bg);
+              var pillFg = readableTextColor(cell.bg, cell.fg);
+              var dot = '';
+              if (comment) dot = '<span class="dot' + (isNegotiation ? ' negotiation' : '') + '"></span>';
+              inner = '<span class="v-pill" style="background:' + pillBg + ';color:' + pillFg + '">' + esc(cell.value) + dot + '</span>';
+            }
+
+            html.push('<td class="' + classes.join(' ') + '"' + attrs + '>' + inner + '</td>');
+          });
+          html.push('</tr>');
+        });
+
+        html.push('</tbody>');
+        E.matrix.innerHTML = html.join('');
+      }
+
+      function onMatrixMouseMove(event) {
+        var cellEl = event.target.closest('td.value-cell');
+        if (!cellEl) { hideTooltip(); return; }
+        var info = getCellInfoFromElement(cellEl);
+        if (!info || !info.cell || !info.cell.hasValue) { hideTooltip(); return; }
+        showTooltip(info, event.clientX, event.clientY);
+      }
+
+      function onMatrixClick(event) {
+        var cellEl = event.target.closest('td.value-cell');
+        if (!cellEl) return;
+        selectCell(cellEl);
+      }
+
+      function onMatrixKeyDown(event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        var cellEl = event.target.closest('td.value-cell');
+        if (!cellEl) return;
+        event.preventDefault();
+        selectCell(cellEl);
+      }
+
+      function onMatrixFocusIn(event) {
+        var cellEl = event.target.closest('td.value-cell');
+        if (!cellEl) return;
+        var info = getCellInfoFromElement(cellEl);
+        if (!info || !info.cell || !info.cell.hasValue) return;
+        var rect = cellEl.getBoundingClientRect();
+        showTooltip(info, rect.left + rect.width / 2, rect.bottom);
+      }
+
+      function selectCell(cellEl) {
+        var info = getCellInfoFromElement(cellEl);
+        if (!info || !info.cell || !info.cell.hasValue) return;
+        mx.selected = info;
+        var prev = E.matrix.querySelector('td.value-cell.selected');
+        if (prev) prev.classList.remove('selected');
+        cellEl.classList.add('selected');
+        renderDetail();
+      }
+
+      function getCellInfoFromElement(cellEl) {
+        var r = Number(cellEl.getAttribute('data-r'));
+        var col = Number(cellEl.getAttribute('data-c'));
+        var row = mx.visibleRows[r];
+        var header = mx.visibleHeaders.filter(function(h) { return Number(h.index) === col; })[0];
+        if (!row || !header) return null;
+        var cell = findCellByCol(row, col);
+        return { row: row, header: header, cell: cell };
+      }
+
+      function showTooltip(info, x, y) {
+        var dateLabel = cleanDateText(info.header.label || '');
+        var entries = getEntries(info);
+        E.tooltip.innerHTML =
+          '<div class="t-title"><span>' + esc(info.row.material) + '</span><span class="t-value">' + esc(info.cell.value) + ' m3</span></div>' +
+          '<div class="t-meta">' + esc(info.row.textoComercial) + '<br>Fecha: ' + esc(dateLabel) + '</div>' +
+          buildTooltipEntries(entries, info.cell.comment);
+        E.tooltip.style.display = 'block';
+        var left = Math.min(x + 16, window.innerWidth - 445);
+        var top = Math.min(y + 16, window.innerHeight - 300);
+        E.tooltip.style.left = Math.max(12, left) + 'px';
+        E.tooltip.style.top = Math.max(12, top) + 'px';
+      }
+
+      function hideTooltip() {
+        E.tooltip.style.display = 'none';
+      }
+
+      function renderDetail() {
+        if (!mx.selected) {
+          E.detail.innerHTML = '<div class="empty-detail">Selecciona una celda con volumen. El detalle se ordena por pedido, proveedor, cliente, m3, puerto y nota.</div>';
+          return;
+        }
+        var info = mx.selected;
+        var dateLabel = cleanDateText(info.header.label || '');
+        var entries = getEntries(info);
+        E.detail.innerHTML =
+          '<div class="detail-grid">' +
+            '<div class="summary-grid">' +
+              '<div class="detail-block"><b>Material</b><span>' + esc(info.row.material) + '</span></div>' +
+              '<div class="detail-block"><b>Fecha</b><span>' + esc(dateLabel) + '</span></div>' +
+              '<div class="detail-block"><b>Volumen total celda</b><span class="pill">' + esc(info.cell.value) + ' m3</span></div>' +
+              '<div class="detail-block"><b>Registros BD</b><span>' + esc(entries.length || 0) + '</span></div>' +
+            '</div>' +
+            '<div class="detail-block"><b>Texto comercial</b><span>' + esc(info.row.textoComercial) + '</span></div>' +
+            '<div class="entry-section-title">Detalle operativo</div>' +
+            buildDetailEntries(entries, info.cell.comment) +
+          '</div>';
+      }
+
+      function getEntries(info) {
+        if (info && info.cell && Array.isArray(info.cell.entries) && info.cell.entries.length) {
+          return info.cell.entries;
+        }
+        return [];
+      }
+
+      function stateBadgeClass(estado) {
+        var e = normalize(estado);
+        if (e.indexOf('negociacion') !== -1) return 'negociacion';
+        if (e.indexOf('asignado') !== -1) return 'asignado';
+        if (e.indexOf('cerrado') !== -1) return 'cerrado';
+        return 'pendiente';
+      }
+
+      function buildDetailEntries(entries, fallbackNote) {
+        if (!entries || !entries.length) {
+          return '<div class="detail-block"><b>Nota</b><pre>' + esc(cleanNoteText(fallbackNote || 'Sin detalle disponible.')) + '</pre></div>';
+        }
+
+        var html = [];
+        entries.forEach(function(item, index) {
+          var notaVentas = cleanNoteText(item.notaVentas || '');
+          var notaCompras = cleanNoteText(item.notaCompras || '');
+          var notaGeneral = cleanNoteText(item.nota || '');
+          var notaHtml = '';
+          if (notaVentas) notaHtml += '<div class="entry-field full"><b>Nota ventas</b><pre>' + esc(notaVentas) + '</pre></div>';
+          if (notaCompras) notaHtml += '<div class="entry-field full"><b>Nota compras</b><pre>' + esc(notaCompras) + '</pre></div>';
+          if (!notaHtml && notaGeneral) notaHtml = '<div class="entry-field full"><b>Nota</b><pre>' + esc(notaGeneral) + '</pre></div>';
+          if (!notaHtml) notaHtml = '<div class="entry-field full"><b>Nota</b><span>Sin nota cargada.</span></div>';
+
+          var estado = item.estado || 'Pendiente';
+          html.push(
+            '<article class="entry-card">' +
+              '<div class="entry-card-head"><strong>Registro ' + esc(index + 1) + '</strong><span class="badge ' + stateBadgeClass(estado) + '">' + esc(estado) + '</span></div>' +
+              '<div class="entry-grid">' +
+                '<div class="entry-field"><b>Pedido</b><span>' + esc(item.pedido || '-') + '</span></div>' +
+                '<div class="entry-field"><b>Proveedor</b><span>' + esc(item.proveedor || 'Pendiente de asignar') + '</span></div>' +
+                '<div class="entry-field"><b>Cliente</b><span>' + esc(item.cliente || '-') + '</span></div>' +
+                '<div class="entry-field m3-field"><b>M3</b><span>' + esc(item.m3 || '0,00') + '</span></div>' +
+                '<div class="entry-field full"><b>Puerto</b><span>' + esc(item.puerto || '-') + '</span></div>' +
+                notaHtml +
+              '</div>' +
+            '</article>'
+          );
+        });
+        return html.join('');
+      }
+
+      function buildTooltipEntries(entries, fallbackNote) {
+        if (!entries || !entries.length) {
+          return '<pre>' + esc(cleanNoteText(fallbackNote || 'Sin nota cargada.')) + '</pre>';
+        }
+        var html = ['<div class="tooltip-grid">'];
+        entries.slice(0, 4).forEach(function(item) {
+          var sub = [];
+          if (item.proveedor) sub.push('Prov: ' + item.proveedor);
+          if (item.cliente) sub.push('Cliente: ' + item.cliente);
+          if (item.puerto) sub.push('Puerto: ' + item.puerto);
+          var nota = cleanNoteText(item.notaVentas || item.notaCompras || item.nota || '');
+          if (nota) sub.push('Nota: ' + nota);
+          html.push(
+            '<div class="tooltip-item">' +
+              '<b>Pedido ' + esc(item.pedido || '-') + '</b>' +
+              '<span class="m3">' + esc(item.m3 || '0,00') + ' m3</span>' +
+              '<small>' + esc(sub.join(' · ') || 'Sin datos adicionales') + '</small>' +
+            '</div>'
+          );
+        });
+        if (entries.length > 4) {
+          html.push('<div class="t-meta">+' + esc(entries.length - 4) + ' registros adicionales. Haz clic para verlos.</div>');
+        }
+        html.push('</div>');
+        return html.join('');
+      }
+
+      function findCellByCol(row, colIndex) {
+        for (var i = 0; i < row.cells.length; i++) {
+          if (Number(row.cells[i].col) === Number(colIndex)) return row.cells[i];
+        }
+        return null;
+      }
+
+      function setMxStatus(message) {
+        E.mxStatus.className = '';
+        E.mxStatus.textContent = message || '';
+      }
+      function setMxError(err) {
+        E.mxStatus.className = 'status error';
+        E.mxStatus.textContent = err && err.message ? err.message : String(err || 'Error');
+      }
+
+      /* =================== Utilidades compartidas =================== */
+      var toastTimer = null;
+      function showToast(message) {
+        E.toast.textContent = message;
+        E.toast.classList.add('show');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() { E.toast.classList.remove('show'); }, 3400);
+      }
+
+      function fmtM3(n) {
+        return Number(n || 0).toLocaleString('es-CL', { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+      }
+      function normalize(value) {
+        return String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      }
+      function esc(value) {
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+      function escAttr(value) {
+        return esc(value).replace(/`/g, '&#096;');
+      }
+      function safeColor(value, fallback) {
+        var text = String(value || '').trim();
+        return /^#[0-9a-fA-F]{6}$/.test(text) ? text : (fallback || '#ffffff');
+      }
+      function readableTextColor(bg, preferred) {
+        var c = safeColor(bg, '#ffffff').replace('#', '');
+        var r = parseInt(c.substring(0, 2), 16) / 255;
+        var g = parseInt(c.substring(2, 4), 16) / 255;
+        var b = parseInt(c.substring(4, 6), 16) / 255;
+        var lin = [r, g, b].map(function(v) {
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        });
+        var luminance = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+        return luminance < 0.36 ? '#ffffff' : '#071a13';
+      }
+      function cleanDateText(value) {
+        return String(value || '').trim();
+      }
+      function formatDateHead(label, isTotal) {
+        if (isTotal) return esc(label);
+        var m = String(label).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+        if (!m) return esc(label);
+        var dd = m[1].length === 1 ? '0' + m[1] : m[1];
+        var mm = m[2].length === 1 ? '0' + m[2] : m[2];
+        return '<span class="dh"><span class="dh-d">' + esc(dd + '/' + mm) + '</span><span class="dh-y">' + esc(m[3]) + '</span></span>';
+      }
+      function cleanNoteText(value) {
+        return String(value || '')
+          .replace(/(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{4})\s+\d{2}:\d{2}:\d{2}\s+GMT[^\n]*/g, function(match, mon, day, year) {
+            var months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+            return (day.length === 1 ? '0' + day : day) + '-' + months[mon] + '-' + year;
+          })
+          .trim();
+      }
+    </script>
+  </body>
+</html>
