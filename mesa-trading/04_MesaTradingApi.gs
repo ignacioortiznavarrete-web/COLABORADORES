@@ -3,7 +3,13 @@
  * Proyecto: Seguimiento Trading
  */
 
-function obtenerDatosMesaTrading() {
+/**
+ * Datos de la mesa. El volumen (cantidad) es siempre Vol. Producir (M3).
+ * Por defecto se excluyen los pedidos con 0 por producir: no hay nada que
+ * comprar. Pasar incluirSinVolumen=true para verlos igual (lo usa el
+ * historial, que necesita registrar cuando un pedido llega a 0).
+ */
+function obtenerDatosMesaTrading(incluirSinVolumen) {
   var libro = SpreadsheetApp.getActiveSpreadsheet();
   var timeZone = libro.getSpreadsheetTimeZone();
   var hojaBd = libro.getSheetByName(TRADING_CONFIG.sheets.bd);
@@ -34,6 +40,9 @@ function obtenerDatosMesaTrading() {
     var comentarioCompras = String(datosUnica[i][6] || "").trim();
     var provInfo = buscarProveedor_(provColor, proveedor);
     var estado = determinarEstadoPedido_(proveedor, comentarioVentas, comentarioCompras);
+    var volumenPorProducir = Number(infoBd.cantidad || 0);
+
+    if (!incluirSinVolumen && Math.abs(volumenPorProducir) < 0.000001) continue;
 
     pedidos.push({
       id: key || String(i + 1),
@@ -107,7 +116,7 @@ function obtenerDatosSidebarTrading() {
     return respuesta;
   }
 
-  var datos = obtenerDatosMesaTrading();
+  var datos = obtenerDatosMesaTrading(true);
   respuesta.proveedores = datos.proveedores;
   respuesta.pedido = buscarPedidoPorFila_(datos.pedidos, fila);
 
@@ -208,7 +217,10 @@ function construirMapaBdTrading_(hojaBd, timeZone) {
   var colVolumenProducir = obtenerIndiceHeader_(h, [
     "Vol. Producir (M3)",
     "Vol Producir (M3)",
+    "Vol.Producir (M3)",
+    "Vol.Producir(M3)",
     "Vol. Producir",
+    "Vol.Producir",
     "Volumen por producir",
     "Vol. por producir",
     "Por producir (M3)"

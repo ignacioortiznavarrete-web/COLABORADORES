@@ -46,6 +46,11 @@ function construirTablaSeguimientoDesdeBdTrading_(forzarSync) {
   var colFecha = obtenerIndiceHeader_(headersBd, ['Fecha Embarque Comprometida']);
   var colVolumen = obtenerIndiceHeader_(headersBd, [
     'Vol. Producir (M3)',
+    'Vol Producir (M3)',
+    'Vol.Producir (M3)',
+    'Vol.Producir(M3)',
+    'Vol. Producir',
+    'Vol.Producir'
   ]);
   var colCliente = obtenerIndiceHeader_(headersBd, ['Nombre Solicitante', 'Cliente', 'Nombre Cliente', 'Solicitante', 'Destinatario', 'Razon Social']);
   var colPuertoDestino = obtenerIndiceHeader_(headersBd, ['Puerto Destino', 'Puerto destino', 'Puerto de destino', 'Puerto Dest.', 'Destino Puerto']);

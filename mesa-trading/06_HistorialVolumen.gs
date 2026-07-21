@@ -10,7 +10,8 @@ function registrarHistorialVolumenPorProducir(mostrarAlerta) {
   lock.waitLock(10000);
 
   try {
-    var datosMesa = obtenerDatosMesaTrading();
+    // Incluye pedidos con 0 por producir: hay que registrar cuando llegan a 0.
+    var datosMesa = obtenerDatosMesaTrading(true);
     var hojaHistorial = asegurarHojaHistorialVolumen_();
     var estadoHistorial = obtenerEstadoHistorialVolumen_(hojaHistorial);
     var filas = [];

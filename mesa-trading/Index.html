@@ -1234,7 +1234,7 @@
         var k = app.mesa.kpis || {};
         E.flowTotals.innerHTML =
           '<div class="tile"><span class="n">' + esc(k.totalPedidos || 0) + '</span><span class="l">Pedidos</span></div>' +
-          '<div class="tile"><span class="n">' + esc(k.totalM3Texto || '0') + '</span><span class="l">m3 totales</span></div>' +
+          '<div class="tile"><span class="n">' + esc(k.totalM3Texto || '0') + '</span><span class="l">m3 por producir</span></div>' +
           '<div class="tile"><span class="n">' + esc(k.proveedoresUsados || 0) + '</span><span class="l">Proveedores</span></div>';
       }
 
@@ -1277,7 +1277,7 @@
         var m3Filtrado = 0;
         var html = ['<thead><tr>',
           '<th>Pedido</th><th>Material / texto comercial</th><th>Cliente</th>',
-          '<th class="num">m3</th><th>Embarque</th><th>Puerto</th>',
+          '<th class="num">Vol. producir</th><th>Embarque</th><th>Puerto</th>',
           '<th>Proveedor</th><th>Estado</th><th>Notas</th>',
         '</tr></thead><tbody>'];
 

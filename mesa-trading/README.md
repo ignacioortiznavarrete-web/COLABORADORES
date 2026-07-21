@@ -26,6 +26,9 @@ Una sola página con dos vistas:
   Asignados → Cerrados) funciona como filtro con un clic; búsqueda libre,
   filtro por proveedor y edición directa de cada pedido en un panel lateral.
   Guardar escribe en `Hoja Unica` y re-sincroniza colores y seguimiento.
+  El volumen mostrado es siempre **Vol. Producir (M3)**, y los pedidos con
+  0 por producir no aparecen en la mesa: no hay nada que comprar (el
+  historial de volumen sí los sigue registrando hasta que llegan a 0).
 - **Matriz de embarques** — solo lectura, construida directamente desde `Bd`
   (filas con Origen = Trading). No modifica fórmulas ni hojas.
 
