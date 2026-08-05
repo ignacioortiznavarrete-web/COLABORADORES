@@ -29,10 +29,10 @@
       onEdit simple de Code.gs: los disparadores simples no tienen permiso
       para enviar correos ni leer Drive.
 
-   2) Google programa los disparadores por tiempo según la zona horaria
-      DEL PROYECTO de Apps Script, no la de la planilla. El código traduce
-      la hora automáticamente, pero lo correcto es dejar el proyecto en
-      America/Santiago (Configuración del proyecto → Zona horaria).
+   2) El resumen sale a las 09:00 EN PUNTO. No se usa atHour(), que Google
+      aleatoriza ±15 minutos, sino una cadena de disparadores de una sola
+      vez: cada envío programa el del día siguiente con at(fechaExacta).
+      Un disparador de respaldo reconstruye la cadena si se corta.
 ***********************************************************************/
 
 
@@ -57,16 +57,23 @@ const NOTIF_ESTADO_LICITACIONES  = "Pendiente Licitaciones";
 const NOTIF_ENVIAR_SI_NO_HAY_PENDIENTES = true;
 
 // ── HORARIO DEL RESUMEN DIARIO ──
-// Hora y minuto EN CHILE. El código traduce solo esta hora a la zona
-// horaria del proyecto de Apps Script, que es la que Google usa de verdad
-// para los disparadores por tiempo.
+// Hora y minuto EN CHILE, exactos.
+// Para lograr la hora justa NO se usa atHour(), que Google aleatoriza en
+// una ventana de ±15 minutos, sino una cadena de disparadores de una sola
+// vez: cada envío programa el del día siguiente con at(fechaExacta).
+// Como se trabaja con instantes absolutos, la zona horaria del proyecto
+// de Apps Script deja de influir.
 const NOTIF_HORA_ENVIO    = 9;
 const NOTIF_MINUTO_ENVIO  = 0;
 const NOTIF_ZONA_OBJETIVO = "America/Santiago";
 
-// Guarda a qué hora quedó programado el disparador, para poder
-// autocorregirlo cuando cambia el horario de verano.
-const NOTIF_PROP_HORA_PROGRAMADA = "NOTIF_HORA_SCRIPT_PROGRAMADA";
+// Red de seguridad: si la cadena se corta (una ejecución que falla de
+// forma abrupta), este respaldo la reconstruye y manda el correo que faltó.
+// Es la cantidad de horas después del envío en que hace la verificación.
+const NOTIF_HORAS_RESPALDO = 1;
+
+const NOTIF_PROP_PROXIMO_ENVIO = "NOTIF_PROXIMO_ENVIO";
+const NOTIF_PROP_ULTIMO_ENVIO  = "NOTIF_ULTIMO_ENVIO";
 
 // Respaldo por si el encabezado de la columna está vacío o mal escrito.
 // Registro!H = "Nombre o Razon Social 1"  (columna 8)
@@ -98,42 +105,33 @@ function instalarDisparadoresNotificaciones() {
 
   desinstalarDisparadoresNotificaciones();
 
-  // Google programa los disparadores por tiempo usando la zona horaria DEL
-  // PROYECTO de Apps Script (appsscript.json), no la de la planilla. Si esa
-  // zona no es la de Chile, se traduce la hora para que igual salga a la
-  // hora configurada de Santiago.
-  const tzScript = Session.getScriptTimeZone();
-  const horaScript = notifHoraScriptParaChile_();
+  // 1) Cadena de una sola vez, a la hora exacta.
+  const proximo = notifProgramarProximoEnvio_();
 
-  ScriptApp.newTrigger("enviarResumenSolicitandoVB")
+  // 2) Respaldo por si la cadena se corta. Este sí usa atHour(), pero solo
+  //    verifica y repara: la hora aproximada no importa.
+  ScriptApp.newTrigger("verificarEnvioDiario")
     .timeBased()
-    .atHour(horaScript)
-    .nearMinute(NOTIF_MINUTO_ENVIO)
+    .atHour(notifHoraScriptParaChile_(NOTIF_HORA_ENVIO + NOTIF_HORAS_RESPALDO))
+    .nearMinute(0)
     .everyDays(1)
     .create();
 
+  // 3) Cambio de estado a Pendiente Licitaciones.
   ScriptApp.newTrigger("alCambiarEstadoRegistro")
     .forSpreadsheet(ss)
     .onEdit()
     .create();
 
-  PropertiesService.getScriptProperties()
-    .setProperty(NOTIF_PROP_HORA_PROGRAMADA, String(horaScript));
-
   const hhmm = notifDosDigitos_(NOTIF_HORA_ENVIO) + ":" + notifDosDigitos_(NOTIF_MINUTO_ENVIO);
 
-  let msg = "Disparadores instalados.\n\n" +
-    "1) Resumen diario " + hhmm + " de Chile → " + NOTIF_DESTINO_VB + "\n" +
-    "2) Cambio a '" + NOTIF_ESTADO_LICITACIONES + "' → " + NOTIF_DESTINO_LICITACIONES + "\n\n" +
-    "Zona horaria del proyecto: " + tzScript + "\n" +
-    "Disparador programado a las " + notifDosDigitos_(horaScript) + ":" +
-    notifDosDigitos_(NOTIF_MINUTO_ENVIO) + " de esa zona.";
-
-  if (tzScript !== NOTIF_ZONA_OBJETIVO) {
-    msg += "\n\n⚠ El proyecto NO está en " + NOTIF_ZONA_OBJETIVO + ". La hora se " +
-           "compensó automáticamente, pero conviene corregir la zona horaria del " +
-           "proyecto en Configuración del proyecto → Zona horaria.";
-  }
+  const msg = "Disparadores instalados.\n\n" +
+    "1) Resumen diario a las " + hhmm + " en punto (" + NOTIF_ZONA_OBJETIVO + ")\n" +
+    "   → " + NOTIF_DESTINO_VB + "\n" +
+    "   Próximo envío: " + notifFormatearChile_(proximo) + "\n\n" +
+    "2) Respaldo de verificación " + NOTIF_HORAS_RESPALDO + "h después.\n\n" +
+    "3) Cambio a '" + NOTIF_ESTADO_LICITACIONES + "'\n" +
+    "   → " + NOTIF_DESTINO_LICITACIONES;
 
   Logger.log(msg);
   return msg;
@@ -141,60 +139,131 @@ function instalarDisparadoresNotificaciones() {
 
 
 /*************************
- HORA DEL DISPARADOR
- Traduce NOTIF_HORA_ENVIO (hora de Chile) a la hora equivalente en la
- zona horaria del proyecto de Apps Script.
+ PROGRAMACIÓN A LA HORA EXACTA
+ atHour() reparte el disparo en una ventana de ±15 minutos. Para que salga
+ a la hora justa se usa at(fecha), que es de una sola vez, y cada ejecución
+ deja programada la del día siguiente.
 **************************/
-function notifHoraScriptParaChile_() {
-  const ahora = new Date();
-  const tzScript = Session.getScriptTimeZone();
+function notifProgramarProximoEnvio_() {
+  // Los disparadores de una sola vez ya usados no se borran solos y ocupan
+  // cupo (máximo 20 por usuario y proyecto), así que se limpian primero.
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "enviarResumenSolicitandoVB") ScriptApp.deleteTrigger(t);
+  });
 
-  const hScript   = Number(Utilities.formatDate(ahora, tzScript, "H"));
+  const proximo = notifProximaFechaEnvio_();
+
+  ScriptApp.newTrigger("enviarResumenSolicitandoVB")
+    .timeBased()
+    .at(proximo)
+    .create();
+
+  PropertiesService.getScriptProperties()
+    .setProperty(NOTIF_PROP_PROXIMO_ENVIO, String(proximo.getTime()));
+
+  return proximo;
+}
+
+// Próximo instante en que en Chile sean las NOTIF_HORA_ENVIO:NOTIF_MINUTO_ENVIO.
+function notifProximaFechaEnvio_() {
+  const ahora = new Date();
+  let fecha = notifInstanteEnChile_(ahora, NOTIF_HORA_ENVIO, NOTIF_MINUTO_ENVIO);
+
+  // Margen de 2 minutos para no reprogramar el disparo que se está ejecutando.
+  if (fecha.getTime() <= ahora.getTime() + 2 * 60000) {
+    const manana = new Date(ahora.getTime() + 24 * 3600 * 1000);
+    fecha = notifInstanteEnChile_(manana, NOTIF_HORA_ENVIO, NOTIF_MINUTO_ENVIO);
+  }
+
+  return fecha;
+}
+
+// Devuelve el instante absoluto en que, el mismo día calendario chileno de
+// "referencia", el reloj de Chile marca hora:minuto.
+function notifInstanteEnChile_(referencia, hora, minuto) {
+  const y = Number(Utilities.formatDate(referencia, NOTIF_ZONA_OBJETIVO, "yyyy"));
+  const m = Number(Utilities.formatDate(referencia, NOTIF_ZONA_OBJETIVO, "M"));
+  const d = Number(Utilities.formatDate(referencia, NOTIF_ZONA_OBJETIVO, "d"));
+
+  const paredUTC = Date.UTC(y, m - 1, d, hora, minuto, 0);
+
+  // Se resta el desfase de Chile y se refina una vez, por si el primer
+  // intento cayó al otro lado de un cambio de horario de verano.
+  let inst = paredUTC - notifDesfaseChileMs_(new Date(paredUTC));
+  inst = paredUTC - notifDesfaseChileMs_(new Date(inst));
+
+  return new Date(inst);
+}
+
+// Desfase de Chile respecto de UTC, en milisegundos, para un instante dado.
+// Se calcula comparando el mismo instante formateado en ambas zonas, y
+// leyendo las dos cadenas como si fueran UTC: así la zona horaria del
+// proyecto de Apps Script no interviene en el cálculo.
+function notifDesfaseChileMs_(instante) {
+  const enChile = notifLeerComoUTC_(Utilities.formatDate(instante, NOTIF_ZONA_OBJETIVO, "yyyy-MM-dd-HH-mm-ss"));
+  const enUTC   = notifLeerComoUTC_(Utilities.formatDate(instante, "UTC", "yyyy-MM-dd-HH-mm-ss"));
+  return enChile - enUTC;
+}
+
+function notifLeerComoUTC_(texto) {
+  const p = String(texto).split("-").map(Number);
+  return Date.UTC(p[0], p[1] - 1, p[2], p[3], p[4], p[5]);
+}
+
+// Traduce una hora de Chile a la hora equivalente en la zona horaria del
+// proyecto. Solo se usa para el disparador de respaldo, que sí es atHour().
+function notifHoraScriptParaChile_(horaChile) {
+  const ahora = new Date();
+  const hScript   = Number(Utilities.formatDate(ahora, Session.getScriptTimeZone(), "H"));
   const hSantiago = Number(Utilities.formatDate(ahora, NOTIF_ZONA_OBJETIVO, "H"));
 
   let desfase = hScript - hSantiago;
   if (desfase >  12) desfase -= 24;
   if (desfase < -12) desfase += 24;
 
-  return ((NOTIF_HORA_ENVIO + desfase) % 24 + 24) % 24;
+  return ((horaChile + desfase) % 24 + 24) % 24;
 }
 
-// Reprograma el disparador si el desfase cambió (horario de verano).
-// Se llama solo, desde el propio envío diario.
-function notifAjustarHorarioSiCambio_() {
-  try {
-    const props = PropertiesService.getScriptProperties();
-    const programada = props.getProperty(NOTIF_PROP_HORA_PROGRAMADA);
-    const correcta = notifHoraScriptParaChile_();
+function notifFormatearChile_(fecha) {
+  return Utilities.formatDate(fecha, NOTIF_ZONA_OBJETIVO, "dd/MM/yyyy HH:mm:ss") +
+         " (" + NOTIF_ZONA_OBJETIVO + ")";
+}
 
-    if (programada !== null && Number(programada) === correcta) return;
-
-    ScriptApp.getProjectTriggers().forEach(function (t) {
-      if (t.getHandlerFunction() === "enviarResumenSolicitandoVB") ScriptApp.deleteTrigger(t);
-    });
-
-    ScriptApp.newTrigger("enviarResumenSolicitandoVB")
-      .timeBased()
-      .atHour(correcta)
-      .nearMinute(NOTIF_MINUTO_ENVIO)
-      .everyDays(1)
-      .create();
-
-    props.setProperty(NOTIF_PROP_HORA_PROGRAMADA, String(correcta));
-    Logger.log("Horario reajustado por cambio de desfase: ahora dispara a las " +
-               correcta + ":" + notifDosDigitos_(NOTIF_MINUTO_ENVIO) +
-               " de " + Session.getScriptTimeZone() + ".");
-  } catch (err) {
-    Logger.log("No se pudo reajustar el horario: " + err);
-  }
+function notifHoyChile_() {
+  return Utilities.formatDate(new Date(), NOTIF_ZONA_OBJETIVO, "yyyy-MM-dd");
 }
 
 function notifDosDigitos_(n) {
   return (Number(n) < 10 ? "0" : "") + Number(n);
 }
 
+
+/*************************
+ RESPALDO DE LA CADENA
+ Si por cualquier motivo el envío de las 09:00 no ocurrió, este disparador
+ lo detecta una hora después, manda el correo y reconstruye la cadena.
+**************************/
+function verificarEnvioDiario() {
+  const props = PropertiesService.getScriptProperties();
+  const hoy = notifHoyChile_();
+
+  if (props.getProperty(NOTIF_PROP_ULTIMO_ENVIO) === hoy) {
+    // Ya salió. Solo se verifica que quede programado el de mañana.
+    const hayCadena = ScriptApp.getProjectTriggers().some(function (t) {
+      return t.getHandlerFunction() === "enviarResumenSolicitandoVB";
+    });
+    if (!hayCadena) {
+      Logger.log("Cadena cortada. Reprogramando: " + notifFormatearChile_(notifProgramarProximoEnvio_()));
+    }
+    return;
+  }
+
+  Logger.log("El resumen de hoy no se envió a la hora prevista. Enviando ahora.");
+  enviarResumenSolicitandoVB();
+}
+
 function desinstalarDisparadoresNotificaciones() {
-  const objetivo = ["enviarResumenSolicitandoVB", "alCambiarEstadoRegistro"];
+  const objetivo = ["enviarResumenSolicitandoVB", "verificarEnvioDiario", "alCambiarEstadoRegistro"];
   let borrados = 0;
 
   ScriptApp.getProjectTriggers().forEach(function (t) {
@@ -213,6 +282,20 @@ function desinstalarDisparadoresNotificaciones() {
  1) RESUMEN DIARIO — SOLICITANDO V°B
 **************************/
 function enviarResumenSolicitandoVB() {
+  // El reenganche de la cadena va en finally: aunque el envío falle, el
+  // disparador del día siguiente queda programado igual.
+  try {
+    notifEnviarResumenVB_();
+  } finally {
+    try {
+      Logger.log("Próximo envío: " + notifFormatearChile_(notifProgramarProximoEnvio_()));
+    } catch (err) {
+      Logger.log("No se pudo programar el próximo envío: " + err);
+    }
+  }
+}
+
+function notifEnviarResumenVB_() {
   const ss = SpreadsheetApp.getActive();
   const sh = ss.getSheetByName(NOTIF_HOJA_REGISTRO);
 
@@ -269,10 +352,10 @@ function enviarResumenSolicitandoVB() {
     opciones
   );
 
-  Logger.log("Resumen V°B enviado a " + NOTIF_DESTINO_VB + " (" + pendientes.length + " pendientes).");
+  PropertiesService.getScriptProperties()
+    .setProperty(NOTIF_PROP_ULTIMO_ENVIO, notifHoyChile_());
 
-  // Si cambió el horario de verano, reprograma el disparador para el día siguiente.
-  notifAjustarHorarioSiCambio_();
+  Logger.log("Resumen V°B enviado a " + NOTIF_DESTINO_VB + " (" + pendientes.length + " pendientes).");
 }
 
 
@@ -761,12 +844,14 @@ function diagnosticarDisparadores() {
   out += "  Proyecto Apps Script : " + tzScript + "   → " + fmt(tzScript) + "\n";
   out += "  Planilla             : " + tzHoja + "   → " + fmt(tzHoja) + "\n";
   out += "  Chile                : " + NOTIF_ZONA_OBJETIVO + "   → " + fmt(NOTIF_ZONA_OBJETIVO) + "\n\n";
-  out += "  La que manda para los disparadores por tiempo es la del PROYECTO.\n\n";
+  out += "  El resumen diario usa instantes absolutos (at), así que la zona del\n";
+  out += "  proyecto no lo afecta. Solo influye en el disparador de respaldo.\n\n";
 
   // ── Disparadores instalados ──
   const triggers = ScriptApp.getProjectTriggers();
   const propios = triggers.filter(function (t) {
     return t.getHandlerFunction() === "enviarResumenSolicitandoVB" ||
+           t.getHandlerFunction() === "verificarEnvioDiario" ||
            t.getHandlerFunction() === "alCambiarEstadoRegistro";
   });
 
@@ -783,22 +868,25 @@ function diagnosticarDisparadores() {
   const tieneTiempo = propios.some(function (t) {
     return t.getHandlerFunction() === "enviarResumenSolicitandoVB";
   });
+  const tieneRespaldo = propios.some(function (t) {
+    return t.getHandlerFunction() === "verificarEnvioDiario";
+  });
   const tieneEdicion = propios.some(function (t) {
     return t.getHandlerFunction() === "alCambiarEstadoRegistro";
   });
 
   // ── Horario programado ──
-  const horaCorrecta = notifHoraScriptParaChile_();
-  const horaGuardada = props.getProperty(NOTIF_PROP_HORA_PROGRAMADA);
+  const guardado = props.getProperty(NOTIF_PROP_PROXIMO_ENVIO);
+  const ultimo = props.getProperty(NOTIF_PROP_ULTIMO_ENVIO);
+  const previsto = notifProximaFechaEnvio_();
 
   out += "HORARIO\n";
   out += "  Objetivo             : " + notifDosDigitos_(NOTIF_HORA_ENVIO) + ":" +
-         notifDosDigitos_(NOTIF_MINUTO_ENVIO) + " hora de Chile\n";
-  out += "  Equivale en " + tzScript + " a las " +
-         notifDosDigitos_(horaCorrecta) + ":" + notifDosDigitos_(NOTIF_MINUTO_ENVIO) + "\n";
-  out += "  Último programado    : " +
-         (horaGuardada === null ? "sin registro" : notifDosDigitos_(horaGuardada) + ":" +
-          notifDosDigitos_(NOTIF_MINUTO_ENVIO)) + "\n\n";
+         notifDosDigitos_(NOTIF_MINUTO_ENVIO) + " en punto, hora de Chile\n";
+  out += "  Próximo programado   : " +
+         (guardado === null ? "sin registro" : notifFormatearChile_(new Date(Number(guardado)))) + "\n";
+  out += "  Debería ser          : " + notifFormatearChile_(previsto) + "\n";
+  out += "  Último envío         : " + (ultimo || "sin registro") + "\n\n";
 
   // ── Conclusión ──
   out += "CONCLUSIÓN\n";
@@ -806,10 +894,16 @@ function diagnosticarDisparadores() {
 
   if (!tieneTiempo) {
     problemas.push(
-      "NO existe el disparador por tiempo. El correo diario nunca se va a enviar solo.\n" +
+      "NO existe el disparador del resumen diario. El correo nunca se va a enviar solo.\n" +
       "     → Ejecuta instalarDisparadoresNotificaciones().\n" +
       "     → Ojo: los disparadores son POR USUARIO. Si lo instaló otra persona,\n" +
       "       no aparece en esta lista y corre con la cuenta de esa persona.");
+  }
+
+  if (!tieneRespaldo) {
+    problemas.push(
+      "NO existe el disparador de respaldo. Si la cadena se corta, nadie la repara.\n" +
+      "     → Ejecuta instalarDisparadoresNotificaciones().");
   }
 
   if (!tieneEdicion) {
@@ -818,33 +912,23 @@ function diagnosticarDisparadores() {
       "     → Ejecuta instalarDisparadoresNotificaciones().");
   }
 
-  if (tieneTiempo && horaGuardada !== null && Number(horaGuardada) !== horaCorrecta) {
+  if (tieneTiempo && guardado === null) {
     problemas.push(
-      "El disparador está programado a las " + notifDosDigitos_(horaGuardada) +
-      ":" + notifDosDigitos_(NOTIF_MINUTO_ENVIO) + " pero ahora corresponde " +
-      "a las " + notifDosDigitos_(horaCorrecta) + ":" +
-      notifDosDigitos_(NOTIF_MINUTO_ENVIO) + " (cambió el horario de verano).\n" +
-      "     → Ejecuta instalarDisparadoresNotificaciones() para reprogramarlo.");
+      "Existe el disparador pero fue creado con una versión anterior del código,\n" +
+      "     que usaba atHour() y tenía la ventana de ±15 minutos.\n" +
+      "     → Ejecuta instalarDisparadoresNotificaciones() para pasar a hora exacta.");
   }
 
-  if (tieneTiempo && horaGuardada === null) {
+  if (tieneTiempo && guardado !== null && Number(guardado) < Date.now()) {
     problemas.push(
-      "Existe el disparador por tiempo pero fue creado con una versión anterior\n" +
-      "     del código, que no compensaba la zona horaria del proyecto.\n" +
-      "     → Ejecuta instalarDisparadoresNotificaciones() para reprogramarlo.");
-  }
-
-  if (tzScript !== NOTIF_ZONA_OBJETIVO) {
-    problemas.push(
-      "La zona horaria del proyecto es " + tzScript + ", no " + NOTIF_ZONA_OBJETIVO + ".\n" +
-      "     El código ya compensa la diferencia, pero lo correcto es cambiarla en\n" +
-      "     Configuración del proyecto → Zona horaria → " + NOTIF_ZONA_OBJETIVO + ".");
+      "El próximo envío quedó registrado en el pasado: la cadena está cortada.\n" +
+      "     → Ejecuta instalarDisparadoresNotificaciones() para reconstruirla.");
   }
 
   if (problemas.length === 0) {
-    out += "  ✓ Todo correcto. El resumen debería salir a las " +
+    out += "  ✓ Todo correcto. El resumen sale a las " +
            notifDosDigitos_(NOTIF_HORA_ENVIO) + ":" + notifDosDigitos_(NOTIF_MINUTO_ENVIO) +
-           " de Chile,\n    con la ventana de ±15 minutos propia de Google.\n\n" +
+           " en punto de Chile.\n\n" +
            "  Si aun así no llega, revisa Ejecuciones en el menú izquierdo del editor:\n" +
            "  ahí se ve si el disparador corrió y con qué error falló.\n" +
            "  Causas típicas: cuota de correos agotada (100/día en cuentas gratuitas,\n" +
