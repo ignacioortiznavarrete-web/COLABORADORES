@@ -312,13 +312,34 @@
 
         // Call the Google Apps Script function
         google.script.run
-          .withSuccessHandler(function() {
+          .withSuccessHandler(function(resultado) {
             // Reset button
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'Guardar Solicitud';
 
+            // El servidor devuelve { ok, guardados, correo, error }: si falló,
+            // no mostrar "¡Éxito!"
+            if (!resultado || !resultado.ok) {
+              Swal.fire({
+                icon: 'error',
+                title: 'No se guardó la solicitud',
+                text: (resultado && resultado.error) || 'Por favor, inténtelo de nuevo.',
+                confirmButtonColor: '#0a6631'
+              });
+              return;
+            }
+
             // Incrementar contador de solicitudes
             totalSolicitudes += materiales.length;
+
+            const correo = resultado.correo || {};
+            let avisoCorreo;
+            if (correo.enviado) {
+              avisoCorreo = `<p class="mb-0 mt-2">Se notificó por correo a <strong>${(correo.destinatarios || []).join(', ')}</strong>` +
+                (correo.fueraDePlazo ? ' <span class="text-warning-emphasis">(solicitud fuera de plazo)</span>' : '') + '.</p>';
+            } else {
+              avisoCorreo = `<p class="mb-0 mt-2 text-danger">La solicitud quedó guardada, pero no se pudo enviar el correo${correo.error ? ': ' + correo.error : ''}.</p>`;
+            }
 
             // Show success message with SweetAlert2 and counter
             Swal.fire({
@@ -329,6 +350,7 @@
                 <div class="mt-3 p-2 bg-light rounded">
                   <p class="mb-1">Materiales en esta solicitud: <strong>${materiales.length}</strong></p>
                   <p class="mb-0">Total de materiales procesados: <strong>${totalSolicitudes}</strong></p>
+                  ${avisoCorreo}
                 </div>
               `,
               confirmButtonColor: '#0a6631'
