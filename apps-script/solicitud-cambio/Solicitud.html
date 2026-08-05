@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- SweetAlert2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Arial', sans-serif;
+        background: linear-gradient(135deg, #0a6631 0%, #0a6631 100%);
+        background-size: cover;
+        min-height: 100vh;
+        padding: 40px 20px;
+      }
+
+      .logo-container {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+
+      .logo {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: white;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .tagline {
+        font-size: 1rem;
+        color: white;
+        font-style: italic;
+      }
+
+      .card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        overflow: hidden;
+      }
+
+      .card-header {
+        background-color: White;
+        color: #0a6631;
+        text-align: center;
+        padding: 20px;
+        border-bottom: none;
+      }
+
+      .card-body {
+        padding: 30px;
+      }
+
+      .form-label {
+        font-weight: 600;
+        color: #444;
+      }
+
+      .form-control, .form-select {
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        transition: all 0.3s;
+      }
+
+      .form-control:focus, .form-select:focus {
+        border-color: #0a6631;
+        box-shadow: 0 0 0 0.25rem rgba(10, 102, 49, 0.25);
+      }
+
+      .btn-submit, .btn-continue {
+        background-color: #0a6631;
+        border: none;
+        padding: 12px;
+        font-weight: 600;
+        border-radius: 8px;
+        transition: all 0.3s;
+      }
+
+      .btn-submit:hover, .btn-continue:hover {
+        background-color: #085527;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(10, 102, 49, 0.3);
+      }
+
+      .step {
+        display: none;
+      }
+
+      .step.active {
+        display: block;
+      }
+
+      .step-indicator {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+      }
+
+      .step-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #ddd;
+        margin: 0 5px;
+      }
+
+      .step-dot.active {
+        background-color: #0a6631;
+      }
+
+      .fade-in {
+        animation: fadeIn 0.5s;
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+      .material-counter {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .material-counter span {
+        font-weight: 600;
+        color: #0a6631;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo-container">
+        <div class="logo">MASISA</div>
+        <div class="tagline">Tu mundo, tu estilo</div>
+      </div>
+
+      <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="mb-0">Solicitud de Cambio de Estado</h3>
+            </div>
+            <div class="card-body">
+              <div class="step-indicator">
+                <div class="step-dot active" id="dot-1"></div>
+                <div class="step-dot" id="dot-2"></div>
+              </div>
+
+              <form id="solicitudForm">
+                <!-- Paso 1: Selección de solicitante -->
+                <div class="step active fade-in" id="step1">
+                  <div class="mb-4">
+                    <label for="solicitante" class="form-label">Nombre del Solicitante</label>
+                    <select id="solicitante" name="solicitante" class="form-select" required>
+                      <option value="">Seleccionar...</option>
+                      <option value="Jean Paul">Rodrigo Barrera</option>
+                      <option value="Celeste Bastias">Maria Galaz</option>
+                      <option value="Angelina Escobar">Angelina Escobar</option>
+                      <!-- Agregar más solicitantes según sea necesario -->
+                    </select>
+                  </div>
+
+                  <div class="d-grid gap-2 mt-4">
+                    <button type="button" id="continueBtn" class="btn btn-success btn-continue">
+                      Continuar
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Paso 2: Resto del formulario -->
+                <div class="step" id="step2">
+                  <div class="mb-4">
+                    <label for="material" class="form-label">Material a Modificar</label>
+                    <textarea id="material" name="material" class="form-control"
+                      placeholder="Pegue una lista de materiales separados por líneas" rows="5" required></textarea>
+                    <div class="material-counter mt-2" id="materialCounter">
+                      <div>Materiales detectados:</div>
+                      <span id="materialCount">0</span>
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    <label for="estado" class="form-label">Nuevo Estado</label>
+                    <select id="estado" name="estado" class="form-select" required>
+                      <option value="">Seleccionar...</option>
+                      <option value="Stock">Stock</option>
+                      <option value="Descontinuado">Descontinuado</option>
+                      <option value="Pedido">Pedido</option>
+                      <!-- Agregar más estados según sea necesario -->
+                    </select>
+                  </div>
+
+                  <div class="d-flex justify-content-between mt-4">
+                    <button type="button" id="backBtn" class="btn btn-outline-secondary">
+                      Atrás
+                    </button>
+                    <button type="submit" id="submitBtn" class="btn btn-success btn-submit">
+                      Guardar Solicitud
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
+    <script>
+      // Variable para mantener un recuento de las solicitudes
+      let totalSolicitudes = 0;
+
+      // Función para contar materiales en tiempo real
+      document.getElementById('material').addEventListener('input', function() {
+        const materialesText = this.value;
+        const materiales = materialesText.split('\n').filter(item => item.trim() !== '');
+        document.getElementById('materialCount').textContent = materiales.length;
+      });
+
+      // Funciones para manejar los pasos del formulario
+      document.getElementById('continueBtn').addEventListener('click', function() {
+        const solicitante = document.getElementById('solicitante').value;
+
+        if (!solicitante) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Campo requerido',
+            text: 'Por favor seleccione un solicitante para continuar',
+            confirmButtonColor: '#0a6631'
+          });
+          return;
+        }
+
+        // Avanzar al siguiente paso
+        document.getElementById('step1').classList.remove('active');
+        document.getElementById('step2').classList.add('active', 'fade-in');
+        document.getElementById('dot-1').classList.remove('active');
+        document.getElementById('dot-2').classList.add('active');
+      });
+
+      document.getElementById('backBtn').addEventListener('click', function() {
+        // Volver al paso anterior
+        document.getElementById('step2').classList.remove('active');
+        document.getElementById('step1').classList.add('active', 'fade-in');
+        document.getElementById('dot-2').classList.remove('active');
+        document.getElementById('dot-1').classList.add('active');
+      });
+
+      // Connect the form submission to the Google Apps Script function
+      document.getElementById('solicitudForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Validar campos del paso 2
+        const material = document.getElementById('material').value;
+        const estado = document.getElementById('estado').value;
+
+        if (!material || !estado) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Campos requeridos',
+            text: 'Por favor complete todos los campos requeridos',
+            confirmButtonColor: '#0a6631'
+          });
+          return;
+        }
+
+        // Get form values
+        const solicitante = document.getElementById('solicitante').value;
+
+        // Process materials (split by lines)
+        const materiales = material.split('\n').filter(item => item.trim() !== '').map(item => item.trim());
+
+        // Mostrar alerta de carga
+        let timerInterval;
+        Swal.fire({
+          title: 'Procesando solicitud',
+          html: 'Cargando materiales, por favor espere...',
+          timer: 2000,
+          timerProgressBar: true,
+          didOpen: () => {
+            Swal.showLoading();
+            const b = Swal.getHtmlContainer().querySelector('b');
+            timerInterval = setInterval(() => {
+              // Actualización de progreso si es necesario
+            }, 100);
+          },
+          willClose: () => {
+            clearInterval(timerInterval);
+          }
+        });
+
+        // Show loading state
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Procesando...';
+
+        // Call the Google Apps Script function
+        google.script.run
+          .withSuccessHandler(function() {
+            // Reset button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Guardar Solicitud';
+
+            // Incrementar contador de solicitudes
+            totalSolicitudes += materiales.length;
+
+            // Show success message with SweetAlert2 and counter
+            Swal.fire({
+              icon: 'success',
+              title: '¡Éxito!',
+              html: `
+                <p>La solicitud ha sido guardada correctamente</p>
+                <div class="mt-3 p-2 bg-light rounded">
+                  <p class="mb-1">Materiales en esta solicitud: <strong>${materiales.length}</strong></p>
+                  <p class="mb-0">Total de materiales procesados: <strong>${totalSolicitudes}</strong></p>
+                </div>
+              `,
+              confirmButtonColor: '#0a6631'
+            }).then(() => {
+              // Reset form and go back to step 1
+              document.getElementById('solicitudForm').reset();
+              document.getElementById('materialCount').textContent = '0'; // Reset counter display
+              document.getElementById('step2').classList.remove('active');
+              document.getElementById('step1').classList.add('active', 'fade-in');
+              document.getElementById('dot-2').classList.remove('active');
+              document.getElementById('dot-1').classList.add('active');
+            });
+          })
+          .withFailureHandler(function(error) {
+            // Reset button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Guardar Solicitud';
+
+            // Show error message with SweetAlert2s
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: 'No se pudo guardar la solicitud. Por favor, inténtelo de nuevo.',
+              confirmButtonColor: '#0a6631'
+            });
+          })
+          .guardarCambioEstado(solicitante, materiales, estado);
+      });
+    </script>
+  </body>
+</html>
