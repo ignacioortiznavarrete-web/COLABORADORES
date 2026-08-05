@@ -52,9 +52,9 @@ interfaz avisa que no se envió el correo.
 - El cuerpo del correo lista hasta `MAX_FILAS_DETALLE` materiales; si hay más,
   indica cuántos faltan y remite a la hoja `Cambios`.
 
-## Pendiente
+## Solicitantes
 
-En el `<select>` de solicitantes los `value` no coinciden con lo que se muestra:
-"Rodrigo Barrera" guarda `Jean Paul` y "Maria Galaz" guarda `Celeste Bastias`.
-Eso afecta tanto lo que queda en la planilla como el nombre que aparece en el
-correo.
+En el `<select>` cada opción guarda el mismo nombre que muestra. Antes
+"Rodrigo Barrera" guardaba `Jean Paul` y "Maria Galaz" guardaba
+`Celeste Bastias`, lo que ensuciaba la planilla y el nombre del correo. Las
+filas históricas de `Cambios` conservan los nombres antiguos.
