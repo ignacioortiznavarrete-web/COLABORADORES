@@ -5,7 +5,7 @@
 
  Contiene dos disparadores:
 
-   1) enviarResumenSolicitandoVB()   → disparador por tiempo, 09:30 diario
+   1) enviarResumenSolicitandoVB()   → disparador por tiempo, 09:00 diario
       Envía a NOTIF_DESTINO_VB el listado de proveedores en estado
       "SOLICITANDO V°B" (cantidad + Razón Social + N° Identificación Fiscal).
 
@@ -61,7 +61,7 @@ const NOTIF_ENVIAR_SI_NO_HAY_PENDIENTES = true;
 // horaria del proyecto de Apps Script, que es la que Google usa de verdad
 // para los disparadores por tiempo.
 const NOTIF_HORA_ENVIO    = 9;
-const NOTIF_MINUTO_ENVIO  = 30;
+const NOTIF_MINUTO_ENVIO  = 0;
 const NOTIF_ZONA_OBJETIVO = "America/Santiago";
 
 // Guarda a qué hora quedó programado el disparador, para poder
@@ -100,8 +100,8 @@ function instalarDisparadoresNotificaciones() {
 
   // Google programa los disparadores por tiempo usando la zona horaria DEL
   // PROYECTO de Apps Script (appsscript.json), no la de la planilla. Si esa
-  // zona no es la de Chile, se traduce la hora para que igual salga a las
-  // 09:30 de Santiago.
+  // zona no es la de Chile, se traduce la hora para que igual salga a la
+  // hora configurada de Santiago.
   const tzScript = Session.getScriptTimeZone();
   const horaScript = notifHoraScriptParaChile_();
 
@@ -863,7 +863,7 @@ function diagnosticarDisparadores() {
 /*************************
  PRUEBAS MANUALES
 **************************/
-// Envía el resumen diario en el momento, sin esperar a las 09:30.
+// Envía el resumen diario en el momento, sin esperar a la hora programada.
 function probarResumenSolicitandoVB() {
   enviarResumenSolicitandoVB();
 }
