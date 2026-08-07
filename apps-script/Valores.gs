@@ -601,6 +601,137 @@ function valArmarResumen_(stats, lookup, escribio) {
 
 
 /***********************************************************************
+ API PARA EL DASHBOARD  —  getValoresRecepcion(force)
+ ---------------------------------------------------------------------
+ El Index.html del dashboard ya trae el bloque de valores y llama a esta
+ función. Vive aquí (no en Code.gs) porque Apps Script comparte funciones
+ entre archivos del mismo proyecto: no hay que tocar Code.gs ni Index.html.
+
+ CONTRATO que espera el frontend:
+   { unidad: 'm3' | 'trozo',
+     precios: [ <precio unitario por cada fila de getDetalleIngresos, alineado> ],
+     diagnostics: { ... } }
+
+ Alineación: el frontend hace precios[i] → detalleIngresos[i]. Para que
+ calce SIEMPRE, esta función pide las MISMAS filas con getDetalleIngresos()
+ y las recorre en el mismo orden. Así la alineación queda garantizada por
+ construcción, sin depender de que ambos lean la hoja igual por separado.
+
+ Clave de cruce: Rol + Diámetro + Largo. El detalle del dashboard no trae
+ RUT, pero el Rol ya identifica al predio (y por tanto al proveedor). El
+ Largo es parte de la clave porque el precio cambia con él: en la hoja de
+ valores, un mismo Rol+Diámetro tiene precios distintos según el largo
+ (p.ej. 251-19·Ø30 vale 70 a L4.00 y 54,68 a L3.20).
+***********************************************************************/
+function getValoresRecepcion(force) {
+  const ss = valAbrirPlanilla_();
+  const unidad = (VAL_CONFIG.BASE_TOTAL === 'cantidad') ? 'trozo' : 'm3';
+
+  const lk = valLookupPorRol_(ss);
+
+  const diag = {
+    ok: false,
+    hoja: lk.hoja,
+    preciosCargados: lk.clavesUnicas,
+    mensaje: '',
+    claveUsa: { calidad: false, diametro: true, rangoDiametro: false, largo: true },
+    matchPorClave: 0,
+    matchPorColumnas: 0,
+    columnaClave: 'Rol Predio + Diametro + Largo',
+    muestraValores: lk.muestra,
+    muestraDetalle: []
+  };
+
+  if (!lk.clavesUnicas) {
+    diag.mensaje = 'La hoja "' + lk.hoja + '" no tiene precios legibles.';
+    return { unidad: unidad, precios: [], diagnostics: diag };
+  }
+
+  // Mismas filas que ve el frontend → alineación garantizada.
+  if (typeof getDetalleIngresos !== 'function') {
+    diag.mensaje = 'No se encontró getDetalleIngresos (Code.gs) en el proyecto.';
+    return { unidad: unidad, precios: [], diagnostics: diag };
+  }
+
+  const detalle = getDetalleIngresos(force === true) || [];
+  const precios = new Array(detalle.length);
+  const muestraDetalle = [];
+  let match = 0;
+
+  for (let i = 0; i < detalle.length; i++) {
+    const row = detalle[i];
+    const clave = valClaveRol_(row.rol, row.diametroPromedio, row.largo);
+
+    if (clave && muestraDetalle.length < 6) {
+      muestraDetalle.push(valClaveRolLegible_(row.rol, row.diametroPromedio, row.largo));
+    }
+
+    if (clave && Object.prototype.hasOwnProperty.call(lk.map, clave)) {
+      precios[i] = lk.map[clave];
+      match++;
+    } else {
+      precios[i] = 0;
+    }
+  }
+
+  diag.ok = match > 0;
+  diag.matchPorClave = match;
+  diag.muestraDetalle = muestraDetalle;
+  if (!match) diag.mensaje = 'Ninguna recepción calzó con la hoja "' + lk.hoja + '".';
+
+  return { unidad: unidad, precios: precios, diagnostics: diag };
+}
+
+// Diccionario Rol+Diámetro+Largo → valor unitario, para el dashboard.
+// (El detalle del dashboard no trae RUT, así que este no lo usa.)
+function valLookupPorRol_(ss) {
+  const sh = valHojaValores_(ss);
+  if (!sh) return { hoja: '(no encontrada)', map: {}, clavesUnicas: 0, muestra: [] };
+
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
+  const c = {
+    rol:   valBuscarColumna_(headers, ['rol predio', 'rol', 'predio']),
+    diametro: valBuscarColumna_(headers, ['diametro']),
+    largo: valBuscarColumna_(headers, ['largo']),
+    valor: valBuscarColumna_(headers, ['valor unitario usd', 'valor unitario', 'valor'])
+  };
+
+  const map = {};
+  const muestra = [];
+
+  if (c.rol !== -1 && c.diametro !== -1 && c.largo !== -1 && c.valor !== -1 && sh.getLastRow() > 1) {
+    const datos = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getDisplayValues();
+    datos.forEach(function (fila) {
+      const clave = valClaveRol_(fila[c.rol - 1], fila[c.diametro - 1], fila[c.largo - 1]);
+      const valor = valNumero_(fila[c.valor - 1]);
+      if (!clave || isNaN(valor)) return;
+
+      const nuevo = !Object.prototype.hasOwnProperty.call(map, clave);
+      // Conflicto de misma clave con distinto valor: por defecto gana el último.
+      if (nuevo || VAL_CONFIG.VAL_CONFLICTO === 'ultimo') map[clave] = valor;
+      if (nuevo && muestra.length < 6) {
+        muestra.push(valClaveRolLegible_(fila[c.rol - 1], fila[c.diametro - 1], fila[c.largo - 1]));
+      }
+    });
+  }
+
+  return { hoja: sh.getName(), map: map, clavesUnicas: Object.keys(map).length, muestra: muestra };
+}
+
+function valClaveRol_(rol, diam, largo) {
+  const ro = valNormRol_(rol);
+  const d = valNumKey_(diam);
+  const l = valNumKey_(largo);
+  if (!ro || !/[0-9A-Z]/.test(ro) || d === '' || l === '') return '';
+  return ro + '¦' + d + '¦' + l;
+}
+
+function valClaveRolLegible_(rol, diam, largo) {
+  return valNormRol_(rol) + '·Ø' + valNumKey_(diam) + '·L' + valNumKey_(largo);
+}
+
+
+/***********************************************************************
  NOTA — CÓMO AGREGAR UN BOTÓN DE MENÚ (opcional)
  El dashboard (Code.gs) ya tiene su propio onOpen, y solo puede existir
  uno por proyecto. Si quieres un acceso desde el menú, agrega ESTA línea
