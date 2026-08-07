@@ -345,10 +345,19 @@ function valConstruirLookup_(ss) {
     );
   }
 
+  // Una sola pasada construye los DOS diccionarios que se necesitan:
+  //   map    → clave RUT+Rol+Diámetro+Largo  (para escribir en Hoja 1)
+  //   mapRol → clave     Rol+Diámetro+Largo  (para el dashboard, cuyo
+  //            detalle no trae RUT)
+  // Antes eran dos funciones separadas que leían la hoja dos veces y podían
+  // quedar con reglas distintas.
   const map = {};
+  const mapRol = {};
   const conflictos = [];
   const clavesEnConflicto = {};
   const rutRolDisponibles = {};
+  const rutsPorRol = {};
+  const muestraRol = [];
   let filasValidas = 0, filasIgnoradas = 0;
 
   const ultima = sh.getLastRow();
@@ -369,7 +378,14 @@ function valConstruirLookup_(ss) {
       // Registro de qué (RUT + Rol) tienen alguna tarifa cargada. Sirve para
       // distinguir "a este predio no le cargaron precios" de "falta este
       // diámetro/largo puntual".
-      rutRolDisponibles[valNormRut_(rut) + '¦' + valNormRol_(rol)] = true;
+      const rutN = valNormRut_(rut);
+      const rolN = valNormRol_(rol);
+      rutRolDisponibles[rutN + '¦' + rolN] = true;
+
+      // ¿Un mismo Rol pertenece a más de un RUT? El dashboard cruza sin RUT,
+      // así que en ese caso su precio sería ambiguo. Se detecta para avisar.
+      if (!rutsPorRol[rolN]) rutsPorRol[rolN] = {};
+      rutsPorRol[rolN][rutN] = true;
 
       if (Object.prototype.hasOwnProperty.call(map, clave)) {
         const previo = map[clave];
@@ -388,18 +404,37 @@ function valConstruirLookup_(ss) {
       } else {
         map[clave] = valor;
       }
+
+      // Diccionario sin RUT, con la misma política de conflicto.
+      const claveRol = valClaveRol_(rol, diam, largo);
+      if (claveRol) {
+        const nuevoRol = !Object.prototype.hasOwnProperty.call(mapRol, claveRol);
+        if (nuevoRol || VAL_CONFIG.VAL_CONFLICTO === 'ultimo') mapRol[claveRol] = valor;
+        if (nuevoRol && muestraRol.length < 6) {
+          muestraRol.push(valClaveRolLegible_(rol, diam, largo));
+        }
+      }
     });
   }
 
+  // Roles compartidos por más de un RUT (ambigüedad para el cruce sin RUT).
+  const rolesAmbiguos = Object.keys(rutsPorRol)
+    .filter(function (r) { return Object.keys(rutsPorRol[r]).length > 1; })
+    .map(function (r) { return { rol: r, ruts: Object.keys(rutsPorRol[r]) }; });
+
   return {
     map: map,
+    mapRol: mapRol,
+    muestraRol: muestraRol,
     hojaValores: sh.getName(),
     filasValidas: filasValidas,
     filasIgnoradas: filasIgnoradas,
     clavesUnicas: Object.keys(map).length,
+    clavesUnicasRol: Object.keys(mapRol).length,
     conflictos: conflictos,
     totalClavesEnConflicto: Object.keys(clavesEnConflicto).length,
-    rutRolDisponibles: rutRolDisponibles
+    rutRolDisponibles: rutRolDisponibles,
+    rolesAmbiguos: rolesAmbiguos
   };
 }
 
@@ -554,11 +589,25 @@ function valObtenerOCrearColumna_(sh, nombre) {
 /*************************
  UTILIDADES DE PLANILLA / SALIDA
 **************************/
+// IMPORTANTE: Code.gs abre la planilla SIEMPRE por ID
+// (getSpreadsheet_ → SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID)).
+// Aquí se usa el mismo criterio a propósito: si este archivo abriera la
+// planilla activa y el script estuviera vinculado a otra, el dashboard
+// leería una planilla y los precios otra, dando cero coincidencias sin
+// ningún error visible. La planilla activa queda solo como último recurso.
 function valAbrirPlanilla_() {
+  if (typeof getSpreadsheet_ === 'function') {
+    try { return getSpreadsheet_(); } catch (e) { /* sigue con las otras vías */ }
+  }
+
+  if (VAL_CONFIG.SPREADSHEET_ID) {
+    try { return SpreadsheetApp.openById(VAL_CONFIG.SPREADSHEET_ID); } catch (e) { /* idem */ }
+  }
+
   const activa = SpreadsheetApp.getActiveSpreadsheet();
   if (activa) return activa;
-  if (VAL_CONFIG.SPREADSHEET_ID) return SpreadsheetApp.openById(VAL_CONFIG.SPREADSHEET_ID);
-  throw new Error('No hay planilla activa y VAL_CONFIG.SPREADSHEET_ID está vacío.');
+
+  throw new Error('No se pudo abrir la planilla: revisa VAL_CONFIG.SPREADSHEET_ID.');
 }
 
 function valMostrar_(texto) {
@@ -566,7 +615,7 @@ function valMostrar_(texto) {
     SpreadsheetApp.getActiveSpreadsheet().toast(
       texto.split('\n').slice(0, 3).join('  '), 'Valores', 8
     );
-  } catch (e) { /* sin UI (ejecución por trigger): solo queda en el log */ }
+  } catch (e) { /* sin UI (ejecución por trigger o web app): solo queda en el log */ }
 }
 
 function valArmarResumen_(stats, lookup, escribio) {
@@ -643,8 +692,21 @@ function getValoresRecepcion(force) {
   };
 
   if (!lk.clavesUnicas) {
-    diag.mensaje = 'La hoja "' + lk.hoja + '" no tiene precios legibles.';
+    diag.mensaje = lk.error
+      ? lk.error
+      : 'La hoja "' + lk.hoja + '" no tiene precios legibles.';
     return { unidad: unidad, precios: [], diagnostics: diag };
+  }
+
+  // El cruce del dashboard no usa RUT. Si un mismo Rol aparece con más de un
+  // RUT, su precio es ambiguo y hay que avisarlo.
+  const ambiguos = lk.rolesAmbiguos || [];
+  if (ambiguos.length) {
+    diag.rolesAmbiguos = ambiguos.slice(0, 5).map(function (a) {
+      return a.rol + ' (' + a.ruts.join(', ') + ')';
+    });
+    diag.avisoAmbiguedad = ambiguos.length + ' rol(es) con más de un RUT en la hoja de ' +
+      'valores: su precio puede ser ambiguo porque el dashboard cruza sin RUT.';
   }
 
   // Mismas filas que ve el frontend → alineación garantizada.
@@ -683,39 +745,23 @@ function getValoresRecepcion(force) {
 }
 
 // Diccionario Rol+Diámetro+Largo → valor unitario, para el dashboard.
-// (El detalle del dashboard no trae RUT, así que este no lo usa.)
+// Delega en valConstruirLookup_, que arma ambos diccionarios en una sola
+// lectura de la hoja: así no puede haber dos reglas de cruce distintas.
 function valLookupPorRol_(ss) {
-  const sh = valHojaValores_(ss);
-  if (!sh) return { hoja: '(no encontrada)', map: {}, clavesUnicas: 0, muestra: [] };
-
-  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
-  const c = {
-    rol:   valBuscarColumna_(headers, ['rol predio', 'rol', 'predio']),
-    diametro: valBuscarColumna_(headers, ['diametro']),
-    largo: valBuscarColumna_(headers, ['largo']),
-    valor: valBuscarColumna_(headers, ['valor unitario usd', 'valor unitario', 'valor'])
-  };
-
-  const map = {};
-  const muestra = [];
-
-  if (c.rol !== -1 && c.diametro !== -1 && c.largo !== -1 && c.valor !== -1 && sh.getLastRow() > 1) {
-    const datos = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getDisplayValues();
-    datos.forEach(function (fila) {
-      const clave = valClaveRol_(fila[c.rol - 1], fila[c.diametro - 1], fila[c.largo - 1]);
-      const valor = valNumero_(fila[c.valor - 1]);
-      if (!clave || isNaN(valor)) return;
-
-      const nuevo = !Object.prototype.hasOwnProperty.call(map, clave);
-      // Conflicto de misma clave con distinto valor: por defecto gana el último.
-      if (nuevo || VAL_CONFIG.VAL_CONFLICTO === 'ultimo') map[clave] = valor;
-      if (nuevo && muestra.length < 6) {
-        muestra.push(valClaveRolLegible_(fila[c.rol - 1], fila[c.diametro - 1], fila[c.largo - 1]));
-      }
-    });
+  let lk;
+  try {
+    lk = valConstruirLookup_(ss);
+  } catch (err) {
+    return { hoja: '(no encontrada)', map: {}, clavesUnicas: 0, muestra: [], rolesAmbiguos: [], error: String(err.message || err) };
   }
 
-  return { hoja: sh.getName(), map: map, clavesUnicas: Object.keys(map).length, muestra: muestra };
+  return {
+    hoja: lk.hojaValores,
+    map: lk.mapRol,
+    clavesUnicas: lk.clavesUnicasRol,
+    muestra: lk.muestraRol,
+    rolesAmbiguos: lk.rolesAmbiguos
+  };
 }
 
 function valClaveRol_(rol, diam, largo) {
