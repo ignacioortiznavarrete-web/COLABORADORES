@@ -292,6 +292,119 @@
 
     .status { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
+    .k-value, td, .pill, .badge { font-variant-numeric: tabular-nums; }
+
+    h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3::before {
+      content: '';
+      width: 4px;
+      height: 16px;
+      border-radius: 2px;
+      background: linear-gradient(180deg, var(--forest2), var(--forest3));
+      flex-shrink: 0;
+    }
+
+    /* Encabezado de tarjeta de gráfico con botón "Usar en Slides" */
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chart-head h3 { margin-bottom: 12px; }
+
+    .chart-send {
+      padding: 8px 12px;
+      font-size: 11px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      background: white;
+      color: var(--forest);
+      border: 1px solid #DCE5DF;
+      box-shadow: none;
+    }
+
+    .chart-send:hover { background: var(--soft); filter: none; }
+
+    body.presenting .chart-send { display: none; }
+
+    /* ── MODO PRESENTACIÓN ── */
+    body.presenting .filters,
+    body.presenting #filtersHint,
+    body.presenting .actions .btn-hide-present { display: none !important; }
+
+    body.presenting header { padding: 10px 22px; }
+    body.presenting .k-value { font-size: 36px; }
+    body.presenting main .card,
+    body.presenting main section { scroll-margin-top: 84px; }
+
+    body.presenting .present-current {
+      outline: 3px solid rgba(45,106,79,.45);
+      outline-offset: 3px;
+      border-radius: 20px;
+    }
+
+    #presentBar {
+      display: none;
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1200;
+      background: var(--forest);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 14px;
+      box-shadow: 0 14px 36px rgba(0,0,0,.30);
+      align-items: center;
+      gap: 10px;
+    }
+
+    body.presenting #presentBar { display: flex; }
+
+    #presentBar button {
+      background: rgba(255,255,255,.14);
+      box-shadow: none;
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    #presentBar button:hover { background: rgba(255,255,255,.26); transform: none; }
+
+    #presentBar .present-info {
+      font-size: 11px;
+      font-weight: 700;
+      opacity: .9;
+      min-width: 130px;
+      text-align: center;
+    }
+
+    .live-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #7CE3A8;
+      display: inline-block;
+      animation: livePulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes livePulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(124,227,168,.55); }
+      50%      { box-shadow: 0 0 0 6px rgba(124,227,168,0); }
+    }
+
+    /* ── VALORES / PRECIOS DE RECEPCIÓN (bloque agregado) ── */
+    .value-kpis .card { border-left: 5px solid var(--wood); }
+
     @media (max-width: 1200px) {
       .quality-kpis { grid-template-columns: 1fr; }
       .grid, .two, .filters { grid-template-columns: 1fr; }
@@ -327,8 +440,9 @@
     </div>
 
     <div class="actions">
-      <button onclick="loadData(true)">Actualizar datos</button>
-      <button onclick="exportCSV()">Exportar matriz</button>
+      <button onclick="togglePresentation()">▶ Modo presentación</button>
+      <button class="btn-hide-present" onclick="loadData(true)">Actualizar datos</button>
+      <button class="btn-hide-present" onclick="exportCSV()">Exportar matriz</button>
     </div>
   </header>
 
@@ -412,6 +526,35 @@
       </div>
     </section>
 
+    <!-- ═══════ VALORES: KPIs DE PRECIO DE RECEPCIÓN ═══════ -->
+    <section class="kpis value-kpis" id="valorKpis">
+      <div class="card">
+        <div class="k-label">Valor recepción</div>
+        <div id="kValorTotal" class="k-value">-</div>
+        <div id="kValorTotalLabel" class="k-small">cargando precios...</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Precio promedio</div>
+        <div id="kPrecioProm" class="k-value">-</div>
+        <div id="kPrecioPromLabel" class="k-small">ponderado por m³ valorizados</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Cobertura valorizada</div>
+        <div id="kCoberturaValor" class="k-value">-</div>
+        <div id="kCoberturaValorLabel" class="k-small">m³ con precio / m³ ingresados</div>
+      </div>
+      <div class="card">
+        <div class="k-label">m³ sin precio</div>
+        <div id="kM3SinPrecio" class="k-value">-</div>
+        <div id="kM3SinPrecioLabel" class="k-small">no se contabilizan en el valor</div>
+      </div>
+      <div class="card">
+        <div class="k-label">Proveedor líder por valor</div>
+        <div id="kValorLider" class="k-value">-</div>
+        <div id="kValorLiderLabel" class="k-small">mayor valor de recepción</div>
+      </div>
+    </section>
+
     <section class="grid">
       <div class="card">
         <h3>Mapa por ROL</h3>
@@ -435,7 +578,10 @@
       </div>
 
       <div class="card full">
-        <h3>Top proveedores por cubicación</h3>
+        <div class="chart-head">
+          <h3>Top proveedores por cubicación</h3>
+          <button class="chart-send" type="button" onclick="enviarGraficoASlides('topProveedores', 'Top proveedores por cubicación')">📽 Enviar a Slides</button>
+        </div>
         <div id="chartTopProveedores" class="chart"></div>
         <div class="status">Ranking de los proveedores con mayor cubicación dentro de la vista filtrada actual (máx. 8).</div>
       </div>
@@ -457,18 +603,27 @@
       <div class="card full">
         <div class="two">
           <div>
-            <h3>Trozos por calidad</h3>
+            <div class="chart-head">
+              <h3>Trozos por calidad</h3>
+              <button class="chart-send" type="button" onclick="enviarGraficoASlides('calidadTrozos', 'Trozos por calidad')">📽 Enviar a Slides</button>
+            </div>
             <div id="chartCalidadTrozos" class="chart"></div>
           </div>
           <div>
-            <h3>Cubicación por calidad</h3>
+            <div class="chart-head">
+              <h3>Cubicación por calidad</h3>
+              <button class="chart-send" type="button" onclick="enviarGraficoASlides('calidadCubicacion', 'Cubicación por calidad')">📽 Enviar a Slides</button>
+            </div>
             <div id="chartCalidadCubicacion" class="chart"></div>
           </div>
         </div>
       </div>
 
       <div class="card full">
-        <h3>Entrega diaria: m³ real vs meta diaria hábil</h3>
+        <div class="chart-head">
+          <h3>Entrega diaria: m³ real vs meta diaria hábil</h3>
+          <button class="chart-send" type="button" onclick="enviarGraficoASlides('entregaDiaria', 'Entrega diaria: m³ real vs meta diaria hábil')">📽 Enviar a Slides</button>
+        </div>
         <div id="chartFecha" class="chart"></div>
       </div>
 
@@ -486,10 +641,82 @@
         <h3>Tabla general de recepciones</h3>
         <div id="tablaGeneral" class="table-wrap"></div>
       </div>
+
+      <!-- ═══════ VALORES: ANÁLISIS DE PRECIO DE RECEPCIÓN ═══════ -->
+      <div class="card full">
+        <h3>Análisis de valor de recepción</h3>
+        <div class="map-tools">
+          <span id="valorStatus" class="pill">Precios: cargando...</span>
+          <span id="valorUnidad" class="pill">Unidad: -</span>
+        </div>
+
+        <div id="chartValorProveedores" class="chart"></div>
+
+        <div class="two" style="margin-top:16px">
+          <div>
+            <h3>Valor por proveedor</h3>
+            <div id="tablaValorProveedor" class="table-wrap"></div>
+          </div>
+          <div>
+            <h3>Precio promedio por calidad</h3>
+            <div id="tablaValorCalidad" class="table-wrap"></div>
+          </div>
+        </div>
+
+        <h3 style="margin-top:18px">Recepciones sin precio en la hoja Valores</h3>
+        <div id="tablaSinPrecio" class="table-wrap"></div>
+        <div class="status">
+          La columna <b>Clave buscada</b> muestra el ROL y el diámetro concatenados tal como los
+          arma el dashboard. Debe coincidir con la clave de la hoja <b>Valores</b> (los guiones,
+          puntos y espacios se ignoran en la comparación).
+        </div>
+        <div id="valorHint" class="status"></div>
+      </div>
     </section>
   </main>
 
+  <!-- BARRA DE CONTROL DEL MODO PRESENTACIÓN -->
+  <div id="presentBar">
+    <span class="live-dot" title="Datos en vivo"></span>
+    <button type="button" onclick="presentPrev()" title="Sección anterior">◀</button>
+    <button type="button" id="presentPauseBtn" onclick="togglePresentPause()" title="Pausar/reanudar rotación">⏸</button>
+    <button type="button" onclick="presentNext()" title="Sección siguiente">▶</button>
+    <span id="presentInfo" class="present-info">-</span>
+    <button type="button" onclick="exitPresentation()" title="Salir (Esc)">✕ Salir</button>
+  </div>
+
   <script>
+    // ── RED DE SEGURIDAD ──────────────────────────────────
+    // Si una librería externa no carga o algo falla al iniciar,
+    // se muestra un aviso visible en vez de una página muerta.
+    (function () {
+      let avisado = false;
+
+      window.mostrarErrorFatal = function (mensaje) {
+        if (avisado) return;
+        avisado = true;
+        const div = document.createElement('div');
+        div.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;' +
+          'background:#B3261E;color:#fff;padding:12px 18px;font:700 13px Arial,sans-serif;text-align:center;';
+        div.textContent = 'Error al iniciar el dashboard: ' + mensaje +
+          ' — Revisa la conexión a internet (librerías externas) o reporta este mensaje.';
+        document.body.appendChild(div);
+      };
+
+      window.addEventListener('error', function (e) {
+        if (e && e.message) window.mostrarErrorFatal(e.message);
+      });
+
+      if (typeof Swal === 'undefined') {
+        window.Swal = {
+          fire: function () { return Promise.resolve({}); },
+          close: function () {},
+          showLoading: function () {}
+        };
+        window.mostrarErrorFatal('no se pudo cargar la librería de avisos (SweetAlert)');
+      }
+    })();
+
     let DATA = null;
     let ROLE_MAP_DATA = [];
     let MAP_DIAGNOSTICS = null;
@@ -501,6 +728,7 @@
     let ALL_BOUNDS = [];
     let CHART_READY = false;
     let DETALLE_READY = false;
+    let LOAD_WATCHDOG = null;
 
     const FILTER_IDS = ['fProveedor', 'fPredio', 'fComuna', 'fRol', 'fCalidad', 'fLargo'];
 
@@ -509,14 +737,60 @@
 
     const PLANTA_CABRERO = { lat: -37.034, lng: -72.426, label: 'Ruta 146 N° 2015, Cabrero' };
 
-    // La librería de gráficos se carga en paralelo con los datos: no bloquea el pedido al servidor.
-    google.charts.load('current', { packages: ['corechart', 'bar'] });
-    google.charts.setOnLoadCallback(() => {
-      CHART_READY = true;
-      if (DATA) renderCharts();
-    });
+    // true cuando el web app se abre con ?present=1 (enlace "en vivo" para presentaciones)
+    // Se detecta ?present=1 con la API de Apps Script (sin scriptlets de
+    // plantilla, para que el HTML funcione tal cual, sin depender de Code.gs).
+    let AUTO_PRESENT = false;
 
+    // Estado del modo presentación
+    const PRESENT = {
+      active: false,
+      paused: false,
+      slideIndex: 0,
+      slides: [],
+      rotateTimer: null,
+      countdownTimer: null,
+      refreshTimer: null,
+      secondsLeft: 0
+    };
+    const PRESENT_SLIDE_SECONDS = 15;
+    const PRESENT_REFRESH_MINUTES = 10;
+
+    // Los datos se piden PRIMERO: aunque falle una librería externa
+    // (gráficos, mapas), los KPIs y tablas cargan igual.
     loadData(false);
+
+    // La librería de gráficos se carga en paralelo: no bloquea el pedido al servidor.
+    try {
+      google.charts.load('current', { packages: ['corechart', 'bar'] });
+      google.charts.setOnLoadCallback(() => {
+        CHART_READY = true;
+        if (DATA) renderCharts();
+      });
+    } catch (err) {
+      console.warn('Google Charts no disponible:', err);
+      window.mostrarErrorFatal('no se pudo cargar la librería de gráficos de Google');
+    }
+
+    // Detección de ?present=1 vía API oficial (asíncrona, tolerante a fallas).
+    try {
+      if (google.script && google.script.url && google.script.url.getLocation) {
+        google.script.url.getLocation(loc => {
+          AUTO_PRESENT = Boolean(loc && loc.parameter && loc.parameter.present);
+          if (AUTO_PRESENT && DATA && !PRESENT.active) startPresentation();
+        });
+      }
+    } catch (err) {
+      console.warn('No se pudo leer la URL:', err);
+    }
+
+    function safeRender(fn, nombre) {
+      try {
+        fn();
+      } catch (err) {
+        console.error('Error de render (' + (nombre || fn.name) + '):', err);
+      }
+    }
 
     function loadData(force) {
       Swal.fire({
@@ -531,25 +805,60 @@
       DETALLE_READY = false;
       setFiltersLoading(true);
 
+      // Watchdog: si el servidor no responde en 2 minutos, se informa el
+      // motivo más común (permisos nuevos pendientes de autorizar) en vez
+      // de quedar pegado en "cargando".
+      clearTimeout(LOAD_WATCHDOG);
+      LOAD_WATCHDOG = setTimeout(() => {
+        Swal.fire({
+          icon: 'warning',
+          title: 'La carga está tardando demasiado',
+          width: 620,
+          html: `
+            <div style="text-align:left; font-size:14px; line-height:1.7;">
+              El servidor no respondió. Lo más común después de una actualización del script
+              es que falten <b>permisos nuevos por autorizar</b>:
+              <br><br>
+              1. Abre el editor de Apps Script (Extensiones → Apps Script).<br>
+              2. Selecciona la función <b>onOpen</b> y presiona <b>Ejecutar</b>.<br>
+              3. Acepta los permisos que pida Google (Presentaciones, triggers).<br>
+              4. Vuelve a abrir el dashboard.
+              <br><br>
+              Si ya autorizaste, prueba con el botón "Actualizar datos".
+            </div>`,
+          confirmButtonText: 'Entendido',
+          confirmButtonColor: '#2D6A4F'
+        });
+      }, 120000);
+
       google.script.run
         .withSuccessHandler(data => {
-          DATA = data;
-          DATA.detalleIngresos = null;
+          clearTimeout(LOAD_WATCHDOG);
 
-          // Mostrar fecha de última actualización
-          const el = document.getElementById('lastUpdateLabel');
-          if (el) el.textContent = data.lastUpdate || 'Sin datos';
+          try {
+            DATA = data;
+            DATA.detalleIngresos = null;
 
-          populateLargoOptions();
-          renderKPIs();
-          renderCharts();
-          renderTables();
-          initMap();
-          initComunaMap();
-          document.getElementById('mapStatus').textContent = 'KML/KMZ: cargando en segundo plano...';
-          document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
-          setRoleListLoading();
-          Swal.close();
+            // Mostrar fecha de última actualización
+            const el = document.getElementById('lastUpdateLabel');
+            if (el) el.textContent = data.lastUpdate || 'Sin datos';
+
+            // Cada bloque se renderiza protegido: si uno falla, el resto
+            // del dashboard sigue funcionando y el "cargando" se cierra igual.
+            safeRender(populateLargoOptions, 'largos');
+            safeRender(renderKPIs, 'KPIs');
+            safeRender(renderCharts, 'gráficos');
+            safeRender(renderTables, 'tablas');
+            safeRender(initMap, 'mapa ROL');
+            safeRender(initComunaMap, 'mapa comunas');
+            document.getElementById('mapStatus').textContent = 'KML/KMZ: cargando en segundo plano...';
+            document.getElementById('comunaMapStatus').textContent = 'Comunas GIS: cargando en segundo plano...';
+            setRoleListLoading();
+          } finally {
+            Swal.close();
+          }
+
+          if (AUTO_PRESENT && !PRESENT.active) setTimeout(startPresentation, 600);
 
           // KMZ/KML y detalle de ingresos (usado por los filtros) se cargan aparte,
           // en paralelo, sin bloquear el render de KPIs/gráficos/tablas de arriba.
@@ -557,7 +866,23 @@
           setTimeout(() => loadDetalleIngresos(force), 150);
         })
         .withFailureHandler(err => {
-          Swal.fire('Error', err.message || String(err), 'error');
+          clearTimeout(LOAD_WATCHDOG);
+          const mensaje = err && err.message ? err.message : String(err);
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al cargar datos',
+            width: 620,
+            html: `
+              <div style="text-align:left; font-size:14px; line-height:1.7;">
+                <b>Detalle:</b> ${escapeHtml(mensaje)}
+                <br><br>
+                Si el error menciona permisos o autorización: abre Extensiones → Apps Script,
+                ejecuta la función <b>onOpen</b> y acepta los permisos nuevos
+                (se agregaron Presentaciones y triggers para el envío a Slides).
+              </div>`,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#2D6A4F'
+          });
         })
         .getDashboardData(force);
     }
@@ -681,6 +1006,236 @@
 
 
     /* ────────────────────────────────────────────────────
+       MODO PRESENTACIÓN (dashboard en vivo)
+    ──────────────────────────────────────────────────── */
+
+    function togglePresentation() {
+      if (PRESENT.active) exitPresentation();
+      else startPresentation();
+    }
+
+    function buildPresentSlides() {
+      const slides = [];
+      const kpis = document.querySelector('.kpis');
+      const calidad = document.querySelector('.quality-kpis');
+
+      if (kpis) slides.push(kpis);
+      if (calidad) slides.push(calidad);
+      document.querySelectorAll('.grid > .card').forEach(card => slides.push(card));
+
+      return slides;
+    }
+
+    function startPresentation() {
+      if (PRESENT.active) return;
+
+      PRESENT.active = true;
+      PRESENT.paused = false;
+      PRESENT.slideIndex = 0;
+      PRESENT.slides = buildPresentSlides();
+      document.body.classList.add('presenting');
+
+      // Pantalla completa cuando el navegador lo permite (en el modal de Sheets puede fallar).
+      const root = document.documentElement;
+      if (root.requestFullscreen) root.requestFullscreen().catch(() => {});
+
+      goToSlide(0);
+      PRESENT.secondsLeft = PRESENT_SLIDE_SECONDS;
+      updatePresentInfo();
+
+      clearInterval(PRESENT.countdownTimer);
+      PRESENT.countdownTimer = setInterval(() => {
+        if (!PRESENT.active || PRESENT.paused) { updatePresentInfo(); return; }
+        PRESENT.secondsLeft--;
+        if (PRESENT.secondsLeft <= 0) advanceSlide(1);
+        else updatePresentInfo();
+      }, 1000);
+
+      clearInterval(PRESENT.refreshTimer);
+      PRESENT.refreshTimer = setInterval(refreshLiveData, PRESENT_REFRESH_MINUTES * 60 * 1000);
+
+      // Los gráficos se redibujan por si cambió el ancho útil al ocultar filtros / entrar a fullscreen.
+      setTimeout(() => { if (DATA) renderCharts(); }, 450);
+    }
+
+    function exitPresentation() {
+      if (!PRESENT.active) return;
+
+      PRESENT.active = false;
+      clearInterval(PRESENT.countdownTimer);
+      clearInterval(PRESENT.refreshTimer);
+      document.body.classList.remove('presenting');
+      document.querySelectorAll('.present-current').forEach(el => el.classList.remove('present-current'));
+
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+
+      setTimeout(() => { if (DATA) renderCharts(); }, 450);
+    }
+
+    function advanceSlide(delta) {
+      if (!PRESENT.slides.length) return;
+      PRESENT.slideIndex = (PRESENT.slideIndex + delta + PRESENT.slides.length) % PRESENT.slides.length;
+      goToSlide(PRESENT.slideIndex);
+      PRESENT.secondsLeft = PRESENT_SLIDE_SECONDS;
+      updatePresentInfo();
+    }
+
+    function goToSlide(index) {
+      document.querySelectorAll('.present-current').forEach(el => el.classList.remove('present-current'));
+      const el = PRESENT.slides[index];
+      if (!el) return;
+      el.classList.add('present-current');
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function presentNext() { advanceSlide(1); }
+    function presentPrev() { advanceSlide(-1); }
+
+    function togglePresentPause() {
+      PRESENT.paused = !PRESENT.paused;
+      const btn = document.getElementById('presentPauseBtn');
+      if (btn) btn.textContent = PRESENT.paused ? '▶' : '⏸';
+      updatePresentInfo();
+    }
+
+    function updatePresentInfo() {
+      const el = document.getElementById('presentInfo');
+      if (!el) return;
+      const total = PRESENT.slides.length || 1;
+      el.textContent = 'Sección ' + (PRESENT.slideIndex + 1) + ' / ' + total +
+        (PRESENT.paused ? ' · en pausa' : ' · ' + Math.max(0, PRESENT.secondsLeft) + 's');
+    }
+
+    // Refresco silencioso: actualiza datos sin popups mientras se presenta.
+    function refreshLiveData() {
+      if (!PRESENT.active) return;
+
+      google.script.run
+        .withSuccessHandler(data => {
+          if (!PRESENT.active || !data) return;
+
+          const detalle = DATA ? DATA.detalleIngresos : null;
+          DATA = data;
+          DATA.detalleIngresos = detalle;
+
+          const el = document.getElementById('lastUpdateLabel');
+          if (el) el.textContent = data.lastUpdate || 'Sin datos';
+
+          renderKPIs();
+          renderCharts();
+          renderTables();
+
+          google.script.run
+            .withSuccessHandler(det => {
+              if (!DATA) return;
+              DATA.detalleIngresos = det || [];
+              renderAllFiltered();
+            })
+            .withFailureHandler(() => {})
+            .getDetalleIngresos(true);
+        })
+        .withFailureHandler(err => console.warn('Refresco en vivo falló', err))
+        .getDashboardData(true);
+    }
+
+    /* ────────────────────────────────────────────────────
+       ENVÍO DIRECTO DE GRÁFICOS A GOOGLE SLIDES
+    ──────────────────────────────────────────────────── */
+
+    function enviarGraficoASlides(chartKey, nombreGrafico, urlPresentacion) {
+      Swal.fire({
+        title: 'Enviando gráfico a Slides',
+        text: 'Generando "' + nombreGrafico + '" y actualizando tu presentación...',
+        allowOutsideClick: false,
+        background: '#FFFFFF',
+        color: '#24352B',
+        didOpen: () => Swal.showLoading()
+      });
+
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res && res.needsConfig) {
+            pedirUrlPresentacion(chartKey, nombreGrafico);
+            return;
+          }
+
+          Swal.fire({
+            icon: 'success',
+            title: res.created ? 'Gráfico agregado a tu presentación' : 'Gráfico actualizado en tu presentación',
+            width: 620,
+            html: `
+              <div style="text-align:left; font-size:14px; line-height:1.7;">
+                <b>"${escapeHtml(nombreGrafico)}"</b> ${res.created
+                  ? 'se insertó en una diapositiva nueva de'
+                  : 'se actualizó con los datos actuales en'}
+                <b>${escapeHtml(res.nombrePresentacion || 'tu presentación')}</b>
+                (${escapeHtml(res.actualizadoEn || '')}).
+                <br><br>
+                <a href="${escapeHtml(res.url)}" target="_blank" rel="noopener"><b>Abrir la presentación</b></a>
+                <br><br>
+                Puedes mover o redimensionar el gráfico en la diapositiva: los próximos envíos
+                lo reemplazan en el mismo lugar. Para que se refresque solo cada 1 hora, activa
+                <b>MASISA GIS → Auto-actualizar gráficos Slides</b> en la planilla.
+              </div>`,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#2D6A4F'
+          });
+        })
+        .withFailureHandler(err => {
+          const mensaje = (err && err.message) ? err.message : String(err);
+
+          // Si el módulo opcional Slides.gs no está en el proyecto, la función no existe.
+          if (/no se encontr|not found|no existe la función|is not defined/i.test(mensaje)) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Módulo de Slides no instalado',
+              html: 'Para enviar gráficos a Google Slides, agrega el archivo opcional <b>Slides.gs</b> ' +
+                'al proyecto de Apps Script (Editor → + → Secuencia de comandos → pega el contenido) ' +
+                'y autoriza el permiso de Presentaciones cuando Google lo pida.<br><br>' +
+                'El dashboard funciona completo sin ese módulo.',
+              confirmButtonText: 'Entendido',
+              confirmButtonColor: '#2D6A4F'
+            });
+            return;
+          }
+
+          Swal.fire('Error', mensaje, 'error');
+        })
+        .enviarGraficoDirectoASlides(chartKey, urlPresentacion || null);
+    }
+
+    function pedirUrlPresentacion(chartKey, nombreGrafico) {
+      Swal.fire({
+        title: 'Conecta tu presentación',
+        input: 'url',
+        inputLabel: 'Pega el enlace de tu presentación de Google Slides (solo la primera vez)',
+        inputPlaceholder: 'https://docs.google.com/presentation/d/...',
+        showCancelButton: true,
+        confirmButtonText: 'Conectar y enviar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#2D6A4F'
+      }).then(result => {
+        if (result.isConfirmed && result.value) {
+          enviarGraficoASlides(chartKey, nombreGrafico, result.value);
+        }
+      });
+    }
+
+    document.addEventListener('keydown', e => {
+      if (!PRESENT.active) return;
+      if (e.key === 'Escape') exitPresentation();
+      else if (e.key === 'ArrowRight') presentNext();
+      else if (e.key === 'ArrowLeft') presentPrev();
+      else if (e.key === ' ') { e.preventDefault(); togglePresentPause(); }
+    });
+
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement && PRESENT.active) exitPresentation();
+    });
+
+    /* ────────────────────────────────────────────────────
        GRÁFICOS
     ──────────────────────────────────────────────────── */
 
@@ -764,13 +1319,26 @@
     function drawTimeChart(rows) {
       rows = rows || getFilteredDetailRows();
       const realByBusinessDay = {};
+      const valorByBusinessDay = {};
+      const m3ValorizadoByBusinessDay = {};
+      const m3SinPrecioByBusinessDay = {};
       const projectionByBusinessDay = buildProjectionByBusinessDay();
       let maxDataDay = 0;
 
       rows.forEach(item => {
         const day = Number(item.dia || 0);
         if (!day) return;
-        realByBusinessDay[day] = (realByBusinessDay[day] || 0) + (Number(item.cubicacion) || 0);
+        const cub = Number(item.cubicacion) || 0;
+        const precio = Number(item.precioUnitario) || 0;
+        realByBusinessDay[day] = (realByBusinessDay[day] || 0) + cub;
+
+        if (precio) {
+          valorByBusinessDay[day] = (valorByBusinessDay[day] || 0) + (Number(item.valorTotal) || 0);
+          m3ValorizadoByBusinessDay[day] = (m3ValorizadoByBusinessDay[day] || 0) + cub;
+        } else {
+          m3SinPrecioByBusinessDay[day] = (m3SinPrecioByBusinessDay[day] || 0) + cub;
+        }
+
         maxDataDay = Math.max(maxDataDay, day);
       });
 
@@ -787,18 +1355,38 @@
       const metaDiaria = metaDiariaForFilter();
       const metaLabel  = val('fProveedor') ? 'Meta diaria del proveedor filtrado' : 'Meta diaria hábil';
 
+      // En el eje X se muestra el día calendario del mes (1, 2, 3, 6, 7...)
+      // en lugar del correlativo de día hábil, usando el calendario del servidor.
+      const calendarDayByBusinessDay = {};
+      ((DATA.calendario && DATA.calendario.days) || []).forEach(d => {
+        if (d.habil && d.numHabil) calendarDayByBusinessDay[d.numHabil] = String(d.day);
+      });
+
       const chartRows = [];
       for (let day = 1; day <= chartDays; day++) {
-        chartRows.push([
-          day,
-          projectionByBusinessDay[day] || 0,
-          realByBusinessDay[day] || 0,
-          metaDiaria
-        ]);
+        const label = calendarDayByBusinessDay[day] || String(day);
+        const proyeccion = projectionByBusinessDay[day] || 0;
+        const real = realByBusinessDay[day] || 0;
+
+        const tooltip = buildDayTooltip({
+          label: label,
+          dia: day,
+          real: real,
+          proyeccion: proyeccion,
+          meta: metaDiaria,
+          valor: valorByBusinessDay[day] || 0,
+          m3Valorizado: m3ValorizadoByBusinessDay[day] || 0,
+          m3SinPrecio: m3SinPrecioByBusinessDay[day] || 0
+        });
+
+        chartRows.push([label, proyeccion, tooltip, real, tooltip, metaDiaria]);
       }
 
       const fechaTable = google.visualization.arrayToDataTable([
-        ['Día hábil','Proyección camiones m³','m³ real', metaLabel],
+        ['Día del mes',
+         'Proyección camiones m³', { type: 'string', role: 'tooltip', p: { html: true } },
+         'm³ real',                { type: 'string', role: 'tooltip', p: { html: true } },
+         metaLabel],
         ...chartRows
       ]);
 
@@ -808,9 +1396,56 @@
         series:{2:{type:'line',lineWidth:3,pointSize:5}},
         bar:{groupWidth:'78%'},
         vAxes:{0:{title:'m³',minValue:0}},
-        hAxis:{title:'Día hábil del mes',format:'0',gridlines:{count:chartDays}},
+        hAxis:{title:'Día del mes (días hábiles)',textStyle:{fontSize:11}},
+        tooltip:{isHtml:true},
         chartArea:{width:'88%',height:'72%'}, backgroundColor:'transparent'
       });
+    }
+
+    /* Tooltip del gráfico diario: m³, gasto del día y m³ pendientes de valorizar */
+    function buildDayTooltip(info) {
+      const li = (label, value, color) =>
+        '<div style="display:flex;justify-content:space-between;gap:18px;line-height:1.7">' +
+        '<span style="color:#738579">' + label + '</span>' +
+        '<b style="color:' + (color || '#24352B') + '">' + value + '</b></div>';
+
+      const partes = [];
+
+      partes.push('<div style="padding:10px 12px;font:400 12px Inter,Arial,sans-serif;color:#24352B;min-width:230px">');
+      partes.push('<div style="font-weight:800;color:#1E4D38;margin-bottom:6px">Día ' +
+        escapeHtml(info.label) + ' · día hábil ' + info.dia + '</div>');
+
+      partes.push(li('m³ real', fmt(info.real) + ' m³'));
+
+      const valoresListos = (typeof VALORES_STATE !== 'undefined') && VALORES_STATE.ready;
+
+      if (valoresListos && info.real) {
+        const precioDia = info.m3Valorizado ? info.valor / info.m3Valorizado : 0;
+
+        partes.push(li('Gasto del día', fmtCLP(info.valor), '#1E4D38'));
+        partes.push(li('m³ valorizados', fmt(info.m3Valorizado) + ' m³'));
+
+        if (info.m3SinPrecio > 0.01) {
+          partes.push(li('Falta asignar valor', fmt(info.m3SinPrecio) + ' m³', '#B3261E'));
+          if (precioDia) {
+            partes.push(li('Estimado pendiente', fmtCLP(info.m3SinPrecio * precioDia), '#C28A22'));
+          }
+        }
+
+        if (precioDia) partes.push(li('Precio promedio', fmtCLP(precioDia) + ' /m³'));
+      }
+
+      const dif = info.real - info.meta;
+      partes.push(li('Meta diaria hábil', fmt(info.meta) + ' m³'));
+      partes.push(li('Dif. vs meta', fmtSigned(dif) + ' m³', dif >= 0 ? '#1E4D38' : '#B3261E'));
+
+      if (info.proyeccion) {
+        partes.push(li('Proyección camiones', fmt(info.proyeccion) + ' m³'));
+      }
+
+      partes.push('</div>');
+
+      return partes.join('');
     }
 
     function getFilteredProjectionRows() {
@@ -983,6 +1618,7 @@
               <th class="sortable ${cumplSort}" onclick="cycleSortCompliance('cumpl')" title="Ordenar por cumplimiento">Cumpl.</th>
               <th class="sortable ${difSort}" onclick="cycleSortCompliance('dif')" title="Clic para ordenar/filtrar: ↓mayor→menor · ↑menor→mayor · &lt;0 déficit · &gt;0 superávit">${difLabel}</th>
               <th>Diám. prom.</th>
+              <th>Precio prom.</th>
             </tr>
           </thead>
           <tbody>
@@ -991,13 +1627,26 @@
         </table>`;
     }
 
+    /* Celda de precio promedio: "-" mientras no haya valores cargados */
+    function precioCell(valor, m3) {
+      const promedio = m3 ? (Number(valor)||0) / m3 : 0;
+      return promedio ? fmtCLP(promedio) + ' /m³' : '-';
+    }
+
+    /* Mismo criterio que faenaKey_ del servidor */
+    function faenaKeyClient(value) {
+      return clean(value).replace(/^MASISA\s+/, '').replace(/\s+/g, ' ').trim();
+    }
+
     function makeComplianceRow(x, index) {
       const canExpand  = clean(x.proveedor) === 'MASISA SA' && (x.faenas || []).length;
       const groupId    = 'faenas_' + index;
       const providerCell = canExpand
         ? `<button class="inline-toggle" type="button" onclick="toggleFaenas('${groupId}')">+</button>${escapeHtml(x.proveedor)}`
         : escapeHtml(x.proveedor);
-      const children = canExpand ? (x.faenas || []).map(f => makeFaenaRow(f, groupId)).join('') : '';
+      const children = canExpand
+        ? (x.faenas || []).map(f => makeFaenaRow(f, groupId, x._faenaPrecios || {})).join('')
+        : '';
       return `
         <tr>
           <td>${providerCell}</td>
@@ -1007,10 +1656,12 @@
           <td>${badge(fmtPercent(x.cumplimiento), complianceColor(x.cumplimiento, x.planToDate))}</td>
           <td>${fmtSigned(x.diferencia)}</td>
           <td>${fmt(x.diametroPromedio)}</td>
+          <td>${precioCell(x.valorRecepcion, x.m3Valorizados)}</td>
         </tr>${children}`;
     }
 
-    function makeFaenaRow(faena, groupId) {
+    function makeFaenaRow(faena, groupId, precios) {
+      const stats = (precios || {})[faenaKeyClient(faena.faena)] || { valor: 0, m3: 0 };
       return `
         <tr class="child-row ${groupId}" style="display:none">
           <td>↳ ${escapeHtml(faena.faena || 'SIN FAENA')}</td>
@@ -1020,6 +1671,7 @@
           <td>${faena.planToDate ? badge(fmtPercent(faena.cumplimiento), complianceColor(faena.cumplimiento, faena.planToDate)) : '-'}</td>
           <td>${fmtSigned(faena.diferencia)}</td>
           <td>${fmt(faena.diametroPromedio)}</td>
+          <td>${precioCell(stats.valor, stats.m3)}</td>
         </tr>`;
     }
 
@@ -1447,17 +2099,30 @@
       rows.forEach(row => {
         const proveedor = row.proveedor || 'SIN PROVEEDOR';
         const trozos = Number(row.trozos)||0, cub = Number(row.cubicacion)||0, diam = Number(row.diametroPromedio)||0;
+        const precio = Number(row.precioUnitario)||0;
         if (!base[proveedor]) {
           base[proveedor] = { proveedor, nombrePlan:'', plan:0, planToDate:0, trozos:0, cubicacion:0, diametroPromedio:0, faenas:[], cumplimiento:0, diferencia:0 };
         }
         base[proveedor].trozos += trozos;
         base[proveedor].cubicacion += cub;
         base[proveedor]._diametroPonderado = (base[proveedor]._diametroPonderado||0) + diam*trozos;
+
+        if (!base[proveedor]._faenaPrecios) base[proveedor]._faenaPrecios = {};
+        const fk = faenaKeyClient(row.predio);
+        if (!base[proveedor]._faenaPrecios[fk]) base[proveedor]._faenaPrecios[fk] = { valor:0, m3:0 };
+
+        if (precio) {
+          base[proveedor].valorRecepcion = (base[proveedor].valorRecepcion||0) + (Number(row.valorTotal)||0);
+          base[proveedor].m3Valorizados  = (base[proveedor].m3Valorizados||0) + cub;
+          base[proveedor]._faenaPrecios[fk].valor += Number(row.valorTotal)||0;
+          base[proveedor]._faenaPrecios[fk].m3    += cub;
+        }
       });
 
       return Object.values(base)
         .map(item => {
           item.diametroPromedio = item.trozos ? (item._diametroPonderado||0)/item.trozos : 0;
+          item.precioPromedio = item.m3Valorizados ? (item.valorRecepcion||0)/item.m3Valorizados : 0;
           item.cumplimiento = item.planToDate ? item.cubicacion/item.planToDate : 0;
           item.diferencia   = item.cubicacion - (Number(item.planToDate)||0);
           delete item._diametroPonderado;
@@ -1541,8 +2206,15 @@
        FORMAT HELPERS
     ──────────────────────────────────────────────────── */
 
+    // Los precios de la hoja "Valores" están en DÓLARES (la columna se llama
+    // "Valor Unitario USD"), no en pesos. Se muestra "US$" para que nadie lea
+    // US$69 como 69 pesos. Si algún día los precios pasan a CLP, basta con
+    // cambiar esta constante a '$'.
+    const SIMBOLO_MONEDA = 'US$';
+
     function fmt(v)        { return Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:2}); }
     function fmt0(v)       { return Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0}); }
+    function fmtCLP(v)     { return SIMBOLO_MONEDA + Number(v||0).toLocaleString('es-CL',{maximumFractionDigits:0}); }
     function fmtPercent(v) { return (Number(v||0)*100).toLocaleString('es-CL',{maximumFractionDigits:1})+'%'; }
     function fmtSigned(v)  { const n=Number(v||0); const t=Math.abs(n).toLocaleString('es-CL',{maximumFractionDigits:2}); return (n>0?'+':n<0?'-':'')+t; }
     function safe(v)       { return Number(v||0)||1; }
@@ -1569,6 +2241,406 @@
       if (MAP)       setTimeout(() => MAP.invalidateSize(),       250);
       if (COMUNA_MAP) setTimeout(() => COMUNA_MAP.invalidateSize(), 250);
     });
+  </script>
+
+  <script>
+    /* ────────────────────────────────────────────────────
+       VALORES / PRECIOS DE RECEPCIÓN
+       Bloque aditivo: no modifica ninguna función del script
+       anterior, solo envuelve renderTables y renderCharts.
+       Requiere el archivo Valores.gs en el proyecto.
+    ──────────────────────────────────────────────────── */
+
+    const VALORES_STATE = {
+      pending: false,
+      ready: false,
+      unidad: 'm3',
+      mensaje: '',
+      diag: null
+    };
+
+    let VALORES_LAST = null;
+
+    function ensureValoresData(force) {
+      const detalle = DATA && DATA.detalleIngresos;
+      if (!detalle || !detalle.length) return;
+      if (VALORES_STATE.pending) return;
+      if (!force && detalle[0].precioUnitario !== undefined) return;
+
+      VALORES_STATE.pending = true;
+      setValorStatus('Precios: consultando hoja Valores...');
+
+      google.script.run
+        .withSuccessHandler(res => {
+          VALORES_STATE.pending = false;
+          if (!res) return;
+
+          VALORES_STATE.ready = true;
+          VALORES_STATE.unidad = res.unidad || 'm3';
+          VALORES_STATE.diag = res.diagnostics || null;
+          VALORES_STATE.mensaje = (res.diagnostics && res.diagnostics.mensaje) || '';
+
+          const detalleActual = (DATA && DATA.detalleIngresos) || [];
+          const precios = res.precios || [];
+
+          if (precios.length !== detalleActual.length) {
+            VALORES_STATE.mensaje = 'Los precios no coinciden con el detalle cargado. Presiona "Actualizar datos".';
+          } else {
+            detalleActual.forEach((row, i) => {
+              const precio = Number(precios[i]) || 0;
+              row.precioUnitario = precio;
+              row.valorTotal = precio
+                ? (VALORES_STATE.unidad === 'trozo'
+                    ? precio * (Number(row.trozos) || 0)
+                    : precio * (Number(row.cubicacion) || 0))
+                : 0;
+            });
+          }
+
+          // La tabla "Cumplimiento plan proveedores" se dibujó ANTES de que
+          // llegaran los precios (en loadData y en loadDetalleIngresos), así
+          // que su columna "Precio prom." quedó en "-". Hay que volver a
+          // renderizarla ahora que row.precioUnitario ya está cargado.
+          // renderTables está envuelto más abajo, por lo que esta llamada
+          // también refresca los KPIs y tablas de valores.
+          // No genera bucle: ensureValoresData corta al entrar porque
+          // detalle[0].precioUnitario ya dejó de ser undefined.
+          renderTables();
+          renderValorChart();
+        })
+        .withFailureHandler(err => {
+          VALORES_STATE.pending = false;
+          const mensaje = (err && err.message) ? err.message : String(err);
+
+          if (/is not defined|no se encontr|not found|no existe la función/i.test(mensaje)) {
+            setValorStatus('Precios: falta el archivo Valores.gs en el proyecto de Apps Script.');
+          } else {
+            setValorStatus('Precios no disponibles: ' + mensaje);
+          }
+
+          console.warn('No se pudieron cargar los valores', err);
+        })
+        .getValoresRecepcion(false);
+    }
+
+    function buildValorStats(rows) {
+      const out = {
+        valor: 0,
+        m3Valorizados: 0,
+        m3SinPrecio: 0,
+        trozosValorizados: 0,
+        trozosSinPrecio: 0,
+        m3Total: 0,
+        proveedores: {},
+        calidades: {},
+        sinPrecio: {}
+      };
+
+      (rows || []).forEach(row => {
+        const cub = Number(row.cubicacion) || 0;
+        const trozos = Number(row.trozos) || 0;
+        const precio = Number(row.precioUnitario) || 0;
+        const valor = precio ? (Number(row.valorTotal) || 0) : 0;
+        const proveedor = row.proveedor || 'SIN PROVEEDOR';
+        const calidad = row.calidad || 'SIN CALIDAD';
+
+        out.m3Total += cub;
+
+        if (!out.proveedores[proveedor]) {
+          out.proveedores[proveedor] = {
+            proveedor: proveedor, valor: 0, m3Valorizados: 0,
+            m3SinPrecio: 0, trozosValorizados: 0
+          };
+        }
+
+        if (!out.calidades[calidad]) {
+          out.calidades[calidad] = {
+            calidad: calidad, valor: 0, m3Valorizados: 0, trozosValorizados: 0
+          };
+        }
+
+        if (precio) {
+          out.valor += valor;
+          out.m3Valorizados += cub;
+          out.trozosValorizados += trozos;
+          out.proveedores[proveedor].valor += valor;
+          out.proveedores[proveedor].m3Valorizados += cub;
+          out.proveedores[proveedor].trozosValorizados += trozos;
+          out.calidades[calidad].valor += valor;
+          out.calidades[calidad].m3Valorizados += cub;
+          out.calidades[calidad].trozosValorizados += trozos;
+        } else {
+          out.m3SinPrecio += cub;
+          out.trozosSinPrecio += trozos;
+          out.proveedores[proveedor].m3SinPrecio += cub;
+
+          const diametro = Number(row.diametroPromedio) || 0;
+          const key = [row.rol || '', Math.round(diametro), row.largo || '', calidad].join('|');
+
+          if (!out.sinPrecio[key]) {
+            out.sinPrecio[key] = {
+              rol: row.rol || 'SIN ROL',
+              predio: row.predio || 'SIN PREDIO',
+              proveedor: proveedor,
+              calidad: calidad,
+              diametro: diametro,
+              largo: Number(row.largo) || 0,
+              clave: claveCompuestaCliente(row.rol, diametro),
+              trozos: 0,
+              cubicacion: 0
+            };
+          }
+
+          out.sinPrecio[key].trozos += trozos;
+          out.sinPrecio[key].cubicacion += cub;
+        }
+      });
+
+      out.precioPromedio = out.m3Valorizados ? out.valor / out.m3Valorizados : 0;
+      out.precioPromedioTrozo = out.trozosValorizados ? out.valor / out.trozosValorizados : 0;
+      out.cobertura = out.m3Total ? out.m3Valorizados / out.m3Total : 0;
+
+      out.proveedoresArray = Object.values(out.proveedores)
+        .map(item => {
+          item.precioPromedio = item.m3Valorizados ? item.valor / item.m3Valorizados : 0;
+          item.participacion = out.valor ? item.valor / out.valor : 0;
+          return item;
+        })
+        .sort((a, b) => b.valor - a.valor);
+
+      out.calidadesArray = Object.values(out.calidades)
+        .map(item => {
+          item.precioPromedio = item.m3Valorizados ? item.valor / item.m3Valorizados : 0;
+          item.participacion = out.valor ? item.valor / out.valor : 0;
+          return item;
+        })
+        .sort((a, b) => b.valor - a.valor);
+
+      out.sinPrecioArray = Object.values(out.sinPrecio)
+        .sort((a, b) => b.cubicacion - a.cubicacion);
+
+      return out;
+    }
+
+    function renderValoresBlocks(stats) {
+      ensureValoresData(false);
+
+      if (!DATA) return;
+
+      if (!VALORES_STATE.ready) {
+        setValorStatus(VALORES_STATE.mensaje || 'Precios: cargando...');
+        return;
+      }
+
+      stats = stats || buildFilteredStats();
+      const v = buildValorStats(stats.rows || []);
+      VALORES_LAST = v;
+
+      /* KPIs */
+      setText('kValorTotal', fmtCLP(v.valor));
+      setText('kValorTotalLabel',
+        fmt(v.m3Valorizados) + ' m³ valorizados · ' + fmt0(v.trozosValorizados) + ' trozos');
+      setText('kPrecioProm', fmtCLP(v.precioPromedio) + ' /m³');
+      setText('kPrecioPromLabel',
+        fmtCLP(v.precioPromedioTrozo) + ' por trozo · precio cargado por ' +
+        (VALORES_STATE.unidad === 'trozo' ? 'trozo' : 'm³'));
+      setText('kCoberturaValor', fmtPercent(v.cobertura));
+      setText('kCoberturaValorLabel',
+        fmt(v.m3Valorizados) + ' de ' + fmt(v.m3Total) + ' m³ con precio');
+      setText('kM3SinPrecio', fmt(v.m3SinPrecio) + ' m³');
+      setText('kM3SinPrecioLabel',
+        fmt0(v.sinPrecioArray.length) + ' combinaciones ROL/calidad/largo sin valor');
+
+      const lider = v.proveedoresArray[0];
+      if (lider && lider.valor) {
+        setText('kValorLider', fmtCLP(lider.valor));
+        setText('kValorLiderLabel',
+          lider.proveedor + ' · ' + fmtPercent(lider.participacion) + ' del valor');
+      } else {
+        setText('kValorLider', '-');
+        setText('kValorLiderLabel', 'sin recepciones valorizadas');
+      }
+
+      /* Estado */
+      const diag = VALORES_STATE.diag || {};
+      setValorStatus(diag.ok
+        ? 'Precios cargados: ' + fmt0(diag.preciosCargados) + ' desde la hoja "' + diag.hoja + '"'
+        : (VALORES_STATE.mensaje || 'Sin precios cargados'));
+
+      const unidadEl = document.getElementById('valorUnidad');
+      if (unidadEl) {
+        const clave = diag.claveUsa || {};
+        const partes = ['ROL'];
+        if (clave.calidad) partes.push('calidad');
+        if (clave.diametro || clave.rangoDiametro) partes.push('diámetro');
+        if (clave.largo) partes.push('largo');
+        unidadEl.textContent = 'Precio por ' + (VALORES_STATE.unidad === 'trozo' ? 'trozo' : 'm³') +
+          ' · clave: ' + partes.join(' + ');
+      }
+
+      /* Valor por proveedor */
+      const filasProveedor = v.proveedoresArray
+        .filter(x => x.valor || x.m3SinPrecio)
+        .slice(0, 80)
+        .map(x => [
+          escapeHtml(x.proveedor),
+          fmt(x.m3Valorizados),
+          fmtCLP(x.valor),
+          badge(fmtPercent(x.participacion), heat(x.participacion)),
+          fmtCLP(x.precioPromedio),
+          fmt(x.m3SinPrecio)
+        ]);
+
+      document.getElementById('tablaValorProveedor').innerHTML = makeTable(
+        ['Proveedor', 'm³ valorizados', 'Valor', '% valor', 'Precio prom. m³', 'm³ sin precio'],
+        filasProveedor,
+        [
+          'Total · ' + fmt0(v.proveedoresArray.length) + ' proveedores',
+          fmt(v.m3Valorizados),
+          fmtCLP(v.valor),
+          badge('100%', '#1E4D38'),
+          fmtCLP(v.precioPromedio),
+          fmt(v.m3SinPrecio)
+        ]
+      );
+
+      /* Precio promedio por calidad */
+      document.getElementById('tablaValorCalidad').innerHTML = makeTable(
+        ['Calidad', 'm³ valorizados', 'Valor', '% valor', 'Precio prom. m³', 'Precio prom. trozo'],
+        orderQualities(v.calidadesArray)
+          .filter(x => x.valor)
+          .map(x => [
+            escapeHtml(x.calidad),
+            fmt(x.m3Valorizados),
+            fmtCLP(x.valor),
+            badge(fmtPercent(x.participacion), qualityColor(x.calidad)),
+            fmtCLP(x.precioPromedio),
+            fmtCLP(x.trozosValorizados ? x.valor / x.trozosValorizados : 0)
+          ])
+      );
+
+      /* Recepciones sin precio */
+      document.getElementById('tablaSinPrecio').innerHTML = makeTable(
+        ['ROL', 'Diám.', 'Clave buscada', 'Predio/Faena', 'Proveedor', 'Calidad', 'Largo', 'Trozos', 'm³ sin valorizar'],
+        v.sinPrecioArray.slice(0, 200).map(x => [
+          escapeHtml(x.rol),
+          fmt0(x.diametro),
+          '<b>' + escapeHtml(x.clave || '-') + '</b>',
+          escapeHtml(x.predio),
+          escapeHtml(x.proveedor),
+          escapeHtml(x.calidad),
+          fmt(x.largo),
+          fmt0(x.trozos),
+          fmt(x.cubicacion)
+        ]),
+        [
+          'Total · ' + fmt0(v.sinPrecioArray.length) + ' combinaciones',
+          '', '', '', '', '', '',
+          fmt0(v.trozosSinPrecio),
+          fmt(v.m3SinPrecio)
+        ]
+      );
+
+      renderValorHint(v);
+    }
+
+    /* Ayuda visible cuando ninguna clave calza */
+    function renderValorHint(v) {
+      const el = document.getElementById('valorHint');
+      if (!el) return;
+
+      const diag = VALORES_STATE.diag || {};
+
+      if (v.m3Valorizados > 0) {
+        el.innerHTML = 'Cruces por clave compuesta: <b>' + fmt0(diag.matchPorClave || 0) +
+          '</b> · por columnas separadas: <b>' + fmt0(diag.matchPorColumnas || 0) + '</b>' +
+          (diag.columnaClave ? ' · columna de clave: <b>' + escapeHtml(diag.columnaClave) + '</b>' : '');
+        return;
+      }
+
+      const enHoja = (diag.muestraValores || []).slice(0, 5).join(' · ') || 'sin claves leídas';
+      const generadas = (diag.muestraDetalle || []).slice(0, 5).join(' · ') || 'sin claves generadas';
+
+      el.innerHTML =
+        '<b>Ninguna clave calzó.</b> Compara los ejemplos:<br>' +
+        'Claves en la hoja "' + escapeHtml(diag.hoja || 'Valores') + '": <b>' + escapeHtml(enHoja) + '</b><br>' +
+        'Claves generadas desde Hoja 1 (ROL+diámetro): <b>' + escapeHtml(generadas) + '</b><br>' +
+        'Si los números no coinciden, revisa que la clave de la hoja Valores use el mismo ROL ' +
+        'que Hoja 1 y el diámetro sin decimales.';
+    }
+
+    /* Misma normalización que claveKey_ del servidor */
+    function claveCompuestaCliente(rol, diametro) {
+      const base = String(rol || '')
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^A-Z0-9]/g, '');
+      const d = Number(diametro) || 0;
+      if (!base || !d) return base;
+      return base + String(Math.round(d));
+    }
+
+    function renderValorChart(stats) {
+      if (!CHART_READY || !DATA || !VALORES_STATE.ready) return;
+
+      const v = stats
+        ? buildValorStats(stats.rows || [])
+        : (VALORES_LAST || buildValorStats(buildFilteredStats().rows || []));
+
+      const top = v.proveedoresArray
+        .filter(x => x.valor > 0)
+        .slice(0, 8)
+        .reverse();
+
+      if (!top.length) {
+        setChartEmpty('chartValorProveedores', 'Sin recepciones valorizadas para graficar.');
+        return;
+      }
+
+      const table = google.visualization.arrayToDataTable([
+        ['Proveedor', 'Valor recepción', { type: 'string', role: 'annotation' }],
+        ...top.map(x => [x.proveedor, x.valor, fmtCLP(x.valor)])
+      ]);
+
+      new google.visualization.BarChart(document.getElementById('chartValorProveedores')).draw(table, {
+        legend: { position: 'none' },
+        chartArea: { width: '58%', height: '82%' },
+        backgroundColor: 'transparent',
+        colors: ['#1E4D38'],
+        hAxis: { minValue: 0, title: SIMBOLO_MONEDA },
+        annotations: { alwaysOutside: true, textStyle: { color: '#24352B', fontSize: 12, bold: true } }
+      });
+    }
+
+    function setValorStatus(mensaje) {
+      const el = document.getElementById('valorStatus');
+      if (el) el.textContent = mensaje;
+    }
+
+    /* ── Enganche con el dashboard existente ── */
+    (function () {
+      const originalRenderTables = window.renderTables;
+      const originalRenderCharts = window.renderCharts;
+
+      window.renderTables = function (stats) {
+        originalRenderTables(stats);
+        try {
+          renderValoresBlocks(stats);
+        } catch (err) {
+          console.warn('Error al render de valores:', err);
+        }
+      };
+
+      window.renderCharts = function (stats) {
+        originalRenderCharts(stats);
+        try {
+          renderValorChart(stats);
+        } catch (err) {
+          console.warn('Error al graficar valores:', err);
+        }
+      };
+    })();
   </script>
 </body>
 </html>
