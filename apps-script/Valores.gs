@@ -25,8 +25,15 @@
       se informa la cantidad y ejemplos en el registro y en el resumen.
 
  CÓMO USAR
-   - Ejecuta  previsualizarValores()  para ver un informe SIN escribir.
-   - Ejecuta  asignarValoresHoja1()   para escribir los valores en Hoja 1.
+   - previsualizarValores()        informe rápido, NO escribe.
+   - diagnosticarCoberturaValores() explica POR QUÉ faltan valores: separa
+                                    los roles sin ninguna tarifa cargada de
+                                    los que solo les falta un diámetro/largo.
+   - asignarValoresHoja1()         escribe los valores en Hoja 1.
+
+   El total se calcula sobre m³ (Cubicacion). Si el precio fuera por trozo,
+   cambia VAL_CONFIG.BASE_TOTAL a 'cantidad'.
+
    El dashboard (Code.gs) ya define onOpen, por eso este archivo no crea
    menú. Si quieres un botón de menú, ve la nota al final del archivo.
 ***********************************************************************/
@@ -50,6 +57,11 @@ const VAL_CONFIG = {
   OUT_UNIT_HEADER:  'Valor Unitario USD',
   OUT_TOTAL_HEADER: 'Valor Total USD',
   ESCRIBIR_TOTAL: true,
+
+  // Sobre qué se multiplica el valor unitario para obtener el total:
+  //   'cubicacion' → USD por m³   (valor × Cubicacion)
+  //   'cantidad'   → USD por trozo (valor × Cantidad)
+  BASE_TOTAL: 'cubicacion',
 
   // Qué hacer si la hoja de valores repite la misma clave con distinto
   // valor: "ultimo" (gana la fila más abajo) o "primero".
@@ -108,8 +120,9 @@ function asignarValoresHoja1() {
       salidaUnit[i] = [valor];
 
       if (VAL_CONFIG.ESCRIBIR_TOTAL) {
-        const cub = cols.cubicacion !== -1 ? valNumero_(fila[cols.cubicacion - 1]) : NaN;
-        salidaTotal[i] = [isNaN(cub) ? '' : Math.round(valor * cub * 100) / 100];
+        const colBase = (VAL_CONFIG.BASE_TOTAL === 'cantidad') ? cols.cantidad : cols.cubicacion;
+        const base = colBase !== -1 ? valNumero_(fila[colBase - 1]) : NaN;
+        salidaTotal[i] = [isNaN(base) ? '' : Math.round(valor * base * 100) / 100];
       }
       coincidencias++;
     } else {
@@ -186,6 +199,120 @@ function previsualizarValores() {
 
 
 /*************************
+ DIAGNÓSTICO DE COBERTURA — POR QUÉ FALTAN VALORES
+ No escribe nada. Agrupa las filas de Hoja 1 que quedarían sin precio y
+ distingue dos causas muy distintas:
+   A) Al proveedor+rol no le cargaron NINGUNA tarifa.
+   B) La tarifa existe, pero falta ese diámetro/largo puntual.
+**************************/
+function diagnosticarCoberturaValores() {
+  const ss = valAbrirPlanilla_();
+  const shMain = ss.getSheetByName(VAL_CONFIG.MAIN_SHEET);
+  if (!shMain) throw new Error("No existe la hoja '" + VAL_CONFIG.MAIN_SHEET + "'.");
+
+  const lookup = valConstruirLookup_(ss);
+  const cols = valColumnasMain_(shMain);
+
+  const ultimaFila = shMain.getLastRow();
+  const nFilas = Math.max(0, ultimaFila - 1);
+  const grupos = {};
+  let conValor = 0, sinClave = 0, sinValor = 0;
+  let m3Sin = 0, m3Con = 0;
+
+  if (nFilas > 0) {
+    const datos = shMain.getRange(2, 1, nFilas, shMain.getLastColumn()).getDisplayValues();
+
+    datos.forEach(function (fila) {
+      const rut = cols.rut !== -1 ? fila[cols.rut - 1] : '';
+      const rol = cols.rol !== -1 ? fila[cols.rol - 1] : '';
+      const diam = cols.diametro !== -1 ? fila[cols.diametro - 1] : '';
+      const largo = cols.largo !== -1 ? fila[cols.largo - 1] : '';
+      const cub = cols.cubicacion !== -1 ? valNumero_(fila[cols.cubicacion - 1]) : NaN;
+      const m3 = isNaN(cub) ? 0 : cub;
+
+      const clave = valClave_(rut, rol, diam, largo);
+      if (!clave) { sinClave++; return; }
+
+      if (Object.prototype.hasOwnProperty.call(lookup.map, clave)) {
+        conValor++; m3Con += m3; return;
+      }
+
+      sinValor++; m3Sin += m3;
+
+      const gKey = valNormRut_(rut) + '¦' + valNormRol_(rol) + '¦' + valNumKey_(largo);
+      if (!grupos[gKey]) {
+        grupos[gKey] = {
+          rut: String(rut).trim(),
+          rol: String(rol).trim(),
+          largo: valNumKey_(largo),
+          filas: 0,
+          m3: 0,
+          diametros: {},
+          tieneTarifaElRol: !!lookup.rutRolDisponibles[valNormRut_(rut) + '¦' + valNormRol_(rol)]
+        };
+      }
+      grupos[gKey].filas++;
+      grupos[gKey].m3 += m3;
+      grupos[gKey].diametros[valNumKey_(diam)] = true;
+    });
+  }
+
+  const lista = Object.keys(grupos).map(function (k) { return grupos[k]; })
+    .sort(function (a, b) { return b.m3 - a.m3; });
+
+  let s = 'COBERTURA DE VALORES — ' + VAL_CONFIG.MAIN_SHEET + '\n';
+  s += '===========================================\n';
+  s += 'Hoja de valores: ' + lookup.hojaValores +
+       '  (' + lookup.clavesUnicas + ' claves únicas)\n\n';
+  s += 'Filas con valor : ' + conValor + '   (' + valRedondear_(m3Con) + ' m³)\n';
+  s += 'Filas sin valor : ' + sinValor + '   (' + valRedondear_(m3Sin) + ' m³)\n';
+  s += 'Filas sin clave : ' + sinClave + '   (Rol o RUT vacío / "-")\n';
+
+  const totalClasificado = conValor + sinValor;
+  if (totalClasificado > 0) {
+    s += 'Cobertura       : ' + Math.round(conValor * 1000 / totalClasificado) / 10 + '%\n';
+  }
+
+  if (!lista.length) {
+    s += '\n✓ No hay filas sin valor.\n';
+    Logger.log(s);
+    valMostrar_(s);
+    return s;
+  }
+
+  const sinTarifa = lista.filter(function (g) { return !g.tieneTarifaElRol; });
+  const parcial   = lista.filter(function (g) { return g.tieneTarifaElRol; });
+
+  if (sinTarifa.length) {
+    s += '\nA) SIN NINGUNA TARIFA CARGADA para ese RUT + Rol\n';
+    s += '   (hay que agregarlos a la hoja de valores)\n';
+    sinTarifa.forEach(function (g) {
+      s += '   · RUT ' + g.rut + ' · Rol ' + g.rol + ' · Largo ' + g.largo +
+           '  →  ' + g.filas + ' filas, ' + valRedondear_(g.m3) + ' m³\n';
+    });
+  }
+
+  if (parcial.length) {
+    s += '\nB) EL ROL TIENE TARIFAS, pero falta esa combinación\n';
+    parcial.forEach(function (g) {
+      const ds = Object.keys(g.diametros).sort(function (a, b) { return a - b; });
+      s += '   · RUT ' + g.rut + ' · Rol ' + g.rol + ' · Largo ' + g.largo +
+           '  →  ' + g.filas + ' filas, ' + valRedondear_(g.m3) + ' m³\n';
+      s += '       diámetros sin precio: ' + ds.join(', ') + '\n';
+    });
+  }
+
+  Logger.log(s);
+  valMostrar_(s);
+  return s;
+}
+
+function valRedondear_(n) {
+  return Math.round((Number(n) || 0) * 1000) / 1000;
+}
+
+
+/*************************
  CONSTRUCCIÓN DEL DICCIONARIO DE VALORES
  Clave  →  valor unitario (número).
 **************************/
@@ -220,6 +347,8 @@ function valConstruirLookup_(ss) {
 
   const map = {};
   const conflictos = [];
+  const clavesEnConflicto = {};
+  const rutRolDisponibles = {};
   let filasValidas = 0, filasIgnoradas = 0;
 
   const ultima = sh.getLastRow();
@@ -231,15 +360,21 @@ function valConstruirLookup_(ss) {
       const rol = fila[c.rol - 1];
       const diam = fila[c.diametro - 1];
       const largo = fila[c.largo - 1];
-      const valor = valParseValorCLP_(fila[c.valor - 1]);
+      const valor = valNumero_(fila[c.valor - 1]);
 
       const clave = valClave_(rut, rol, diam, largo);
       if (!clave || isNaN(valor)) { filasIgnoradas++; return; }
       filasValidas++;
 
+      // Registro de qué (RUT + Rol) tienen alguna tarifa cargada. Sirve para
+      // distinguir "a este predio no le cargaron precios" de "falta este
+      // diámetro/largo puntual".
+      rutRolDisponibles[valNormRut_(rut) + '¦' + valNormRol_(rol)] = true;
+
       if (Object.prototype.hasOwnProperty.call(map, clave)) {
         const previo = map[clave];
         if (Math.abs(previo - valor) > 1e-9) {
+          clavesEnConflicto[clave] = true;
           if (conflictos.length < 10) {
             conflictos.push({
               clave: valClaveLegible_(rut, rol, diam, largo),
@@ -262,7 +397,9 @@ function valConstruirLookup_(ss) {
     filasValidas: filasValidas,
     filasIgnoradas: filasIgnoradas,
     clavesUnicas: Object.keys(map).length,
-    conflictos: conflictos
+    conflictos: conflictos,
+    totalClavesEnConflicto: Object.keys(clavesEnConflicto).length,
+    rutRolDisponibles: rutRolDisponibles
   };
 }
 
@@ -297,28 +434,44 @@ function valNumKey_(x) {
   return String(Math.round(n * 1000) / 1000);
 }
 
-// Parseo de largo/diámetro/cubicación: coma o punto = decimal.
+// Parser numérico único para TODOS los campos (largo, diámetro, cubicación,
+// cantidad y valor). Reglas, pensadas para lo que devuelve getDisplayValues()
+// en una planilla con locale chileno mezclada con texto en formato US:
+//
+//   - Si hay coma  → la coma es el decimal y los puntos son miles.
+//       "52,5" → 52.5      "1.234,56" → 1234.56
+//   - Si solo hay UN punto → es decimal (así viene el Largo de la hoja de
+//     valores, que está guardado como TEXTO: "3.20", "4.00").
+//       "3.20" → 3.2       "4.00" → 4
+//   - Si hay VARIOS puntos → son separadores de miles.
+//       "1.234.567" → 1234567
+//
+// Nota: un único punto se interpreta siempre como decimal. Es lo correcto
+// para esta planilla (largo y diámetro nunca llegan a los miles, y las
+// cifras con miles reales llegan con coma decimal).
 function valNumero_(x) {
-  let s = String(x === null || x === undefined ? '' : x).trim();
-  if (!s) return NaN;
-  s = s.replace(/\s+/g, '').replace(',', '.').replace(/[^0-9.\-]/g, '');
-  if (s === '' || s === '-' || s === '.') return NaN;
-  const n = parseFloat(s);
-  return isNaN(n) ? NaN : n;
-}
+  if (typeof x === 'number') return isFinite(x) ? x : NaN;
 
-// Parseo del valor con formato chileno: punto = miles, coma = decimal.
-// "52,5"→52.5  "1.234,56"→1234.56  "70"→70
-function valParseValorCLP_(x) {
   let s = String(x === null || x === undefined ? '' : x).trim();
   if (!s) return NaN;
-  s = s.replace(/\s+/g, '').replace(/[^0-9.,\-]/g, '');
+
+  const negativo = /^-/.test(s);
+  s = s.replace(/\s+/g, '').replace(/[^0-9.,]/g, '');
+  if (!s) return NaN;
+
   if (s.indexOf(',') !== -1) {
-    s = s.replace(/\./g, '').replace(',', '.');   // quita miles, coma→punto
+    s = s.replace(/\./g, '');                 // puntos = miles
+    const partes = s.split(',');
+    s = partes.shift() + '.' + partes.join('');  // primera coma = decimal
+  } else {
+    const puntos = s.split('.').length - 1;
+    if (puntos > 1) s = s.replace(/\./g, '');    // varios puntos = miles
+    // un solo punto: se deja como decimal
   }
-  // si no hay coma, se deja el punto tal cual (entero o decimal con punto)
+
   const n = parseFloat(s);
-  return isNaN(n) ? NaN : n;
+  if (!isFinite(n)) return NaN;
+  return negativo ? -n : n;
 }
 
 function valNormRut_(rut) {
@@ -364,7 +517,8 @@ function valColumnasMain_(sh) {
     diametro: valBuscarColumna_(headers, ['diametro']),
     largo: valBuscarColumna_(headers, ['largo']),
     rut:   valBuscarColumna_(headers, ['rut proveedor', 'rut']),
-    cubicacion: valBuscarColumna_(headers, ['cubicacion'])
+    cubicacion: valBuscarColumna_(headers, ['cubicacion']),
+    cantidad: valBuscarColumna_(headers, ['cantidad'])
   };
 }
 
@@ -433,8 +587,9 @@ function valArmarResumen_(stats, lookup, escribio) {
   }
 
   if (lookup.conflictos && lookup.conflictos.length) {
-    s += '\n⚠ Claves repetidas con valor distinto en la hoja de valores ' +
-         '(política: gana el ' + VAL_CONFIG.VAL_CONFLICTO + '):\n';
+    s += '\n⚠ ' + lookup.totalClavesEnConflicto + ' clave(s) repetidas con valor ' +
+         'distinto en la hoja de valores (política: gana el ' +
+         VAL_CONFIG.VAL_CONFLICTO + '). Primeras:\n';
     lookup.conflictos.forEach(function (cf) {
       s += '   · ' + cf.clave + '  →  ' + cf.previo + '  vs  ' + cf.nuevo + '\n';
     });
