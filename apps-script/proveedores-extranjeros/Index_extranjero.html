@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestion proveedores extranjeros</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--dark:#1b5e20;--green:#2e7d32;--soft:#e8f5e9;--line:#dfe9e0;--ink:#1f2d24;--muted:#69756d;--danger:#c62828;--bg:#f4f8f4}
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;font-family:Inter,Segoe UI,Tahoma,sans-serif;color:var(--ink);background:linear-gradient(135deg,#104116,var(--dark))}
+    .shell{width:100%;margin:0;padding:14px}
+    .topbar{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;color:#fff;margin-bottom:20px}
+    h1{margin:0 0 8px;font-size:clamp(1.6rem,3vw,2.45rem);font-weight:800}
+    .subtitle{margin:0;color:rgba(255,255,255,.76);font-weight:500}
+    .top-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .pill{display:inline-flex;padding:8px 12px;border:1px solid rgba(255,255,255,.24);border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:.82rem;font-weight:700;white-space:nowrap}
+    .panel{background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.9);border-radius:10px;box-shadow:0 26px 80px rgba(0,0,0,.28);overflow:hidden}
+    .toolbar{display:grid;grid-template-columns:1fr auto auto;gap:12px;padding:18px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,var(--bg))}
+    input,select,textarea{width:100%;min-height:42px;border:1px solid #cfddcf;border-radius:12px;padding:10px 12px;font:inherit;color:var(--ink);background:#fff;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(46,125,50,.14)}
+    button{min-height:42px;border:0;border-radius:12px;padding:10px 14px;font:inherit;font-weight:800;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+    button:hover{transform:translateY(-1px)}
+    button:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .btn-primary{color:#fff;background:linear-gradient(145deg,var(--green),var(--dark));box-shadow:0 12px 24px rgba(46,125,50,.25)}
+    .btn-secondary{color:var(--green);background:#fff;border:1px solid #a8d5aa}
+    .summary{display:grid;grid-template-columns:repeat(4,minmax(160px,1fr));gap:12px;padding:18px;background:#fff;border-bottom:1px solid var(--line)}
+    .kpi{padding:15px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#fff,var(--soft))}
+    .kpi span{display:block;color:var(--muted);font-size:.78rem;font-weight:800;text-transform:uppercase}
+    .kpi strong{display:block;margin-top:8px;font-size:1.55rem;color:var(--dark)}
+    .table-wrap{overflow:auto;max-height:76vh;background:#fff}
+    table{width:100%;border-collapse:separate;border-spacing:0;min-width:1620px}
+    th,td{padding:13px 16px;border-bottom:1px solid #edf1ed;text-align:left;vertical-align:middle;font-size:.9rem}
+    th{position:sticky;top:0;z-index:1;color:#fff;background:var(--green);font-size:.78rem;text-transform:uppercase}
+    tr:hover td{background:#f7fbf7}
+    .status{display:inline-flex;padding:6px 9px;border-radius:999px;font-size:.74rem;font-weight:800;background:var(--soft);color:var(--dark)}
+    .obs-cell{max-width:260px;min-width:220px;color:#35463a;line-height:1.35;word-break:break-word}
+    .obs-preview{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .muted{color:var(--muted)}
+    .doc-link{color:var(--green);font-weight:800;text-decoration:none}
+    .doc-link:hover{text-decoration:underline}
+    .actions{display:flex;gap:8px;white-space:nowrap}
+    .loading{padding:28px;text-align:center;color:var(--muted);font-weight:700}
+    .modal-backdrop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.54);z-index:10}
+    .modal{width:min(980px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;box-shadow:0 28px 90px rgba(0,0,0,.35)}
+    .modal-header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:20px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fff,var(--bg))}
+    .modal-header h2{margin:0;font-size:1.25rem;color:var(--dark)}
+    .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;padding:18px}
+    .field label{display:block;margin-bottom:6px;font-size:.8rem;font-weight:800;color:#314238}
+    .field small{display:block;margin-top:5px}
+    .file-replace{margin:0 18px 18px;padding:14px;border:1px dashed #bad5bd;border-radius:14px;background:#f7fbf7}
+    .file-replace h3{margin:0 0 8px;font-size:.95rem;color:var(--dark)}
+    .file-replace .current{margin-bottom:10px;font-size:.86rem}
+    .file-replace input[type=file]{background:#fff}
+    .file-replace .hint{display:block;margin-top:8px;color:var(--muted);font-size:.78rem;font-weight:600}
+    .file-replace .warn{color:var(--danger);font-weight:700}
+    .modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:18px;border-top:1px solid var(--line);background:var(--bg)}
+    .toast{position:fixed;right:18px;bottom:18px;display:none;max-width:360px;padding:14px 16px;border-radius:12px;background:#173f1c;color:#fff;font-weight:700;box-shadow:0 18px 40px rgba(0,0,0,.25);z-index:20}
+    @media(max-width:860px){.toolbar{grid-template-columns:1fr}.summary{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.topbar{flex-direction:column}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>Gestion proveedores extranjeros</h1>
+      </div>
+      <div class="top-actions">
+        <span class="pill" id="generatedAt">Actualizado: -</span>
+      </div>
+    </header>
+    <section class="panel">
+      <div class="toolbar">
+        <input id="searchInput" type="search" placeholder="Buscar por ID fiscal, razon social, estado, pais, moneda u observacion">
+        <button class="btn-secondary" onclick="clearSearch()">Limpiar</button>
+        <button class="btn-primary" onclick="loadData()">Actualizar</button>
+      </div>
+      <div class="summary">
+        <div class="kpi"><span>Total filtrado</span><strong id="kTotal">-</strong></div>
+        <div class="kpi"><span>En analisis</span><strong id="kAnalisis">-</strong></div>
+        <div class="kpi"><span>En creacion</span><strong id="kCreacion">-</strong></div>
+        <div class="kpi"><span>Creados</span><strong id="kCreados">-</strong></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Codigo SAP</th><th>ID Fiscal</th><th>Razon social</th><th>Estado</th><th>Solicitante</th><th>Pais banco</th><th>Moneda</th><th>Fecha solicitud</th><th>Doc. bancario</th><th>Observacion</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="rowsBody"><tr><td colspan="11" class="loading">Cargando datos...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+  <div class="modal-backdrop" id="modalBackdrop">
+    <section class="modal">
+      <div class="modal-header">
+        <div><h2 id="modalTitle">Editar proveedor extranjero</h2><div class="muted" id="modalSubtitle"></div></div>
+        <button class="btn-secondary" onclick="closeModal()">Cerrar</button>
+      </div>
+      <form id="editForm" onsubmit="event.preventDefault(); saveProvider();">
+        <div class="form-grid" id="formFields"></div>
+        <div class="file-replace" id="docBancarioBox"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn-primary" id="saveButton">Guardar cambios</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script>
+    let currentProvider=null;
+    let currentData=null;
+    let formUrl='';
+    const FORM_PROVIDER_URL = "";
+    const DOC_EXT_DEFAULT=['pdf','jpg','jpeg','png'];
+    const DOC_MAX_MB_DEFAULT=10;
+    let searchTimer=null;
+    function runServer(fn,args,ok,fail){
+      if(!window.google || !google.script || !google.script.run){console.warn('Vista previa local');return;}
+      google.script.run.withSuccessHandler(ok).withFailureHandler(fail || showError)[fn](...(args || []));
+    }
+    function showToast(message){const el=document.getElementById('toast');el.textContent=message;el.style.display='block';setTimeout(()=>el.style.display='none',3500)}
+    function showError(err){showToast('Error: ' + (err && err.message ? err.message : err))}
+    function registrarProveedor(){
+      const url = FORM_PROVIDER_URL || formUrl;
+      if(!url){
+        showToast('Configura el link publicado del formulario extranjero en FORM_PROVIDER_URL.');
+        return;
+      }
+      window.top.location.href=url;
+    }
+    function loadData(){
+      const q=document.getElementById('searchInput').value.trim();
+      document.getElementById('rowsBody').innerHTML='<tr><td colspan="11" class="loading">Cargando datos...</td></tr>';
+      runServer('getDashboardDataExtranjero',[q],resp=>{
+        currentData=resp; formUrl=resp.formUrl || '';
+        renderSummary(resp.rows || []); renderRows(resp.rows || []);
+        const stamp=document.getElementById('generatedAt');
+        if(stamp) stamp.textContent='Actualizado: ' + (resp.generatedAt || '');
+      });
+    }
+    function renderSummary(rows){
+      document.getElementById('kTotal').textContent=rows.length;
+      document.getElementById('kAnalisis').textContent=rows.filter(r=>normalize(r.estado)==='EN ANALISIS').length;
+      document.getElementById('kCreacion').textContent=rows.filter(r=>normalize(r.estado)==='EN CREACION').length;
+      document.getElementById('kCreados').textContent=rows.filter(r=>normalize(r.estado)==='CREADO').length;
+    }
+    function docLink(url,label){
+      const clean=String(url || '').trim();
+      if(!/^https?:\/\//i.test(clean)) return '';
+      return `<a class="doc-link" href="${escapeAttr(clean)}" target="_blank" rel="noopener">${escapeHtml(label || 'Ver documento')}</a>`;
+    }
+    function renderRows(rows){
+      const body=document.getElementById('rowsBody');
+      if(!rows.length){body.innerHTML='<tr><td colspan="11" class="loading">Sin resultados.</td></tr>';return;}
+      body.innerHTML=rows.map(r=>{
+        const editable=canEditByEstado(r.estado);
+        const action=editable
+          ? `<button class="btn-secondary" onclick="openProvider('${escapeAttr(r.identFiscal || '')}')">Editar</button>`
+          : `<button class="btn-secondary" type="button" disabled title="Solo editable en estado En analisis o Rechazado">No editable</button>`;
+        const doc=docLink(r.docBancario) || '<span class="muted">Sin documento</span>';
+        return `<tr>
+        <td><strong>${escapeHtml(r.codigoSap || '-')}</strong></td>
+        <td><strong>${escapeHtml(r.identFiscal || '')}</strong></td>
+        <td>${escapeHtml(r.razonSocial || '')}</td>
+        <td><span class="status">${escapeHtml(r.estado || 'Sin estado')}</span></td>
+        <td>${escapeHtml(r.solicitante || '')}</td>
+        <td>${escapeHtml(r.paisBanco || '')}</td>
+        <td>${escapeHtml(r.moneda || '')}</td>
+        <td>${escapeHtml(r.fechaSolicitud || '')}</td>
+        <td>${doc}</td>
+        <td class="obs-cell" title="${escapeAttr(r.observacion || '')}">${r.observacion ? `<div class="obs-preview">${escapeHtml(r.observacion)}</div>` : '<span class="muted">Sin observacion</span>'}</td>
+        <td class="actions">${action}</td>
+      </tr>`;
+      }).join('');
+    }
+    function openProvider(identFiscal){
+      runServer('getProviderExtranjero',[identFiscal],resp=>{
+        const estado=resp && resp.values ? resp.values["Estado"] : "";
+        if(!canEditByEstado(estado)){
+          showToast("Solo se pueden editar proveedores en estado 'En analisis' o 'Rechazado'.");
+          return;
+        }
+        currentProvider=resp;
+        renderForm(resp);
+        renderDocBancario(resp);
+        document.getElementById('modalBackdrop').style.display='flex';
+      });
+    }
+    function renderForm(provider){
+      document.getElementById('modalSubtitle').textContent='Proveedor seleccionado: ' + provider.identFiscal;
+      const values=provider.values || {};
+      const editableNames=(provider.editableFields || []).map(f=>f.name).filter(Boolean);
+      document.getElementById('formFields').innerHTML=editableNames.map(name=>{
+        const locked=false;
+        const value=values[name] || '';
+        const fieldId='field_' + btoa(unescape(encodeURIComponent(name))).replace(/=/g,'');
+        const isLong=String(value).length > 80 || /observacion|pregunta/i.test(name);
+        return `<div class="field">
+          <label for="${fieldId}">${escapeHtml(name)}${locked ? ' (bloqueado)' : ''}</label>
+          ${isLong ? `<textarea id="${fieldId}" data-name="${escapeAttr(name)}" ${locked ? 'disabled' : ''}>${escapeHtml(value)}</textarea>` : `<input id="${fieldId}" data-name="${escapeAttr(name)}" value="${escapeAttr(value)}" ${locked ? 'disabled' : ''}>`}
+        </div>`;
+      }).join('');
+    }
+    // El documento bancario solo se puede reemplazar cuando el proveedor es editable
+    // (estados 'En analisis' o 'Rechazado'); en el resto de los casos queda de solo lectura.
+    function renderDocBancario(provider){
+      const box=document.getElementById('docBancarioBox');
+      const doc=provider.docBancario || {};
+      if(!doc.available){
+        box.style.display='none';
+        box.innerHTML='';
+        return;
+      }
+      box.style.display='block';
+      const label=doc.header || 'Documento Bancario';
+      const actual=docLink(doc.url,'Ver documento actual') || '<span class="muted">Sin documento cargado.</span>';
+      const exts=(doc.extensiones && doc.extensiones.length ? doc.extensiones : DOC_EXT_DEFAULT);
+      const maxMb=doc.maxMb || DOC_MAX_MB_DEFAULT;
+      if(!provider.editable){
+        box.innerHTML=`<h3>${escapeHtml(label)}</h3>
+          <div class="current">${actual}</div>
+          <span class="hint">Solo se puede reemplazar en estado "En analisis" o "Rechazado".</span>`;
+        return;
+      }
+      const accept=exts.map(e=>'.' + e).join(',');
+      box.innerHTML=`<h3>${escapeHtml(label)}</h3>
+        <div class="current">Documento actual: ${actual}</div>
+        <input type="file" id="docBancarioInput" accept="${escapeAttr(accept)}">
+        <span class="hint">Si el archivo quedo mal cargado, sube el correcto: se reemplaza el link en la planilla y <strong>el archivo anterior se elimina de Drive</strong>.</span>
+        <span class="hint">Formatos: ${escapeHtml(exts.join(', '))}. Maximo ${escapeHtml(String(maxMb))} MB. Si no seleccionas archivo, el documento actual se mantiene.</span>
+        <span class="hint warn" id="docBancarioError" style="display:none"></span>`;
+    }
+    function readFileAsBase64(file){
+      return new Promise((resolve,reject)=>{
+        const reader=new FileReader();
+        reader.onload=()=>{
+          const result=String(reader.result || '');
+          const comma=result.indexOf(',');
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror=()=>reject(new Error('No se pudo leer el archivo seleccionado.'));
+        reader.readAsDataURL(file);
+      });
+    }
+    function setSaving(saving){
+      const btn=document.getElementById('saveButton');
+      if(!btn)return;
+      btn.disabled=saving;
+      btn.textContent=saving ? 'Guardando...' : 'Guardar cambios';
+    }
+    function saveProvider(){
+      if(!currentProvider)return;
+      const values={};
+      document.querySelectorAll('#formFields [data-name]:not(:disabled)').forEach(el=>{values[el.dataset.name]=el.value.trim();});
+      const input=document.getElementById('docBancarioInput');
+      const file=input && input.files && input.files.length ? input.files[0] : null;
+      const doc=currentProvider.docBancario || {};
+      const exts=(doc.extensiones && doc.extensiones.length ? doc.extensiones : DOC_EXT_DEFAULT);
+      const maxMb=doc.maxMb || DOC_MAX_MB_DEFAULT;
+      const send=payload=>{
+        setSaving(true);
+        runServer('updateProviderExtranjero',[payload],resp=>{
+          setSaving(false);
+          showToast(resp.message || 'Actualizado.');
+          closeModal();
+          loadData();
+        },err=>{setSaving(false);showError(err);});
+      };
+      if(!file){send({identFiscal:currentProvider.identFiscal,values});return;}
+      const ext=(file.name.split('.').pop() || '').toLowerCase();
+      if(exts.indexOf(ext) < 0){showToast('Formato no permitido. Use: ' + exts.join(', ') + '.');return;}
+      if(file.size > maxMb * 1024 * 1024){showToast('El archivo supera el maximo de ' + maxMb + ' MB.');return;}
+      setSaving(true);
+      readFileAsBase64(file).then(dataBase64=>{
+        setSaving(false);
+        send({
+          identFiscal:currentProvider.identFiscal,
+          values,
+          file:{name:file.name,mimeType:file.type || 'application/octet-stream',dataBase64}
+        });
+      }).catch(err=>{setSaving(false);showError(err);});
+    }
+    function closeModal(){
+      document.getElementById('modalBackdrop').style.display='none';
+      const box=document.getElementById('docBancarioBox');
+      if(box){box.innerHTML='';box.style.display='none';}
+      setSaving(false);
+      currentProvider=null;
+    }
+    function clearSearch(){document.getElementById('searchInput').value='';loadData()}
+    function normalize(value){return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase()}
+    function canEditByEstado(estado){return ['EN ANALISIS','RECHAZADO'].includes(normalize(estado))}
+    function escapeHtml(value){return String(value ?? '').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
+    function escapeAttr(value){return escapeHtml(value).replace(/`/g,'&#96;')}
+    document.getElementById('searchInput').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(loadData,350)});
+    document.addEventListener('DOMContentLoaded',loadData);
+  </script>
+</body>
+</html>
