@@ -1,18 +1,17 @@
 /**
- * Genera `todo-en-uno/Codigo.gs`: un solo archivo con todo el proyecto
- * (los cuatro .gs más los tres .html incrustados como texto), para pegar de
- * una sola vez en el editor de Apps Script.
+ * Genera `../Codigo.gs`: todo el proyecto en un solo archivo (los cuatro .gs
+ * más los .html incrustados como texto), listo para pegar en Apps Script.
  *
- *   node construir-archivo-unico.js
+ *   node fuente/construir.js
  *
- * El archivo generado NO se edita a mano: se edita el código fuente de esta
+ * El archivo generado NO se edita a mano: se editan los fuentes de esta
  * carpeta y se vuelve a ejecutar este script.
  */
 const fs = require('fs');
 const path = require('path');
 
 const DIR = __dirname;
-const SALIDA = path.join(DIR, 'todo-en-uno', 'Codigo.gs');
+const SALIDA = path.join(DIR, '..', 'Codigo.gs');
 
 const GS = ['Config.gs', 'Setup.gs', 'Solicitudes.gs', 'WebApp.gs'];
 const HTML = {
@@ -38,8 +37,8 @@ partes.push([
   '/**',
   ' * SOLICITUDES · Costos → T&D → Producción — ARCHIVO ÚNICO',
   ' *',
-  ' * Generado por construir-archivo-unico.js. No lo edites a mano: edita los',
-  ' * archivos fuente de proyectotablero y vuelve a generarlo.',
+  ' * Generado por fuente/construir.js. No lo edites a mano: edita los archivos',
+  ' * de proyectotablero/fuente y vuelve a generarlo.',
   ' *',
   ' * Pega este archivo como único Código.gs del proyecto de Apps Script.',
   ' * No necesitas crear los .html: van incrustados más abajo.',

@@ -3,17 +3,15 @@ const vm = require('vm');
 const path = require('path');
 const { SS } = require('./mock');
 
-const DIR = path.join(__dirname, '..');
-
-// Con ARCHIVO_UNICO=1 se prueba el archivo generado (todo-en-uno/Codigo.gs)
-// en vez de los fuentes, para confirmar que ambos se comportan igual.
+// Con ARCHIVO_UNICO=1 se prueba el Codigo.gs generado en vez de los fuentes,
+// para confirmar que ambos se comportan igual.
 const FUENTES = process.env.ARCHIVO_UNICO === '1'
-  ? [path.join('todo-en-uno', 'Codigo.gs')]
-  : ['Config.gs', 'Setup.gs', 'Solicitudes.gs'];
+  ? [path.join(__dirname, '..', 'Codigo.gs')]
+  : ['Config.gs', 'Setup.gs', 'Solicitudes.gs'].map(f => path.join(__dirname, '..', 'fuente', f));
 
-console.log('Probando: ' + FUENTES.join(', '));
+console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
 FUENTES.forEach(f => {
-  vm.runInThisContext(fs.readFileSync(path.join(DIR, f), 'utf8'), { filename: f });
+  vm.runInThisContext(fs.readFileSync(f, 'utf8'), { filename: path.basename(f) });
 });
 
 let fallos = 0;

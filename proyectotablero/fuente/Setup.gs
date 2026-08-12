@@ -142,25 +142,26 @@ function mostrarUrlsFormularios() {
   var base = '';
   try { base = ScriptApp.getService().getUrl() || ''; } catch (e) { base = ''; }
 
-  var partes = ETAPAS.map(function (e) {
-    var url = (URLS_FORMULARIOS && URLS_FORMULARIOS[e.id]) || '';
-    if (!url && base && !ETAPA_FIJA) url = base + '?form=' + e.id;
-    if (!url && base && ETAPA_FIJA === e.id) url = base;
-    return '<p style="font:13px Arial"><b>' + e.titulo + '</b><br>' +
-      (url
-        ? '<a href="' + url + '" target="_blank">' + url + '</a>'
-        : '<i style="color:#777">sin publicar. Si usas un despliegue por formulario, ' +
-          'pega su URL en URLS_FORMULARIOS (Config.gs).</i>') +
-      '</p>';
-  });
+  if (!base) {
+    SpreadsheetApp.getUi().alert(
+      'Primero publica el proyecto:\n\n' +
+      'Implementar > Nueva implementación > Aplicación web');
+    return;
+  }
 
-  var encabezado = base || (URLS_FORMULARIOS && (URLS_FORMULARIOS.costos || URLS_FORMULARIOS.td))
-    ? '<p style="font:14px Arial">Un enlace por equipo:</p>'
-    : '<p style="font:14px Arial">Primero publica el proyecto: ' +
-      '<i>Implementar &gt; Nueva implementación &gt; Aplicación web</i>.</p>';
+  var html =
+    '<p style="font:14px Arial">Este es el enlace para todos. Cada persona verá ' +
+    'el formulario que le corresponda según ACCESOS:</p>' +
+    '<p style="font:13px Arial"><a href="' + base + '" target="_blank">' + base + '</a></p>' +
+    '<p style="font:14px Arial;margin-top:18px">Y si prefieres mandar uno directo por equipo:</p>' +
+    ETAPAS.map(function (e) {
+      var url = base + '?form=' + e.id;
+      return '<p style="font:13px Arial"><b>' + e.titulo + '</b><br>' +
+        '<a href="' + url + '" target="_blank">' + url + '</a></p>';
+    }).join('');
 
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(encabezado + partes.join('')).setWidth(620).setHeight(320),
-    'Formularios del flujo'
+    HtmlService.createHtmlOutput(html).setWidth(620).setHeight(360),
+    'Enlaces de los formularios'
   );
 }

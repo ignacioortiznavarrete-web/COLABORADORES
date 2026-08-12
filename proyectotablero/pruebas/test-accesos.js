@@ -8,7 +8,7 @@ const vm = require('vm');
 const path = require('path');
 require('./mock');
 
-const DIR = path.join(__dirname, '..');
+const DIR = path.join(__dirname, '..', 'fuente');
 
 const ACCESOS_DEMO = `const ACCESOS = {
   costos: ['ana.costos@masisa.com'],

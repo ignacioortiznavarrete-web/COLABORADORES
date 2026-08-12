@@ -1,8 +1,8 @@
 /**
  * SOLICITUDES · Costos → T&D → Producción — ARCHIVO ÚNICO
  *
- * Generado por construir-archivo-unico.js. No lo edites a mano: edita los
- * archivos fuente de proyectotablero y vuelve a generarlo.
+ * Generado por fuente/construir.js. No lo edites a mano: edita los archivos
+ * de proyectotablero/fuente y vuelve a generarlo.
  *
  * Pega este archivo como único Código.gs del proyecto de Apps Script.
  * No necesitas crear los .html: van incrustados más abajo.
@@ -696,30 +696,6 @@ const CFG = {
   SEGUNDOS_LOCK: 30
 };
 
-/**
- * Un enlace propio por formulario.
- *
- * ''            -> un solo despliegue que atiende las 3 etapas vía ?form=costos|td|produccion.
- * 'costos'      -> este despliegue ES el formulario de Costos y nada más.
- * 'td'          -> este despliegue ES el formulario de T&D y nada más.
- * 'produccion'  -> este despliegue ES el formulario de Producción y nada más.
- *
- * Cuando está fijada, la etapa se impone en el servidor: da lo mismo lo que
- * alguien escriba en la URL, ese enlace solo abre y solo guarda esa etapa.
- * Ver README ("Un enlace por formulario") para las dos formas de montarlo.
- */
-const ETAPA_FIJA = '';
-
-/**
- * URLs de los despliegues, si usas uno por formulario. Es solo informativo:
- * alimenta el menú "Ver enlaces de los formularios" y la página de inicio.
- */
-const URLS_FORMULARIOS = {
-  costos: '',
-  td: '',
-  produccion: ''
-};
-
 const ESTADOS = {
   APROBADO: 'Aprobado',
   RECHAZADO: 'Rechazado',
@@ -833,17 +809,8 @@ function etapaPorId_(id) {
   throw new Error('Etapa desconocida: ' + id);
 }
 
-/**
- * Etapa que realmente atiende esta ejecución. Si ETAPA_FIJA está definida manda
- * ella, sin importar lo que llegue desde el cliente o la URL.
- */
+/** Valida el identificador de etapa que llega desde el cliente. */
 function etapaEfectiva_(solicitada) {
-  if (ETAPA_FIJA) {
-    if (indiceEtapa_(ETAPA_FIJA) === -1) {
-      throw new Error('ETAPA_FIJA inválida en Config.gs: "' + ETAPA_FIJA + '".');
-    }
-    return ETAPA_FIJA;
-  }
   var id = String(solicitada == null ? '' : solicitada).trim().toLowerCase();
   if (indiceEtapa_(id) === -1) throw new Error('Etapa desconocida: ' + solicitada);
   return id;
@@ -1027,26 +994,27 @@ function mostrarUrlsFormularios() {
   var base = '';
   try { base = ScriptApp.getService().getUrl() || ''; } catch (e) { base = ''; }
 
-  var partes = ETAPAS.map(function (e) {
-    var url = (URLS_FORMULARIOS && URLS_FORMULARIOS[e.id]) || '';
-    if (!url && base && !ETAPA_FIJA) url = base + '?form=' + e.id;
-    if (!url && base && ETAPA_FIJA === e.id) url = base;
-    return '<p style="font:13px Arial"><b>' + e.titulo + '</b><br>' +
-      (url
-        ? '<a href="' + url + '" target="_blank">' + url + '</a>'
-        : '<i style="color:#777">sin publicar. Si usas un despliegue por formulario, ' +
-          'pega su URL en URLS_FORMULARIOS (Config.gs).</i>') +
-      '</p>';
-  });
+  if (!base) {
+    SpreadsheetApp.getUi().alert(
+      'Primero publica el proyecto:\n\n' +
+      'Implementar > Nueva implementación > Aplicación web');
+    return;
+  }
 
-  var encabezado = base || (URLS_FORMULARIOS && (URLS_FORMULARIOS.costos || URLS_FORMULARIOS.td))
-    ? '<p style="font:14px Arial">Un enlace por equipo:</p>'
-    : '<p style="font:14px Arial">Primero publica el proyecto: ' +
-      '<i>Implementar &gt; Nueva implementación &gt; Aplicación web</i>.</p>';
+  var html =
+    '<p style="font:14px Arial">Este es el enlace para todos. Cada persona verá ' +
+    'el formulario que le corresponda según ACCESOS:</p>' +
+    '<p style="font:13px Arial"><a href="' + base + '" target="_blank">' + base + '</a></p>' +
+    '<p style="font:14px Arial;margin-top:18px">Y si prefieres mandar uno directo por equipo:</p>' +
+    ETAPAS.map(function (e) {
+      var url = base + '?form=' + e.id;
+      return '<p style="font:13px Arial"><b>' + e.titulo + '</b><br>' +
+        '<a href="' + url + '" target="_blank">' + url + '</a></p>';
+    }).join('');
 
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(encabezado + partes.join('')).setWidth(620).setHeight(320),
-    'Formularios del flujo'
+    HtmlService.createHtmlOutput(html).setWidth(620).setHeight(360),
+    'Enlaces de los formularios'
   );
 }
 
@@ -1707,25 +1675,16 @@ function marcarDevolucion_(ctxs, numero, etapaOrigen, motivo, version, autor, fe
 // ======================================================================
 
 /**
- * Publicación web. Hay dos formas de montarlo (ver README):
+ * Publicación web: un solo despliegue y un solo enlace para todos.
  *
- * A) Un solo despliegue (lo normal)
- *    Un único enlace para todos. Con ACCESOS configurado en Config.gs, cada
- *    persona aterriza directo en el formulario que le toca y no puede abrir los
- *    otros aunque escriba ?form= a mano.
- *    También sirven los enlaces directos:
- *      .../exec?form=costos | ?form=td | ?form=produccion
- *
- * B) Un despliegue por formulario  (ETAPA_FIJA definida en Config.gs)
- *    Cada despliegue atiende una sola etapa y además Google filtra en la puerta,
- *    porque cada URL tiene su propio "Quién tiene acceso".
+ * Según lo que diga ACCESOS (Config.gs), cada persona aterriza directo en el
+ * formulario que le toca y no puede abrir los otros aunque escriba ?form= a
+ * mano. Los enlaces directos también funcionan:
+ *   .../exec?form=costos | ?form=td | ?form=produccion
  */
 
 function doGet(e) {
   var params = (e && e.parameter) || {};
-
-  if (ETAPA_FIJA) return renderFormulario(ETAPA_FIJA);
-
   var etapaId = String(params.form || params.etapa || '').trim().toLowerCase();
   if (etapaId && indiceEtapa_(etapaId) !== -1) return renderFormulario(etapaId);
 
@@ -1755,11 +1714,7 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/**
- * Entrega el formulario de una etapa, siempre que la cuenta tenga acceso.
- * Es pública para que los proyectos lanzadores (opción B del README) puedan
- * llamarla cuando este proyecto se usa como biblioteca.
- */
+/** Entrega el formulario de una etapa, siempre que la cuenta tenga acceso. */
 function renderFormulario(etapaId) {
   var etapa = etapaPorId_(etapaEfectiva_(etapaId));
 
@@ -1784,7 +1739,7 @@ function etapasAccesibles_() {
 }
 
 function urlDeEtapa_(etapaId) {
-  return (URLS_FORMULARIOS && URLS_FORMULARIOS[etapaId]) || ('?form=' + etapaId);
+  return '?form=' + etapaId;
 }
 
 function paginaSinAcceso_(titulo, detalle, etapa) {

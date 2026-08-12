@@ -1,23 +1,14 @@
 /**
- * Publicación web. Hay dos formas de montarlo (ver README):
+ * Publicación web: un solo despliegue y un solo enlace para todos.
  *
- * A) Un solo despliegue (lo normal)
- *    Un único enlace para todos. Con ACCESOS configurado en Config.gs, cada
- *    persona aterriza directo en el formulario que le toca y no puede abrir los
- *    otros aunque escriba ?form= a mano.
- *    También sirven los enlaces directos:
- *      .../exec?form=costos | ?form=td | ?form=produccion
- *
- * B) Un despliegue por formulario  (ETAPA_FIJA definida en Config.gs)
- *    Cada despliegue atiende una sola etapa y además Google filtra en la puerta,
- *    porque cada URL tiene su propio "Quién tiene acceso".
+ * Según lo que diga ACCESOS (Config.gs), cada persona aterriza directo en el
+ * formulario que le toca y no puede abrir los otros aunque escriba ?form= a
+ * mano. Los enlaces directos también funcionan:
+ *   .../exec?form=costos | ?form=td | ?form=produccion
  */
 
 function doGet(e) {
   var params = (e && e.parameter) || {};
-
-  if (ETAPA_FIJA) return renderFormulario(ETAPA_FIJA);
-
   var etapaId = String(params.form || params.etapa || '').trim().toLowerCase();
   if (etapaId && indiceEtapa_(etapaId) !== -1) return renderFormulario(etapaId);
 
@@ -47,11 +38,7 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/**
- * Entrega el formulario de una etapa, siempre que la cuenta tenga acceso.
- * Es pública para que los proyectos lanzadores (opción B del README) puedan
- * llamarla cuando este proyecto se usa como biblioteca.
- */
+/** Entrega el formulario de una etapa, siempre que la cuenta tenga acceso. */
 function renderFormulario(etapaId) {
   var etapa = etapaPorId_(etapaEfectiva_(etapaId));
 
@@ -76,7 +63,7 @@ function etapasAccesibles_() {
 }
 
 function urlDeEtapa_(etapaId) {
-  return (URLS_FORMULARIOS && URLS_FORMULARIOS[etapaId]) || ('?form=' + etapaId);
+  return '?form=' + etapaId;
 }
 
 function paginaSinAcceso_(titulo, detalle, etapa) {
