@@ -15,7 +15,12 @@ const DIR = __dirname;
 const SALIDA = path.join(DIR, 'todo-en-uno', 'Codigo.gs');
 
 const GS = ['Config.gs', 'Setup.gs', 'Solicitudes.gs', 'WebApp.gs'];
-const HTML = { Estilos: 'Estilos.html', Formulario: 'Formulario.html', Inicio: 'Inicio.html' };
+const HTML = {
+  Estilos: 'Estilos.html',
+  Formulario: 'Formulario.html',
+  Inicio: 'Inicio.html',
+  SinAcceso: 'SinAcceso.html'
+};
 
 /** Deja el HTML seguro dentro de un template literal de JavaScript. */
 function comoTemplateLiteral(texto) {
@@ -50,14 +55,11 @@ Object.keys(HTML).forEach(nombre => {
   const contenido = fs.readFileSync(path.join(DIR, HTML[nombre]), 'utf8');
   partes.push('const HTML_' + nombre.toUpperCase() + ' = ' + comoTemplateLiteral(contenido) + ';\n\n');
 });
-partes.push([
-  'const HTML_PARCIALES = {',
-  "  Estilos: HTML_ESTILOS,",
-  "  Formulario: HTML_FORMULARIO,",
-  "  Inicio: HTML_INICIO",
-  '};',
-  ''
-].join('\n'));
+partes.push(
+  'const HTML_PARCIALES = {\n' +
+  Object.keys(HTML).map(n => '  ' + n + ': HTML_' + n.toUpperCase()).join(',\n') +
+  '\n};\n'
+);
 
 // 2. El código, con las lecturas de archivo reemplazadas por las constantes.
 GS.forEach(archivo => {
@@ -65,15 +67,17 @@ GS.forEach(archivo => {
 
   if (archivo === 'WebApp.gs') {
     const antes = src;
-    src = src
-      .replace("HtmlService.createTemplateFromFile('Inicio')", 'HtmlService.createTemplate(HTML_INICIO)')
-      .replace("HtmlService.createTemplateFromFile('Formulario')", 'HtmlService.createTemplate(HTML_FORMULARIO)')
-      .replace(
-        'return HtmlService.createHtmlOutputFromFile(nombre).getContent();',
-        'return HTML_PARCIALES[nombre] || \'\';'
-      );
+    Object.keys(HTML).forEach(nombre => {
+      src = src.split("HtmlService.createTemplateFromFile('" + nombre + "')")
+        .join('HtmlService.createTemplate(HTML_' + nombre.toUpperCase() + ')');
+    });
+    src = src.replace(
+      'return HtmlService.createHtmlOutputFromFile(nombre).getContent();',
+      'return HTML_PARCIALES[nombre] || \'\';'
+    );
     ['HtmlService.createTemplate(HTML_INICIO)',
      'HtmlService.createTemplate(HTML_FORMULARIO)',
+     'HtmlService.createTemplate(HTML_SINACCESO)',
      "return HTML_PARCIALES[nombre] || '';"].forEach(esperado => {
       if (src.indexOf(esperado) === -1) {
         throw new Error('No se pudo adaptar WebApp.gs: falta "' + esperado + '". ' +

@@ -30,11 +30,12 @@ la misma en las tres etapas:
 | `Setup.gs` | Crea y repara las hojas, aplica formatos y la validación del combo de Estado. Menú *Solicitudes* en el spreadsheet. |
 | `Solicitudes.gs` | Núcleo: correlativo, lectura/escritura, transiciones de estado, historial y las funciones `api*` que consume el HTML. |
 | `WebApp.gs` | `doGet`: entrega el formulario de la etapa que corresponda. |
-| `lanzadores/` | Proyectos mínimos para tener **una URL propia por formulario** (opción A de abajo). |
+| `lanzadores/` | Proyectos mínimos para tener **una URL propia por formulario** (opción B de abajo). |
 | `todo-en-uno/Codigo.gs` | **Generado.** Todo el proyecto en un solo archivo, con los HTML incrustados, para pegar de una vez. |
 | `construir-archivo-unico.js` | Regenera `todo-en-uno/Codigo.gs` a partir de los fuentes. |
 | `Formulario.html` | Formulario único, se dibuja solo a partir del esquema de la etapa. |
-| `Inicio.html` | Selector de formularios (solo si se abre la URL sin `?form=`). |
+| `Inicio.html` | Selector, cuando la persona tiene acceso a más de un formulario. |
+| `SinAcceso.html` | Página que se muestra si la cuenta no está autorizada para ese formulario. |
 | `Estilos.html` | Estilos compartidos. |
 | `pruebas/` | Simulador de Apps Script + pruebas del flujo (se corren con Node, ver abajo). |
 
@@ -64,7 +65,7 @@ cd proyectotablero && node construir-archivo-unico.js
 1. Abre el spreadsheet → **Extensiones › Apps Script**.
 2. Crea los archivos con exactamente estos nombres y pega el contenido:
    - Script: `Config.gs`, `Setup.gs`, `Solicitudes.gs`, `WebApp.gs`
-   - HTML: `Formulario.html`, `Inicio.html`, `Estilos.html`
+   - HTML: `Formulario.html`, `Inicio.html`, `SinAcceso.html`, `Estilos.html`
 
    Los `.html` **tienen que ser archivos HTML del proyecto**: `HtmlService` los
    busca por nombre. Si quieres un solo archivo, usa la opción de arriba, que
@@ -125,16 +126,48 @@ funcionando: en la planilla, **Datos › Hojas y rangos protegidos**, protege
 editora. Quien quiera cambiar algo tendrá que hacerlo por el formulario, y ahí
 sí queda su nombre.
 
-## Un enlace por formulario
+## Que cada persona entre a su formulario
 
-Cada equipo entra por su propia página. Hay dos formas, según cuánto quieras
-separar los accesos.
+Hay dos formas. **Empieza por la A**: un solo proyecto, un solo archivo, un solo
+despliegue. La B solo agrega un filtro extra de Google en la puerta.
 
-### Opción A — una URL distinta por equipo (recomendada)
+### Opción A — un solo proyecto con ACCESOS (recomendada)
 
-Tres despliegues independientes: **tres URLs sin nada que se pueda editar en la
-barra de direcciones** y, sobre todo, **permisos distintos por formulario**
-(Producción no puede abrir el de Costos ni aunque tenga el enlace).
+Llena `ACCESOS` en `Config.gs` con quién puede usar cada formulario:
+
+```js
+const ACCESOS = {
+  costos:     ['ana.costos@masisa.com', 'jefatura@masisa.com'],
+  td:         ['beto.td@masisa.com'],
+  produccion: ['caro.prod@masisa.com']
+};
+```
+
+Con eso, publicando **un solo despliegue**:
+
+- **Repartes el mismo enlace a todos** (la URL `/exec` pelada). Cada persona
+  aterriza automáticamente en el formulario que le toca, porque el servidor mira
+  su correo y, si solo tiene uno disponible, la manda directo ahí.
+- Si alguien escribe `?form=costos` sin estar en la lista, ve una página de
+  **Sin acceso** con los formularios que sí puede usar. No es cosmético: cada
+  llamada al servidor (`abrir`, `guardar`, `bandeja`) revalida el permiso.
+- Quien esté en varias listas (una jefatura, por ejemplo) ve el selector con sus
+  formularios.
+
+Un arreglo vacío significa "cualquiera con el enlace", que es la configuración
+que viene por defecto.
+
+> **¿Y meter los lanzadores en el mismo archivo?** No se puede: un proyecto de
+> Apps Script tiene un solo `doGet`. Puedes hacerle varios despliegues, pero
+> todos ejecutan el mismo código y el proyecto no distingue de forma confiable
+> por cuál URL entraron. Por eso los lanzadores son proyectos aparte — y por eso
+> `ACCESOS` es la forma de resolverlo dentro de un solo proyecto.
+
+### Opción B — un despliegue por formulario
+
+Agrega lo único que la opción A no puede dar: que **Google filtre en la puerta**,
+con un *"Quién tiene acceso"* distinto por URL, antes de que el script corra.
+Útil si quieres que ni siquiera se cargue la página.
 
 Se arma con los proyectos de `lanzadores/`, que no repiten lógica: usan el
 proyecto principal como biblioteca.
@@ -167,12 +200,9 @@ apunta la biblioteca a esa versión en los tres lanzadores.
 > (Config.gs), dejando el mismo `SPREADSHEET_ID`. Mismo resultado, pero hay que
 > mantener tres copias del código.
 
-### Opción B — un solo despliegue
+### Enlaces directos
 
-Más rápido de montar. Deja `ETAPA_FIJA = ''` y publica el proyecto principal:
-**Implementar › Nueva implementación › Aplicación web** (*Ejecutar como* **Yo**,
-*Quién tiene acceso* **Cualquier usuario de tu organización** — no “Cualquier
-usuario”, ver *Registro de quién hizo cada cosa*). Los enlaces son:
+En la opción A, además del enlace pelado, puedes repartir uno por equipo:
 
 ```
 https://script.google.com/macros/s/XXXX/exec?form=costos
@@ -180,9 +210,9 @@ https://script.google.com/macros/s/XXXX/exec?form=td
 https://script.google.com/macros/s/XXXX/exec?form=produccion
 ```
 
-Son tres links distintos y cada persona parte en su página, pero **cualquiera
-puede cambiar el `?form=` en la barra de direcciones** y abrir otro formulario.
-Si eso importa, usa la opción A o restringe por correo con `ACCESOS`.
+Cambiar el `?form=` a mano no sirve de nada si `ACCESOS` está configurado: el
+servidor lo rechaza igual. Si `ACCESOS` está vacío, en cambio, cualquiera puede
+abrir cualquier formulario.
 
 El menú **Solicitudes › Ver enlaces de los formularios** muestra los enlaces
 vigentes en cualquiera de las dos opciones.
@@ -251,7 +281,8 @@ y validaciones):
 
 ```bash
 cd proyectotablero/pruebas
-node test.js                    # flujo completo, sobre los fuentes
-ARCHIVO_UNICO=1 node test.js    # el mismo flujo, sobre todo-en-uno/Codigo.gs
-node test-etapa-fija.js         # despliegue de una sola etapa (opción A)
+node test.js                    # flujo completo y registro de autoría
+ARCHIVO_UNICO=1 node test.js    # lo mismo, sobre todo-en-uno/Codigo.gs
+node test-accesos.js            # ACCESOS: cada persona solo ve su formulario
+node test-etapa-fija.js         # despliegue de una sola etapa (opción B)
 ```

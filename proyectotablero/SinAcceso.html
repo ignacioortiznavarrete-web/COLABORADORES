@@ -1,0 +1,29 @@
+<!-- Se muestra cuando la cuenta no está autorizada para el formulario pedido. -->
+<?!= include('Estilos') ?>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Sin acceso</h1>
+    <p><?= mensaje ?></p>
+  </header>
+  <div class="panel">
+    <div class="aviso error">
+      <b><?= titulo ?></b>
+      <?= detalle ?>
+    </div>
+
+    <? if (disponibles && disponibles.length) { ?>
+      <p style="font-size:14px;margin:18px 0 12px">Los formularios a los que sí puedes entrar:</p>
+      <div class="tarjetas">
+        <? for (var i = 0; i < disponibles.length; i++) { ?>
+          <a class="tarjeta" href="<?= disponibles[i].url ?>" target="_top">
+            <h3><?= disponibles[i].titulo ?></h3>
+            <p><?= disponibles[i].descripcion ?></p>
+          </a>
+        <? } ?>
+      </div>
+    <? } ?>
+
+    <p class="pie"><?= usuario ? 'Conectado como ' + usuario : 'Sin sesión identificada' ?></p>
+  </div>
+</div>
