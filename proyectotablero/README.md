@@ -78,6 +78,53 @@ cd proyectotablero && node construir-archivo-unico.js
    Estado con las tres opciones.
 4. Publica los enlaces eligiendo una de las dos opciones de la sección siguiente.
 
+## Registro de quién hizo cada cosa
+
+Nadie necesita acceso a la planilla: el script escribe por ellos y **deja el
+correo real de cada persona**.
+
+Queda registrado en tres lugares:
+
+1. **Columnas de la fila** — `Registrado Por` (quién llenó el formulario),
+   `Revisado Por` (quién eligió el estado) y `Fecha Estado`.
+2. **Notas en la celda** — el cuadradito naranja de Sheets. Pasas el mouse por
+   la celda de Estado y dice *“Aprobado por ana@masisa.com el 12-08-2026 09:40”*;
+   la del número dice quién creó la fila, y `Devuelto Por` quién la devolvió.
+3. **Hoja `Historial`** — una línea por movimiento, con fecha, etapa, estado,
+   comentario y correo. Es el registro que no se pierde aunque alguien edite
+   una celda a mano.
+
+### La configuración del despliegue es lo que hace que funcione
+
+En **Implementar › Nueva implementación › Aplicación web**:
+
+| Campo | Valor | Por qué |
+|---|---|---|
+| *Ejecutar como* | **Yo** | El script escribe con tus permisos, así nadie necesita acceso de edición a la planilla. |
+| *Quién tiene acceso* | **Cualquier usuario de \<tu organización\>** | Con el acceso limitado al dominio, Google entrega el correo real del visitante. |
+
+El punto fino: `Session.getActiveUser().getEmail()` devuelve el correo **solo si
+quien entra está en el mismo dominio que el dueño del script**. Por eso:
+
+- ✅ *Ejecutar como: Yo* + acceso **limitado a la organización** → queda el correo
+  de cada persona y nadie toca la planilla. **Es la combinación recomendada.**
+- ❌ Acceso **“Cualquier usuario”** → el correo llega vacío y no hay registro.
+- ⚠️ *Ejecutar como: Usuario que accede* → también identifica, pero entonces
+  **cada persona necesita permiso de edición sobre la planilla**, y con eso
+  puede editar las hojas a mano y saltarse el formulario.
+
+Si el correo no se puede determinar, `AUDITORIA.EXIGIR_IDENTIDAD` (Config.gs,
+activo por defecto) **bloquea el guardado** y el formulario avisa, en vez de
+dejar una fila sin autor. `AUDITORIA.NOTAS_EN_CELDAS` controla las notas.
+
+### Para que solo se pueda escribir por el formulario
+
+Como el script corre como tú, puedes proteger las hojas y el flujo sigue
+funcionando: en la planilla, **Datos › Hojas y rangos protegidos**, protege
+`Costos`, `T&D`, `Produccion` e `Historial` dejando solo a tu cuenta como
+editora. Quien quiera cambiar algo tendrá que hacerlo por el formulario, y ahí
+sí queda su nombre.
+
 ## Un enlace por formulario
 
 Cada equipo entra por su propia página. Hay dos formas, según cuánto quieras
@@ -124,7 +171,8 @@ apunta la biblioteca a esa versión en los tres lanzadores.
 
 Más rápido de montar. Deja `ETAPA_FIJA = ''` y publica el proyecto principal:
 **Implementar › Nueva implementación › Aplicación web** (*Ejecutar como* **Yo**,
-*Quién tiene acceso* **Cualquier usuario de tu organización**). Los enlaces son:
+*Quién tiene acceso* **Cualquier usuario de tu organización** — no “Cualquier
+usuario”, ver *Registro de quién hizo cada cosa*). Los enlaces son:
 
 ```
 https://script.google.com/macros/s/XXXX/exec?form=costos

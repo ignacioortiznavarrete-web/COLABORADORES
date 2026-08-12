@@ -182,6 +182,36 @@ function usuario_() {
   }
 }
 
+/**
+ * Correo de quien está usando el formulario, exigido para poder registrar autoría.
+ * Si Google no logra identificarlo, corta el guardado en vez de dejar una fila
+ * sin dueño (ver AUDITORIA.EXIGIR_IDENTIDAD en Config.gs).
+ */
+function usuarioIdentificado_() {
+  var email = usuario_();
+  if (email) return email;
+  if (AUDITORIA.EXIGIR_IDENTIDAD) {
+    throw new Error(
+      'No se pudo identificar tu cuenta, así que no se puede dejar registro de quién ' +
+      'hace este cambio. Entra con tu correo corporativo. Si el problema persiste, la ' +
+      'aplicación web debe estar publicada con acceso limitado a la organización, no a ' +
+      '"Cualquier usuario".');
+  }
+  return 'desconocido';
+}
+
+/** Nota en la propia celda: quién la escribió y cuándo. */
+function anotarCelda_(ctx, indiceFila, columna, texto) {
+  if (!AUDITORIA.NOTAS_EN_CELDAS) return;
+  var c = colDe_(ctx.mapa, columna);
+  if (!c) return;
+  ctx.hoja.getRange(indiceFila, c).setNote(texto);
+}
+
+function selloAuditoria_(accion, email, fecha) {
+  return accion + ' por ' + email + ' el ' + Utilities.formatDate(fecha, tz_(), 'dd-MM-yyyy HH:mm');
+}
+
 function puedeAcceder_(etapaId) {
   var permitidos = (ACCESOS[etapaId] || []).map(clave_).filter(String);
   if (!permitidos.length) return true;
@@ -237,9 +267,10 @@ function etapaIdPorTitulo_(titulo) {
   return '';
 }
 
-function registrarHistorial_(numero, etapa, accion, estado, comentario, version) {
+function registrarHistorial_(numero, etapa, accion, estado, comentario, version, autor) {
   hojaHistorial_().appendRow([
-    new Date(), numero, etapa.titulo, accion, estado || '', comentario || '', usuario_(), version
+    new Date(), numero, etapa.titulo, accion, estado || '', comentario || '',
+    autor || usuario_(), version
   ]);
 }
 
@@ -397,6 +428,8 @@ function apiContexto(etapaId) {
     etapas: ETAPAS.map(function (e) { return { id: e.id, titulo: e.titulo }; }),
     estados: ESTADOS_LISTA,
     usuario: usuario_(),
+    identificado: !!usuario_(),
+    exigeIdentidad: !!AUDITORIA.EXIGIR_IDENTIDAD,
     bandeja: apiBandeja(etapaId)
   };
 }
@@ -466,6 +499,9 @@ function apiGuardar(payload) {
   var etapa = etapaPorId_(etapaId);
   exigirAcceso_(etapaId);
 
+  // Antes que nada: sin saber quién es, no se escribe nada.
+  var autor = usuarioIdentificado_();
+
   var estado = String(payload.estado || '').trim();
   if (ESTADOS_LISTA.map(clave_).indexOf(clave_(estado)) === -1) {
     throw new Error('Debes seleccionar un estado: ' + ESTADOS_LISTA.join(', ') + '.');
@@ -525,18 +561,23 @@ function apiGuardar(payload) {
       escribirCelda_(ctx, fila, campo.columna, valorParaHoja_(campo, datos[campo.id]));
     });
 
-    // 2) Datos de registro.
+    // 2) Datos de registro. Queda quién creó la fila y quién la editó por última vez.
     if (esNueva || !textoDe_(ctx, numero, 'Fecha Registro')) {
       escribirCelda_(ctx, fila, 'Fecha Registro', ahora);
-      escribirCelda_(ctx, fila, 'Registrado Por', usuario_());
+      escribirCelda_(ctx, fila, 'Registrado Por', autor);
+      anotarCelda_(ctx, fila, etapa.colNumero, selloAuditoria_('Creada en ' + etapa.titulo, autor, ahora));
+    } else {
+      anotarCelda_(ctx, fila, etapa.colNumero, selloAuditoria_('Última edición en ' + etapa.titulo, autor, ahora));
     }
 
     // 3) Estado. "Modificado" nunca queda escrito: reinicia el flujo.
     var esModificado = clave_(estado) === clave_(ESTADOS.MODIFICADO);
     escribirCelda_(ctx, fila, etapa.colEstado, esModificado ? '' : estado);
     escribirCelda_(ctx, fila, 'Comentario Estado', comentario);
-    escribirCelda_(ctx, fila, 'Revisado Por', usuario_());
+    escribirCelda_(ctx, fila, 'Revisado Por', autor);
     escribirCelda_(ctx, fila, 'Fecha Estado', ahora);
+    anotarCelda_(ctx, fila, etapa.colEstado,
+      selloAuditoria_(estado, autor, ahora) + (comentario ? '\n' + comentario : ''));
 
     // 4) Al reenviar Costos se limpia la marca de devolución previa.
     if (esPrimeraEtapa_(etapaId)) {
@@ -551,14 +592,14 @@ function apiGuardar(payload) {
 
     if (esModificado) {
       // Vuelve SIEMPRE a la primera hoja y se resetean los estados de las 3 hojas.
-      reiniciarEstados_(ctxs, numero);
-      marcarDevolucion_(ctxs, numero, etapa, comentario, version);
-      registrarHistorial_(numero, etapa, 'Devuelta para modificación', ESTADOS.MODIFICADO, comentario, version);
+      reiniciarEstados_(ctxs, numero, etapa, autor, ahora);
+      marcarDevolucion_(ctxs, numero, etapa, comentario, version, autor, ahora);
+      registrarHistorial_(numero, etapa, 'Devuelta para modificación', ESTADOS.MODIFICADO, comentario, version, autor);
       mensaje = 'Solicitud ' + numero + ' devuelta a ' + primeraEtapa_().titulo +
         '. Se reiniciaron los estados de las ' + ETAPAS.length + ' hojas.';
 
     } else if (clave_(estado) === clave_(ESTADOS.RECHAZADO)) {
-      registrarHistorial_(numero, etapa, 'Rechazada', ESTADOS.RECHAZADO, comentario, version);
+      registrarHistorial_(numero, etapa, 'Rechazada', ESTADOS.RECHAZADO, comentario, version, autor);
       mensaje = 'Solicitud ' + numero + ' rechazada en ' + etapa.titulo + '. El flujo termina aquí.';
 
     } else {
@@ -566,10 +607,10 @@ function apiGuardar(payload) {
       if (siguiente) {
         // A la hoja siguiente viaja únicamente el número de solicitud.
         filaDe_(ctxs[siguiente.id], numero);
-        registrarHistorial_(numero, etapa, 'Aprobada, pasa a ' + siguiente.titulo, ESTADOS.APROBADO, comentario, version);
+        registrarHistorial_(numero, etapa, 'Aprobada, pasa a ' + siguiente.titulo, ESTADOS.APROBADO, comentario, version, autor);
         mensaje = 'Solicitud ' + numero + ' aprobada. Pasa a ' + siguiente.titulo + '.';
       } else {
-        registrarHistorial_(numero, etapa, 'Aprobada, flujo finalizado', ESTADOS.APROBADO, comentario, version);
+        registrarHistorial_(numero, etapa, 'Aprobada, flujo finalizado', ESTADOS.APROBADO, comentario, version, autor);
         mensaje = 'Solicitud ' + numero + ' aprobada en ' + etapa.titulo + '. Flujo finalizado.';
       }
     }
@@ -583,21 +624,24 @@ function apiGuardar(payload) {
 }
 
 /** Deja en blanco el estado de las 3 hojas para que el flujo se rehaga desde Costos. */
-function reiniciarEstados_(ctxs, numero) {
+function reiniciarEstados_(ctxs, numero, etapaOrigen, autor, fecha) {
   ETAPAS.forEach(function (e) {
     var ctx = ctxs[e.id];
     if (!ctx.filas[numero]) return;   // no se crean filas que aún no existen
     var fila = ctx.filas[numero].indice;
     escribirCelda_(ctx, fila, e.colEstado, '');
+    anotarCelda_(ctx, fila, e.colEstado,
+      selloAuditoria_('Estado reiniciado (Modificado desde ' + etapaOrigen.titulo + ')', autor, fecha));
   });
 }
 
 /** Marca en Costos quién devolvió la solicitud y por qué. */
-function marcarDevolucion_(ctxs, numero, etapaOrigen, motivo, version) {
+function marcarDevolucion_(ctxs, numero, etapaOrigen, motivo, version, autor, fecha) {
   var primera = primeraEtapa_();
   var ctxP = ctxs[primera.id];
   var fila = filaDe_(ctxP, numero);
   escribirCelda_(ctxP, fila, 'Devuelto Por', etapaOrigen.titulo);
   escribirCelda_(ctxP, fila, 'Motivo Devolución', motivo);
   escribirCelda_(ctxP, fila, 'Versión', version);
+  anotarCelda_(ctxP, fila, 'Devuelto Por', selloAuditoria_('Devuelta desde ' + etapaOrigen.titulo, autor, fecha));
 }

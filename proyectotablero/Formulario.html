@@ -102,13 +102,25 @@
   function alCargarContexto(ctx) {
     CTX = ctx;
     $('descEtapa').textContent = ctx.etapa.descripcion;
-    $('pie').textContent = 'Hoja: ' + ctx.etapa.hoja + (ctx.usuario ? ' · ' + ctx.usuario : '');
+    $('pie').textContent = 'Hoja: ' + ctx.etapa.hoja +
+      (ctx.usuario ? ' · registrando como ' + ctx.usuario : '');
     dibujarRuta();
     dibujarCampos();
     dibujarEstados();
     dibujarBandeja(ctx.bandeja);
     $('cargando').style.display = 'none';
     $('app').style.display = '';
+
+    // Sin identidad no hay registro de quién hizo el cambio: se avisa de entrada.
+    if (!ctx.identificado) {
+      aviso($('mensaje'), ctx.exigeIdentidad ? 'error' : 'alerta',
+        'No se pudo identificar tu cuenta. ',
+        ctx.exigeIdentidad
+          ? 'No podrás guardar hasta entrar con tu correo corporativo, porque cada cambio ' +
+            'queda registrado a nombre de quien lo hace.'
+          : 'Los cambios quedarán registrados sin autor.');
+      if (ctx.exigeIdentidad) habilitarFormulario(false);
+    }
   }
 
   function dibujarRuta() {
@@ -337,6 +349,8 @@
   }
 
   function habilitarFormulario(activo) {
+    // Sin identidad no se habilita nunca, elija lo que elija en la bandeja.
+    if (CTX && CTX.exigeIdentidad && !CTX.identificado) activo = false;
     CTX.etapa.campos.forEach(function (c) { var el = $('f_' + c.id); if (el) el.disabled = !activo; });
     Array.prototype.forEach.call(document.getElementsByName('estado'), function (r) { r.disabled = !activo; });
     $('comentario').disabled = !activo;

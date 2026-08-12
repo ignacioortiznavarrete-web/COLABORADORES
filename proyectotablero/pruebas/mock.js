@@ -8,7 +8,7 @@ function chainable(obj) {
 }
 
 class Sheet {
-  constructor(name) { this.name = name; this.data = []; }
+  constructor(name) { this.name = name; this.data = []; this.notes = {}; }
   _cell(r, c) {
     while (this.data.length < r) this.data.push([]);
     const row = this.data[r - 1];
@@ -46,6 +46,8 @@ class Sheet {
       getValue() { return sheet._cell(r, c)[c - 1]; },
       getDisplayValue() { const v = sheet._cell(r, c)[c - 1]; return v == null ? '' : String(v); },
       setValue(v) { sheet._cell(r, c)[c - 1] = v; return this; },
+      setNote(t) { sheet.notes[r + ',' + c] = t; return this; },
+      getNote() { return sheet.notes[r + ',' + c] || ''; },
       getValues() {
         const out = [];
         for (let i = 0; i < nr; i++) {
@@ -99,7 +101,10 @@ global.LockService = {
   getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} })
 };
 global.Session = {
-  getActiveUser: () => ({ getEmail: () => global.__USUARIO || 'test@masisa.com' }),
+  // __USUARIO = '' simula a Google no pudiendo identificar la cuenta.
+  getActiveUser: () => ({
+    getEmail: () => (global.__USUARIO === undefined ? 'test@masisa.com' : global.__USUARIO)
+  }),
   getScriptTimeZone: () => 'America/Santiago'
 };
 global.Utilities = {

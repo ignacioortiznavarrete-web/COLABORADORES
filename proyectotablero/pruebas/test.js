@@ -199,6 +199,55 @@ for (let i = 0; i < 5; i++) {
 }
 ok(numeros.size === 5, '5 solicitudes seguidas → 5 números únicos');
 
+seccion('Registro de autoría');
+global.__USUARIO = 'ana.costos@masisa.com';
+const NA = apiGuardar({ etapaId: 'costos', datos: datosCostos({ solicitante: 'Ana' }), estado: 'Aprobado' }).numero;
+ok(celda('Costos', NA, 'Registrado Por') === 'ana.costos@masisa.com', 'guarda quién creó la solicitud');
+ok(celda('Costos', NA, 'Revisado Por') === 'ana.costos@masisa.com', 'guarda quién puso el estado');
+
+global.__USUARIO = 'beto.td@masisa.com';
+apiGuardar({
+  etapaId: 'td', numero: NA,
+  datos: { pregunta1: 'p', respuesta1: 'r', pregunta2: '', respuesta2: '', pregunta3: '', respuesta3: '', consultas: '' },
+  estado: 'Modificado', comentario: 'Falta el espesor'
+});
+ok(celda('T&D', NA, 'Revisado Por') === 'beto.td@masisa.com',
+   'en T&D queda el correo de T&D, no el de quien creó la solicitud');
+ok(celda('Costos', NA, 'Registrado Por') === 'ana.costos@masisa.com',
+   'no pisa el autor original de Costos');
+
+const evs = apiObtener('costos', NA).historial;
+ok(evs[0].usuario === 'ana.costos@masisa.com' && evs[1].usuario === 'beto.td@masisa.com',
+   'el Historial distingue a cada persona');
+
+function nota(hoja, numero, columna) {
+  const sh = SS.getSheetByName(hoja);
+  const enc = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const cCol = enc.findIndex(h => clave_(h) === clave_(columna)) + 1;
+  for (let r = 2; r <= sh.getLastRow(); r++) {
+    if (String(sh.getRange(r, 1).getValue()).trim() === numero) return sh.getRange(r, cCol).getNote();
+  }
+  return '';
+}
+ok(/Aprobado por ana\.costos@masisa\.com el \d{2}-\d{2}-\d{4}/.test(nota('Costos', NA, 'estado de la solicitud')) ||
+   /Estado reiniciado.*beto\.td@masisa\.com/.test(nota('Costos', NA, 'estado de la solicitud')),
+   'la celda de Estado lleva nota con autor y fecha');
+ok(/beto\.td@masisa\.com/.test(nota('Costos', NA, 'Devuelto Por')),
+   'la celda "Devuelto Por" registra quién devolvió');
+ok(/ana\.costos@masisa\.com/.test(nota('Costos', NA, 'numero de solicitud')),
+   'la celda del número registra quién creó la fila');
+
+global.__USUARIO = '';
+try {
+  apiGuardar({ etapaId: 'costos', datos: datosCostos(), estado: 'Aprobado' });
+  ok(false, 'bloquea el guardado si no puede identificar la cuenta');
+} catch (e) {
+  ok(/No se pudo identificar tu cuenta/.test(e.message), 'bloquea el guardado si no identifica la cuenta');
+}
+ok(apiContexto('costos').identificado === false, 'el formulario sabe que no hay identidad');
+global.__USUARIO = 'test@masisa.com';
+ok(apiContexto('costos').identificado === true, 'y que sí la hay cuando corresponde');
+
 seccion('Historial');
 const hist = apiObtener('costos', N3).historial;
 ok(hist.length >= 5, 'registra cada movimiento (' + hist.length + ' eventos)');

@@ -125,6 +125,27 @@ const ETAPAS = [
 ];
 
 /**
+ * Registro de quién hizo cada cosa.
+ *
+ * El correo sale de Session.getActiveUser(): con la aplicación web publicada
+ * como "Ejecutar como: Yo" y acceso limitado a tu dominio, Google entrega el
+ * correo real de quien está usando el formulario. Así queda el registro sin
+ * necesidad de darle acceso a la planilla a nadie.
+ *
+ * EXIGIR_IDENTIDAD: si Google no logra identificar la cuenta (pasa cuando
+ *   alguien entra con un correo de otro dominio, o si publicaste la app como
+ *   "Cualquier usuario"), el guardado se bloquea en vez de anotar un registro
+ *   anónimo. Ponlo en false solo si prefieres registros sin autor.
+ *
+ * NOTAS_EN_CELDAS: además de las columnas, deja una nota en la propia celda
+ *   (el cuadradito naranja de Sheets) con quién la escribió y cuándo.
+ */
+const AUDITORIA = {
+  EXIGIR_IDENTIDAD: true,
+  NOTAS_EN_CELDAS: true
+};
+
+/**
  * Control de acceso por formulario. Arreglo vacío = cualquiera con el enlace.
  * Ej: costos: ['costos@masisa.com', 'jefatura@masisa.com']
  */
