@@ -25,6 +25,30 @@ const CFG = {
   SEGUNDOS_LOCK: 30
 };
 
+/**
+ * Un enlace propio por formulario.
+ *
+ * ''            -> un solo despliegue que atiende las 3 etapas vía ?form=costos|td|produccion.
+ * 'costos'      -> este despliegue ES el formulario de Costos y nada más.
+ * 'td'          -> este despliegue ES el formulario de T&D y nada más.
+ * 'produccion'  -> este despliegue ES el formulario de Producción y nada más.
+ *
+ * Cuando está fijada, la etapa se impone en el servidor: da lo mismo lo que
+ * alguien escriba en la URL, ese enlace solo abre y solo guarda esa etapa.
+ * Ver README ("Un enlace por formulario") para las dos formas de montarlo.
+ */
+const ETAPA_FIJA = '';
+
+/**
+ * URLs de los despliegues, si usas uno por formulario. Es solo informativo:
+ * alimenta el menú "Ver enlaces de los formularios" y la página de inicio.
+ */
+const URLS_FORMULARIOS = {
+  costos: '',
+  td: '',
+  produccion: ''
+};
+
 const ESTADOS = {
   APROBADO: 'Aprobado',
   RECHAZADO: 'Rechazado',
@@ -115,6 +139,22 @@ function etapaPorId_(id) {
     if (ETAPAS[i].id === id) return ETAPAS[i];
   }
   throw new Error('Etapa desconocida: ' + id);
+}
+
+/**
+ * Etapa que realmente atiende esta ejecución. Si ETAPA_FIJA está definida manda
+ * ella, sin importar lo que llegue desde el cliente o la URL.
+ */
+function etapaEfectiva_(solicitada) {
+  if (ETAPA_FIJA) {
+    if (indiceEtapa_(ETAPA_FIJA) === -1) {
+      throw new Error('ETAPA_FIJA inválida en Config.gs: "' + ETAPA_FIJA + '".');
+    }
+    return ETAPA_FIJA;
+  }
+  var id = String(solicitada == null ? '' : solicitada).trim().toLowerCase();
+  if (indiceEtapa_(id) === -1) throw new Error('Etapa desconocida: ' + solicitada);
+  return id;
 }
 
 function indiceEtapa_(id) {

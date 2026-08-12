@@ -13,7 +13,7 @@
     </div>
     <div class="tarjetas">
       <? for (var i = 0; i < etapas.length; i++) { ?>
-        <a class="tarjeta" href="?form=<?= etapas[i].id ?>" target="_top">
+        <a class="tarjeta" href="<?= etapas[i].url ?>" target="_top">
           <h3><?= etapas[i].titulo ?></h3>
           <p><?= etapas[i].descripcion ?></p>
           <p style="margin-top:8px">Hoja: <b><?= etapas[i].hoja ?></b></p>

@@ -376,6 +376,7 @@ function resumenSolicitud_(numero, ctxs, eventos) {
 
 /** Metadatos del formulario de una etapa + su bandeja de solicitudes. */
 function apiContexto(etapaId) {
+  etapaId = etapaEfectiva_(etapaId);
   var etapa = etapaPorId_(etapaId);
   exigirAcceso_(etapaId);
   return {
@@ -402,6 +403,7 @@ function apiContexto(etapaId) {
 
 /** Solicitudes que esta etapa debe atender ahora. */
 function apiBandeja(etapaId) {
+  etapaId = etapaEfectiva_(etapaId);
   var etapa = etapaPorId_(etapaId);
   exigirAcceso_(etapaId);
   var ctxs = ctxTodas_();
@@ -418,6 +420,7 @@ function apiBandeja(etapaId) {
 
 /** Ficha completa de una solicitud: su etapa, el avance de las demás y el historial. */
 function apiObtener(etapaId, numero) {
+  etapaId = etapaEfectiva_(etapaId);
   exigirAcceso_(etapaId);
   numero = String(numero || '').trim();
   if (!numero) throw new Error('Falta el número de solicitud.');
@@ -459,7 +462,7 @@ function apiObtener(etapaId, numero) {
  */
 function apiGuardar(payload) {
   payload = payload || {};
-  var etapaId = String(payload.etapaId || '');
+  var etapaId = etapaEfectiva_(payload.etapaId);
   var etapa = etapaPorId_(etapaId);
   exigirAcceso_(etapaId);
 

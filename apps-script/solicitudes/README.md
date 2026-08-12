@@ -27,7 +27,8 @@ la misma en las tres etapas:
 | `Config.gs` | Configuración: ID del spreadsheet, estados, **esquema de campos de cada etapa**, control de acceso. Es el único archivo que normalmente hay que tocar. |
 | `Setup.gs` | Crea y repara las hojas, aplica formatos y la validación del combo de Estado. Menú *Solicitudes* en el spreadsheet. |
 | `Solicitudes.gs` | Núcleo: correlativo, lectura/escritura, transiciones de estado, historial y las funciones `api*` que consume el HTML. |
-| `WebApp.gs` | `doGet`: entrega el formulario según `?form=`. |
+| `WebApp.gs` | `doGet`: entrega el formulario de la etapa que corresponda. |
+| `lanzadores/` | Proyectos mínimos para tener **una URL propia por formulario** (opción A de abajo). |
 | `Formulario.html` | Formulario único, se dibuja solo a partir del esquema de la etapa. |
 | `Inicio.html` | Selector de formularios (solo si se abre la URL sin `?form=`). |
 | `Estilos.html` | Estilos compartidos. |
@@ -43,11 +44,55 @@ la misma en las tres etapas:
    Esto agrega a cada hoja las columnas de control que faltan (al final, sin
    tocar ni reordenar las tuyas), crea la hoja `Historial` y pone el combo de
    Estado con las tres opciones.
-4. **Implementar › Nueva implementación › Aplicación web**
-   - *Ejecutar como*: **Yo**
-   - *Quién tiene acceso*: **Cualquier usuario de tu organización** (recomendado,
-     así queda registrado el correo de quien aprueba).
-5. Copia la URL y arma un enlace por equipo:
+4. Publica los enlaces eligiendo una de las dos opciones de la sección siguiente.
+
+## Un enlace por formulario
+
+Cada equipo entra por su propia página. Hay dos formas, según cuánto quieras
+separar los accesos.
+
+### Opción A — una URL distinta por equipo (recomendada)
+
+Tres despliegues independientes: **tres URLs sin nada que se pueda editar en la
+barra de direcciones** y, sobre todo, **permisos distintos por formulario**
+(Producción no puede abrir el de Costos ni aunque tenga el enlace).
+
+Se arma con los proyectos de `lanzadores/`, que no repiten lógica: usan el
+proyecto principal como biblioteca.
+
+1. En el proyecto principal: **Implementar › Administrar implementaciones ›
+   Nueva versión**, y copia el **ID del proyecto** (Configuración del proyecto ›
+   ID de la secuencia de comandos).
+2. Para cada equipo, en [script.google.com](https://script.google.com) crea un
+   proyecto nuevo:
+
+   | Proyecto | Archivo a pegar | Etapa |
+   |---|---|---|
+   | Solicitudes · Costos | `lanzadores/Lanzador-Costos.gs` | `costos` |
+   | Solicitudes · T&D | `lanzadores/Lanzador-TD.gs` | `td` |
+   | Solicitudes · Producción | `lanzadores/Lanzador-Produccion.gs` | `produccion` |
+
+3. En cada uno: **Bibliotecas (+)** → pega el ID del proyecto principal → última
+   versión → identificador exactamente **`Solicitudes`**.
+4. **Implementar › Nueva implementación › Aplicación web** en cada proyecto:
+   *Ejecutar como* **Yo**, y en *Quién tiene acceso* pon el grupo de ese equipo.
+5. Reparte las tres URLs. Cada una abre directo su formulario.
+6. Opcional: pega esas URLs en `URLS_FORMULARIOS` (Config.gs) para que el menú
+   **Solicitudes › Ver enlaces de los formularios** las muestre.
+
+Cada vez que cambies el proyecto principal: publica una **versión nueva** y
+apunta la biblioteca a esa versión en los tres lanzadores.
+
+> Variante sin bibliotecas: copia el proyecto completo tres veces y en cada
+> copia cambia solo `const ETAPA_FIJA = 'costos' | 'td' | 'produccion'`
+> (Config.gs), dejando el mismo `SPREADSHEET_ID`. Mismo resultado, pero hay que
+> mantener tres copias del código.
+
+### Opción B — un solo despliegue
+
+Más rápido de montar. Deja `ETAPA_FIJA = ''` y publica el proyecto principal:
+**Implementar › Nueva implementación › Aplicación web** (*Ejecutar como* **Yo**,
+*Quién tiene acceso* **Cualquier usuario de tu organización**). Los enlaces son:
 
 ```
 https://script.google.com/macros/s/XXXX/exec?form=costos
@@ -55,7 +100,12 @@ https://script.google.com/macros/s/XXXX/exec?form=td
 https://script.google.com/macros/s/XXXX/exec?form=produccion
 ```
 
-El menú **Solicitudes › Ver enlaces de los formularios** muestra los tres.
+Son tres links distintos y cada persona parte en su página, pero **cualquiera
+puede cambiar el `?form=` en la barra de direcciones** y abrir otro formulario.
+Si eso importa, usa la opción A o restringe por correo con `ACCESOS`.
+
+El menú **Solicitudes › Ver enlaces de los formularios** muestra los enlaces
+vigentes en cualquiera de las dos opciones.
 
 ## Columnas
 
@@ -120,5 +170,7 @@ desde T&D y desde Producción con reinicio de estados, unicidad del correlativo
 y validaciones):
 
 ```bash
-cd apps-script/solicitudes/pruebas && node test.js
+cd apps-script/solicitudes/pruebas
+node test.js             # flujo completo
+node test-etapa-fija.js  # despliegue de una sola etapa (opción A)
 ```

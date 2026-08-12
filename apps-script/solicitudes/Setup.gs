@@ -141,15 +141,26 @@ function onOpen() {
 function mostrarUrlsFormularios() {
   var base = '';
   try { base = ScriptApp.getService().getUrl() || ''; } catch (e) { base = ''; }
-  var html = base
-    ? '<p style="font:14px Arial">Un enlace por formulario:</p>' + ETAPAS.map(function (e) {
-        var url = base + '?form=' + e.id;
-        return '<p style="font:13px Arial"><b>' + e.titulo + '</b><br>' +
-          '<a href="' + url + '" target="_blank">' + url + '</a></p>';
-      }).join('')
-    : '<p style="font:14px Arial">Primero publica el proyecto: <i>Implementar &gt; Nueva implementación &gt; Aplicación web</i>.</p>';
+
+  var partes = ETAPAS.map(function (e) {
+    var url = (URLS_FORMULARIOS && URLS_FORMULARIOS[e.id]) || '';
+    if (!url && base && !ETAPA_FIJA) url = base + '?form=' + e.id;
+    if (!url && base && ETAPA_FIJA === e.id) url = base;
+    return '<p style="font:13px Arial"><b>' + e.titulo + '</b><br>' +
+      (url
+        ? '<a href="' + url + '" target="_blank">' + url + '</a>'
+        : '<i style="color:#777">sin publicar. Si usas un despliegue por formulario, ' +
+          'pega su URL en URLS_FORMULARIOS (Config.gs).</i>') +
+      '</p>';
+  });
+
+  var encabezado = base || (URLS_FORMULARIOS && (URLS_FORMULARIOS.costos || URLS_FORMULARIOS.td))
+    ? '<p style="font:14px Arial">Un enlace por equipo:</p>'
+    : '<p style="font:14px Arial">Primero publica el proyecto: ' +
+      '<i>Implementar &gt; Nueva implementación &gt; Aplicación web</i>.</p>';
+
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(html).setWidth(580).setHeight(300),
+    HtmlService.createHtmlOutput(encabezado + partes.join('')).setWidth(620).setHeight(320),
     'Formularios del flujo'
   );
 }
