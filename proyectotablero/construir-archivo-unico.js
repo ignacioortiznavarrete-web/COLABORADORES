@@ -34,7 +34,7 @@ partes.push([
   ' * SOLICITUDES · Costos → T&D → Producción — ARCHIVO ÚNICO',
   ' *',
   ' * Generado por construir-archivo-unico.js. No lo edites a mano: edita los',
-  ' * archivos fuente de apps-script/solicitudes y vuelve a generarlo.',
+  ' * archivos fuente de proyectotablero y vuelve a generarlo.',
   ' *',
   ' * Pega este archivo como único Código.gs del proyecto de Apps Script.',
   ' * No necesitas crear los .html: van incrustados más abajo.',

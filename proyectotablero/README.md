@@ -1,4 +1,6 @@
-# Flujo de solicitudes: Costos → T&D → Producción
+# proyectotablero — Flujo de solicitudes: Costos → T&D → Producción
+
+Todo lo del proyecto vive en esta carpeta.
 
 Apps Script sobre el spreadsheet **SolicitudTableros**
 (`1afMUbL2OP-i3taaX33YORRPgX2kOqDAhkGzOkgcUAYg`). Tres formularios web, un
@@ -54,7 +56,7 @@ es **generado**: no lo edites a mano; edita los fuentes de esta carpeta y
 regenéralo con
 
 ```bash
-cd apps-script/solicitudes && node construir-archivo-unico.js
+cd proyectotablero && node construir-archivo-unico.js
 ```
 
 ### Archivos separados (más cómodo para editar)
@@ -200,7 +202,7 @@ desde T&D y desde Producción con reinicio de estados, unicidad del correlativo
 y validaciones):
 
 ```bash
-cd apps-script/solicitudes/pruebas
+cd proyectotablero/pruebas
 node test.js                    # flujo completo, sobre los fuentes
 ARCHIVO_UNICO=1 node test.js    # el mismo flujo, sobre todo-en-uno/Codigo.gs
 node test-etapa-fija.js         # despliegue de una sola etapa (opción A)
