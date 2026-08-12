@@ -29,6 +29,8 @@ la misma en las tres etapas:
 | `Solicitudes.gs` | Núcleo: correlativo, lectura/escritura, transiciones de estado, historial y las funciones `api*` que consume el HTML. |
 | `WebApp.gs` | `doGet`: entrega el formulario de la etapa que corresponda. |
 | `lanzadores/` | Proyectos mínimos para tener **una URL propia por formulario** (opción A de abajo). |
+| `todo-en-uno/Codigo.gs` | **Generado.** Todo el proyecto en un solo archivo, con los HTML incrustados, para pegar de una vez. |
+| `construir-archivo-unico.js` | Regenera `todo-en-uno/Codigo.gs` a partir de los fuentes. |
 | `Formulario.html` | Formulario único, se dibuja solo a partir del esquema de la etapa. |
 | `Inicio.html` | Selector de formularios (solo si se abre la URL sin `?form=`). |
 | `Estilos.html` | Estilos compartidos. |
@@ -36,10 +38,38 @@ la misma en las tres etapas:
 
 ## Instalación
 
+Hay dos maneras de pegar el código; el resultado es exactamente el mismo.
+
+### Todo en un solo archivo (lo más rápido)
+
+1. Abre el spreadsheet → **Extensiones › Apps Script**.
+2. Pega **`todo-en-uno/Codigo.gs`** como único archivo del proyecto (reemplaza
+   el `Código.gs` que viene por defecto). No hay que crear ningún `.html`: van
+   incrustados dentro.
+3. Sigue en el paso 3 de más abajo.
+
+En Apps Script todos los `.gs` comparten el mismo ámbito global, así que tener
+uno o cuatro archivos da igual para el funcionamiento. `todo-en-uno/Codigo.gs`
+es **generado**: no lo edites a mano; edita los fuentes de esta carpeta y
+regenéralo con
+
+```bash
+cd apps-script/solicitudes && node construir-archivo-unico.js
+```
+
+### Archivos separados (más cómodo para editar)
+
 1. Abre el spreadsheet → **Extensiones › Apps Script**.
 2. Crea los archivos con exactamente estos nombres y pega el contenido:
    - Script: `Config.gs`, `Setup.gs`, `Solicitudes.gs`, `WebApp.gs`
    - HTML: `Formulario.html`, `Inicio.html`, `Estilos.html`
+
+   Los `.html` **tienen que ser archivos HTML del proyecto**: `HtmlService` los
+   busca por nombre. Si quieres un solo archivo, usa la opción de arriba, que
+   los incrusta como texto.
+
+### Y después, en cualquiera de los dos casos
+
 3. Ejecuta la función **`instalarSolicitudes`** una vez y autoriza los permisos.
    Esto agrega a cada hoja las columnas de control que faltan (al final, sin
    tocar ni reordenar las tuyas), crea la hoja `Historial` y pone el combo de
@@ -171,6 +201,7 @@ y validaciones):
 
 ```bash
 cd apps-script/solicitudes/pruebas
-node test.js             # flujo completo
-node test-etapa-fija.js  # despliegue de una sola etapa (opción A)
+node test.js                    # flujo completo, sobre los fuentes
+ARCHIVO_UNICO=1 node test.js    # el mismo flujo, sobre todo-en-uno/Codigo.gs
+node test-etapa-fija.js         # despliegue de una sola etapa (opción A)
 ```
