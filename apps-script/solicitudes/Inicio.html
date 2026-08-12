@@ -1,0 +1,24 @@
+<!-- Selector de formularios (solo si se abre la URL sin ?form=) -->
+<?!= include('Estilos') ?>
+
+<div class="wrap">
+  <header class="app">
+    <h1>Solicitudes</h1>
+    <p>Flujo Costos → T&amp;D → Producción. Cada equipo entra por su propio enlace.</p>
+  </header>
+  <div class="panel">
+    <div class="aviso info">
+      Comparte a cada equipo únicamente el enlace de su formulario. El número de
+      solicitud se genera solo en Costos y es lo único que avanza entre hojas.
+    </div>
+    <div class="tarjetas">
+      <? for (var i = 0; i < etapas.length; i++) { ?>
+        <a class="tarjeta" href="?form=<?= etapas[i].id ?>" target="_top">
+          <h3><?= etapas[i].titulo ?></h3>
+          <p><?= etapas[i].descripcion ?></p>
+          <p style="margin-top:8px">Hoja: <b><?= etapas[i].hoja ?></b></p>
+        </a>
+      <? } ?>
+    </div>
+  </div>
+</div>

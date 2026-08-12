@@ -1,0 +1,411 @@
+<!--
+  Formulario único parametrizado por etapa (?form=costos|td|produccion).
+  Los campos se dibujan a partir del esquema que entrega apiContexto().
+-->
+<?!= include('Estilos') ?>
+
+<div class="wrap">
+  <header class="app">
+    <h1 id="tituloEtapa">Solicitud · <?= etapaTitulo ?></h1>
+    <p id="descEtapa">Cargando…</p>
+    <div class="ruta" id="ruta"></div>
+  </header>
+
+  <div class="panel">
+    <div id="cargando" class="cargando">Cargando formulario…</div>
+
+    <div id="app" style="display:none">
+
+      <div id="mensaje"></div>
+
+      <div class="bloque">
+        <h2>Solicitud</h2>
+        <div class="bandeja">
+          <label class="campo">
+            <span class="tit" id="rotuloBandeja">Selecciona una solicitud</span>
+            <select id="selBandeja"></select>
+          </label>
+          <button type="button" class="secundario" id="btnRecargar">Actualizar bandeja</button>
+        </div>
+        <p style="margin:12px 0 0">
+          <span class="numero" id="numero">—</span>
+          <span style="font-size:12px;color:#5c6b7f;margin-left:8px" id="estadoFlujo"></span>
+        </p>
+      </div>
+
+      <div id="avisoDevolucion"></div>
+      <div id="verMas"></div>
+
+      <div class="bloque">
+        <h2>Datos del formulario</h2>
+        <div class="grid2" id="campos"></div>
+      </div>
+
+      <div class="bloque">
+        <h2>Estado</h2>
+        <div class="estados" id="estados"></div>
+        <label class="campo" style="margin-top:14px">
+          <span class="tit">Comentario / motivo <b id="marcaComentario" style="display:none">*</b></span>
+          <textarea id="comentario" placeholder="Obligatorio si rechazas o devuelves para modificación."></textarea>
+        </label>
+      </div>
+
+      <div class="acciones">
+        <button type="button" class="primario" id="btnGuardar">Guardar y aplicar estado</button>
+        <button type="button" class="secundario" id="btnLimpiar">Limpiar</button>
+        <span id="guardando" style="display:none;font-size:13px;color:#5c6b7f">Guardando…</span>
+      </div>
+
+      <div class="bloque" id="cajaHistorial" style="margin-top:26px;display:none">
+        <h2>Historial de la solicitud</h2>
+        <table class="hist"><tbody id="historial"></tbody></table>
+      </div>
+
+      <p class="pie" id="pie"></p>
+    </div>
+  </div>
+</div>
+
+<script>
+  var ETAPA_ID = '<?= etapaId ?>';
+  var CTX = null;      // metadatos de la etapa + bandeja
+  var ACTUAL = null;   // ficha de la solicitud cargada
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function aviso(caja, tipo, titulo, texto) {
+    if (!texto && !titulo) { caja.innerHTML = ''; return; }
+    caja.innerHTML = '<div class="aviso ' + tipo + '">' +
+      (titulo ? '<b>' + esc(titulo) + '</b>' : '') + esc(texto || '') + '</div>';
+  }
+
+  /* ---------------------------------------------------------- carga inicial */
+
+  function iniciar() {
+    google.script.run
+      .withSuccessHandler(alCargarContexto)
+      .withFailureHandler(errorFatal)
+      .apiContexto(ETAPA_ID);
+  }
+
+  function errorFatal(err) {
+    $('cargando').innerHTML = '<div class="aviso error"><b>No se pudo cargar el formulario</b>' +
+      esc(err && err.message ? err.message : err) + '</div>';
+  }
+
+  function alCargarContexto(ctx) {
+    CTX = ctx;
+    $('descEtapa').textContent = ctx.etapa.descripcion;
+    $('pie').textContent = 'Hoja: ' + ctx.etapa.hoja + (ctx.usuario ? ' · ' + ctx.usuario : '');
+    dibujarRuta();
+    dibujarCampos();
+    dibujarEstados();
+    dibujarBandeja(ctx.bandeja);
+    $('cargando').style.display = 'none';
+    $('app').style.display = '';
+  }
+
+  function dibujarRuta() {
+    var idx = 0;
+    CTX.etapas.forEach(function (e, i) { if (e.id === ETAPA_ID) idx = i; });
+    $('ruta').innerHTML = CTX.etapas.map(function (e, i) {
+      var cls = e.id === ETAPA_ID ? 'on' : (i < idx ? 'hecho' : '');
+      return '<span class="' + cls + '">' + (i + 1) + '. ' + esc(e.titulo) + '</span>';
+    }).join('');
+  }
+
+  /* ------------------------------------------------------------- formulario */
+
+  function dibujarCampos() {
+    $('campos').innerHTML = CTX.etapa.campos.map(function (c) {
+      var req = c.requerido ? ' <b>*</b>' : '';
+      var control;
+      if (c.tipo === 'textarea') {
+        control = '<textarea id="f_' + c.id + '"></textarea>';
+      } else if (c.tipo === 'lista') {
+        control = '<select id="f_' + c.id + '"><option value=""></option>' +
+          c.opciones.map(function (o) { return '<option value="' + esc(o) + '">' + esc(o) + '</option>'; }).join('') +
+          '</select>';
+      } else {
+        var tipoHtml = c.tipo === 'numero' ? 'number' : (c.tipo === 'fecha' ? 'date' : (c.tipo === 'email' ? 'email' : 'text'));
+        var extra = c.tipo === 'numero' ? ' step="any"' : '';
+        control = '<input type="' + tipoHtml + '" id="f_' + c.id + '"' + extra + '>';
+      }
+      var ancho = (c.tipo === 'textarea') ? ' ancho' : '';
+      return '<label class="campo' + ancho + '">' +
+        '<span class="tit">' + esc(c.etiqueta) + req + '</span>' + control +
+        (c.ayuda ? '<small style="color:#5c6b7f">' + esc(c.ayuda) + '</small>' : '') +
+        '</label>';
+    }).join('');
+  }
+
+  function dibujarEstados() {
+    var sig = CTX.etapa.siguiente;
+    var glosas = {
+      Aprobado: sig ? 'Pasa a ' + sig + ' con el número de solicitud.' : 'Cierra el flujo como aprobada.',
+      Rechazado: 'Termina el flujo, no continúa al siguiente paso.',
+      Modificado: 'Vuelve a ' + CTX.etapas[0].titulo + ' y reinicia los estados.'
+    };
+    $('estados').innerHTML = CTX.estados.map(function (e) {
+      return '<label id="lbl_' + e + '"><input type="radio" name="estado" value="' + esc(e) + '">' +
+        '<span>' + esc(e) + '<small>' + esc(glosas[e] || '') + '</small></span></label>';
+    }).join('');
+
+    Array.prototype.forEach.call(document.getElementsByName('estado'), function (r) {
+      r.addEventListener('change', alCambiarEstado);
+    });
+  }
+
+  function alCambiarEstado() {
+    var sel = estadoElegido();
+    CTX.estados.forEach(function (e) {
+      $('lbl_' + e).className = (e === sel) ? 'sel-' + e : '';
+    });
+    $('marcaComentario').style.display = (sel && sel !== 'Aprobado') ? '' : 'none';
+  }
+
+  function estadoElegido() {
+    var rs = document.getElementsByName('estado');
+    for (var i = 0; i < rs.length; i++) if (rs[i].checked) return rs[i].value;
+    return '';
+  }
+
+  function limpiarEstado() {
+    Array.prototype.forEach.call(document.getElementsByName('estado'), function (r) { r.checked = false; });
+    $('comentario').value = '';
+    alCambiarEstado();
+  }
+
+  /* ---------------------------------------------------------------- bandeja */
+
+  function dibujarBandeja(bandeja) {
+    var sel = $('selBandeja');
+    var opciones = [];
+
+    if (CTX.etapa.esPrimera) {
+      $('rotuloBandeja').textContent = 'Nueva solicitud o una devuelta para modificación';
+      opciones.push('<option value="">➕ Nueva solicitud</option>');
+    } else {
+      $('rotuloBandeja').textContent = 'Solicitudes que llegaron a ' + CTX.etapa.titulo;
+      opciones.push('<option value="">— Selecciona una solicitud —</option>');
+    }
+
+    (bandeja || []).forEach(function (s) {
+      var txt = s.numero + (s.resumen ? ' · ' + s.resumen : '');
+      if (s.devueltoPor) txt += ' (devuelta desde ' + s.devueltoPor + ')';
+      opciones.push('<option value="' + esc(s.numero) + '">' + esc(txt) + '</option>');
+    });
+
+    if (!(bandeja || []).length && !CTX.etapa.esPrimera) {
+      opciones.push('<option value="" disabled>(sin solicitudes pendientes)</option>');
+    }
+
+    sel.innerHTML = opciones.join('');
+    sel.value = '';
+    alCambiarBandeja();
+  }
+
+  function recargarBandeja() {
+    $('btnRecargar').disabled = true;
+    google.script.run
+      .withSuccessHandler(function (b) {
+        CTX.bandeja = b;
+        dibujarBandeja(b);
+        $('btnRecargar').disabled = false;
+      })
+      .withFailureHandler(function (e) {
+        $('btnRecargar').disabled = false;
+        aviso($('mensaje'), 'error', 'Error al actualizar la bandeja: ', e.message || e);
+      })
+      .apiBandeja(ETAPA_ID);
+  }
+
+  function alCambiarBandeja() {
+    var numero = $('selBandeja').value;
+    if (!numero) {
+      ACTUAL = null;
+      limpiarFicha();
+      habilitarFormulario(CTX.etapa.esPrimera);
+      $('numero').textContent = CTX.etapa.esPrimera ? 'Se asignará al guardar' : '—';
+      $('estadoFlujo').textContent = CTX.etapa.esPrimera
+        ? 'Nueva solicitud'
+        : 'Selecciona una solicitud de la bandeja para continuar.';
+      return;
+    }
+    cargarSolicitud(numero);
+  }
+
+  function cargarSolicitud(numero) {
+    habilitarFormulario(false);
+    $('estadoFlujo').textContent = 'Cargando ' + numero + '…';
+    google.script.run
+      .withSuccessHandler(alCargarSolicitud)
+      .withFailureHandler(function (e) {
+        aviso($('mensaje'), 'error', 'No se pudo abrir la solicitud: ', e.message || e);
+        $('estadoFlujo').textContent = '';
+      })
+      .apiObtener(ETAPA_ID, numero);
+  }
+
+  function alCargarSolicitud(ficha) {
+    ACTUAL = ficha;
+    $('numero').textContent = ficha.numero;
+    $('estadoFlujo').textContent = ficha.flujo.resultado + ' · versión ' + ficha.flujo.version;
+
+    var mia = null;
+    ficha.avance.forEach(function (a) { if (a.etapaId === ETAPA_ID) mia = a; });
+    CTX.etapa.campos.forEach(function (c) {
+      var el = $('f_' + c.id);
+      if (el) el.value = (mia && mia.datos[c.id]) ? mia.datos[c.id] : '';
+    });
+
+    if (ficha.flujo.devueltoPor) {
+      aviso($('avisoDevolucion'), 'alerta',
+        'Devuelta para modificación desde ' + ficha.flujo.devueltoPorTitulo + ' · versión ' + ficha.flujo.version,
+        ficha.flujo.motivoDevolucion || 'Sin motivo registrado.');
+    } else {
+      aviso($('avisoDevolucion'), '', '', '');
+    }
+
+    dibujarVerMas(ficha);
+    dibujarHistorial(ficha.historial);
+    limpiarEstado();
+    habilitarFormulario(ficha.puedeEditar);
+
+    if (!ficha.puedeEditar) {
+      aviso($('mensaje'), 'info', 'Solo lectura: ',
+        'la solicitud está en ' + ficha.flujo.etapaActualTitulo + '.');
+    } else {
+      aviso($('mensaje'), '', '', '');
+    }
+  }
+
+  /**
+   * "Ver más": trazabilidad de las otras hojas.
+   * En Costos se muestra únicamente cuando la solicitud volvió por "Modificado".
+   */
+  function dibujarVerMas(ficha) {
+    var caja = $('verMas');
+    var mostrar = CTX.etapa.esPrimera ? !!ficha.flujo.devueltoPor : true;
+    var otras = ficha.avance.filter(function (a) { return a.etapaId !== ETAPA_ID && a.existe; });
+
+    if (!mostrar || !otras.length) { caja.innerHTML = ''; return; }
+
+    var cuerpo = otras.map(function (a) {
+      var filas = a.campos.map(function (c) {
+        var v = a.datos[c.id];
+        return v ? '<dt>' + esc(c.etiqueta) + '</dt><dd>' + esc(v) + '</dd>' : '';
+      }).filter(String).join('');
+      var estado = a.estado
+        ? '<span class="pill ' + esc(a.estado) + '">' + esc(a.estado) + '</span>'
+        : '<span style="color:#5c6b7f;font-size:12px">estado reiniciado</span>';
+      return '<div class="etapa-avance"><h3>' + esc(a.titulo) + ' ' + estado + '</h3>' +
+        (filas ? '<dl>' + filas + '</dl>' : '<p class="vacia">Sin datos registrados.</p>') +
+        (a.comentario ? '<dl><dt>Comentario</dt><dd>' + esc(a.comentario) + '</dd></dl>' : '') +
+        '</div>';
+    }).join('');
+
+    caja.innerHTML = '<details class="vermas"><summary>Avance registrado en las otras hojas</summary>' +
+      '<div>' + cuerpo + '</div></details>';
+  }
+
+  function dibujarHistorial(eventos) {
+    if (!eventos || !eventos.length) { $('cajaHistorial').style.display = 'none'; return; }
+    $('cajaHistorial').style.display = '';
+    $('historial').innerHTML =
+      '<tr><th>Fecha</th><th>Etapa</th><th>Acción</th><th>Estado</th><th>Comentario</th><th>Usuario</th></tr>' +
+      eventos.map(function (ev) {
+        return '<tr><td>' + esc(ev.fecha) + '</td><td>' + esc(ev.etapa) + '</td><td>' + esc(ev.accion) + '</td>' +
+          '<td>' + (ev.estado ? '<span class="pill ' + esc(ev.estado) + '">' + esc(ev.estado) + '</span>' : '') + '</td>' +
+          '<td>' + esc(ev.comentario) + '</td><td>' + esc(ev.usuario) + '</td></tr>';
+      }).join('');
+  }
+
+  function limpiarFicha() {
+    CTX.etapa.campos.forEach(function (c) { var el = $('f_' + c.id); if (el) el.value = ''; });
+    limpiarEstado();
+    aviso($('avisoDevolucion'), '', '', '');
+    aviso($('mensaje'), '', '', '');
+    $('verMas').innerHTML = '';
+    $('cajaHistorial').style.display = 'none';
+  }
+
+  function habilitarFormulario(activo) {
+    CTX.etapa.campos.forEach(function (c) { var el = $('f_' + c.id); if (el) el.disabled = !activo; });
+    Array.prototype.forEach.call(document.getElementsByName('estado'), function (r) { r.disabled = !activo; });
+    $('comentario').disabled = !activo;
+    $('btnGuardar').disabled = !activo;
+  }
+
+  /* --------------------------------------------------------------- guardado */
+
+  function guardar() {
+    var estado = estadoElegido();
+    if (!estado) {
+      aviso($('mensaje'), 'error', '', 'Selecciona un estado: ' + CTX.estados.join(', ') + '.');
+      return;
+    }
+    var comentario = $('comentario').value.trim();
+    if (estado !== 'Aprobado' && !comentario) {
+      aviso($('mensaje'), 'error', '', 'Indica el motivo para el estado "' + estado + '".');
+      $('comentario').focus();
+      return;
+    }
+    if (estado === 'Rechazado' &&
+        !confirm('Rechazar la solicitud cierra el flujo y no continúa al siguiente paso. ¿Confirmas?')) {
+      return;
+    }
+
+    var datos = {};
+    CTX.etapa.campos.forEach(function (c) {
+      var el = $('f_' + c.id);
+      datos[c.id] = el ? el.value : '';
+    });
+
+    $('btnGuardar').disabled = true;
+    $('guardando').style.display = '';
+
+    google.script.run
+      .withSuccessHandler(alGuardar)
+      .withFailureHandler(function (e) {
+        $('guardando').style.display = 'none';
+        $('btnGuardar').disabled = false;
+        aviso($('mensaje'), 'error', 'No se pudo guardar: ', e.message || e);
+      })
+      .apiGuardar({
+        etapaId: ETAPA_ID,
+        numero: ACTUAL ? ACTUAL.numero : '',
+        datos: datos,
+        estado: estado,
+        comentario: comentario
+      });
+  }
+
+  function alGuardar(res) {
+    $('guardando').style.display = 'none';
+    ACTUAL = null;
+    limpiarFicha();
+    aviso($('mensaje'), 'ok', 'Listo. ', res.mensaje);
+    recargarBandeja();
+    window.scrollTo(0, 0);
+  }
+
+  /* ------------------------------------------------------------------ eventos */
+
+  document.addEventListener('DOMContentLoaded', function () {
+    $('selBandeja').addEventListener('change', alCambiarBandeja);
+    $('btnRecargar').addEventListener('click', recargarBandeja);
+    $('btnGuardar').addEventListener('click', guardar);
+    $('btnLimpiar').addEventListener('click', function () {
+      $('selBandeja').value = '';
+      alCambiarBandeja();
+    });
+    iniciar();
+  });
+</script>
