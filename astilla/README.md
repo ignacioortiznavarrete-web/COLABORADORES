@@ -1,0 +1,109 @@
+# astilla — SAP vs planilla de sub-productos
+
+Dashboard de **astilla verde** en toneladas secas (TS), sobre el
+spreadsheet `1PNQToRtF7g-obmmOHuoonNGN5-VhhTYnW6SEhK36EOk`.
+
+Replica la lógica de complemento de MetroRuma: **SAP manda siempre**, y
+la planilla que llega por correo solo tapa el hueco de los días que SAP
+todavía no contabiliza.
+
+---
+
+## La regla, en una línea
+
+Hasta la última *Fecha Contab.* se usan solo los datos de SAP. Desde el
+día siguiente y hasta la última planilla recibida se usa
+`CAMIONES × 11 TS`. Cuando SAP avanza, el estimado de ese día
+desaparece solo.
+
+## Las hojas
+
+| Hoja | Qué contiene | ¿Obligatoria? |
+|---|---|---|
+| `Ingresos` | Descarga de SAP. Cantidad real por *Fecha Contab.* | Sí |
+| `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
+| `PlanAstilla` | Una fila por sub-producto, una columna por mes | No |
+
+Las columnas de `Ingresos` se detectan por nombre de encabezado
+(*Fecha Contab.*, *Descripción Material*, *Cantidad*, *Proveedor*…). Si
+la descarga viene sin encabezados, se usan las posiciones fijas de
+`CONFIG.INGRESOS_COLUMNS`.
+
+`PlanAstilla` admite el mes como `AGO-2026`, `2026-08` o una fecha real.
+
+## Sub-productos que entran
+
+Solo estos tres; el resto de la planilla (aserrín, álamo, pino
+combustible) se ignora:
+
+- `ASTILLA EUCALYPTUS NITENS`
+- `AST. PINO VERDE C/ CORTEZA`
+- `ASTILLA PINO VERDE`
+
+El reconocimiento tolera `AST.` vs `ASTILLA`, plural, `C/ CORTEZA` vs
+`CON CORTEZA`, tildes y espacios dobles. Si SAP empieza a usar otro
+nombre, se agrega en `canonicalSubproducto_`.
+
+---
+
+## Instalación
+
+1. En el spreadsheet: **Extensiones › Apps Script**.
+2. Pega `Codigo.gs` en el archivo de código y crea un archivo HTML
+   llamado **`Index`** con el contenido de `Index.html`.
+3. Ejecuta **`procesarPlanillasGmail`** una vez y acepta los permisos.
+4. Menú **Astilla Dashboard › Instalar automatización** (revisa Gmail
+   cada 15 minutos).
+5. Para publicarlo como página: **Implementar › Nueva implementación ›
+   Aplicación web**.
+
+Si las planillas llegan como **Excel adjunto**, agrega además el
+servicio avanzado **Drive API (v3)** en *Servicios › +*. Si llegan
+pegadas en el cuerpo del correo, no hace falta.
+
+## El menú
+
+| Opción | Para qué |
+|---|---|
+| Abrir dashboard | Lo abre en una ventana sobre la planilla |
+| Importar nuevas planillas | Lee los correos que faltan |
+| Reconstruir planillas desde Gmail | Respalda `InformeAstilla` y reimporta todo |
+| Probar último correo | Muestra lo que extraería, **sin escribir** |
+| Diagnosticar cruce SAP vs planilla | Materiales fuera del filtro y proveedores sin par |
+
+Antes de una carga masiva, corre siempre **Probar último correo**.
+
+---
+
+## Pendiente conocido
+
+`readPlan_` lee **solo la columna del mes calendario vigente**. Si en el
+dashboard se mueve *Fecha desde* a otro mes, el plan que se compara
+sigue siendo el del mes actual, y el desvío, el cumplimiento y la
+proyección quedan mal sin ningún aviso en pantalla.
+
+Mientras no se resuelva, usar el filtro de fechas por defecto (el mes
+vigente, que es como carga). La solución de fondo es que `readPlan_`
+devuelva `{ subproducto, mes, plan }` de todos los meses y que
+`planForFilter()` sume los que toca el rango.
+
+Otros puntos abiertos, menores:
+
+- **Sin caché.** Cada carga relee las tres hojas. El dashboard MASISA de
+  este repo ya resuelve esto con `putCacheChunked_` (`apps-script/Code.gs`).
+- **Día parcial de SAP.** El complemento se descarta por día completo:
+  si SAP cargó solo algunos proveedores del último día, se pierden los
+  camiones de los que faltan. Cubrirlo requiere complementar por
+  (fecha, proveedor) en vez de por fecha.
+- **La UM de SAP no se valida** contra `CONFIG.UNIDAD`.
+
+## Pruebas
+
+```bash
+cd astilla/pruebas && node prueba.js
+```
+
+Simula las globales de Apps Script y comprueba el rechazo de planillas
+sin fecha, las variantes del asunto, los feriados en el prorrateo, el
+inicio del complemento y la clasificación de sub-productos. No toca
+Gmail ni el spreadsheet.

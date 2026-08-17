@@ -1,0 +1,2205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+  <title>Astilla · SAP vs planilla</title>
+
+  <script src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <style>
+    :root {
+      --forest: #173f2d;
+      --green: #2d6a4f;
+      --sap: #2d6a4f;
+      --planilla: #d28b20;
+      --plan: #476f95;
+      --danger: #b42318;
+      --page: #eef3f0;
+      --card: #ffffff;
+      --soft: #f7faf8;
+      --line: #dce6e0;
+      --text: #22352b;
+      --muted: #6d7d74;
+      --shadow: 0 10px 28px rgba(25, 65, 43, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family:
+        Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background: var(--page);
+      font-variant-numeric: tabular-nums;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 16px 22px;
+      color: #fff;
+      background: linear-gradient(
+        110deg,
+        var(--forest),
+        var(--green)
+      );
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .16);
+    }
+
+    .brand-title {
+      font-size: 23px;
+      font-weight: 850;
+      letter-spacing: -.3px;
+    }
+
+    .brand-subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, .82);
+    }
+
+    .brand-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 25px;
+      padding: 4px 9px;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, .92);
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .1);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .button {
+      min-height: 40px;
+      padding: 9px 14px;
+      font-weight: 780;
+      cursor: pointer;
+      border: 0;
+      border-radius: 10px;
+      transition: transform .15s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+    }
+
+    .button-primary {
+      color: var(--forest);
+      background: #fff;
+    }
+
+    .button-green {
+      color: #fff;
+      background: var(--green);
+    }
+
+    main {
+      width: min(1850px, 100%);
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .card {
+      border: 1px solid rgba(30, 75, 50, .08);
+      border-radius: 16px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .info-banner,
+    .warning-banner,
+    .error-banner {
+      margin-bottom: 14px;
+      padding: 12px 15px;
+      font-size: 12px;
+      line-height: 1.5;
+      border-radius: 12px;
+    }
+
+    .info-banner {
+      color: #295840;
+      border: 1px solid #cfe0d6;
+      background: #f4faf6;
+    }
+
+    .warning-banner,
+    .error-banner {
+      display: none;
+    }
+
+    .warning-banner {
+      color: #704000;
+      border: 1px solid #edd09e;
+      background: #fff8e8;
+    }
+
+    .error-banner {
+      color: #7a271a;
+      border: 1px solid #f0c5c0;
+      background: #fff1f0;
+      white-space: pre-wrap;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns:
+        minmax(140px, .7fr)
+        minmax(140px, .7fr)
+        minmax(230px, 1.1fr)
+        minmax(230px, 1.1fr)
+        minmax(180px, .9fr)
+        minmax(190px, 1fr)
+        auto;
+      gap: 10px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      display: block;
+      margin: 0 0 6px 2px;
+      font-size: 10px;
+      font-weight: 820;
+      letter-spacing: .35px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-height: 41px;
+      padding: 8px 10px;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: 0;
+      background: #fff;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(45, 106, 79, .1);
+    }
+
+    .filter-action {
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(155px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .kpi {
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+    }
+
+    .kpi::after {
+      position: absolute;
+      right: -23px;
+      bottom: -32px;
+      width: 102px;
+      height: 102px;
+      content: "";
+      border-radius: 50%;
+      background: rgba(45, 106, 79, .065);
+    }
+
+    .kpi-label {
+      position: relative;
+      z-index: 1;
+      font-size: 10px;
+      font-weight: 820;
+      letter-spacing: .35px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .kpi-value {
+      position: relative;
+      z-index: 1;
+      margin-top: 7px;
+      font-size: 27px;
+      font-weight: 850;
+      line-height: 1.1;
+      color: var(--forest);
+    }
+
+    .kpi-note {
+      position: relative;
+      z-index: 1;
+      min-height: 16px;
+      margin-top: 5px;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .kpi-estimate {
+      border-top: 3px solid var(--planilla);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .chart-card,
+    .table-card {
+      padding: 16px;
+    }
+
+    .full {
+      grid-column: 1 / -1;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 16px;
+      color: var(--forest);
+    }
+
+    .section-title::before {
+      width: 4px;
+      height: 17px;
+      content: "";
+      border-radius: 3px;
+      background: var(--green);
+    }
+
+    .section-note {
+      margin: 5px 0 8px 12px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .chart {
+      height: 355px;
+    }
+
+    .chart-scroll {
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-radius: 12px;
+    }
+
+    #chartProveedores {
+      min-width: 1000px;
+      height: 420px;
+    }
+
+    .chart-empty {
+      display: grid;
+      height: 355px;
+      place-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 12px;
+      background: var(--soft);
+    }
+
+    .table-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+
+    .table-status {
+      font-size: 11px;
+      font-weight: 700;
+      text-align: right;
+      color: var(--muted);
+    }
+
+    .table-wrap {
+      max-height: 500px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      color: #fff;
+      background: var(--forest);
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #edf2ef;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    tbody tr:hover {
+      background: #f7faf8;
+    }
+
+    th.number,
+    td.number {
+      text-align: right;
+    }
+
+    tfoot td {
+      position: sticky;
+      bottom: 0;
+      font-weight: 820;
+      color: var(--forest);
+      border-top: 2px solid var(--line);
+      background: var(--soft);
+    }
+
+    .source-badge {
+      display: inline-flex;
+      padding: 3px 7px;
+      font-size: 9px;
+      font-weight: 820;
+      border-radius: 999px;
+    }
+
+    .source-sap {
+      color: #1f5a3d;
+      background: #e8f4ed;
+    }
+
+    .source-planilla {
+      color: #82510b;
+      background: #fff0d2;
+    }
+
+    .positive {
+      color: #17603d;
+      font-weight: 780;
+    }
+
+    .negative {
+      color: var(--danger);
+      font-weight: 780;
+    }
+
+    .empty-row td {
+      padding: 32px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .loading {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      background: rgba(238, 243, 240, .84);
+      backdrop-filter: blur(3px);
+    }
+
+    .loading-box {
+      min-width: 280px;
+      padding: 25px;
+      text-align: center;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 18px 50px rgba(25, 58, 41, .16);
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      margin: 0 auto 13px;
+      border: 4px solid #e6eee9;
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner {
+        animation-duration: 3s;
+      }
+
+      .button:hover {
+        transform: none;
+      }
+    }
+
+    @media (max-width: 1200px) {
+      .filters {
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .kpis {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .full {
+        grid-column: auto;
+      }
+    }
+
+    @media (max-width: 700px) {
+      header {
+        position: static;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      main {
+        padding: 10px;
+      }
+
+      .filters,
+      .kpis {
+        grid-template-columns: 1fr;
+      }
+
+      .table-head {
+        flex-direction: column;
+      }
+
+      .table-status {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div>
+      <div class="brand-title">
+        Astilla · SAP vs planilla
+      </div>
+      <div class="brand-subtitle">
+        Toneladas secas reales de SAP, complementadas con la planilla de sub-productos mientras SAP se pone al día
+      </div>
+      <div class="brand-meta">
+        <span id="monthPill" class="pill">Mes: cargando...</span>
+        <span id="sapPill" class="pill">SAP hasta: cargando...</span>
+        <span id="planillaPill" class="pill">Última planilla: cargando...</span>
+        <span id="workdaysPill" class="pill">Días hábiles: cargando...</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button
+        type="button"
+        class="button button-primary"
+        onclick="loadData()"
+      >
+        Actualizar datos
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div id="errorBanner" class="error-banner"></div>
+    <div id="warningBanner" class="warning-banner"></div>
+    <div id="infoBanner" class="info-banner">
+      Cargando cruce de datos...
+    </div>
+
+    <section class="card filters">
+      <div class="field">
+        <label for="dateFrom">Fecha desde</label>
+        <input id="dateFrom" type="date" onchange="renderAll()">
+      </div>
+
+      <div class="field">
+        <label for="dateTo">Fecha hasta</label>
+        <input id="dateTo" type="date" onchange="renderAll()">
+      </div>
+
+      <div class="field">
+        <label for="subproductoFilter">Sub-producto</label>
+        <select id="subproductoFilter" onchange="renderAll()">
+          <option value="">Los tres de proceso</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="proveedorFilter">Proveedor</label>
+        <select id="proveedorFilter" onchange="renderAll()">
+          <option value="">Todos los proveedores</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="sourceFilter">Fuente</label>
+        <select id="sourceFilter" onchange="renderAll()">
+          <option value="">SAP + complemento</option>
+          <option value="SAP">Solo SAP</option>
+          <option value="PLANILLA">Solo complemento</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="searchFilter">Búsqueda</label>
+        <input
+          id="searchFilter"
+          type="search"
+          placeholder="Proveedor, predio, rol..."
+          oninput="renderAllDebounced()"
+        >
+      </div>
+
+      <div class="filter-action">
+        <button
+          type="button"
+          class="button button-green"
+          onclick="resetFilters()"
+        >
+          Limpiar filtros
+        </button>
+      </div>
+    </section>
+
+    <section class="kpis">
+      <article class="card kpi">
+        <div class="kpi-label">Ingreso real SAP</div>
+        <div id="kpiSap" class="kpi-value">-</div>
+        <div id="kpiSapNote" class="kpi-note">Hoja Ingresos</div>
+      </article>
+
+      <article class="card kpi kpi-estimate">
+        <div class="kpi-label">Complemento planilla</div>
+        <div id="kpiPlanilla" class="kpi-value">-</div>
+        <div id="kpiPlanillaNote" class="kpi-note">Camiones × factor</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Total combinado</div>
+        <div id="kpiTotal" class="kpi-value">-</div>
+        <div id="kpiTotalNote" class="kpi-note">Real + estimado</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Plan del mes</div>
+        <div id="kpiPlan" class="kpi-value">-</div>
+        <div class="kpi-note">Hoja PlanAstilla</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Plan a la fecha</div>
+        <div id="kpiPlanToDate" class="kpi-value">-</div>
+        <div id="kpiPlanToDateNote" class="kpi-note">Prorrateo en días hábiles</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Desvío a la fecha</div>
+        <div id="kpiDesvio" class="kpi-value">-</div>
+        <div id="kpiDesvioNote" class="kpi-note">Total − plan a la fecha</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Cumpl. a la fecha</div>
+        <div id="kpiCumplimiento" class="kpi-value">-</div>
+        <div class="kpi-note">Total / plan a la fecha</div>
+      </article>
+
+      <article class="card kpi kpi-estimate">
+        <div class="kpi-label">Proyección de cierre</div>
+        <div id="kpiProyeccion" class="kpi-value">-</div>
+        <div id="kpiProyeccionNote" class="kpi-note">Al ritmo actual</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Ritmo diario actual</div>
+        <div id="kpiRitmo" class="kpi-value">-</div>
+        <div id="kpiRitmoNote" class="kpi-note">Por día hábil</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Camiones complementados</div>
+        <div id="kpiCamiones" class="kpi-value">-</div>
+        <div id="kpiCamionesNote" class="kpi-note">Días aún no cerrados en SAP</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Última Fecha Contab.</div>
+        <div id="kpiUltimoSap" class="kpi-value">-</div>
+        <div class="kpi-note">Cierre real de SAP</div>
+      </article>
+
+      <article class="card kpi">
+        <div class="kpi-label">Última planilla</div>
+        <div id="kpiUltimaPlanilla" class="kpi-value">-</div>
+        <div class="kpi-note">Correo del reservador</div>
+      </article>
+    </section>
+
+    <section class="grid">
+      <article class="card chart-card full">
+        <h2 class="section-title">Avance acumulado vs plan a la fecha</h2>
+        <div class="section-note">
+          Plan mensual prorrateado en días hábiles, avance acumulado (SAP + complemento) y proyección al ritmo actual.
+        </div>
+        <div id="chartAcumulado" class="chart"></div>
+      </article>
+
+      <article class="card chart-card full">
+        <h2 class="section-title">Evolución diaria por fuente</h2>
+        <div class="section-note">
+          Barra verde: tonelada seca confirmada en SAP. Barra ámbar: estimado desde camiones, se reemplaza solo cuando SAP avanza.
+        </div>
+        <div id="chartDiario" class="chart"></div>
+      </article>
+
+      <article class="card chart-card">
+        <h2 class="section-title">Participación por sub-producto</h2>
+        <div class="section-note">
+          Reparto del ingreso del período entre los tres sub-productos de proceso.
+        </div>
+        <div id="chartMix" class="chart"></div>
+      </article>
+
+      <article class="card chart-card">
+        <h2 class="section-title">Concentración por proveedor</h2>
+        <div class="section-note">
+          Los 15 proveedores con más ingreso. Sirve para ver de quién depende el suministro.
+        </div>
+        <div class="chart-scroll">
+          <div id="chartProveedores"></div>
+        </div>
+      </article>
+
+      <article class="card table-card full">
+        <div class="table-head">
+          <div>
+            <h2 class="section-title">Cruce mensual por sub-producto</h2>
+            <div class="section-note">
+              Plan a la fecha = plan mensual × días hábiles transcurridos / días hábiles del mes.
+            </div>
+          </div>
+          <div id="subproductoStatus" class="table-status">-</div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sub-producto</th>
+                <th class="number">Plan mes</th>
+                <th class="number">Plan a la fecha</th>
+                <th class="number">SAP</th>
+                <th class="number">Complemento</th>
+                <th class="number">Total</th>
+                <th class="number">Desvío</th>
+                <th class="number">Cumpl. a la fecha</th>
+                <th class="number">Proyección</th>
+                <th class="number">Cumpl. proyectado</th>
+              </tr>
+            </thead>
+            <tbody id="subproductoBody"></tbody>
+            <tfoot id="subproductoFoot"></tfoot>
+          </table>
+        </div>
+      </article>
+
+      <article class="card table-card full">
+        <div class="table-head">
+          <div>
+            <h2 class="section-title">Ingreso por proveedor</h2>
+            <div class="section-note">
+              Cuánto aporta cada proveedor, con qué regularidad y en qué sub-productos.
+            </div>
+          </div>
+          <div id="proveedorStatus" class="table-status">-</div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Proveedor</th>
+                <th class="number">SAP</th>
+                <th class="number">Complemento</th>
+                <th class="number">Total</th>
+                <th class="number">Participación</th>
+                <th class="number">Días con ingreso</th>
+                <th class="number">Prom. por día</th>
+                <th>Sub-productos</th>
+                <th>Último ingreso</th>
+              </tr>
+            </thead>
+            <tbody id="proveedorBody"></tbody>
+            <tfoot id="proveedorFoot"></tfoot>
+          </table>
+        </div>
+      </article>
+
+      <article class="card table-card full">
+        <div class="table-head">
+          <div>
+            <h2 class="section-title">Detalle diario utilizado</h2>
+            <div class="section-note">
+              Auditoría de las filas reales y de las filas de complemento que entraron al cálculo.
+            </div>
+          </div>
+          <div id="detalleStatus" class="table-status">-</div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Fuente</th>
+                <th>Sub-producto</th>
+                <th>Proveedor</th>
+                <th>Nombre original</th>
+                <th class="number">Camiones</th>
+                <th class="number">TS</th>
+                <th>Coincidencia</th>
+              </tr>
+            </thead>
+            <tbody id="detalleBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div id="loading" class="loading">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div style="font-weight:850;color:var(--forest)">
+        Cargando cruce de datos
+      </div>
+      <div style="margin-top:6px;font-size:11px;color:var(--muted)">
+        Ingresos · InformeAstilla · PlanAstilla
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLORS = {
+      'ASTILLA EUCALYPTUS NITENS': '#2d6a4f',
+      'AST. PINO VERDE C/ CORTEZA': '#d28b20',
+      'ASTILLA PINO VERDE': '#476f95'
+    };
+
+    let DATA = null;
+    let CHARTS_READY = false;
+    let CURRENT_ROWS = [];
+    let CURRENT_SUBPRODUCTOS = [];
+    let CURRENT_PROVEEDORES = [];
+
+    google.charts.load('current', { packages: ['corechart'] });
+
+    google.charts.setOnLoadCallback(function() {
+      CHARTS_READY = true;
+
+      if (DATA) {
+        renderCharts();
+      }
+    });
+
+    const renderAllDebounced = debounce(renderAll, 180);
+
+    window.addEventListener(
+      'resize',
+      debounce(function() {
+        if (DATA) {
+          renderCharts();
+        }
+      }, 180)
+    );
+
+    loadData();
+
+    function loadData() {
+      setLoading(true);
+      hideError();
+
+      google.script.run
+        .withSuccessHandler(function(result) {
+          DATA = result;
+          configureDashboard();
+          renderAll();
+          setLoading(false);
+        })
+        .withFailureHandler(function(error) {
+          setLoading(false);
+          showError(
+            error && error.message
+              ? error.message
+              : String(error)
+          );
+        })
+        .getDashboardData();
+    }
+
+    function unidad() {
+      return (DATA && DATA.unidad) || 'TS';
+    }
+
+    function configureDashboard() {
+      const month = DATA.month || {};
+      const source = DATA.source || {};
+      const workdays = DATA.workdays || {};
+
+      setText('monthPill', 'Mes: ' + (month.label || '-'));
+
+      setText(
+        'sapPill',
+        'SAP hasta: ' + (source.lastActualDateLabel || '-')
+      );
+
+      setText(
+        'planillaPill',
+        'Última planilla: ' +
+        (source.latestReportDateLabel || '-')
+      );
+
+      setText(
+        'workdaysPill',
+        'Días hábiles: ' +
+        workdays.elapsed +
+        ' de ' +
+        workdays.total +
+        ' (al ' +
+        workdays.referenceDateLabel +
+        ')'
+      );
+
+      let info = source.supplementRows
+        ? (
+            'Se usan toneladas secas reales hasta ' +
+            source.lastActualDateLabel +
+            '. Desde ' +
+            source.supplementStartLabel +
+            ' hasta ' +
+            source.latestReportDateLabel +
+            ' se completa con ' +
+            source.supplementCamiones +
+            ' camiones × ' +
+            DATA.factor +
+            ' ' +
+            unidad() +
+            '.'
+          )
+        : (
+            'No hay días posteriores al cierre de SAP para complementar: el dashboard muestra solo datos reales.'
+          );
+
+      info +=
+        ' El plan del mes se prorratea en ' +
+        workdays.total +
+        ' días hábiles; han transcurrido ' +
+        workdays.elapsed +
+        ' y quedan ' +
+        workdays.remaining +
+        '.';
+
+      setText('infoBanner', info);
+
+      const messages = [];
+
+      if (source.missingIngresos) {
+        messages.push(
+          'No existe la hoja Ingresos. Sin datos de SAP el dashboard solo puede mostrar estimados.'
+        );
+      }
+
+      if (source.missingInforme) {
+        messages.push(
+          'Todavía no existe la hoja InformeAstilla. Usa "Astilla Dashboard → Importar nuevas planillas".'
+        );
+      }
+
+      if (source.errors) {
+        messages.push(
+          source.errors +
+          ' correos quedaron con error de lectura: revisa la columna Estado en InformeAstilla.'
+        );
+      }
+
+      if (
+        source.materialesSinReconocer &&
+        source.materialesSinReconocer.length
+      ) {
+        messages.push(
+          'Materiales de SAP fuera del filtro de proceso: ' +
+          source.materialesSinReconocer.slice(0, 6).join(', ') +
+          (source.materialesSinReconocer.length > 6
+            ? ' y otros'
+            : '') +
+          '.'
+        );
+      }
+
+      if (!source.hasPlan) {
+        messages.push(
+          'Sin plan para este mes: crea la hoja PlanAstilla con una fila por sub-producto y una columna por mes.'
+        );
+      }
+
+      const warning = document.getElementById('warningBanner');
+      warning.textContent = messages.join(' ');
+      warning.style.display = messages.length ? 'block' : 'none';
+
+      document.getElementById('dateFrom').value =
+        month.startKey || '';
+
+      document.getElementById('dateTo').value =
+        month.endKey || '';
+
+      fillSelect(
+        'subproductoFilter',
+        DATA.filters.subproductos || [],
+        'Los tres de proceso'
+      );
+
+      fillSelect(
+        'proveedorFilter',
+        DATA.filters.proveedores || [],
+        'Todos los proveedores'
+      );
+    }
+
+    function fillSelect(id, values, firstLabel) {
+      const select = document.getElementById(id);
+      const previous = select.value;
+
+      select.innerHTML =
+        '<option value="">' +
+        escapeHtml(firstLabel) +
+        '</option>' +
+        values.map(function(value) {
+          return (
+            '<option value="' +
+            escapeHtml(value) +
+            '">' +
+            escapeHtml(value) +
+            '</option>'
+          );
+        }).join('');
+
+      select.value = previous;
+    }
+
+    function renderAll() {
+      if (!DATA) {
+        return;
+      }
+
+      CURRENT_ROWS = getFilteredRows();
+      CURRENT_SUBPRODUCTOS = buildSubproductoSummary(CURRENT_ROWS);
+      CURRENT_PROVEEDORES = buildProveedorSummary(CURRENT_ROWS);
+
+      renderKpis();
+      renderSubproductoTable();
+      renderProveedorTable();
+      renderDetalle();
+      renderCharts();
+    }
+
+    function getFilteredRows() {
+      const from = normalizeDateInput(
+        document.getElementById('dateFrom').value
+      );
+
+      const to = normalizeDateInput(
+        document.getElementById('dateTo').value
+      );
+
+      const subproducto =
+        document.getElementById('subproductoFilter').value;
+
+      const proveedor =
+        document.getElementById('proveedorFilter').value;
+
+      const source =
+        document.getElementById('sourceFilter').value;
+
+      const search = normalizeText(
+        document.getElementById('searchFilter').value
+      );
+
+      return (DATA.rows || []).filter(function(row) {
+        if (from && row.fecha < from) {
+          return false;
+        }
+
+        if (to && row.fecha > to) {
+          return false;
+        }
+
+        if (subproducto && row.subproducto !== subproducto) {
+          return false;
+        }
+
+        if (proveedor && row.proveedor !== proveedor) {
+          return false;
+        }
+
+        if (source && row.source !== source) {
+          return false;
+        }
+
+        if (search) {
+          const haystack = normalizeText([
+            row.proveedor,
+            row.proveedorRaw,
+            row.subproducto,
+            row.subproductoRaw,
+            row.destino,
+            row.predio,
+            row.rol
+          ].join(' '));
+
+          if (haystack.indexOf(search) === -1) {
+            return false;
+          }
+        }
+
+        return true;
+      });
+    }
+
+    function planForFilter() {
+      const subproducto =
+        document.getElementById('subproductoFilter').value;
+
+      return (DATA.plan || [])
+        .filter(function(item) {
+          return !subproducto ||
+            item.subproducto === subproducto;
+        })
+        .reduce(function(total, item) {
+          return total + (Number(item.plan) || 0);
+        }, 0);
+    }
+
+    function buildSubproductoSummary(rows) {
+      const planMap = {};
+
+      (DATA.plan || []).forEach(function(item) {
+        planMap[item.subproducto] =
+          (planMap[item.subproducto] || 0) +
+          (Number(item.plan) || 0);
+      });
+
+      const aggregate = {};
+
+      rows.forEach(function(row) {
+        if (!aggregate[row.subproducto]) {
+          aggregate[row.subproducto] = {
+            subproducto: row.subproducto,
+            sap: 0,
+            planilla: 0,
+            camiones: 0
+          };
+        }
+
+        const item = aggregate[row.subproducto];
+
+        if (row.source === 'PLANILLA') {
+          item.planilla += row.ts;
+          item.camiones += Number(row.camiones) || 0;
+        } else {
+          item.sap += row.ts;
+        }
+      });
+
+      const workdays = DATA.workdays || {};
+      const fraction = workdays.fraction || 0;
+      const elapsed = workdays.elapsed || 0;
+      const totalDays = workdays.total || 0;
+
+      const subproductoFilter =
+        document.getElementById('subproductoFilter').value;
+
+      const keys = unique(
+        Object.keys(aggregate).concat(
+          Object.keys(planMap).filter(function(key) {
+            return !subproductoFilter ||
+              key === subproductoFilter;
+          })
+        )
+      );
+
+      const totalCombinado = keys.reduce(function(total, key) {
+        const item = aggregate[key];
+        return total + (item ? item.sap + item.planilla : 0);
+      }, 0);
+
+      return keys
+        .map(function(key) {
+          const item = aggregate[key] || {
+            sap: 0,
+            planilla: 0,
+            camiones: 0
+          };
+
+          const total = item.sap + item.planilla;
+          const plan = planMap[key] || 0;
+          const planToDate = plan * fraction;
+
+          const proyeccion = elapsed > 0
+            ? (total / elapsed) * totalDays
+            : total;
+
+          return {
+            subproducto: key,
+            sap: item.sap,
+            planilla: item.planilla,
+            camiones: item.camiones,
+            total: total,
+            share: totalCombinado ? total / totalCombinado : 0,
+            plan: plan,
+            planToDate: planToDate,
+            desvio: total - planToDate,
+            cumplimiento: planToDate > 0
+              ? total / planToDate
+              : null,
+            proyeccion: proyeccion,
+            cumplimientoProyectado: plan > 0
+              ? proyeccion / plan
+              : null
+          };
+        })
+        .filter(function(item) {
+          return item.total !== 0 || item.plan !== 0;
+        })
+        .sort(function(a, b) {
+          return b.total - a.total;
+        });
+    }
+
+    function buildProveedorSummary(rows) {
+      const aggregate = {};
+
+      rows.forEach(function(row) {
+        if (!aggregate[row.proveedor]) {
+          aggregate[row.proveedor] = {
+            proveedor: row.proveedor,
+            sap: 0,
+            planilla: 0,
+            dias: {},
+            subproductos: {},
+            ultima: ''
+          };
+        }
+
+        const item = aggregate[row.proveedor];
+
+        if (row.source === 'PLANILLA') {
+          item.planilla += row.ts;
+        } else {
+          item.sap += row.ts;
+        }
+
+        item.dias[row.fecha] = true;
+        item.subproductos[row.subproducto] = true;
+
+        if (row.fecha > item.ultima) {
+          item.ultima = row.fecha;
+        }
+      });
+
+      const totalGeneral = Object.keys(aggregate).reduce(
+        function(total, key) {
+          return (
+            total +
+            aggregate[key].sap +
+            aggregate[key].planilla
+          );
+        },
+        0
+      );
+
+      return Object.keys(aggregate)
+        .map(function(key) {
+          const item = aggregate[key];
+          const total = item.sap + item.planilla;
+          const dias = Object.keys(item.dias).length;
+
+          return {
+            proveedor: key,
+            sap: item.sap,
+            planilla: item.planilla,
+            total: total,
+            share: totalGeneral ? total / totalGeneral : 0,
+            dias: dias,
+            promedio: dias ? total / dias : 0,
+            subproductos: Object.keys(item.subproductos).sort(),
+            ultima: item.ultima
+          };
+        })
+        .sort(function(a, b) {
+          return b.total - a.total;
+        });
+    }
+
+    function renderKpis() {
+      const rows = CURRENT_ROWS;
+      const workdays = DATA.workdays || {};
+      const elapsed = workdays.elapsed || 0;
+      const totalDays = workdays.total || 0;
+      const remaining = workdays.remaining || 0;
+      const fraction = workdays.fraction || 0;
+
+      const sap = sum(
+        rows
+          .filter(function(row) {
+            return row.source === 'SAP';
+          })
+          .map(function(row) {
+            return row.ts;
+          })
+      );
+
+      const planilla = sum(
+        rows
+          .filter(function(row) {
+            return row.source === 'PLANILLA';
+          })
+          .map(function(row) {
+            return row.ts;
+          })
+      );
+
+      const camiones = sum(
+        rows
+          .filter(function(row) {
+            return row.source === 'PLANILLA';
+          })
+          .map(function(row) {
+            return row.camiones;
+          })
+      );
+
+      const total = sap + planilla;
+      const plan = planForFilter();
+      const planToDate = plan * fraction;
+      const desvio = total - planToDate;
+
+      const ritmo = elapsed > 0 ? total / elapsed : 0;
+      const proyeccion = elapsed > 0 ? ritmo * totalDays : total;
+
+      const requerido = remaining > 0
+        ? Math.max(0, plan - total) / remaining
+        : null;
+
+      setText('kpiSap', formatTs(sap));
+
+      setText(
+        'kpiSapNote',
+        'Confirmado hasta ' +
+        DATA.source.lastActualDateLabel
+      );
+
+      setText('kpiPlanilla', formatTs(planilla));
+
+      setText(
+        'kpiPlanillaNote',
+        formatInteger(camiones) +
+        ' camiones × ' +
+        DATA.factor +
+        ' ' +
+        unidad()
+      );
+
+      setText('kpiTotal', formatTs(total));
+
+      setText(
+        'kpiTotalNote',
+        planilla
+          ? formatPercent(planilla / (total || 1)) +
+            ' del total es estimado'
+          : 'Todo confirmado en SAP'
+      );
+
+      setText(
+        'kpiPlan',
+        plan ? formatTs(plan) : 'Sin plan'
+      );
+
+      setText(
+        'kpiPlanToDate',
+        plan ? formatTs(planToDate) : 'Sin plan'
+      );
+
+      setText(
+        'kpiPlanToDateNote',
+        elapsed +
+        ' de ' +
+        totalDays +
+        ' días hábiles al ' +
+        workdays.referenceDateLabel
+      );
+
+      const desvioElement = document.getElementById('kpiDesvio');
+
+      desvioElement.textContent = plan
+        ? formatSigned(desvio) + ' ' + unidad()
+        : 'Sin plan';
+
+      desvioElement.className =
+        'kpi-value ' +
+        (plan && desvio < 0 ? 'negative' : 'positive');
+
+      setText(
+        'kpiDesvioNote',
+        !plan
+          ? 'Carga PlanAstilla para comparar'
+          : desvio >= 0
+            ? 'Adelantados respecto al plan diario'
+            : 'Atrasados respecto al plan diario'
+      );
+
+      setText(
+        'kpiCumplimiento',
+        planToDate > 0
+          ? formatPercent(total / planToDate)
+          : 'Sin plan'
+      );
+
+      const proyeccionElement =
+        document.getElementById('kpiProyeccion');
+
+      proyeccionElement.textContent = formatTs(proyeccion);
+
+      proyeccionElement.className =
+        'kpi-value ' +
+        (plan && proyeccion < plan ? 'negative' : 'positive');
+
+      setText(
+        'kpiProyeccionNote',
+        plan
+          ? formatPercent(proyeccion / plan) +
+            ' del plan · ' +
+            formatSigned(proyeccion - plan) +
+            ' vs plan'
+          : 'Sin plan para comparar'
+      );
+
+      setText('kpiRitmo', formatTs(ritmo));
+
+      setText(
+        'kpiRitmoNote',
+        requerido === null
+          ? 'Sin días hábiles restantes'
+          : 'Requerido: ' +
+            formatTs(requerido) +
+            '/día para cumplir'
+      );
+
+      setText('kpiCamiones', formatInteger(camiones));
+
+      setText(
+        'kpiCamionesNote',
+        DATA.source.staleReports
+          ? DATA.source.staleReports +
+            ' filas de planilla descartadas por estar ya en SAP'
+          : 'Días aún no cerrados en SAP'
+      );
+
+      setText(
+        'kpiUltimoSap',
+        DATA.source.lastActualDateLabel
+      );
+
+      setText(
+        'kpiUltimaPlanilla',
+        DATA.source.latestReportDateLabel
+      );
+    }
+
+    function renderSubproductoTable() {
+      const body = document.getElementById('subproductoBody');
+      const foot = document.getElementById('subproductoFoot');
+      const summary = CURRENT_SUBPRODUCTOS;
+
+      setText(
+        'subproductoStatus',
+        summary.length + ' sub-productos'
+      );
+
+      if (!summary.length) {
+        body.innerHTML =
+          '<tr class="empty-row"><td colspan="10">' +
+          'No hay datos para los filtros seleccionados.' +
+          '</td></tr>';
+        foot.innerHTML = '';
+        return;
+      }
+
+      body.innerHTML = summary.map(function(item) {
+        return (
+          '<tr>' +
+          '<td><strong>' + escapeHtml(item.subproducto) + '</strong></td>' +
+          '<td class="number">' +
+            (item.plan ? formatTs(item.plan) : '—') +
+          '</td>' +
+          '<td class="number">' +
+            (item.plan ? formatTs(item.planToDate) : '—') +
+          '</td>' +
+          '<td class="number">' + formatTs(item.sap) + '</td>' +
+          '<td class="number">' + formatTs(item.planilla) + '</td>' +
+          '<td class="number"><strong>' + formatTs(item.total) + '</strong></td>' +
+          '<td class="number ' +
+            (item.desvio >= 0 ? 'positive' : 'negative') +
+          '">' +
+            (item.plan ? formatSigned(item.desvio) : '—') +
+          '</td>' +
+          '<td class="number">' +
+            (item.cumplimiento === null
+              ? '—'
+              : formatPercent(item.cumplimiento)) +
+          '</td>' +
+          '<td class="number">' + formatTs(item.proyeccion) + '</td>' +
+          '<td class="number">' +
+            (item.cumplimientoProyectado === null
+              ? '—'
+              : formatPercent(item.cumplimientoProyectado)) +
+          '</td>' +
+          '</tr>'
+        );
+      }).join('');
+
+      const totals = summary.reduce(function(acc, item) {
+        acc.plan += item.plan;
+        acc.planToDate += item.planToDate;
+        acc.sap += item.sap;
+        acc.planilla += item.planilla;
+        acc.total += item.total;
+        acc.proyeccion += item.proyeccion;
+        return acc;
+      }, {
+        plan: 0,
+        planToDate: 0,
+        sap: 0,
+        planilla: 0,
+        total: 0,
+        proyeccion: 0
+      });
+
+      const totalDesvio = totals.total - totals.planToDate;
+
+      foot.innerHTML =
+        '<tr>' +
+        '<td>TOTAL</td>' +
+        '<td class="number">' +
+          (totals.plan ? formatTs(totals.plan) : '—') +
+        '</td>' +
+        '<td class="number">' +
+          (totals.plan ? formatTs(totals.planToDate) : '—') +
+        '</td>' +
+        '<td class="number">' + formatTs(totals.sap) + '</td>' +
+        '<td class="number">' + formatTs(totals.planilla) + '</td>' +
+        '<td class="number">' + formatTs(totals.total) + '</td>' +
+        '<td class="number ' +
+          (totalDesvio >= 0 ? 'positive' : 'negative') +
+        '">' +
+          (totals.plan ? formatSigned(totalDesvio) : '—') +
+        '</td>' +
+        '<td class="number">' +
+          (totals.planToDate > 0
+            ? formatPercent(totals.total / totals.planToDate)
+            : '—') +
+        '</td>' +
+        '<td class="number">' + formatTs(totals.proyeccion) + '</td>' +
+        '<td class="number">' +
+          (totals.plan > 0
+            ? formatPercent(totals.proyeccion / totals.plan)
+            : '—') +
+        '</td>' +
+        '</tr>';
+    }
+
+    function renderProveedorTable() {
+      const body = document.getElementById('proveedorBody');
+      const foot = document.getElementById('proveedorFoot');
+      const summary = CURRENT_PROVEEDORES;
+
+      setText(
+        'proveedorStatus',
+        summary.length + ' proveedores con ingreso'
+      );
+
+      if (!summary.length) {
+        body.innerHTML =
+          '<tr class="empty-row"><td colspan="9">' +
+          'No hay proveedores para los filtros seleccionados.' +
+          '</td></tr>';
+        foot.innerHTML = '';
+        return;
+      }
+
+      body.innerHTML = summary.map(function(item) {
+        return (
+          '<tr>' +
+          '<td><strong>' + escapeHtml(item.proveedor) + '</strong></td>' +
+          '<td class="number">' + formatTs(item.sap) + '</td>' +
+          '<td class="number">' + formatTs(item.planilla) + '</td>' +
+          '<td class="number"><strong>' + formatTs(item.total) + '</strong></td>' +
+          '<td class="number">' + formatPercent(item.share) + '</td>' +
+          '<td class="number">' + formatInteger(item.dias) + '</td>' +
+          '<td class="number">' + formatTs(item.promedio) + '</td>' +
+          '<td>' +
+            item.subproductos.map(function(name) {
+              return '<span class="source-badge source-sap">' +
+                escapeHtml(shortSubproducto(name)) +
+                '</span> ';
+            }).join('') +
+          '</td>' +
+          '<td>' + escapeHtml(formatDateKey(item.ultima)) + '</td>' +
+          '</tr>'
+        );
+      }).join('');
+
+      const totals = summary.reduce(function(acc, item) {
+        acc.sap += item.sap;
+        acc.planilla += item.planilla;
+        acc.total += item.total;
+        return acc;
+      }, { sap: 0, planilla: 0, total: 0 });
+
+      foot.innerHTML =
+        '<tr>' +
+        '<td>TOTAL</td>' +
+        '<td class="number">' + formatTs(totals.sap) + '</td>' +
+        '<td class="number">' + formatTs(totals.planilla) + '</td>' +
+        '<td class="number">' + formatTs(totals.total) + '</td>' +
+        '<td class="number">100,0%</td>' +
+        '<td class="number"></td>' +
+        '<td class="number"></td>' +
+        '<td></td>' +
+        '<td></td>' +
+        '</tr>';
+    }
+
+    function renderDetalle() {
+      const body = document.getElementById('detalleBody');
+
+      const detail = CURRENT_ROWS.slice().sort(function(a, b) {
+        if (a.fecha !== b.fecha) {
+          return a.fecha < b.fecha ? 1 : -1;
+        }
+
+        return b.ts - a.ts;
+      });
+
+      setText(
+        'detalleStatus',
+        formatInteger(detail.length) + ' filas utilizadas'
+      );
+
+      if (!detail.length) {
+        body.innerHTML =
+          '<tr class="empty-row"><td colspan="8">Sin datos.</td></tr>';
+        return;
+      }
+
+      body.innerHTML = detail
+        .slice(0, 800)
+        .map(function(row) {
+          const isPlanilla = row.source === 'PLANILLA';
+
+          return (
+            '<tr>' +
+            '<td>' + escapeHtml(row.fechaLabel) + '</td>' +
+            '<td><span class="source-badge ' +
+              (isPlanilla ? 'source-planilla' : 'source-sap') +
+            '">' +
+              (isPlanilla ? 'PLANILLA' : 'SAP') +
+            '</span></td>' +
+            '<td>' + escapeHtml(shortSubproducto(row.subproducto)) + '</td>' +
+            '<td><strong>' + escapeHtml(row.proveedor) + '</strong></td>' +
+            '<td>' + escapeHtml(row.proveedorRaw || '') + '</td>' +
+            '<td class="number">' +
+              (row.camiones === null || row.camiones === undefined
+                ? ''
+                : formatInteger(row.camiones)) +
+            '</td>' +
+            '<td class="number">' + formatTs(row.ts) + '</td>' +
+            '<td>' +
+              escapeHtml(
+                row.matchMethod +
+                (row.matchScore && row.matchScore < 1
+                  ? ' (' + Number(row.matchScore).toFixed(2) + ')'
+                  : '')
+              ) +
+            '</td>' +
+            '</tr>'
+          );
+        })
+        .join('');
+    }
+
+    function renderCharts() {
+      if (!CHARTS_READY) {
+        return;
+      }
+
+      drawCumulativeChart();
+      drawDailyChart();
+      drawMixChart();
+      drawProviderChart();
+    }
+
+    function drawCumulativeChart() {
+      const element = document.getElementById('chartAcumulado');
+      const workdays = DATA.workdays || {};
+      const keys = workdays.workdayKeys || [];
+
+      if (!keys.length) {
+        setChartEmpty(
+          element,
+          'No hay días hábiles configurados para el mes.'
+        );
+        return;
+      }
+
+      element.className = 'chart';
+
+      const plan = planForFilter();
+      const byDate = {};
+
+      CURRENT_ROWS.forEach(function(row) {
+        byDate[row.fecha] = (byDate[row.fecha] || 0) + row.ts;
+      });
+
+      const allDates = Object.keys(byDate).sort();
+      const reference = workdays.referenceDate || '';
+
+      let referenceIndex = -1;
+
+      keys.forEach(function(key, index) {
+        if (key <= reference) {
+          referenceIndex = index;
+        }
+      });
+
+      const cumulative = [];
+      let running = 0;
+      let dateIndex = 0;
+
+      keys.forEach(function(key) {
+        while (
+          dateIndex < allDates.length &&
+          allDates[dateIndex] <= key
+        ) {
+          running += byDate[allDates[dateIndex]];
+          dateIndex++;
+        }
+
+        cumulative.push(running);
+      });
+
+      const atReference = referenceIndex >= 0
+        ? cumulative[referenceIndex]
+        : 0;
+
+      const pace = referenceIndex >= 0
+        ? atReference / (referenceIndex + 1)
+        : 0;
+
+      const table = new google.visualization.DataTable();
+      table.addColumn('string', 'Fecha');
+
+      if (plan) {
+        table.addColumn('number', 'Plan a la fecha');
+      }
+
+      table.addColumn('number', 'Avance acumulado');
+      table.addColumn('number', 'Proyección al ritmo actual');
+
+      keys.forEach(function(key, index) {
+        const row = [formatDateKey(key)];
+
+        if (plan) {
+          row.push(
+            workdays.total
+              ? plan * (index + 1) / workdays.total
+              : 0
+          );
+        }
+
+        row.push(
+          index <= referenceIndex ? cumulative[index] : null
+        );
+
+        row.push(
+          referenceIndex >= 0 && index >= referenceIndex
+            ? atReference + pace * (index - referenceIndex)
+            : null
+        );
+
+        table.addRow(row);
+      });
+
+      const series = plan
+        ? {
+            0: { lineDashStyle: [6, 4], lineWidth: 2 },
+            1: { lineWidth: 3, pointSize: 4 },
+            2: {
+              lineDashStyle: [3, 3],
+              lineWidth: 2,
+              pointSize: 0
+            }
+          }
+        : {
+            0: { lineWidth: 3, pointSize: 4 },
+            1: {
+              lineDashStyle: [3, 3],
+              lineWidth: 2,
+              pointSize: 0
+            }
+          };
+
+      new google.visualization.LineChart(element).draw(table, {
+        backgroundColor: 'transparent',
+        colors: plan
+          ? ['#476f95', '#2d6a4f', '#d28b20']
+          : ['#2d6a4f', '#d28b20'],
+        series: series,
+        interpolateNulls: false,
+        legend: { position: 'top', alignment: 'end' },
+        chartArea: {
+          left: 78,
+          top: 48,
+          width: '85%',
+          height: '66%'
+        },
+        hAxis: {
+          slantedText: keys.length > 10,
+          slantedTextAngle: 45,
+          showTextEvery: Math.max(
+            1,
+            Math.ceil(keys.length / 15)
+          ),
+          textStyle: { color: '#6d7d74', fontSize: 10 }
+        },
+        vAxis: {
+          title: unidad(),
+          minValue: 0,
+          gridlines: { color: '#edf2ef' },
+          textStyle: { color: '#6d7d74', fontSize: 10 }
+        }
+      });
+    }
+
+    function drawDailyChart() {
+      const element = document.getElementById('chartDiario');
+      const aggregate = {};
+
+      CURRENT_ROWS.forEach(function(row) {
+        if (!aggregate[row.fecha]) {
+          aggregate[row.fecha] = { sap: 0, planilla: 0 };
+        }
+
+        if (row.source === 'PLANILLA') {
+          aggregate[row.fecha].planilla += row.ts;
+        } else {
+          aggregate[row.fecha].sap += row.ts;
+        }
+      });
+
+      const dates = Object.keys(aggregate).sort();
+
+      if (!dates.length) {
+        setChartEmpty(element, 'No hay fechas para graficar.');
+        return;
+      }
+
+      element.className = 'chart';
+
+      const workdays = DATA.workdays || {};
+      const workdaySet = {};
+
+      (workdays.workdayKeys || []).forEach(function(key) {
+        workdaySet[key] = true;
+      });
+
+      const plan = planForFilter();
+
+      const planDiario = workdays.total
+        ? plan / workdays.total
+        : 0;
+
+      const table = new google.visualization.DataTable();
+      table.addColumn('string', 'Fecha');
+      table.addColumn('number', 'SAP');
+      table.addColumn('number', 'Complemento planilla');
+      table.addColumn('number', 'Total del día');
+      table.addColumn('number', 'Plan diario');
+
+      table.addRows(
+        dates.map(function(date) {
+          const sap = aggregate[date].sap;
+          const planilla = aggregate[date].planilla;
+
+          return [
+            formatDateKey(date),
+            sap,
+            planilla,
+            sap + planilla,
+            workdaySet[date] ? planDiario : 0
+          ];
+        })
+      );
+
+      new google.visualization.ComboChart(element).draw(table, {
+        backgroundColor: 'transparent',
+        seriesType: 'bars',
+        isStacked: true,
+        colors: ['#2d6a4f', '#d28b20', '#173f2d', '#476f95'],
+        series: {
+          2: {
+            type: 'line',
+            lineWidth: 3,
+            pointSize: 4,
+            isStacked: false
+          },
+          3: {
+            type: 'line',
+            lineWidth: 2,
+            lineDashStyle: [6, 4],
+            pointSize: 0,
+            isStacked: false
+          }
+        },
+        legend: { position: 'top', alignment: 'end' },
+        chartArea: {
+          left: 78,
+          top: 48,
+          width: '85%',
+          height: '64%'
+        },
+        hAxis: {
+          slantedText: dates.length > 10,
+          slantedTextAngle: 45,
+          showTextEvery: Math.max(
+            1,
+            Math.ceil(dates.length / 15)
+          ),
+          textStyle: { color: '#6d7d74', fontSize: 10 }
+        },
+        vAxis: {
+          title: unidad(),
+          minValue: 0,
+          gridlines: { color: '#edf2ef' },
+          textStyle: { color: '#6d7d74', fontSize: 10 }
+        }
+      });
+    }
+
+    function drawMixChart() {
+      const element = document.getElementById('chartMix');
+
+      const summary = CURRENT_SUBPRODUCTOS.filter(
+        function(item) {
+          return item.total > 0;
+        }
+      );
+
+      if (!summary.length) {
+        setChartEmpty(element, 'Sin ingresos para repartir.');
+        return;
+      }
+
+      element.className = 'chart';
+
+      const table = new google.visualization.DataTable();
+      table.addColumn('string', 'Sub-producto');
+      table.addColumn('number', unidad());
+
+      table.addRows(
+        summary.map(function(item) {
+          return [shortSubproducto(item.subproducto), item.total];
+        })
+      );
+
+      new google.visualization.PieChart(element).draw(table, {
+        backgroundColor: 'transparent',
+        pieHole: 0.45,
+        colors: summary.map(function(item) {
+          return COLORS[item.subproducto] || '#6d7d74';
+        }),
+        legend: {
+          position: 'bottom',
+          textStyle: { fontSize: 11 }
+        },
+        chartArea: {
+          left: 10,
+          top: 20,
+          width: '92%',
+          height: '74%'
+        }
+      });
+    }
+
+    function drawProviderChart() {
+      const element = document.getElementById('chartProveedores');
+      const summary = CURRENT_PROVEEDORES.slice(0, 15);
+
+      if (!summary.length) {
+        setChartEmpty(element, 'Sin proveedores para graficar.');
+        return;
+      }
+
+      element.className = '';
+      element.style.minWidth =
+        Math.max(1000, summary.length * 78) + 'px';
+      element.style.height = '420px';
+
+      const table = new google.visualization.DataTable();
+      table.addColumn('string', 'Proveedor');
+      table.addColumn('number', 'SAP');
+      table.addColumn('number', 'Complemento planilla');
+
+      table.addRows(
+        summary.map(function(item) {
+          return [item.proveedor, item.sap, item.planilla];
+        })
+      );
+
+      new google.visualization.ColumnChart(element).draw(table, {
+        backgroundColor: 'transparent',
+        isStacked: true,
+        colors: ['#2d6a4f', '#d28b20'],
+        legend: { position: 'top', alignment: 'end' },
+        chartArea: {
+          left: 78,
+          top: 40,
+          width: '89%',
+          height: '56%'
+        },
+        hAxis: {
+          slantedText: true,
+          slantedTextAngle: 55,
+          textStyle: { color: '#4d6257', fontSize: 9 }
+        },
+        vAxis: {
+          title: unidad(),
+          minValue: 0,
+          gridlines: { color: '#edf2ef' },
+          textStyle: { color: '#6d7d74', fontSize: 10 }
+        }
+      });
+    }
+
+    function setChartEmpty(element, message) {
+      element.className = 'chart-empty';
+      element.textContent = message;
+    }
+
+    function shortSubproducto(name) {
+      if (name === 'ASTILLA EUCALYPTUS NITENS') {
+        return 'Nitens';
+      }
+
+      if (name === 'AST. PINO VERDE C/ CORTEZA') {
+        return 'Pino verde c/corteza';
+      }
+
+      if (name === 'ASTILLA PINO VERDE') {
+        return 'Pino verde';
+      }
+
+      return name || '';
+    }
+
+    function resetFilters() {
+      document.getElementById('dateFrom').value =
+        DATA.month.startKey || '';
+
+      document.getElementById('dateTo').value =
+        DATA.month.endKey || '';
+
+      document.getElementById('subproductoFilter').value = '';
+      document.getElementById('proveedorFilter').value = '';
+      document.getElementById('sourceFilter').value = '';
+      document.getElementById('searchFilter').value = '';
+
+      renderAll();
+    }
+
+    function normalizeDateInput(value) {
+      const text = String(value || '').trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+    }
+
+    function formatDateKey(value) {
+      const match = String(value || '').match(
+        /^(\d{4})-(\d{2})-(\d{2})$/
+      );
+
+      return match
+        ? [match[3], match[2], match[1]].join('/')
+        : '';
+    }
+
+    function formatQuantity(value) {
+      return new Intl.NumberFormat('es-CL', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1
+      }).format(Number(value) || 0);
+    }
+
+    function formatTs(value) {
+      return formatQuantity(value) + ' ' + unidad();
+    }
+
+    function formatInteger(value) {
+      return new Intl.NumberFormat('es-CL', {
+        maximumFractionDigits: 0
+      }).format(Number(value) || 0);
+    }
+
+    function formatPercent(value) {
+      return new Intl.NumberFormat('es-CL', {
+        style: 'percent',
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1
+      }).format(Number(value) || 0);
+    }
+
+    function formatSigned(value) {
+      const number = Number(value) || 0;
+      return (number > 0 ? '+' : '') + formatQuantity(number);
+    }
+
+    function sum(values) {
+      return values.reduce(function(total, value) {
+        return total + (Number(value) || 0);
+      }, 0);
+    }
+
+    function unique(values) {
+      return Array.from(new Set(values));
+    }
+
+    function normalizeText(value) {
+      return String(value || '')
+        .trim()
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ');
+    }
+
+    function escapeHtml(value) {
+      return String(
+        value === null || value === undefined ? '' : value
+      )
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function setText(id, value) {
+      const element = document.getElementById(id);
+
+      if (element) {
+        element.textContent = String(value);
+      }
+    }
+
+    function setLoading(visible) {
+      document.getElementById('loading').style.display =
+        visible ? 'grid' : 'none';
+    }
+
+    function showError(message) {
+      const banner = document.getElementById('errorBanner');
+      banner.textContent = String(message);
+      banner.style.display = 'block';
+    }
+
+    function hideError() {
+      const banner = document.getElementById('errorBanner');
+      banner.textContent = '';
+      banner.style.display = 'none';
+    }
+
+    function debounce(callback, wait) {
+      let timer = null;
+
+      return function() {
+        const context = this;
+        const args = arguments;
+
+        clearTimeout(timer);
+
+        timer = setTimeout(function() {
+          callback.apply(context, args);
+        }, wait);
+      };
+    }
+  </script>
+</body>
+</html>
