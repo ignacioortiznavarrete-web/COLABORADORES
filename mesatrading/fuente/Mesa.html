@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mesa Trading</title>
+  <?!= include('Estilos') ?>
+</head>
+<body>
+
+<main class="app" id="app">
+  <header class="barra">
+    <div>
+      <h1>Mesa Trading</h1>
+      <div class="sub" id="sub">Cargando…</div>
+    </div>
+    <div class="acciones">
+      <button class="btn fantasma" id="btnReunion" type="button">Modo reunión</button>
+      <button class="btn fantasma" id="btnSincronizar" type="button">Sincronizar</button>
+      <button class="btn fantasma" id="btnRecargar" type="button">Recargar</button>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis"></section>
+  <div class="avisos" id="avisos"></div>
+
+  <div>
+    <section class="herramientas">
+      <input class="buscador" id="busqueda" type="search"
+             placeholder="Buscar pedido, material, cliente, puerto, proveedor o comentario">
+      <div class="pestanas" id="pestanas"></div>
+      <select id="filtroProveedor" aria-label="Filtrar por proveedor">
+        <option value="">Todos los proveedores</option>
+      </select>
+      <select id="filtroUrgencia" aria-label="Filtrar por urgencia">
+        <option value="">Toda urgencia</option>
+        <option value="alerta">Solo lo que requiere decisión</option>
+        <option value="vencido">Embarque vencido</option>
+        <option value="critico">Embarque crítico</option>
+        <option value="proximo">Embarque próximo</option>
+        <option value="sin-fecha">Sin fecha</option>
+      </select>
+      <div class="vistas" role="group" aria-label="Vista">
+        <button type="button" data-vista="mesa">Mesa</button>
+        <button type="button" data-vista="tablero">Tablero</button>
+        <button type="button" data-vista="proveedores">Proveedores</button>
+      </div>
+    </section>
+    <div class="estado-linea" id="linea"></div>
+  </div>
+
+  <section class="area" id="area">
+    <div class="panel" id="principal">
+      <div class="cargando">Cargando la mesa…</div>
+    </div>
+    <aside class="panel detalle" id="detalle"></aside>
+  </section>
+</main>
+
+<section class="reunion" id="reunion" aria-hidden="true">
+  <header class="reunion-cab">
+    <div>
+      <h2 id="reunionTitulo">Mesa Trading</h2>
+      <div class="quien" id="reunionQuien"></div>
+    </div>
+    <button class="btn fantasma" id="btnCerrarReunion" type="button">Salir (Esc)</button>
+  </header>
+  <div class="reunion-cuerpo" id="reunionCuerpo"></div>
+  <footer class="reunion-pie">
+    <button class="btn fantasma" id="btnAnterior" type="button">← Anterior</button>
+    <div class="pasos" id="reunionPasos"></div>
+    <button class="btn fantasma" id="btnSiguiente" type="button">Siguiente →</button>
+  </footer>
+</section>
+
+<script>
+/* ==========================================================================
+   Estado de la pantalla
+   ========================================================================== */
+
+var S = {
+  datos: null,
+  filtrados: [],
+  seleccion: '',
+  vista: 'mesa',
+  filtroEstado: '',
+  filtroProveedor: '',
+  filtroUrgencia: '',
+  busqueda: '',
+  area: 'Ventas',
+  guardando: false,
+  borradores: {},
+  reunion: { abierta: false, laminas: [], indice: 0 }
+};
+
+var $ = function (id) { return document.getElementById(id); };
+
+/* ==========================================================================
+   Utilidades
+   ========================================================================== */
+
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+function plano(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function colorSeguro(v) {
+  return /^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? v : '#FFF2CC';
+}
+
+function numeroCL(n, dec) {
+  var v = Number(n || 0);
+  if (isNaN(v)) v = 0;
+  if (dec === undefined) dec = 2;
+  var partes = Math.abs(v).toFixed(dec).split('.');
+  var entero = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (v < 0 ? '-' : '') + entero + (partes[1] ? ',' + partes[1] : '');
+}
+
+function decir(texto, clase) {
+  $('linea').className = 'estado-linea' + (clase ? ' ' + clase : '');
+  $('linea').textContent = texto || '';
+}
+
+function fallo(err) {
+  decir(err && err.message ? err.message : String(err || 'Ocurrió un error'), 'error');
+}
+
+/* --------------------------------------------------------------------------
+   Vista previa de la fecha que se escribe en texto.
+
+   Es solo una ayuda visual mientras se escribe: al guardar, el servidor
+   vuelve a interpretar el texto y ESA es la fecha que queda. Si alguna vez
+   difieren, manda la del servidor (Config.gs · interpretarFecha_).
+   -------------------------------------------------------------------------- */
+
+var MESES_JS = {
+  enero:1, ene:1, febrero:2, feb:2, marzo:3, mar:3, abril:4, abr:4, mayo:5, may:5,
+  junio:6, jun:6, julio:7, jul:7, agosto:8, ago:8, septiembre:9, setiembre:9, sep:9, sept:9,
+  octubre:10, oct:10, noviembre:11, nov:11, diciembre:12, dic:12
+};
+
+function ultimoDia(a, m) { return new Date(a, m, 0).getDate(); }
+
+function dosDigitos(n) { return (String(n).length < 2 ? '0' : '') + n; }
+
+function comoTexto(a, m, d) { return dosDigitos(d) + '-' + dosDigitos(m) + '-' + a; }
+
+function verFecha(txt, anioRef) {
+  var t = plano(txt);
+  if (!t || t === 'sin fecha') return null;
+  var anio = anioRef || new Date().getFullYear();
+
+  var num = t.match(/(\d{1,4})[\/\-.](\d{1,2})[\/\-.](\d{1,4})/);
+  if (num) {
+    var a = parseInt(num[1], 10), b = parseInt(num[2], 10), c = parseInt(num[3], 10);
+    var A, M, D;
+    if (num[1].length === 4) { A = a; M = b; D = c; }
+    else { D = a; M = b; A = c < 100 ? c + 2000 : c;
+           if (D > 12 && M > 12) return null;
+           if (D <= 12 && M > 12) { var x = D; D = M; M = x; } }
+    if (M < 1 || M > 12 || D < 1 || D > ultimoDia(A, M)) return null;
+    return { texto: comoTexto(A, M, D), aprox: false };
+  }
+
+  var mes = 0, largo = 0;
+  for (var nom in MESES_JS) {
+    if (new RegExp('(^|[^a-z])' + nom + '([^a-z]|$)').test(t) && nom.length > largo) {
+      mes = MESES_JS[nom]; largo = nom.length;
+    }
+  }
+  if (!mes) return null;
+
+  var anioTxt = t.match(/\b(20\d{2})\b/);
+  if (anioTxt) anio = parseInt(anioTxt[1], 10);
+
+  var dia = t.replace(/\b20\d{2}\b/g, ' ').match(/\b(\d{1,2})\b/);
+  if (dia) {
+    var d = parseInt(dia[1], 10);
+    if (d >= 1 && d <= ultimoDia(anio, mes)) return { texto: comoTexto(anio, mes, d), aprox: false };
+  }
+  if (/\b(fin|fines|final|finales|ultima|ultimos)\b/.test(t)) return { texto: comoTexto(anio, mes, ultimoDia(anio, mes)), aprox: true };
+  if (/\b(inicio|inicios|principio|principios|comienzo|comienzos|primera|primeros)\b/.test(t)) return { texto: comoTexto(anio, mes, 1), aprox: true };
+  if (/\b(mediados|medio|mitad|quincena)\b/.test(t)) return { texto: comoTexto(anio, mes, 15), aprox: true };
+  return { texto: comoTexto(anio, mes, ultimoDia(anio, mes)), aprox: true };
+}
+
+/* ==========================================================================
+   Carga
+   ========================================================================== */
+
+function cargar(mensaje) {
+  decir(mensaje || 'Cargando la mesa…');
+  google.script.run
+    .withSuccessHandler(function (datos) {
+      S.datos = datos;
+      if (!S.seleccion && datos.pedidos.length) S.seleccion = datos.pedidos[0].id;
+      llenarProveedores();
+      pintar();
+      decir('');
+    })
+    .withFailureHandler(fallo)
+    .datosMesa();
+}
+
+function llenarProveedores() {
+  var sel = $('filtroProveedor');
+  var actual = S.filtroProveedor;
+  sel.innerHTML = '<option value="">Todos los proveedores</option><option value="__sin">Sin proveedor</option>';
+  (S.datos.proveedores || []).forEach(function (p) {
+    var o = document.createElement('option');
+    o.value = p.nombre;
+    o.textContent = p.nombre;
+    sel.appendChild(o);
+  });
+  sel.value = actual;
+}
+
+/* ==========================================================================
+   Filtros
+   ========================================================================== */
+
+function filtrar() {
+  var q = plano(S.busqueda);
+  return (S.datos.pedidos || []).filter(function (p) {
+    if (S.filtroEstado && p.estado !== S.filtroEstado) return false;
+
+    if (S.filtroProveedor === '__sin') { if (p.proveedor) return false; }
+    else if (S.filtroProveedor && p.proveedor !== S.filtroProveedor) return false;
+
+    if (S.filtroUrgencia === 'alerta') { if (!p.alerta) return false; }
+    else if (S.filtroUrgencia && p.urgencia !== S.filtroUrgencia) return false;
+
+    if (!q) return true;
+    return plano([p.docVenta, p.material, p.texto, p.cliente, p.puerto, p.pais,
+                  p.proveedor, p.comentario, p.comentarioCompra].join(' ')).indexOf(q) !== -1;
+  });
+}
+
+function seleccionado() {
+  for (var i = 0; i < S.filtrados.length; i++) {
+    if (S.filtrados[i].id === S.seleccion) return S.filtrados[i];
+  }
+  return S.filtrados.length ? S.filtrados[0] : null;
+}
+
+/* ==========================================================================
+   Pintado general
+   ========================================================================== */
+
+function pintar() {
+  if (!S.datos) return;
+  S.filtrados = filtrar();
+
+  var sel = seleccionado();
+  S.seleccion = sel ? sel.id : '';
+
+  $('sub').textContent = S.datos.planilla + ' · actualizado ' + S.datos.actualizado +
+    (S.datos.usuario ? ' · ' + S.datos.usuario : '');
+
+  pintarKpis();
+  pintarAvisos();
+  pintarPestanas();
+  pintarVistas();
+
+  if (S.vista === 'mesa') pintarTabla();
+  else if (S.vista === 'tablero') pintarTablero();
+  else pintarProveedores();
+
+  $('area').className = 'area' + (S.vista === 'proveedores' ? ' solo' : '');
+  $('detalle').style.display = S.vista === 'proveedores' ? 'none' : '';
+  if (S.vista !== 'proveedores') pintarDetalle();
+}
+
+function pintarKpis() {
+  var k = S.datos.kpis;
+  var tarjetas = [
+    { rot: 'Pedidos en mesa', val: k.total, pie: k.proveedoresUsados + ' proveedores en juego' },
+    { rot: 'Por embarcar', val: k.texto.porEmbarcarM3, pie: 'm³ comprometidos y no embarcados' },
+    { rot: 'Requiere decisión', val: k.enRiesgo, pie: k.texto.riesgoM3 + ' m³ en juego', malo: k.enRiesgo > 0 },
+    { rot: 'Sin proveedor', val: k.sinProveedor, pie: k.texto.sinProveedorM3 + ' m³ sin asignar' },
+    { rot: 'Proveedor llega tarde', val: k.texto.desfaseM3, pie: 'm³ prometidos después del embarque', malo: k.desfaseM3 > 0 },
+    { rot: 'Ya embarcado', val: k.texto.embarcadoM3, pie: 'm³ de ' + k.texto.pedidoM3 + ' vendidos' }
+  ];
+
+  $('kpis').innerHTML = tarjetas.map(function (t) {
+    return '<div class="kpi' + (t.malo ? ' riesgo' : '') + '">' +
+      '<div class="rot">' + esc(t.rot) + '</div>' +
+      '<div class="val">' + esc(t.val) + '</div>' +
+      '<div class="pie">' + esc(t.pie) + '</div></div>';
+  }).join('');
+}
+
+function pintarAvisos() {
+  var avisos = S.datos.avisos || [];
+  $('avisos').innerHTML = avisos.map(function (a) {
+    return '<div class="aviso"><span>•</span><span>' + esc(a.texto) + '</span></div>';
+  }).join('');
+}
+
+function pintarPestanas() {
+  var cuenta = { '': (S.datos.pedidos || []).length };
+  (S.datos.estados || []).forEach(function (e) { cuenta[e] = S.datos.kpis.porEstado[e] || 0; });
+
+  var lista = [{ v: '', t: 'Todos' }].concat((S.datos.estados || []).map(function (e) {
+    return { v: e, t: e };
+  }));
+
+  $('pestanas').innerHTML = lista.map(function (x) {
+    return '<button type="button" class="pestana" data-estado="' + esc(x.v) + '" ' +
+      'aria-pressed="' + (S.filtroEstado === x.v) + '">' + esc(x.t) +
+      '<span class="n">' + (cuenta[x.v] || 0) + '</span></button>';
+  }).join('');
+
+  Array.prototype.forEach.call($('pestanas').children, function (b) {
+    b.onclick = function () { S.filtroEstado = b.getAttribute('data-estado'); pintar(); };
+  });
+}
+
+function pintarVistas() {
+  Array.prototype.forEach.call(document.querySelectorAll('.vistas button'), function (b) {
+    b.setAttribute('aria-pressed', String(b.getAttribute('data-vista') === S.vista));
+  });
+}
+
+/* ------------------------------------------------------------------ tabla */
+
+function chipProveedor(p) {
+  var nombre = p.proveedor || 'Sin asignar';
+  return '<span class="chip" style="background:#F1F5F3">' +
+    '<span class="punto" style="background:' + colorSeguro(p.proveedorColor) + '"></span>' +
+    '<span class="txt">' + esc(nombre) + '</span></span>';
+}
+
+function chipEstado(p) {
+  return '<span class="chip est-' + esc(p.estadoClave) + '">' + esc(p.estado) + '</span>';
+}
+
+function celdaVolumen(p) {
+  var total = p.pedidoM3 || 0;
+  var hecho = total ? Math.max(0, Math.min(100, (p.embarcadoM3 / total) * 100)) : 0;
+  return '<div class="fuerte">' + numeroCL(p.porEmbarcarM3) + '</div>' +
+    '<div class="tenue">de ' + numeroCL(total) + ' m³</div>' +
+    '<div class="barra-vol"><i style="width:' + hecho.toFixed(1) + '%"></i></div>';
+}
+
+function celdaCompromiso(p) {
+  if (!p.fechaProveedor) return '<span class="tenue">—</span>';
+  var html = '<div class="compromiso">' + esc(p.fechaProveedor) +
+    (p.fechaProveedorConfianza === 'aproximada' ? '<span class="aprox">aprox</span>' : '') + '</div>';
+  if (p.fechaProveedorTextoOriginal && p.fechaProveedorTextoOriginal !== p.fechaProveedor) {
+    html += '<div class="tenue">“' + esc(p.fechaProveedorTextoOriginal) + '”</div>';
+  }
+  if (p.desfase !== null && p.desfase > 0) {
+    html += '<span class="desfase">+' + p.desfase + " d tarde</span>";
+  }
+  return html;
+}
+
+function pintarTabla() {
+  if (!S.filtrados.length) {
+    $('principal').innerHTML = '<div class="vacio">No hay pedidos con estos filtros.</div>';
+    return;
+  }
+
+  var filas = S.filtrados.map(function (p) {
+    return '<tr data-id="' + esc(p.id) + '" aria-selected="' + (p.id === S.seleccion) + '">' +
+      '<td class="celda-alerta"><span class="marca ' + (p.alerta ? esc(p.alerta.nivel) : '') + '"></span></td>' +
+      '<td><div class="fuerte">' + esc(p.docVenta || '—') + '</div>' +
+          '<div class="tenue">' + esc(p.cliente || p.origen || '') + '</div></td>' +
+      '<td class="col-material"><div>' + esc(p.material || '—') + '</div>' +
+          '<div class="tenue recorte">' + esc(p.texto || '') + '</div></td>' +
+      '<td><div>' + esc(p.fechaEmbarque || '—') + '</div>' +
+          '<div><span class="chip urg-' + esc(p.urgencia) + '">' + esc(p.diasTexto) + '</span></div></td>' +
+      '<td>' + celdaVolumen(p) + '</td>' +
+      '<td>' + chipProveedor(p) + '</td>' +
+      '<td>' + celdaCompromiso(p) + '</td>' +
+      '<td>' + chipEstado(p) + '</td>' +
+      '<td class="col-conversacion">' + celdaConversacion(p) + '</td>' +
+      '</tr>';
+  }).join('');
+
+  $('principal').innerHTML =
+    '<div class="scroll"><table><thead><tr>' +
+      '<th class="celda-alerta"></th><th>Pedido</th><th>Material</th><th>Embarque</th>' +
+      '<th>Por embarcar</th><th>Proveedor</th><th>Compromiso</th><th>Estado</th><th>Conversación</th>' +
+    '</tr></thead><tbody>' + filas + '</tbody></table></div>';
+
+  Array.prototype.forEach.call($('principal').querySelectorAll('tbody tr'), function (tr) {
+    tr.onclick = function () { S.seleccion = tr.getAttribute('data-id'); pintar(); };
+  });
+}
+
+function celdaConversacion(p) {
+  var ultimo = p.mensajes && p.mensajes.length ? p.mensajes[p.mensajes.length - 1] : null;
+  if (!ultimo) {
+    var suelto = p.comentario || p.comentarioCompra;
+    return suelto
+      ? '<div class="tenue recorte">' + esc(suelto) + '</div>'
+      : '<span class="tenue">—</span>';
+  }
+  return '<div class="tenue"><b>' + esc(ultimo.area) + '</b> · ' + esc(ultimo.fechaTexto) +
+    (p.totalMensajes > 1 ? ' · ' + p.totalMensajes + ' mensajes' : '') + '</div>' +
+    '<div class="recorte">' + esc(ultimo.mensaje) + '</div>';
+}
+
+/* ---------------------------------------------------------------- tablero */
+
+function pintarTablero() {
+  var columnas = (S.datos.estados || []).map(function (estado) {
+    var enEstado = S.filtrados.filter(function (p) { return p.estado === estado; });
+    var m3 = enEstado.reduce(function (a, p) { return a + (p.porEmbarcarM3 || 0); }, 0);
+
+    var tarjetas = enEstado.map(function (p) {
+      return '<article class="tarjeta ' + (p.alerta ? esc(p.alerta.nivel) : '') + '" draggable="true" ' +
+        'data-id="' + esc(p.id) + '" aria-selected="' + (p.id === S.seleccion) + '">' +
+        '<div class="doc">' + esc(p.docVenta || '—') + '</div>' +
+        '<div class="mat">' + esc(p.material || '') + '</div>' +
+        chipProveedor(p) +
+        '<div class="pie"><span class="chip urg-' + esc(p.urgencia) + '">' + esc(p.diasTexto) + '</span>' +
+        '<span class="fuerte">' + numeroCL(p.porEmbarcarM3) + ' m³</span></div>' +
+        (p.alerta ? '<div class="pie"><span class="tenue">' + esc(p.alerta.etiqueta) + '</span></div>' : '') +
+        '</article>';
+    }).join('');
+
+    return '<section class="columna" data-estado="' + esc(estado) + '">' +
+      '<div class="columna-cab"><span>' + esc(estado) + ' (' + enEstado.length + ')</span>' +
+      '<span class="m3">' + numeroCL(m3) + ' m³</span></div>' +
+      '<div class="columna-cuerpo">' + (tarjetas || '<div class="vacio">Vacío</div>') + '</div></section>';
+  }).join('');
+
+  $('principal').innerHTML = '<div class="tablero">' + columnas + '</div>';
+  activarArrastre();
+}
+
+function activarArrastre() {
+  Array.prototype.forEach.call($('principal').querySelectorAll('.tarjeta'), function (t) {
+    t.onclick = function () { S.seleccion = t.getAttribute('data-id'); pintar(); };
+    t.ondragstart = function (e) {
+      e.dataTransfer.setData('text/plain', t.getAttribute('data-id'));
+      e.dataTransfer.effectAllowed = 'move';
+    };
+  });
+
+  Array.prototype.forEach.call($('principal').querySelectorAll('.columna'), function (col) {
+    col.ondragover = function (e) { e.preventDefault(); col.classList.add('encima'); };
+    col.ondragleave = function () { col.classList.remove('encima'); };
+    col.ondrop = function (e) {
+      e.preventDefault();
+      col.classList.remove('encima');
+      moverEstado(e.dataTransfer.getData('text/plain'), col.getAttribute('data-estado'));
+    };
+  });
+}
+
+function moverEstado(id, estado) {
+  var p = null;
+  for (var i = 0; i < S.datos.pedidos.length; i++) {
+    if (S.datos.pedidos[i].id === id) { p = S.datos.pedidos[i]; break; }
+  }
+  if (!p || p.estado === estado || S.guardando) return;
+
+  S.guardando = true;
+  decir('Moviendo ' + p.docVenta + ' a ' + estado + '…');
+
+  google.script.run
+    .withSuccessHandler(function (datos) {
+      S.guardando = false;
+      S.datos = datos;
+      pintar();
+      decir(p.docVenta + ' quedó en ' + estado + '.', 'ok');
+    })
+    .withFailureHandler(function (e) { S.guardando = false; fallo(e); })
+    .guardarPedido({
+      fila: p.fila, docVenta: p.docVenta, material: p.material,
+      proveedor: p.proveedor, estado: estado,
+      fechaProveedor: p.fechaProveedor, mensaje: '', area: S.area
+    });
+}
+
+/* ------------------------------------------------------------ proveedores */
+
+function pintarProveedores() {
+  var lista = S.datos.porProveedor || [];
+  var tope = lista.reduce(function (a, p) { return Math.max(a, p.porEmbarcarM3); }, 0) || 1;
+
+  $('principal').innerHTML = '<div class="provs">' + lista.map(function (p) {
+    return '<div class="prov">' +
+      '<span class="tono" style="background:' + colorSeguro(p.hex) + '"></span>' +
+      '<span class="nom">' + esc(p.nombre) + '</span>' +
+      '<span class="riel"><i style="width:' + ((p.porEmbarcarM3 / tope) * 100).toFixed(1) + '%;' +
+        'background:' + colorSeguro(p.hex) + '"></i></span>' +
+      '<span class="num">' + esc(p.porEmbarcarTexto) + ' m³</span>' +
+      '<span class="avisa">' + (p.enRiesgo ? p.enRiesgo + ' ⚠' : '') + '</span>' +
+      '</div>';
+  }).join('') + '</div>';
+}
+
+/* ---------------------------------------------------------------- detalle */
+
+function pintarDetalle() {
+  var p = seleccionado();
+  if (!p) {
+    $('detalle').innerHTML = '<div class="vacio">Selecciona un pedido.</div>';
+    return;
+  }
+
+  var opciones = '<option value="">Sin asignar</option>' +
+    (S.datos.proveedores || []).map(function (x) {
+      return '<option value="' + esc(x.nombre) + '"' +
+        (x.nombre === p.proveedor ? ' selected' : '') + '>' + esc(x.nombre) + '</option>';
+    }).join('');
+
+  var estados = (S.datos.estados || []).map(function (e) {
+    return '<option value="' + esc(e) + '"' + (e === p.estado ? ' selected' : '') + '>' + esc(e) + '</option>';
+  }).join('');
+
+  var claveBorrador = p.id + '|' + S.area;
+  var borrador = S.borradores[claveBorrador] || '';
+
+  $('detalle').innerHTML =
+    '<div class="detalle-cab">' +
+      '<h2>' + esc(p.docVenta || 'Pedido') + '</h2>' +
+      '<div class="tenue">' + esc(p.material) + ' · ' + esc(p.texto) + '</div>' +
+      '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
+        chipEstado(p) +
+        '<span class="chip urg-' + esc(p.urgencia) + '">' + esc(p.urgenciaEtiqueta) + ' · ' + esc(p.diasTexto) + '</span>' +
+        (p.alerta ? '<span class="chip urg-vencido">' + esc(p.alerta.etiqueta) + '</span>' : '') +
+      '</div>' +
+    '</div>' +
+    '<div class="detalle-cuerpo">' +
+      bloqueCadena(p) +
+      bloqueDatos(p) +
+      '<div class="seccion">Decisión de la mesa</div>' +
+      '<label class="campo"><span>Proveedor</span><select id="edProveedor">' + opciones + '</select></label>' +
+      '<label class="campo"><span>Estado</span><select id="edEstado">' + estados + '</select></label>' +
+      '<label class="campo"><span>Fecha que promete el proveedor</span>' +
+        '<input id="edFecha" type="text" autocomplete="off" placeholder="30-08-2026, «20 julio» o «fin de agosto»" ' +
+        'value="' + esc(p.fechaProveedorTextoOriginal || p.fechaProveedor || '') + '">' +
+        '<span class="pista" id="pistaFecha"></span></label>' +
+      '<button class="btn" id="btnGuardar" type="button" style="width:100%">Guardar</button>' +
+
+      '<div class="seccion">Conversación (' + (p.totalMensajes || 0) + ')</div>' +
+      '<div class="areas" role="group">' +
+        '<button type="button" data-area="Ventas" aria-pressed="' + (S.area === 'Ventas') + '">Hablo por Ventas</button>' +
+        '<button type="button" data-area="Compras" aria-pressed="' + (S.area === 'Compras') + '">Hablo por Compras</button>' +
+      '</div>' +
+      '<label class="campo"><span>Mensaje</span>' +
+        '<textarea id="edMensaje" placeholder="Ej: proveedor confirma 200 m³ para el 20 de agosto, falta precio">' + esc(borrador) + '</textarea></label>' +
+      '<button class="btn plano" id="btnEnviar" type="button" style="width:100%">Enviar mensaje</button>' +
+      '<div class="hilo" style="margin-top:12px">' + bloqueHilo(p) + '</div>' +
+    '</div>';
+
+  conectarDetalle(p, claveBorrador);
+}
+
+function bloqueCadena(p) {
+  var total = p.pedidoM3 || 0;
+  var pasos = [
+    { r: 'Vendido', v: p.pedidoM3, c: '#0E6E5C' },
+    { r: 'Embarcado', v: p.embarcadoM3, c: '#3E9E86' },
+    { r: 'En tránsito', v: p.transitoM3, c: '#7FBFAE' },
+    { r: 'Por embarcar', v: p.porEmbarcarM3, c: '#D98324' },
+    { r: 'Por producir', v: p.porProducirM3, c: '#B5561F' }
+  ];
+  return '<div class="cadena">' + pasos.map(function (x) {
+    var pct = total ? Math.max(0, Math.min(100, (x.v / total) * 100)) : 0;
+    return '<div class="paso"><b>' + esc(x.r) + '</b>' +
+      '<span class="riel"><i style="width:' + pct.toFixed(1) + '%;background:' + x.c + '"></i></span>' +
+      '<span class="val">' + numeroCL(x.v) + '</span></div>';
+  }).join('') + '</div>';
+}
+
+function bloqueDatos(p) {
+  var datos = [
+    ['Cliente', p.cliente],
+    ['Embarque comprometido', p.fechaEmbarque],
+    ['Puerto', p.puerto],
+    ['País', p.pais],
+    ['Incoterm', p.incoterm],
+    ['Posiciones en Bd', p.posiciones]
+  ];
+  var html = datos.filter(function (d) { return d[1] !== '' && d[1] !== null && d[1] !== undefined; })
+    .map(function (d) {
+      return '<div class="dato"><b>' + esc(d[0]) + '</b><span>' + esc(d[1]) + '</span></div>';
+    }).join('');
+
+  if (!p.enBd) {
+    html += '<div class="dato ancho"><b>Atención</b><span>Este pedido ya no aparece en Bd.</span></div>';
+  }
+  return '<div class="datos">' + html + '</div>';
+}
+
+function bloqueHilo(p) {
+  if (!p.mensajes || !p.mensajes.length) {
+    var previos = [];
+    if (p.comentario) previos.push({ area: 'Ventas', mensaje: p.comentario });
+    if (p.comentarioCompra) previos.push({ area: 'Compras', mensaje: p.comentarioCompra });
+    if (!previos.length) return '<div class="vacio">Todavía no hay mensajes.</div>';
+
+    return previos.map(function (m) {
+      return '<div class="msj ' + plano(m.area) + '">' +
+        '<div class="meta"><b>' + esc(m.area) + '</b><span>antes de la bitácora</span></div>' +
+        '<div class="texto">' + esc(m.mensaje) + '</div></div>';
+    }).join('');
+  }
+
+  return p.mensajes.slice().reverse().map(function (m) {
+    return '<div class="msj ' + plano(m.area) + '">' +
+      '<div class="meta"><b>' + esc(m.area) + (m.autor ? ' · ' + esc(m.autor) : '') + '</b>' +
+      '<span>' + esc(m.fechaTexto) + '</span></div>' +
+      '<div class="texto">' + esc(m.mensaje) + '</div></div>';
+  }).join('');
+}
+
+function conectarDetalle(p, claveBorrador) {
+  var campoFecha = $('edFecha');
+  var pista = $('pistaFecha');
+
+  function revisarFecha() {
+    var anioRef = p.fechaEmbarque ? parseInt(String(p.fechaEmbarque).slice(-4), 10) : null;
+    var r = verFecha(campoFecha.value, anioRef);
+    if (!campoFecha.value.trim()) { pista.className = 'pista'; pista.textContent = ''; return; }
+    if (!r) { pista.className = 'pista'; pista.textContent = 'No se entiende como fecha; se guardará vacía.'; return; }
+    pista.className = 'pista ' + (r.aprox ? 'aprox' : 'ok');
+    pista.textContent = 'Se guardará como ' + r.texto + (r.aprox ? ' (aproximada)' : '');
+  }
+
+  campoFecha.oninput = revisarFecha;
+  revisarFecha();
+
+  $('edMensaje').oninput = function () { S.borradores[claveBorrador] = this.value; };
+
+  Array.prototype.forEach.call($('detalle').querySelectorAll('.areas button'), function (b) {
+    b.onclick = function () { S.area = b.getAttribute('data-area'); pintarDetalle(); };
+  });
+
+  $('btnGuardar').onclick = function () { enviar(p, false); };
+  $('btnEnviar').onclick = function () { enviar(p, true); };
+}
+
+function enviar(p, conMensaje) {
+  if (S.guardando) return;
+  var mensaje = $('edMensaje').value.trim();
+  if (conMensaje && !mensaje) { decir('Escribe un mensaje antes de enviarlo.', 'error'); return; }
+
+  S.guardando = true;
+  $('btnGuardar').disabled = true;
+  $('btnEnviar').disabled = true;
+  decir('Guardando…');
+
+  var claveBorrador = p.id + '|' + S.area;
+
+  google.script.run
+    .withSuccessHandler(function (datos) {
+      S.guardando = false;
+      S.datos = datos;
+      delete S.borradores[claveBorrador];
+      llenarProveedores();
+      pintar();
+      decir(conMensaje ? 'Mensaje enviado y guardado.' : 'Pedido guardado.', 'ok');
+    })
+    .withFailureHandler(function (e) {
+      S.guardando = false;
+      fallo(e);
+      pintarDetalle();
+    })
+    .guardarPedido({
+      fila: p.fila,
+      docVenta: p.docVenta,
+      material: p.material,
+      proveedor: $('edProveedor').value,
+      estado: $('edEstado').value,
+      fechaProveedor: $('edFecha').value,
+      mensaje: mensaje,
+      area: S.area
+    });
+}
+
+/* ==========================================================================
+   Modo reunión
+   ========================================================================== */
+
+function laminasReunion() {
+  var d = S.datos;
+  var k = d.kpis;
+  var laminas = [];
+
+  laminas.push({
+    titulo: 'Mesa Trading',
+    bajada: d.planilla + ' · ' + d.actualizado,
+    html: '<div class="cifras">' +
+      cifra('Pedidos en mesa', k.total, k.proveedoresUsados + ' proveedores en juego') +
+      cifra('Por embarcar', k.texto.porEmbarcarM3 + ' m³', 'comprometido y no embarcado') +
+      cifra('Requiere decisión hoy', k.enRiesgo, k.texto.riesgoM3 + ' m³ en juego', k.enRiesgo > 0) +
+      cifra('Sin proveedor', k.sinProveedor, k.texto.sinProveedorM3 + ' m³ sin asignar', k.sinProveedor > 0) +
+    '</div>'
+  });
+
+  (d.agenda || []).forEach(function (g) {
+    laminas.push({
+      titulo: g.titulo,
+      bajada: g.detalle + ' · ' + g.pedidos.length + ' pedidos · ' + g.totalM3Texto + ' m³',
+      html: '<div class="fichas">' + g.pedidos.slice(0, 7).map(ficha).join('') +
+        (g.pedidos.length > 7
+          ? '<div class="quien">y ' + (g.pedidos.length - 7) + ' pedido(s) más en la mesa.</div>'
+          : '') + '</div>'
+    });
+  });
+
+  var provs = (d.porProveedor || []).filter(function (p) { return p.porEmbarcarM3 > 0; });
+  if (provs.length) {
+    var tope = provs[0].porEmbarcarM3 || 1;
+    laminas.push({
+      titulo: 'Dónde está el volumen',
+      bajada: 'm³ por embarcar según proveedor asignado',
+      html: '<div class="ranking">' + provs.slice(0, 10).map(function (p) {
+        return '<div class="fila-rank"><span class="nom">' + esc(p.nombre) + '</span>' +
+          '<span class="riel"><i style="width:' + ((p.porEmbarcarM3 / tope) * 100).toFixed(1) + '%;' +
+          'background:' + colorSeguro(p.hex) + '"></i></span>' +
+          '<span class="num">' + esc(p.porEmbarcarTexto) + ' m³</span></div>';
+      }).join('') + '</div>'
+    });
+  }
+
+  laminas.push({
+    titulo: 'Cómo vamos',
+    bajada: 'Pedidos por estado',
+    html: '<div class="cifras">' + (d.estados || []).map(function (e) {
+      return cifra(e, k.porEstado[e] || 0, '');
+    }).join('') + '</div>'
+  });
+
+  return laminas;
+}
+
+function cifra(rot, val, pie, malo) {
+  return '<div class="cifra' + (malo ? ' mala' : '') + '">' +
+    '<div class="rot">' + esc(rot) + '</div>' +
+    '<div class="val">' + esc(val) + '</div>' +
+    (pie ? '<div class="pie">' + esc(pie) + '</div>' : '') + '</div>';
+}
+
+function ficha(p) {
+  var linea = [];
+  if (p.cliente) linea.push('<b>' + esc(p.cliente) + '</b>');
+  if (p.fechaEmbarque) linea.push('Embarque <b>' + esc(p.fechaEmbarque) + '</b> (' + esc(p.diasTexto) + ')');
+  linea.push('Proveedor <b>' + esc(p.proveedor || 'sin asignar') + '</b>');
+  if (p.fechaProveedor) linea.push('Promete <b>' + esc(p.fechaProveedor) + '</b>');
+  if (p.puerto) linea.push(esc(p.puerto));
+
+  return '<article class="ficha">' +
+    '<div><div class="doc">' + esc(p.docVenta) + '</div>' +
+    '<div class="mat">' + esc(p.material) + ' · ' + esc(p.texto) + '</div>' +
+    '<div class="datos-linea">' + linea.join('<span>·</span>') + '</div></div>' +
+    '<div class="cifra-lado"><div class="n">' + numeroCL(p.porEmbarcarM3) + '</div>' +
+    '<div class="u">m³ por embarcar</div></div></article>';
+}
+
+function abrirReunion() {
+  if (!S.datos) return;
+  S.reunion.laminas = laminasReunion();
+  S.reunion.indice = 0;
+  S.reunion.abierta = true;
+  $('reunion').classList.add('activa');
+  $('reunion').setAttribute('aria-hidden', 'false');
+  $('reunionQuien').textContent = S.datos.planilla + ' · ' + S.datos.actualizado;
+  pintarLamina();
+}
+
+function cerrarReunion() {
+  S.reunion.abierta = false;
+  $('reunion').classList.remove('activa');
+  $('reunion').setAttribute('aria-hidden', 'true');
+}
+
+function pintarLamina() {
+  var l = S.reunion.laminas[S.reunion.indice];
+  if (!l) return;
+
+  $('reunionTitulo').textContent = l.titulo;
+  $('reunionCuerpo').innerHTML =
+    '<h3 class="lamina-titulo">' + esc(l.titulo) + '</h3>' +
+    '<p class="lamina-bajada">' + esc(l.bajada) + '</p>' + l.html;
+  $('reunionCuerpo').scrollTop = 0;
+
+  $('reunionPasos').innerHTML = S.reunion.laminas.map(function (x, i) {
+    return '<button class="paso" type="button" data-i="' + i + '" ' +
+      'aria-current="' + (i === S.reunion.indice) + '" aria-label="Lámina ' + (i + 1) + '"></button>';
+  }).join('');
+
+  Array.prototype.forEach.call($('reunionPasos').children, function (b) {
+    b.onclick = function () { S.reunion.indice = parseInt(b.getAttribute('data-i'), 10); pintarLamina(); };
+  });
+
+  $('btnAnterior').disabled = S.reunion.indice === 0;
+  $('btnSiguiente').disabled = S.reunion.indice >= S.reunion.laminas.length - 1;
+}
+
+function moverLamina(paso) {
+  var siguiente = S.reunion.indice + paso;
+  if (siguiente < 0 || siguiente >= S.reunion.laminas.length) return;
+  S.reunion.indice = siguiente;
+  pintarLamina();
+}
+
+/* ==========================================================================
+   Arranque
+   ========================================================================== */
+
+$('busqueda').oninput = function () { S.busqueda = this.value; pintar(); };
+$('filtroProveedor').onchange = function () { S.filtroProveedor = this.value; pintar(); };
+$('filtroUrgencia').onchange = function () { S.filtroUrgencia = this.value; pintar(); };
+
+Array.prototype.forEach.call(document.querySelectorAll('.vistas button'), function (b) {
+  b.onclick = function () { S.vista = b.getAttribute('data-vista'); pintar(); };
+});
+
+$('btnRecargar').onclick = function () { cargar('Recargando…'); };
+$('btnReunion').onclick = abrirReunion;
+$('btnCerrarReunion').onclick = cerrarReunion;
+$('btnAnterior').onclick = function () { moverLamina(-1); };
+$('btnSiguiente').onclick = function () { moverLamina(1); };
+
+$('btnSincronizar').onclick = function () {
+  decir('Sincronizando con Bd y repintando el seguimiento…');
+  $('btnSincronizar').disabled = true;
+  google.script.run
+    .withSuccessHandler(function (r) {
+      $('btnSincronizar').disabled = false;
+      decir(r.mensaje, 'ok');
+      cargar('');
+    })
+    .withFailureHandler(function (e) { $('btnSincronizar').disabled = false; fallo(e); })
+    .sincronizarTodo();
+};
+
+document.addEventListener('keydown', function (e) {
+  if (S.reunion.abierta) {
+    if (e.key === 'Escape') cerrarReunion();
+    else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); moverLamina(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); moverLamina(-1); }
+    return;
+  }
+  // "/" para buscar sin sacar las manos del teclado.
+  if (e.key === '/' && document.activeElement !== $('busqueda')) {
+    e.preventDefault();
+    $('busqueda').focus();
+  }
+});
+
+cargar();
+</script>
+</body>
+</html>

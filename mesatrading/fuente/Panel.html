@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <?!= include('Estilos') ?>
+  <style>
+    /* El panel lateral son ~300px: todo en una columna y más compacto. */
+    body { padding: 12px; background: #fff; }
+    .cab { margin-bottom: 10px; }
+    .cab h1 { margin: 0; font-size: 16px; }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 12px; }
+    .tabs button {
+      min-height: 34px; padding: 0 6px;
+      border: 1px solid var(--linea-fuerte); border-radius: 8px;
+      background: #fff; color: var(--ink-suave); font-weight: 600; font-size: 12px;
+    }
+    .tabs button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .hoja { display: none; }
+    .hoja.viva { display: block; }
+    .ficha-panel {
+      padding: 10px 12px; margin-bottom: 12px;
+      border: 1px solid var(--linea); border-radius: 9px; background: #FAFCFB;
+    }
+    .ficha-panel h2 { margin: 0 0 2px; font-size: 15px; font-variant-numeric: tabular-nums; }
+    .datos { grid-template-columns: 1fr 1fr; margin: 9px 0 0; }
+    .lista { display: grid; gap: 7px; }
+    .item {
+      display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center;
+      padding: 8px 10px; border: 1px solid var(--linea); border-radius: 8px;
+      background: #fff; cursor: pointer; text-align: left; width: 100%;
+    }
+    .item:hover { background: var(--fondo-hover); }
+    .item .tono { width: 10px; height: 22px; border-radius: 3px; border: 1px solid rgba(0,0,0,.12); }
+    .item .doc { font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+    .item .sub { font-size: 11px; color: var(--muted); }
+    .item .m3 { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .par { display: grid; grid-template-columns: 1fr 44px; gap: 8px; align-items: end; }
+    .muestra { height: 36px; border: 1px solid var(--linea-fuerte); border-radius: 8px; }
+    .hilo { max-height: 240px; overflow: auto; }
+  </style>
+</head>
+<body>
+
+<header class="cab">
+  <h1>Mesa Trading</h1>
+  <div class="tenue" id="quien">Cargando…</div>
+</header>
+
+<nav class="tabs" role="group">
+  <button type="button" data-hoja="pedido" aria-pressed="true">Pedido</button>
+  <button type="button" data-hoja="pendientes" aria-pressed="false">Pendientes</button>
+  <button type="button" data-hoja="proveedores" aria-pressed="false">Proveedores</button>
+</nav>
+
+<section class="hoja viva" id="hojaPedido">
+  <div class="ficha-panel" id="fichaPedido">
+    <div class="vacio">Selecciona una fila de la Hoja Unica.</div>
+  </div>
+
+  <label class="campo"><span>Proveedor</span><select id="proveedor"></select></label>
+  <label class="campo"><span>Estado</span><select id="estado"></select></label>
+  <label class="campo"><span>Fecha que promete el proveedor</span>
+    <input id="fecha" type="text" autocomplete="off" placeholder="«20 julio» o 30-08-2026">
+    <span class="pista" id="pistaFecha"></span>
+  </label>
+
+  <div class="areas" role="group">
+    <button type="button" data-area="Ventas" aria-pressed="true">Ventas</button>
+    <button type="button" data-area="Compras" aria-pressed="false">Compras</button>
+  </div>
+  <label class="campo"><span>Mensaje</span>
+    <textarea id="mensaje" placeholder="Qué se conversó con el proveedor"></textarea>
+  </label>
+
+  <button class="btn" id="btnGuardar" type="button" style="width:100%">Guardar</button>
+  <div class="estado-linea" id="lineaPedido" style="padding:8px 0 0"></div>
+
+  <div class="seccion">Conversación</div>
+  <div class="hilo" id="hilo"></div>
+</section>
+
+<section class="hoja" id="hojaPendientes">
+  <div class="tenue" style="margin-bottom:9px">
+    Pedidos que necesitan una decisión. Toca uno para ir a su fila.
+  </div>
+  <div class="lista" id="pendientes"></div>
+</section>
+
+<section class="hoja" id="hojaProveedores">
+  <label class="campo"><span>Proveedor</span>
+    <input id="pNombre" type="text" autocomplete="off" placeholder="Nombre del proveedor">
+  </label>
+  <label class="campo"><span>Color</span>
+    <div class="par"><select id="pColor"></select><div class="muestra" id="pMuestra"></div></div>
+  </label>
+  <label class="campo"><span>Color propio (opcional)</span>
+    <input id="pHex" type="text" placeholder="#88CCFF" maxlength="7">
+  </label>
+  <label class="campo"><span>Estado</span>
+    <select id="pEstado"><option>Activo</option><option>Inactivo</option></select>
+  </label>
+  <label class="campo"><span>Nota</span><textarea id="pNota" placeholder="Opcional"></textarea></label>
+
+  <button class="btn" id="btnProveedor" type="button" style="width:100%">Guardar proveedor</button>
+  <div class="estado-linea" id="lineaProveedor" style="padding:8px 0 0"></div>
+
+  <div class="seccion">Proveedores actuales</div>
+  <div class="lista" id="listaProveedores"></div>
+</section>
+
+<script>
+var S = { datos: null, hoja: 'pedido', area: 'Ventas', guardando: false };
+var $ = function (id) { return document.getElementById(id); };
+
+function esc(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+function plano(v) {
+  return String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+function colorSeguro(v) { return /^#[0-9a-fA-F]{6}$/.test(String(v || '')) ? v : '#FFF2CC'; }
+function numeroCL(n) {
+  var v = Number(n || 0); if (isNaN(v)) v = 0;
+  var p = Math.abs(v).toFixed(2).split('.');
+  return (v < 0 ? '-' : '') + p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1];
+}
+function decir(el, texto, clase) {
+  el.className = 'estado-linea' + (clase ? ' ' + clase : '');
+  el.style.padding = '8px 0 0';
+  el.textContent = texto || '';
+}
+function fallo(el, e) { decir(el, e && e.message ? e.message : String(e || 'Error'), 'error'); }
+
+/* Misma vista previa de fecha que en la mesa; al guardar decide el servidor. */
+var MESES_JS = { enero:1,ene:1,febrero:2,feb:2,marzo:3,mar:3,abril:4,abr:4,mayo:5,may:5,junio:6,jun:6,
+  julio:7,jul:7,agosto:8,ago:8,septiembre:9,setiembre:9,sep:9,sept:9,octubre:10,oct:10,
+  noviembre:11,nov:11,diciembre:12,dic:12 };
+function ultimoDia(a,m){ return new Date(a,m,0).getDate(); }
+function dd(n){ return (String(n).length<2?'0':'')+n; }
+function comoTexto(a,m,d){ return dd(d)+'-'+dd(m)+'-'+a; }
+
+function verFecha(txt) {
+  var t = plano(txt);
+  if (!t || t === 'sin fecha') return null;
+  var anio = new Date().getFullYear();
+
+  var num = t.match(/(\d{1,4})[\/\-.](\d{1,2})[\/\-.](\d{1,4})/);
+  if (num) {
+    var a = parseInt(num[1],10), b = parseInt(num[2],10), c = parseInt(num[3],10), A, M, D;
+    if (num[1].length === 4) { A=a; M=b; D=c; }
+    else { D=a; M=b; A=c<100?c+2000:c;
+           if (D>12 && M>12) return null;
+           if (D<=12 && M>12) { var x=D; D=M; M=x; } }
+    if (M<1||M>12||D<1||D>ultimoDia(A,M)) return null;
+    return { texto: comoTexto(A,M,D), aprox: false };
+  }
+
+  var mes = 0, largo = 0;
+  for (var nom in MESES_JS) {
+    if (new RegExp('(^|[^a-z])'+nom+'([^a-z]|$)').test(t) && nom.length > largo) {
+      mes = MESES_JS[nom]; largo = nom.length;
+    }
+  }
+  if (!mes) return null;
+
+  var at = t.match(/\b(20\d{2})\b/);
+  if (at) anio = parseInt(at[1],10);
+  var di = t.replace(/\b20\d{2}\b/g,' ').match(/\b(\d{1,2})\b/);
+  if (di) {
+    var d = parseInt(di[1],10);
+    if (d>=1 && d<=ultimoDia(anio,mes)) return { texto: comoTexto(anio,mes,d), aprox: false };
+  }
+  if (/\b(fin|fines|final|finales)\b/.test(t)) return { texto: comoTexto(anio,mes,ultimoDia(anio,mes)), aprox: true };
+  if (/\b(inicio|inicios|principio|principios|comienzo|comienzos)\b/.test(t)) return { texto: comoTexto(anio,mes,1), aprox: true };
+  if (/\b(mediados|medio|mitad|quincena)\b/.test(t)) return { texto: comoTexto(anio,mes,15), aprox: true };
+  return { texto: comoTexto(anio,mes,ultimoDia(anio,mes)), aprox: true };
+}
+
+/* -------------------------------------------------------------- carga */
+
+function cargar() {
+  decir($('lineaPedido'), 'Leyendo la fila seleccionada…');
+  google.script.run
+    .withSuccessHandler(function (d) {
+      S.datos = d;
+      $('quien').textContent = d.planilla + ' · ' + d.actualizado;
+      llenarSelectores();
+      pintarPedido();
+      pintarPendientes();
+      pintarProveedores();
+      decir($('lineaPedido'), d.mensaje || '');
+    })
+    .withFailureHandler(function (e) { fallo($('lineaPedido'), e); })
+    .datosPanel();
+}
+
+function llenarSelectores() {
+  $('estado').innerHTML = (S.datos.estados || []).map(function (e) {
+    return '<option value="' + esc(e) + '">' + esc(e) + '</option>';
+  }).join('');
+
+  $('proveedor').innerHTML = '<option value="">Sin asignar</option>' +
+    (S.datos.proveedores || []).map(function (p) {
+      return '<option value="' + esc(p.nombre) + '">' + esc(p.nombre) + '</option>';
+    }).join('');
+
+  $('pColor').innerHTML = (S.datos.colores || []).map(function (c) {
+    return '<option value="' + esc(c.nombre) + '" data-hex="' + esc(c.hex) + '">' + esc(c.nombre) + '</option>';
+  }).join('');
+  verMuestra();
+}
+
+function pintarPedido() {
+  var p = S.datos.seleccionado;
+  if (!p) {
+    $('fichaPedido').innerHTML = '<div class="vacio">' +
+      esc(S.datos.mensaje || 'Selecciona una fila de la Hoja Unica.') + '</div>';
+    $('btnGuardar').disabled = true;
+    $('hilo').innerHTML = '';
+    return;
+  }
+
+  $('btnGuardar').disabled = false;
+  $('proveedor').value = p.proveedor || '';
+  $('estado').value = p.estado;
+  $('fecha').value = p.fechaProveedorTextoOriginal || p.fechaProveedor || '';
+  $('mensaje').value = '';
+  revisarFecha();
+
+  $('fichaPedido').innerHTML =
+    '<h2>' + esc(p.docVenta) + '</h2>' +
+    '<div class="tenue">' + esc(p.material) + ' · ' + esc(p.texto) + '</div>' +
+    '<div style="margin-top:7px;display:flex;gap:5px;flex-wrap:wrap">' +
+      '<span class="chip est-' + esc(p.estadoClave) + '">' + esc(p.estado) + '</span>' +
+      '<span class="chip urg-' + esc(p.urgencia) + '">' + esc(p.diasTexto) + '</span>' +
+      (p.alerta ? '<span class="chip urg-vencido">' + esc(p.alerta.etiqueta) + '</span>' : '') +
+    '</div>' +
+    '<div class="datos">' +
+      dato('Cliente', p.cliente) +
+      dato('Embarque', p.fechaEmbarque) +
+      dato('Por embarcar', numeroCL(p.porEmbarcarM3) + ' m³') +
+      dato('Puerto', p.puerto) +
+    '</div>';
+
+  $('hilo').innerHTML = (p.mensajes && p.mensajes.length)
+    ? p.mensajes.slice().reverse().map(function (m) {
+        return '<div class="msj ' + plano(m.area) + '">' +
+          '<div class="meta"><b>' + esc(m.area) + (m.autor ? ' · ' + esc(m.autor) : '') + '</b>' +
+          '<span>' + esc(m.fechaTexto) + '</span></div>' +
+          '<div class="texto">' + esc(m.mensaje) + '</div></div>';
+      }).join('')
+    : '<div class="vacio">Sin mensajes todavía.</div>';
+}
+
+function dato(rot, valor) {
+  if (valor === '' || valor === null || valor === undefined) return '';
+  return '<div class="dato"><b>' + esc(rot) + '</b><span>' + esc(valor) + '</span></div>';
+}
+
+function pintarPendientes() {
+  var lista = (S.datos.pedidos || []).filter(function (p) { return p.alerta; });
+  if (!lista.length) {
+    $('pendientes').innerHTML = '<div class="vacio">Nada pendiente. Buen día.</div>';
+    return;
+  }
+
+  $('pendientes').innerHTML = lista.slice(0, 40).map(function (p) {
+    return '<button class="item" type="button" data-fila="' + p.fila + '">' +
+      '<span class="tono" style="background:' + colorSeguro(p.proveedorColor) + '"></span>' +
+      '<span><span class="doc">' + esc(p.docVenta) + '</span>' +
+      '<span class="sub"><br>' + esc(p.alerta.etiqueta) + '</span></span>' +
+      '<span class="m3">' + numeroCL(p.porEmbarcarM3) + '</span></button>';
+  }).join('');
+
+  Array.prototype.forEach.call($('pendientes').children, function (b) {
+    b.onclick = function () {
+      google.script.run
+        .withSuccessHandler(cargar)
+        .irAFila(b.getAttribute('data-fila'));
+    };
+  });
+}
+
+function pintarProveedores() {
+  var lista = S.datos.proveedores || [];
+  $('listaProveedores').innerHTML = lista.length
+    ? lista.map(function (p) {
+        return '<button class="item" type="button" data-nombre="' + esc(p.nombre) + '">' +
+          '<span class="tono" style="background:' + colorSeguro(p.hex) + '"></span>' +
+          '<span><span class="doc">' + esc(p.nombre) + '</span>' +
+          '<span class="sub"><br>' + esc(p.estado) + (p.nota ? ' · ' + esc(p.nota) : '') + '</span></span>' +
+          '<span class="m3"></span></button>';
+      }).join('')
+    : '<div class="vacio">Aún no hay proveedores.</div>';
+
+  Array.prototype.forEach.call($('listaProveedores').children, function (b) {
+    b.onclick = function () {
+      var nombre = b.getAttribute('data-nombre');
+      for (var i = 0; i < lista.length; i++) {
+        if (lista[i].nombre !== nombre) continue;
+        $('pNombre').value = lista[i].nombre;
+        $('pEstado').value = lista[i].estado || 'Activo';
+        $('pNota').value = lista[i].nota || '';
+        if (String(lista[i].color).charAt(0) === '#') { $('pHex').value = lista[i].color; }
+        else { $('pHex').value = ''; $('pColor').value = lista[i].color; }
+        verMuestra();
+        break;
+      }
+    };
+  });
+}
+
+function verMuestra() {
+  var hex = $('pHex').value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) { $('pMuestra').style.background = hex; return; }
+  var op = $('pColor').options[$('pColor').selectedIndex];
+  $('pMuestra').style.background = op ? op.getAttribute('data-hex') : '#FFFFFF';
+}
+
+function revisarFecha() {
+  var v = $('fecha').value;
+  var r = verFecha(v);
+  if (!v.trim()) { $('pistaFecha').className = 'pista'; $('pistaFecha').textContent = ''; return; }
+  if (!r) {
+    $('pistaFecha').className = 'pista';
+    $('pistaFecha').textContent = 'No se entiende como fecha; se guardará vacía.';
+    return;
+  }
+  $('pistaFecha').className = 'pista ' + (r.aprox ? 'aprox' : 'ok');
+  $('pistaFecha').textContent = 'Se guardará como ' + r.texto + (r.aprox ? ' (aproximada)' : '');
+}
+
+/* ------------------------------------------------------------ acciones */
+
+function guardar() {
+  var p = S.datos && S.datos.seleccionado;
+  if (!p || S.guardando) return;
+
+  S.guardando = true;
+  $('btnGuardar').disabled = true;
+  decir($('lineaPedido'), 'Guardando…');
+
+  google.script.run
+    .withSuccessHandler(function () {
+      S.guardando = false;
+      $('btnGuardar').disabled = false;
+      decir($('lineaPedido'), 'Guardado.', 'ok');
+      cargar();
+    })
+    .withFailureHandler(function (e) {
+      S.guardando = false;
+      $('btnGuardar').disabled = false;
+      fallo($('lineaPedido'), e);
+    })
+    .guardarDesdePanel({
+      fila: p.fila, docVenta: p.docVenta, material: p.material,
+      proveedor: $('proveedor').value, estado: $('estado').value,
+      fechaProveedor: $('fecha').value, mensaje: $('mensaje').value.trim(), area: S.area
+    });
+}
+
+function guardarProveedorPanel() {
+  var hex = $('pHex').value.trim();
+  decir($('lineaProveedor'), 'Guardando proveedor…');
+
+  google.script.run
+    .withSuccessHandler(function (r) {
+      S.datos.proveedores = r.proveedores || [];
+      llenarSelectores();
+      pintarProveedores();
+      decir($('lineaProveedor'), r.mensaje, 'ok');
+    })
+    .withFailureHandler(function (e) { fallo($('lineaProveedor'), e); })
+    .guardarProveedor({
+      nombre: $('pNombre').value.trim(),
+      color: /^#[0-9a-fA-F]{6}$/.test(hex) ? hex : $('pColor').value,
+      estado: $('pEstado').value,
+      nota: $('pNota').value.trim()
+    });
+}
+
+/* ------------------------------------------------------------- arranque */
+
+Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (b) {
+  b.onclick = function () {
+    S.hoja = b.getAttribute('data-hoja');
+    Array.prototype.forEach.call(document.querySelectorAll('.tabs button'), function (o) {
+      o.setAttribute('aria-pressed', String(o === b));
+    });
+    ['pedido', 'pendientes', 'proveedores'].forEach(function (h) {
+      $('hoja' + h.charAt(0).toUpperCase() + h.slice(1)).className = 'hoja' + (h === S.hoja ? ' viva' : '');
+    });
+  };
+});
+
+Array.prototype.forEach.call(document.querySelectorAll('.areas button'), function (b) {
+  b.onclick = function () {
+    S.area = b.getAttribute('data-area');
+    Array.prototype.forEach.call(document.querySelectorAll('.areas button'), function (o) {
+      o.setAttribute('aria-pressed', String(o === b));
+    });
+  };
+});
+
+$('fecha').oninput = revisarFecha;
+$('pColor').onchange = verMuestra;
+$('pHex').oninput = verMuestra;
+$('btnGuardar').onclick = guardar;
+$('btnProveedor').onclick = guardarProveedorPanel;
+
+cargar();
+</script>
+</body>
+</html>
