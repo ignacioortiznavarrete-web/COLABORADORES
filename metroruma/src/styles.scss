@@ -1,0 +1,1093 @@
+@use 'sass:map';
+@use 'sass:color';
+@use 'sass:math';
+
+/* ====================================================================
+   MetroRuma · sistema de diseño
+   --------------------------------------------------------------------
+   Tailwind resuelve layout, spacing y responsive.
+   Este archivo define los tokens de color, los componentes propios
+   (KPI, meter, tabla, tooltip, filtros) y el tema claro/oscuro.
+
+   La paleta de series pasó los seis chequeos del método de dataviz
+   (banda de luminosidad, piso de croma, separación CVD, piso de visión
+   normal y contraste) contra ambas superficies:
+
+     claro  #1e7a4b / #c47f13 / #3873b5  sobre #f4f7f5  → ΔE CVD 10.0
+     oscuro #2c9463 / #e0a536 / #5b9bdd  sobre #141a17  → ΔE CVD 13.5
+
+   El par "plan mes / plan a la fecha" es una rampa ordinal de un solo
+   tono (misma entidad, dos horizontes), validada aparte con --ordinal.
+   El paso claro queda bajo 3:1 en modo claro, así que se envía con
+   relieve: leyenda, etiqueta directa y vista de tabla.
+   ==================================================================== */
+
+/* --------------------------------------------------------------
+   1 · Tokens
+   -------------------------------------------------------------- */
+
+$themes: (
+  light: (
+    page:            #f4f7f5,
+    page-alt:        #eaf0ec,
+    card:            #ffffff,
+    surface:         #f4f7f5,
+    surface-sunken:  #f7faf8,
+    header-from:     #143726,
+    header-to:       #2d6a4f,
+    text-primary:    #0b1f16,
+    text-secondary:  #4a5a52,
+    text-muted:      #6d7d74,
+    line:            #e4ebe7,
+    line-strong:     #cfdbd4,
+    grid:            #e8eeea,
+    ring:            rgba(11, 31, 22, 0.10),
+    shadow:          rgba(16, 48, 33, 0.10),
+    series-real:     #1e7a4b,
+    series-gmail:    #c47f13,
+    series-plan:     #3873b5,
+    series-plan-tod: #8fb3d9,
+    good:            #0f6b3f,
+    good-mark:       #0ca30c,
+    warn:            #8a5a10,
+    warn-mark:       #d99a20,
+    bad:             #a4231b,
+    bad-mark:        #d03b3b,
+    accent-soft:     rgba(30, 122, 75, 0.10),
+    overlay:         rgba(244, 247, 245, 0.82)
+  ),
+  dark: (
+    page:            #0d110f,
+    page-alt:        #101614,
+    card:            #141a17,
+    surface:         #141a17,
+    surface-sunken:  #101614,
+    header-from:     #0f1d17,
+    header-to:       #16332a,
+    text-primary:    #f2f7f4,
+    text-secondary:  #a8b8b0,
+    text-muted:      #8fa199,
+    line:            #26302b,
+    line-strong:     #33403a,
+    grid:            #232d28,
+    ring:            rgba(255, 255, 255, 0.10),
+    shadow:          rgba(0, 0, 0, 0.45),
+    series-real:     #2c9463,
+    series-gmail:    #e0a536,
+    series-plan:     #5b9bdd,
+    series-plan-tod: #2f5f8f,
+    good:            #4ec98a,
+    good-mark:       #35b378,
+    warn:            #e0a536,
+    warn-mark:       #e0a536,
+    bad:             #f08a84,
+    bad-mark:        #e06b64,
+    accent-soft:     rgba(44, 148, 99, 0.16),
+    overlay:         rgba(13, 17, 15, 0.82)
+  )
+);
+
+@mixin emit-theme($theme) {
+  @each $name, $value in map.get($themes, $theme) {
+    --#{$name}: #{$value};
+  }
+}
+
+:root {
+  color-scheme: light;
+  @include emit-theme(light);
+
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+}
+
+// El tema oscuro se declara bajo los dos ámbitos: la preferencia del sistema
+// y el interruptor explícito, para que el interruptor gane en ambos sentidos.
+@media (prefers-color-scheme: dark) {
+  :root:where(:not(.theme-light)) {
+    color-scheme: dark;
+    @include emit-theme(dark);
+  }
+}
+
+:root.theme-dark {
+  color-scheme: dark;
+  @include emit-theme(dark);
+}
+
+/* --------------------------------------------------------------
+   2 · Base
+   -------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-ui);
+  color: var(--text-primary);
+  background: var(--page);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+// Sin preflight, un <button> sin clase se pinta con el estilo del sistema
+// operativo (fondo gris, borde biselado). Se neutraliza aquí; las clases de
+// componente que sí quieren fondo lo declaran y ganan por especificidad.
+button {
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+// Tailwind corre con preflight desactivado (la base la define este archivo),
+// así que los SVG necesitan una medida propia: sin ella heredan el tamaño
+// intrínseco y ocupan la pantalla entera si el CDN no llega a cargar.
+svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+// Los input[type=search] traen su propia aspa; el tablero pone la suya,
+// alineada con el resto de los controles.
+input[type='search'] {
+  &::-webkit-search-cancel-button,
+  &::-webkit-search-decoration {
+    appearance: none;
+  }
+}
+
+// Cifras alineadas sólo donde deben alinearse en columna.
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@mixin scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+
+  &::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border: 3px solid var(--card);
+    border-radius: 999px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@mixin focus-ring($color: var(--series-real)) {
+  outline: none;
+  border-color: #{$color};
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* --------------------------------------------------------------
+   3 · Superficies
+   -------------------------------------------------------------- */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px var(--shadow), 0 8px 24px -18px var(--shadow);
+}
+
+.app-header {
+  background: linear-gradient(112deg, var(--header-from), var(--header-to));
+  color: #fff;
+  box-shadow: 0 10px 30px -18px rgba(0, 0, 0, 0.7);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+
+  b {
+    font-weight: 700;
+    color: #fff;
+  }
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+
+  &::before {
+    content: '';
+    width: 3px;
+    height: 16px;
+    border-radius: 3px;
+    background: var(--series-real);
+  }
+}
+
+.section-note {
+  margin: 6px 0 0 12px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 78ch;
+}
+
+/* --------------------------------------------------------------
+   4 · Avisos
+   -------------------------------------------------------------- */
+
+$banners: (
+  info: good,
+  warn: warn,
+  error: bad
+);
+
+.banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  font-size: 12px;
+  line-height: 1.55;
+  border-radius: 12px;
+  border: 1px solid var(--ring);
+  background: var(--card);
+  color: var(--text-secondary);
+
+  svg {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    margin-top: 1px;
+  }
+
+  @each $name, $ink in $banners {
+    &--#{$name} {
+      border-left: 3px solid var(--#{$ink});
+
+      svg {
+        color: var(--#{$ink});
+      }
+    }
+  }
+
+  &--error {
+    white-space: pre-wrap;
+    color: var(--bad);
+  }
+}
+
+/* --------------------------------------------------------------
+   5 · Controles de filtro
+   -------------------------------------------------------------- */
+
+.field-label {
+  display: block;
+  margin: 0 0 6px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.control {
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  color: var(--text-primary);
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &::placeholder {
+    color: var(--text-muted);
+  }
+
+  &:focus {
+    @include focus-ring;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  // Para controles que no deben ocupar toda la columna (el select de un
+  // gráfico, por ejemplo). Va aquí y no como utilidad de Tailwind porque
+  // ambas reglas tienen la misma especificidad y el orden de carga decide.
+  &--auto {
+    width: auto;
+  }
+
+  // Deja sitio a la lupa y al botón de borrar. Misma razón que --auto:
+  // pl-9/pr-9 de Tailwind chocan con el padding de .control.
+  &--search {
+    padding-left: 34px;
+    padding-right: 32px;
+  }
+}
+
+@mixin select-arrow($stroke) {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='#{$stroke}' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+}
+
+select.control {
+  appearance: none;
+  padding-right: 30px;
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 16px;
+  @include select-arrow('%236d7d74');
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not(.theme-light)) select.control {
+    @include select-arrow('%238fa199');
+  }
+}
+
+:root.theme-dark select.control {
+  @include select-arrow('%238fa199');
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    transform 0.12s ease, opacity 0.15s ease;
+
+  svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+  }
+
+  &:active {
+    transform: translateY(1px);
+  }
+
+  &:focus-visible {
+    @include focus-ring;
+  }
+
+  &--ghost {
+    color: var(--text-secondary);
+    background: transparent;
+    border-color: var(--line-strong);
+
+    &:hover {
+      background: var(--surface-sunken);
+      color: var(--text-primary);
+    }
+  }
+
+  &--solid {
+    color: #fff;
+    background: var(--series-real);
+
+    &:hover {
+      background: color.adjust(#1e7a4b, $lightness: -4%);
+    }
+  }
+
+  &--onhead {
+    color: #10261c;
+    background: #fff;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.88);
+    }
+  }
+
+  &--icon {
+    min-width: 38px;
+    padding: 8px;
+    color: rgba(255, 255, 255, 0.92);
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.22);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+}
+
+/* Control segmentado: fuente de datos */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+
+  button {
+    padding: 6px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+
+    &[aria-pressed='true'] {
+      color: var(--text-primary);
+      background: var(--card);
+      box-shadow: 0 1px 2px var(--shadow);
+    }
+  }
+}
+
+/* Presets de rango: filas con marca de selección, no una grilla de calendario */
+.preset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-sunken);
+    color: var(--text-primary);
+  }
+
+  &[aria-pressed='true'] {
+    color: var(--text-primary);
+    font-weight: 650;
+
+    &::after {
+      content: '✓';
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--series-real);
+    }
+  }
+}
+
+.popover {
+  position: absolute;
+  z-index: 60;
+  min-width: 268px;
+  padding: 8px;
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 12px;
+  box-shadow: 0 20px 44px -22px var(--shadow), 0 2px 6px var(--shadow);
+}
+
+.popover-footer {
+  margin-top: 6px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+
+/* Combobox de proveedores */
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  text-align: left;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+
+  &:hover,
+  &.is-active {
+    background: var(--surface-sunken);
+    color: var(--text-primary);
+  }
+
+  .tick {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    font-size: 11px;
+    font-weight: 800;
+    color: transparent;
+    border: 1.5px solid var(--line-strong);
+    border-radius: 5px;
+  }
+
+  &[aria-selected='true'] {
+    color: var(--text-primary);
+    font-weight: 600;
+
+    .tick {
+      color: #fff;
+      background: var(--series-real);
+      border-color: var(--series-real);
+    }
+  }
+}
+
+/* Chips de filtros activos */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+
+  .chip-key {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  button {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-muted);
+    background: transparent;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--bad);
+      background: var(--ring);
+    }
+  }
+}
+
+/* Ayuda de sintaxis de búsqueda */
+kbd {
+  padding: 1px 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* --------------------------------------------------------------
+   6 · KPI, héroe y medidores
+   -------------------------------------------------------------- */
+
+.kpi {
+  position: relative;
+  padding: 14px 15px;
+  overflow: hidden;
+}
+
+.kpi-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kpi-value {
+  margin-top: 6px;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+
+  // Para valores que son fechas y no cifras: no compiten con los totales.
+  &--date {
+    font-size: 20px;
+  }
+}
+
+.kpi-note {
+  min-height: 15px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.hero-value {
+  font-size: clamp(38px, 6vw, 54px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--text-primary);
+}
+
+/* Medidor: barra fina con marca de objetivo, no un donut */
+.meter {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--line);
+  overflow: hidden;
+
+  &--tall {
+    height: 10px;
+  }
+}
+
+.meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--series-real);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &.is-behind {
+    background: var(--bad-mark);
+  }
+}
+
+.meter-target {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--text-primary);
+  opacity: 0.55;
+}
+
+/* Medidor en celda de tabla: la barra vive dentro de la fila */
+.cell-meter {
+  position: relative;
+  width: 62px;
+  height: 5px;
+  margin-left: auto;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--series-real);
+
+    &.is-behind {
+      background: var(--bad-mark);
+    }
+  }
+}
+
+.delta {
+  font-weight: 650;
+
+  &--up {
+    color: var(--good);
+  }
+
+  &--down {
+    color: var(--bad);
+  }
+}
+
+/* Clave de color: un trazo, nunca una caja pesada */
+.series-key {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+
+  &--dash {
+    background: repeating-linear-gradient(
+      90deg,
+      currentColor 0 4px,
+      transparent 4px 7px
+    );
+  }
+}
+
+/* --------------------------------------------------------------
+   7 · Gráficos
+   -------------------------------------------------------------- */
+
+.chart {
+  height: 340px;
+  width: 100%;
+}
+
+.chart-tall {
+  height: 400px;
+}
+
+.chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 12px;
+  @include scrollbar;
+}
+
+.chart-empty {
+  display: grid;
+  place-items: center;
+  height: 340px;
+  padding: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-radius: 12px;
+}
+
+/* Google Charts pinta su propio tooltip; se le da el chrome del tablero */
+.google-visualization-tooltip {
+  border-radius: 10px !important;
+  border: 1px solid var(--ring) !important;
+  background: var(--card) !important;
+  box-shadow: 0 18px 40px -20px var(--shadow) !important;
+  font-family: var(--font-ui) !important;
+  padding: 4px !important;
+
+  span,
+  li {
+    color: var(--text-secondary) !important;
+    font-family: var(--font-ui) !important;
+  }
+}
+
+/* Mientras se recargan los datos el gráfico conserva su render anterior */
+.is-refetching {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------
+   8 · Tablas
+   -------------------------------------------------------------- */
+
+.table-wrap {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  @include scrollbar;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+thead {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+
+  th {
+    padding: 9px 11px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--text-secondary);
+    background: var(--surface-sunken);
+    border-bottom: 1px solid var(--line-strong);
+  }
+}
+
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+
+  .arrow {
+    display: inline-block;
+    margin-left: 4px;
+    opacity: 0.35;
+  }
+
+  &[aria-sort='descending'] .arrow,
+  &[aria-sort='ascending'] .arrow {
+    opacity: 1;
+    color: var(--series-real);
+  }
+}
+
+td {
+  padding: 9px 11px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tbody tr {
+  transition: background-color 0.12s ease;
+
+  &:hover td {
+    background: var(--surface-sunken);
+  }
+
+  &:last-child td {
+    border-bottom: 0;
+  }
+}
+
+th.number,
+td.number {
+  text-align: right;
+}
+
+td strong {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--line-strong);
+  border-bottom: 0;
+}
+
+.empty-row td {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Insignia de fuente: color + texto, nunca color solo */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 6px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  border: 1px solid var(--ring);
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+
+  &::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  &--real::before {
+    color: var(--series-real);
+  }
+
+  &--gmail::before {
+    color: var(--series-gmail);
+  }
+}
+
+/* Coincidencia de búsqueda resaltada en el detalle */
+mark {
+  padding: 0 2px;
+  color: var(--text-primary);
+  background: var(--accent-soft);
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------------
+   9 · Carga y avisos flotantes
+   -------------------------------------------------------------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--overlay);
+  backdrop-filter: blur(3px);
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  margin: 0 auto 14px;
+  border: 3px solid var(--line);
+  border-top-color: var(--series-real);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunken) 25%,
+    var(--line) 37%,
+    var(--surface-sunken) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 300;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 999px;
+  box-shadow: 0 18px 40px -20px var(--shadow);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+/* --------------------------------------------------------------
+   10 · Accesibilidad
+   -------------------------------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Canal de textura para daltonismo severo, impresión y forced-colors */
+@media print, (forced-colors: active) {
+  .app-header {
+    background: none;
+    color: CanvasText;
+  }
+
+  .card {
+    break-inside: avoid;
+  }
+}

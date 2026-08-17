@@ -1,0 +1,20 @@
+{
+  "name": "metroruma-dashboard",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Frontend del dashboard MetroRuma (Plan vs Ingresos) para Google Apps Script",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "preview": "node build.mjs && node preview.mjs",
+    "test": "node build.mjs && node preview.mjs && node test.mjs"
+  },
+  "devDependencies": {
+    "alpinejs": "^3.14.1",
+    "motion": "^10.18.0",
+    "sass": "^1.80.6",
+    "tailwindcss": "^3.4.17",
+    "playwright": "^1.49.0"
+  }
+}
