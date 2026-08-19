@@ -28,23 +28,30 @@
        ================================================================= */
 
     :root {
-      --kiln-950: #101518;
-      --kiln-900: #161C20;
-      --kiln-850: #1B2328;
-      --kiln-800: #232D33;
-      --kiln-700: #2F3B42;
+      /* Fondo: bosque en sombra, no acero. */
+      --bosque-950: #0D1411;
+      --bosque-900: #121C17;
+      --bosque-850: #17231C;
+      --bosque-800: #1F2E25;
+      --bosque-700: #2B3D32;
 
-      --steam: #BFCACE;
-      --steam-bright: #EAF1F3;
-      --ash: #72848C;
-      --ash-dim: #4E5D64;
+      --savia: #C2D2C6;
+      --savia-viva: #E6F0E8;
+      --musgo: #7C9186;
+      --musgo-dim: #57685D;
 
-      --wet: #3E9E9E;
-      --wet-soft: rgba(62, 158, 158, .16);
-      --dry: #E3A63C;
-      --dry-soft: rgba(227, 166, 60, .16);
-      --plan: #8093AE;
-      --alert: #D9573F;
+      /* Los dos colores del dato. La madera se seca de verde a café,
+         así que el color dice literalmente en qué estado está la cifra:
+           brote  (verde vivo) = estimado de planilla, todavía verde
+           corteza (café)      = tonelada seca confirmada en SAP
+         Nada más en la página usa estos dos. */
+      --brote: #6FCB8C;
+      --brote-soft: rgba(111, 203, 140, .15);
+      --corteza: #B5793F;
+      --corteza-soft: rgba(181, 121, 63, .18);
+
+      --plan: #8496A6;
+      --alertaa: #D9573F;
 
       --display: "Bricolage Grotesque", "Public Sans", system-ui, sans-serif;
       --body: "Public Sans", system-ui, -apple-system, sans-serif;
@@ -63,8 +70,8 @@
       min-height: 100vh;
       font-family: var(--body);
       font-size: 14px;
-      color: var(--steam);
-      background: var(--kiln-950);
+      color: var(--savia);
+      background: var(--bosque-950);
       -webkit-font-smoothing: antialiased;
     }
 
@@ -73,10 +80,10 @@
 
     button, input, select, textarea { font: inherit; color: inherit; }
 
-    ::selection { background: var(--dry); color: var(--kiln-950); }
+    ::selection { background: var(--corteza); color: var(--bosque-950); }
 
     :focus-visible {
-      outline: 2px solid var(--dry);
+      outline: 2px solid var(--corteza);
       outline-offset: 2px;
       border-radius: 2px;
     }
@@ -101,8 +108,8 @@
       gap: 6px;
       height: 100vh;
       padding: 18px 0 16px;
-      border-right: 1px solid var(--kiln-800);
-      background: var(--kiln-900);
+      border-right: 1px solid var(--bosque-800);
+      background: var(--bosque-900);
     }
 
     .rail-mark {
@@ -111,11 +118,11 @@
       font-weight: 800;
       letter-spacing: -.04em;
       line-height: 1;
-      color: var(--dry);
+      color: var(--corteza);
       margin-bottom: 20px;
     }
 
-    .rail-mark span { display: block; color: var(--wet); }
+    .rail-mark span { display: block; color: var(--brote); }
 
     .mode {
       position: relative;
@@ -128,7 +135,7 @@
       border: 0;
       border-radius: 11px;
       background: transparent;
-      color: var(--ash);
+      color: var(--musgo);
       transition: color .22s var(--ease), background .22s var(--ease);
     }
 
@@ -141,11 +148,11 @@
       text-transform: uppercase;
     }
 
-    .mode:hover { color: var(--steam); background: var(--kiln-850); }
+    .mode:hover { color: var(--savia); background: var(--bosque-850); }
 
     .mode[aria-selected="true"] {
-      color: var(--kiln-950);
-      background: var(--dry);
+      color: var(--bosque-950);
+      background: var(--brote);
     }
 
     .rail-foot {
@@ -153,7 +160,7 @@
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing: .1em;
-      color: var(--ash-dim);
+      color: var(--musgo-dim);
       writing-mode: vertical-rl;
     }
 
@@ -169,7 +176,7 @@
     .crown {
       position: relative;
       padding: 26px 0 20px;
-      border-bottom: 1px solid var(--kiln-800);
+      border-bottom: 1px solid var(--bosque-800);
       margin-bottom: 22px;
     }
 
@@ -187,7 +194,7 @@
       font-weight: 500;
       letter-spacing: .14em;
       text-transform: uppercase;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     h1 {
@@ -197,12 +204,12 @@
       font-weight: 800;
       letter-spacing: -.035em;
       line-height: .98;
-      color: var(--steam-bright);
+      color: var(--savia-viva);
     }
 
     h1 em {
       font-style: normal;
-      color: var(--dry);
+      color: var(--brote);
     }
 
     .crown-sub {
@@ -210,7 +217,7 @@
       margin-top: 10px;
       font-size: 13px;
       line-height: 1.5;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .act {
@@ -222,23 +229,23 @@
       cursor: pointer;
       font-size: 12.5px;
       font-weight: 600;
-      border: 1px solid var(--kiln-700);
+      border: 1px solid var(--bosque-700);
       border-radius: 8px;
-      background: var(--kiln-850);
-      color: var(--steam);
+      background: var(--bosque-850);
+      color: var(--savia);
       transition: border-color .2s var(--ease), background .2s var(--ease);
     }
 
-    .act:hover { border-color: var(--dry); background: var(--kiln-800); }
+    .act:hover { border-color: var(--corteza); background: var(--bosque-800); }
 
     .act-strong {
       border-color: transparent;
-      background: var(--dry);
-      color: var(--kiln-950);
+      background: var(--brote);
+      color: var(--bosque-950);
       font-weight: 700;
     }
 
-    .act-strong:hover { background: #F0B450; border-color: transparent; }
+    .act-strong:hover { background: #8FDCA6; border-color: transparent; }
 
     .act svg { width: 15px; height: 15px; }
 
@@ -265,16 +272,16 @@
       font-size: 10.5px;
       letter-spacing: .13em;
       text-transform: uppercase;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .secadero-read {
       font-family: var(--mono);
       font-size: 11.5px;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
-    .secadero-read b { color: var(--steam-bright); font-weight: 600; }
+    .secadero-read b { color: var(--savia-viva); font-weight: 600; }
 
     .tramos {
       display: flex;
@@ -289,7 +296,7 @@
       min-width: 3px;
       height: 100%;
       border-radius: 2px;
-      background: var(--kiln-800);
+      background: var(--bosque-700);
       transform-origin: bottom;
       transform: scaleY(.22);
       transition: transform .5s var(--ease), background .3s var(--ease);
@@ -297,21 +304,21 @@
 
     .tramo.is-in { transform: scaleY(1); }
 
-    .tramo[data-estado="seco"] { background: var(--dry); }
+    .tramo[data-estado="seco"] { background: var(--corteza); }
 
     .tramo[data-estado="humedo"] {
-      background: var(--wet);
+      background: var(--brote);
       animation: humedad 4.5s ease-in-out infinite;
     }
 
     .tramo[data-estado="hoy"] {
-      background: var(--kiln-700);
-      box-shadow: inset 0 2px 0 var(--steam);
+      background: var(--bosque-700);
+      box-shadow: inset 0 2px 0 var(--savia);
     }
 
     @keyframes humedad {
       0%, 100% { opacity: 1; }
-      50% { opacity: .48; }
+      50% { opacity: .66; }
     }
 
     .tramo::after {
@@ -324,9 +331,9 @@
       font-family: var(--mono);
       font-size: 10.5px;
       white-space: nowrap;
-      color: var(--steam-bright);
-      background: var(--kiln-800);
-      border: 1px solid var(--kiln-700);
+      color: var(--savia-viva);
+      background: var(--bosque-800);
+      border: 1px solid var(--bosque-700);
       border-radius: 5px;
       opacity: 0;
       pointer-events: none;
@@ -343,7 +350,7 @@
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing: .05em;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .escala i {
@@ -361,9 +368,9 @@
 
     .panel {
       padding: 18px 20px 20px;
-      border: 1px solid var(--kiln-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 12px;
-      background: var(--kiln-900);
+      background: var(--bosque-900);
       opacity: 0;
       transform: translateY(14px);
       transition: opacity .5s var(--ease), transform .5s var(--ease);
@@ -385,7 +392,7 @@
       font-size: 16.5px;
       font-weight: 700;
       letter-spacing: -.02em;
-      color: var(--steam-bright);
+      color: var(--savia-viva);
     }
 
     .panel-note {
@@ -393,14 +400,14 @@
       max-width: 62ch;
       font-size: 12px;
       line-height: 1.5;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .tally {
       font-family: var(--mono);
       font-size: 11px;
       white-space: nowrap;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .stack { display: grid; gap: 16px; }
@@ -421,8 +428,8 @@
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
       gap: 1px;
-      background: var(--kiln-800);
-      border: 1px solid var(--kiln-800);
+      background: var(--bosque-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 12px;
       overflow: hidden;
     }
@@ -430,7 +437,7 @@
     .cifra {
       position: relative;
       padding: 15px 17px 16px;
-      background: var(--kiln-900);
+      background: var(--bosque-900);
     }
 
     .cifra-tag {
@@ -440,7 +447,7 @@
       line-height: 1.3;
       letter-spacing: .08em;
       text-transform: uppercase;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .cifra-val {
@@ -450,14 +457,14 @@
       font-weight: 500;
       letter-spacing: -.03em;
       line-height: 1;
-      color: var(--steam-bright);
+      color: var(--savia-viva);
     }
 
     .cifra-val small {
       font-size: 12px;
       font-weight: 400;
       letter-spacing: 0;
-      color: var(--ash);
+      color: var(--musgo);
       margin-left: 3px;
     }
 
@@ -466,25 +473,28 @@
       min-height: 15px;
       font-size: 10.5px;
       line-height: 1.35;
-      color: var(--ash-dim);
+      color: var(--musgo-dim);
     }
 
-    .cifra[data-humedad="seco"] { box-shadow: inset 3px 0 0 var(--dry); }
-    .cifra[data-humedad="humedo"] { box-shadow: inset 3px 0 0 var(--wet); }
+    .cifra[data-humedad="seco"] { box-shadow: inset 3px 0 0 var(--corteza); }
+    .cifra[data-humedad="humedo"] { box-shadow: inset 3px 0 0 var(--brote); }
 
-    .cifra[data-humedad="humedo"] .cifra-val { color: var(--wet); }
+    .cifra[data-humedad="humedo"] .cifra-val { color: var(--brote); }
 
-    .val-alza { color: var(--dry) !important; }
-    .val-baja { color: var(--alert) !important; }
+    /* Ir sobre el plan es lo esperado: no necesita color, el signo ya
+       lo dice. El color se guarda para lo que sí hay que mirar. Así
+       verde y café siguen significando solo el origen del dato. */
+    .val-alza { color: var(--savia-viva) !important; }
+    .val-baja { color: var(--alerta) !important; }
 
     /* ---------------------------------------------------------------
        GRÁFICOS (SVG propio)
        --------------------------------------------------------------- */
 
     .grafico { width: 100%; display: block; overflow: visible; }
-    .grafico text { font-family: var(--mono); fill: var(--ash); }
-    .rejilla { stroke: var(--kiln-800); stroke-width: 1; }
-    .eje { stroke: var(--kiln-700); stroke-width: 1; }
+    .grafico text { font-family: var(--mono); fill: var(--musgo); }
+    .rejilla { stroke: var(--bosque-800); stroke-width: 1; }
+    .eje { stroke: var(--bosque-700); stroke-width: 1; }
 
     .traza-plan {
       fill: none;
@@ -495,7 +505,7 @@
 
     .traza-real {
       fill: none;
-      stroke: var(--dry);
+      stroke: var(--corteza);
       stroke-width: 2.25;
       stroke-linecap: round;
       stroke-linejoin: round;
@@ -503,7 +513,7 @@
 
     .traza-proy {
       fill: none;
-      stroke: var(--wet);
+      stroke: var(--brote);
       stroke-width: 1.75;
       stroke-dasharray: 3 4;
     }
@@ -526,8 +536,8 @@
       padding: 20px;
       text-align: center;
       font-size: 12px;
-      color: var(--ash-dim);
-      border: 1px dashed var(--kiln-800);
+      color: var(--musgo-dim);
+      border: 1px dashed var(--bosque-800);
       border-radius: 9px;
     }
 
@@ -536,7 +546,7 @@
       height: 34px;
       overflow: hidden;
       border-radius: 6px;
-      background: var(--kiln-850);
+      background: var(--bosque-850);
     }
 
     .reparto div {
@@ -544,7 +554,7 @@
       place-items: center;
       font-family: var(--mono);
       font-size: 10.5px;
-      color: var(--kiln-950);
+      color: var(--bosque-950);
       transition: flex-grow .6s var(--ease);
     }
 
@@ -575,9 +585,9 @@
       gap: 11px;
       align-items: end;
       padding: 15px 17px;
-      border: 1px solid var(--kiln-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 12px;
-      background: var(--kiln-900);
+      background: var(--bosque-900);
     }
 
     .campo label {
@@ -587,7 +597,7 @@
       font-weight: 600;
       letter-spacing: .09em;
       text-transform: uppercase;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .campo input,
@@ -597,10 +607,10 @@
       min-height: 38px;
       padding: 8px 10px;
       font-size: 13px;
-      border: 1px solid var(--kiln-700);
+      border: 1px solid var(--bosque-700);
       border-radius: 8px;
-      background: var(--kiln-850);
-      color: var(--steam-bright);
+      background: var(--bosque-850);
+      color: var(--savia-viva);
       outline: 0;
       transition: border-color .18s var(--ease), background .18s var(--ease);
     }
@@ -609,16 +619,16 @@
 
     .campo input:hover,
     .campo select:hover,
-    .campo textarea:hover { border-color: var(--kiln-700); background: var(--kiln-800); }
+    .campo textarea:hover { border-color: var(--bosque-700); background: var(--bosque-800); }
 
     .campo input:focus,
     .campo select:focus,
     .campo textarea:focus {
-      border-color: var(--dry);
-      background: var(--kiln-800);
+      border-color: var(--corteza);
+      background: var(--bosque-800);
     }
 
-    .campo input::placeholder { color: var(--ash-dim); }
+    .campo input::placeholder { color: var(--musgo-dim); }
 
     /* ---------------------------------------------------------------
        AVISOS
@@ -636,15 +646,15 @@
     .aviso.se-ve { display: block; }
 
     .aviso-nota {
-      color: var(--steam);
-      border-color: var(--kiln-800);
-      background: var(--kiln-900);
+      color: var(--savia);
+      border-color: var(--bosque-800);
+      background: var(--bosque-900);
     }
 
     .aviso-ojo {
-      color: #F0C97A;
-      border-color: rgba(227, 166, 60, .3);
-      background: rgba(227, 166, 60, .07);
+      color: #DFAE7C;
+      border-color: rgba(181, 121, 63, .38);
+      background: rgba(181, 121, 63, .09);
     }
 
     .aviso-mal {
@@ -654,7 +664,7 @@
       white-space: pre-wrap;
     }
 
-    .aviso b { color: var(--steam-bright); font-weight: 600; }
+    .aviso b { color: var(--savia-viva); font-weight: 600; }
 
     /* ---------------------------------------------------------------
        TABLAS
@@ -663,7 +673,7 @@
     .tabla-marco {
       max-height: 470px;
       overflow: auto;
-      border: 1px solid var(--kiln-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 10px;
     }
 
@@ -679,9 +689,9 @@
       font-weight: 600;
       letter-spacing: .09em;
       text-transform: uppercase;
-      color: var(--ash);
-      background: var(--kiln-850);
-      border-bottom: 1px solid var(--kiln-800);
+      color: var(--musgo);
+      background: var(--bosque-850);
+      border-bottom: 1px solid var(--bosque-800);
       white-space: nowrap;
     }
 
@@ -692,7 +702,7 @@
     }
 
     tbody tr { transition: background .14s; }
-    tbody tr:hover { background: var(--kiln-850); }
+    tbody tr:hover { background: var(--bosque-850); }
 
     th.n, td.n { text-align: right; }
     td.n { font-family: var(--mono); font-variant-numeric: tabular-nums; }
@@ -702,9 +712,9 @@
       bottom: 0;
       padding: 11px 12px;
       font-weight: 600;
-      color: var(--steam-bright);
-      background: var(--kiln-850);
-      border-top: 1px solid var(--kiln-700);
+      color: var(--savia-viva);
+      background: var(--bosque-850);
+      border-top: 1px solid var(--bosque-700);
     }
 
     tfoot td.n { font-family: var(--mono); }
@@ -721,13 +731,13 @@
       white-space: nowrap;
     }
 
-    .marca-seco { color: var(--dry); background: var(--dry-soft); }
-    .marca-humedo { color: var(--wet); background: var(--wet-soft); }
+    .marca-seco { color: var(--corteza); background: var(--corteza-soft); }
+    .marca-humedo { color: var(--brote); background: var(--brote-soft); }
 
     .fila-vacia td {
       padding: 40px;
       text-align: center;
-      color: var(--ash-dim);
+      color: var(--musgo-dim);
     }
 
     /* ---------------------------------------------------------------
@@ -744,12 +754,12 @@
     .mapa-caja {
       position: relative;
       overflow: hidden;
-      border: 1px solid var(--kiln-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 12px;
-      background: var(--kiln-900);
+      background: var(--bosque-900);
     }
 
-    #mapa { height: 560px; background: var(--kiln-850); }
+    #mapa { height: 560px; background: var(--bosque-850); }
 
     /* Teñir las teselas para que el mapa viva en la misma paleta que
        el resto, sin depender de un proveedor de teselas oscuras. */
@@ -758,23 +768,23 @@
               saturate(.55);
     }
 
-    .leaflet-container { background: var(--kiln-850); font: inherit; }
+    .leaflet-container { background: var(--bosque-850); font: inherit; }
 
     .leaflet-control-zoom a {
-      background: var(--kiln-850);
-      color: var(--steam);
-      border-color: var(--kiln-700);
+      background: var(--bosque-850);
+      color: var(--savia);
+      border-color: var(--bosque-700);
     }
 
-    .leaflet-control-zoom a:hover { background: var(--kiln-800); }
+    .leaflet-control-zoom a:hover { background: var(--bosque-800); }
 
     .leaflet-control-attribution {
       font-size: 9px;
-      color: var(--ash-dim);
-      background: rgba(16, 21, 24, .8);
+      color: var(--musgo-dim);
+      background: rgba(13, 20, 17, .82);
     }
 
-    .leaflet-control-attribution a { color: var(--ash); }
+    .leaflet-control-attribution a { color: var(--musgo); }
 
     .chincheta {
       display: grid;
@@ -784,8 +794,8 @@
       font-family: var(--mono);
       font-size: 10px;
       font-weight: 600;
-      color: var(--kiln-950);
-      border: 2px solid var(--kiln-950);
+      color: var(--bosque-950);
+      border: 2px solid var(--bosque-950);
       border-radius: 50%;
       box-shadow: 0 2px 7px rgba(0, 0, 0, .5);
       transform: translateY(-14px) scale(.4);
@@ -799,7 +809,7 @@
     }
 
     .chincheta.esta-activa {
-      box-shadow: 0 0 0 4px rgba(234, 241, 243, .3),
+      box-shadow: 0 0 0 4px rgba(230, 240, 232, .3),
                   0 2px 7px rgba(0, 0, 0, .5);
     }
 
@@ -808,10 +818,10 @@
       flex-wrap: wrap;
       gap: 5px 14px;
       padding: 11px 14px;
-      border-top: 1px solid var(--kiln-800);
+      border-top: 1px solid var(--bosque-800);
       font-family: var(--mono);
       font-size: 10px;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .mapa-cinta span { display: inline-flex; align-items: center; gap: 6px; }
@@ -823,9 +833,9 @@
       display: grid;
       gap: 13px;
       padding: 17px 18px 19px;
-      border: 1px solid var(--kiln-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 12px;
-      background: var(--kiln-900);
+      background: var(--bosque-900);
     }
 
     .gestion-vacia {
@@ -835,8 +845,8 @@
       text-align: center;
     }
 
-    .gestion-vacia svg { width: 30px; height: 30px; margin: 0 auto; stroke: var(--ash-dim); }
-    .gestion-vacia p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ash); }
+    .gestion-vacia svg { width: 30px; height: 30px; margin: 0 auto; stroke: var(--musgo-dim); }
+    .gestion-vacia p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--musgo); }
 
     .gestion-nombre {
       font-family: var(--display);
@@ -844,20 +854,20 @@
       font-weight: 700;
       letter-spacing: -.02em;
       line-height: 1.15;
-      color: var(--steam-bright);
+      color: var(--savia-viva);
     }
 
     .gestion-dir {
       margin-top: 5px;
       font-size: 12px;
       line-height: 1.45;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .gestion-meta {
       font-family: var(--mono);
       font-size: 10.5px;
-      color: var(--ash-dim);
+      color: var(--musgo-dim);
       line-height: 1.5;
     }
 
@@ -883,35 +893,35 @@
 
     .recado.se-ve { display: block; }
     .recado-mal { color: #F0A090; background: rgba(217, 87, 63, .1); }
-    .recado-bien { color: var(--dry); background: var(--dry-soft); }
+    .recado-bien { color: var(--corteza); background: var(--corteza-soft); }
 
     .conteo {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 1px;
-      background: var(--kiln-800);
-      border: 1px solid var(--kiln-800);
+      background: var(--bosque-800);
+      border: 1px solid var(--bosque-800);
       border-radius: 11px;
       overflow: hidden;
     }
 
     .conteo-caja {
       padding: 13px 15px;
-      background: var(--kiln-900);
+      background: var(--bosque-900);
       cursor: pointer;
       text-align: left;
       border: 0;
       transition: background .16s;
     }
 
-    .conteo-caja:hover { background: var(--kiln-850); }
-    .conteo-caja[aria-pressed="true"] { background: var(--kiln-800); }
+    .conteo-caja:hover { background: var(--bosque-850); }
+    .conteo-caja[aria-pressed="true"] { background: var(--bosque-800); }
 
     .conteo-num {
       font-family: var(--mono);
       font-size: 21px;
       line-height: 1;
-      color: var(--steam-bright);
+      color: var(--savia-viva);
     }
 
     .conteo-tag {
@@ -921,7 +931,7 @@
       gap: 6px;
       margin-top: 7px;
       font-size: 10.5px;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     .conteo-tag i {
@@ -939,7 +949,7 @@
       z-index: 200;
       display: grid;
       place-items: center;
-      background: rgba(16, 21, 24, .9);
+      background: rgba(13, 20, 17, .92);
       backdrop-filter: blur(4px);
       transition: opacity .3s var(--ease);
     }
@@ -954,7 +964,7 @@
       width: 5px;
       height: 26px;
       border-radius: 2px;
-      background: var(--kiln-800);
+      background: var(--bosque-800);
       animation: secando 1.25s var(--ease) infinite;
     }
 
@@ -964,9 +974,9 @@
     .velo-tramos i:nth-child(5) { animation-delay: .44s; }
 
     @keyframes secando {
-      0%, 100% { background: var(--kiln-800); transform: scaleY(.55); }
-      45% { background: var(--wet); transform: scaleY(1); }
-      70% { background: var(--dry); transform: scaleY(1); }
+      0%, 100% { background: var(--bosque-800); transform: scaleY(.55); }
+      45% { background: var(--brote); transform: scaleY(1); }
+      70% { background: var(--corteza); transform: scaleY(1); }
     }
 
     .velo-texto {
@@ -974,7 +984,7 @@
       font-size: 11px;
       letter-spacing: .1em;
       text-transform: uppercase;
-      color: var(--ash);
+      color: var(--musgo);
     }
 
     [hidden] { display: none !important; }
@@ -1001,7 +1011,7 @@
         height: auto;
         padding: 10px 14px;
         border-right: 0;
-        border-bottom: 1px solid var(--kiln-800);
+        border-bottom: 1px solid var(--bosque-800);
       }
 
       .rail-mark { margin: 0 14px 0 0; display: flex; gap: 4px; }
@@ -1102,9 +1112,9 @@
             </div>
             <div class="tramos" id="tramos"></div>
             <div class="escala">
-              <span><i style="background:var(--dry)"></i>Seco · confirmado en SAP</span>
-              <span><i style="background:var(--wet)"></i>Húmedo · estimado de planilla</span>
-              <span><i style="background:var(--kiln-700)"></i>Por llegar</span>
+              <span><i style="background:var(--corteza)"></i>Seco · confirmado en SAP</span>
+              <span><i style="background:var(--brote)"></i>Húmedo · estimado de planilla</span>
+              <span><i style="background:var(--bosque-700)"></i>Por llegar</span>
             </div>
           </div>
         </header>
@@ -2140,7 +2150,7 @@
 
         partes.push(
           '<circle cx="' + x(iRef) + '" cy="' + y(enRef) +
-          '" r="4" fill="var(--dry)"/>'
+          '" r="4" fill="var(--corteza)"/>'
         );
       }
 
@@ -2168,8 +2178,8 @@
         partes.join('') + '</svg>' +
         '<div class="escala" style="margin-top:12px">' +
           (plan ? '<span><i style="background:var(--plan)"></i>Plan a la fecha</span>' : '') +
-          '<span><i style="background:var(--dry)"></i>Recibido</span>' +
-          '<span><i style="background:var(--wet)"></i>Proyección</span>' +
+          '<span><i style="background:var(--corteza)"></i>Recibido</span>' +
+          '<span><i style="background:var(--brote)"></i>Proyección</span>' +
         '</div>';
     }
 
@@ -2230,14 +2240,14 @@
 
         return '<g>' +
           '<text x="0" y="' + (y + 12) + '" font-size="10.5" ' +
-          'fill="var(--steam)">' + esc(recortar(x.proveedor, 22)) + '</text>' +
+          'fill="var(--savia)">' + esc(recortar(x.proveedor, 22)) + '</text>' +
           '<rect class="barra" x="' + etiqueta + '" y="' + y +
             '" width="' + Math.max(0, wSap) + '" height="15" rx="2" ' +
-            'fill="var(--dry)"><title>' + esc(x.proveedor) +
+            'fill="var(--corteza)"><title>' + esc(x.proveedor) +
             ' · SAP ' + formatTS(x.sap) + '</title></rect>' +
           '<rect class="barra" x="' + (etiqueta + wSap) + '" y="' + y +
             '" width="' + Math.max(0, wPl) + '" height="15" rx="2" ' +
-            'fill="var(--wet)"><title>' + esc(x.proveedor) +
+            'fill="var(--brote)"><title>' + esc(x.proveedor) +
             ' · planilla ' + formatTS(x.planilla) + '</title></rect>' +
           '<text x="' + W + '" y="' + (y + 12) +
             '" text-anchor="end" font-size="10.5">' +
@@ -2252,7 +2262,7 @@
     }
 
     function tonoSub(i) {
-      return ['var(--dry)', 'var(--wet)', 'var(--plan)', '#8A6FA8'][i % 4];
+      return ['var(--corteza)', 'var(--brote)', 'var(--plan)', '#9A7BB5'][i % 4];
     }
 
     /* =================================================================
@@ -2348,7 +2358,7 @@
 
     function colorEstado(nombre) {
       var e = estadosConColor()[nombre];
-      return e ? e.color : 'var(--ash)';
+      return e ? e.color : 'var(--musgo)';
     }
 
     function filasMapeo() {
@@ -2383,7 +2393,7 @@
 
       cajas.push(
         '<div class="conteo-caja" style="cursor:default">' +
-        '<div class="conteo-num" style="color:var(--dry)">' +
+        '<div class="conteo-num" style="color:var(--corteza)">' +
         formatEntero(cargas) + '</div>' +
         '<div class="conteo-tag">Cargas cerradas</div></div>'
       );
@@ -2673,22 +2683,22 @@
         return '<tr onclick="seleccionar(' +
           JSON.stringify(f.id).replace(/"/g, '&quot;') +
           ')" style="cursor:pointer' +
-          (f.id === SELECCION ? ';background:var(--kiln-850)' : '') + '">' +
+          (f.id === SELECCION ? ';background:var(--bosque-850)' : '') + '">' +
           '<td><strong>' + esc(f.nombre) + '</strong>' +
             (f.lat === null
-              ? '<br><span style="color:var(--alert);font-size:11px">' +
+              ? '<br><span style="color:var(--alerta);font-size:11px">' +
                 'sin ubicar</span>'
               : '') +
           '</td>' +
           '<td>' + esc(f.direccion) +
-            (f.comuna ? '<br><span style="color:var(--ash-dim)">' +
+            (f.comuna ? '<br><span style="color:var(--musgo-dim)">' +
               esc(f.comuna) + '</span>' : '') + '</td>' +
           '<td><span class="marca" style="color:' + colorEstado(f.estado) +
-            ';background:var(--kiln-850)">' + esc(f.estado) + '</span></td>' +
+            ';background:var(--bosque-850)">' + esc(f.estado) + '</span></td>' +
           celdaN(f.cargas ? formatEntero(f.cargas) : '') +
           '<td>' + esc([f.contacto, f.telefono].filter(Boolean).join(' · ')) +
             '</td>' +
-          '<td class="num" style="font-size:11px;color:var(--ash)">' +
+          '<td class="num" style="font-size:11px;color:var(--musgo)">' +
             esc(f.actualizado) + '</td>' +
           '</tr>';
       }).join('');

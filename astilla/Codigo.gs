@@ -2119,8 +2119,8 @@ function formatInformeSheet_(sheet) {
 
   sheet
     .getRange(1, 1, 1, INFORME_HEADERS.length)
-    .setBackground('#173f2d')
-    .setFontColor('#ffffff')
+    .setBackground('#121C17')
+    .setFontColor('#C2D2C6')
     .setFontWeight('bold');
 
   sheet
@@ -2739,13 +2739,13 @@ const ESTADO_CERRADO = 'Cerrado';
  * Del primero al último es el recorrido natural de una gestión.
  */
 const ESTADOS_MAPEO = Object.freeze([
-  { nombre: 'Por visitar', color: '#6E8088', cierra: false },
-  { nombre: 'En negociación', color: '#3E9E9E', cierra: false },
-  { nombre: 'Cerrado', color: '#E3A63C', cierra: true },
-  { nombre: 'Sin stock', color: '#8A6FA8', cierra: false },
+  { nombre: 'Por visitar', color: '#9DB0A3', cierra: false },
+  { nombre: 'En negociación', color: '#6FCB8C', cierra: false },
+  { nombre: 'Cerrado', color: '#B5793F', cierra: true },
+  { nombre: 'Sin stock', color: '#9A7BB5', cierra: false },
   { nombre: 'Precio fuera de mercado', color: '#D9573F', cierra: false },
-  { nombre: 'Comprometido con otro', color: '#B0553F', cierra: false },
-  { nombre: 'No hubo contacto', color: '#4C5A61', cierra: false }
+  { nombre: 'Comprometido con otro', color: '#6B8CB0', cierra: false },
+  { nombre: 'No hubo contacto', color: '#4E5D57', cierra: false }
 ]);
 
 function nombresEstados_() {
@@ -2770,8 +2770,8 @@ function instalarMapeos() {
   sheet
     .getRange(1, 1, 1, MAPEOS_HEADERS.length)
     .setValues([MAPEOS_HEADERS])
-    .setBackground('#12171A')
-    .setFontColor('#E3A63C')
+    .setBackground('#121C17')
+    .setFontColor('#B5793F')
     .setFontWeight('bold');
 
   sheet.setFrozenRows(1);
