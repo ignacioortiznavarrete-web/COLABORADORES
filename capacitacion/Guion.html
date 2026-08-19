@@ -1,0 +1,2346 @@
+<script>
+(function () {
+  'use strict';
+
+  /* ================================================================
+     Paleta. Espeja los tokens de Estilos.html.
+     El orden de las series esta validado para daltonismo: peor par
+     adyacente CVD dE 8.5 y vision normal dE 23.3 sobre blanco.
+     ================================================================ */
+  var C = {
+    s: ['#177f57', '#e2711d', '#2a78d6', '#c9508f', '#4a3aa7', '#eda100', '#d33f3f', '#0e9aa7'],
+    rampa: ['#78c29d', '#4fae82', '#2b9366', '#177f57', '#0e5f41'],
+    marca: '#177f57',
+    marcaLavado: '#e8f2ec',
+    tinta: '#132019',
+    tinta2: '#44514a',
+    tinta3: '#5f6c65',
+    linea: '#e3e8e5',
+    lineaFuerte: '#cfd8d3',
+    superficie: '#ffffff',
+    ok: '#0ca30c',
+    alerta: '#fab219',
+    critico: '#d03b3b'
+  };
+
+  var MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  /* ================================================================
+     Estado
+     ================================================================ */
+  var DATOS = { capacitaciones: [], dotacion: [], becas: [], costoOtic: [], saldos: [], config: {}, meta: {} };
+  var CFG = { metaCobertura: 0.8, metaHorasPerCapita: 16, umbralCoberturaCritica: 0.5, comisionOtic: 0.15, fondoInicialExcedentes: 0, dotacionEstPorDefecto: 100 };
+  var filtros = { anio: 'TODOS', gerencia: 'TODOS', empresas: [], categorias: [], modalidad: 'TODOS' };
+  var vistaActual = 'resumen';
+  var graficos = {};
+  var exportables = {};
+  var modelo = null;
+  var contextoNomina = null;
+  var graficosDisponibles = true;
+
+  var reduceMovimiento = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ================================================================
+     Formato
+     ================================================================ */
+  var nf0 = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 });
+  var nf1 = new Intl.NumberFormat('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  function num(v) { return nf0.format(Math.round(v || 0)); }
+  function dec(v) { return nf1.format(v || 0); }
+  function money(v) { return '$' + nf0.format(Math.round(v || 0)); }
+  function pct(v, decimales) { return dec1(v, decimales) + '%'; }
+  function dec1(v, decimales) {
+    var d = decimales === undefined ? 1 : decimales;
+    return new Intl.NumberFormat('es-CL', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v || 0);
+  }
+  function moneyCorto(v) {
+    var n = Math.abs(v || 0);
+    if (n >= 1000000000) return '$' + dec1(v / 1000000000, 1) + ' MM';
+    if (n >= 1000000) return '$' + dec1(v / 1000000, 1) + ' M';
+    if (n >= 1000) return '$' + num(v / 1000) + ' mil';
+    return money(v);
+  }
+  function horas(v) { return dec(v) + ' h'; }
+
+  /* ================================================================
+     Utilidades de datos
+     ================================================================ */
+  function norm(v) {
+    var t = (v === null || v === undefined) ? '' : v.toString().toLowerCase();
+    return t.normalize ? t.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : t;
+  }
+
+  function esMujer(g) { var v = norm(g).trim(); return v === 'f' || v === 'mujer' || v.indexOf('feme') !== -1; }
+  function esHombre(g) { var v = norm(g).trim(); return v === 'm' || v === 'hombre' || v.indexOf('masc') !== -1; }
+
+  /** Los programas de comunidad y flex no cuentan como dotacion interna. */
+  function esExterno(d) {
+    var o = norm(d.OrigenCapacitacion);
+    return o.indexOf('comunidad') !== -1 || o.indexOf('flex operativo') !== -1 || o.indexOf('programa flex') !== -1;
+  }
+
+  function esContratista(d) {
+    var t = norm(d.TipoOrigen);
+    return t.indexOf('extern') !== -1 || t.indexOf('est') !== -1 || t.indexOf('contrat') !== -1;
+  }
+
+  function origenLegible(valor) {
+    var v = (valor || '').trim();
+    if (!v || v === 'No Especificado') return 'No especificado';
+    if (norm(v).indexOf('interno') !== -1) return 'Registrado en BUK';
+    return v;
+  }
+
+  function coincideEmpresa(empresa, seleccion) {
+    if (!seleccion.length) return true;
+    if (!empresa) return false;
+    var e = norm(empresa).trim();
+    return seleccion.some(function (s) {
+      var n = norm(s).trim();
+      return e.indexOf(n) !== -1 || n.indexOf(e) !== -1;
+    });
+  }
+
+  /* ================================================================
+     DOM
+     ================================================================ */
+  function $(id) { return document.getElementById(id); }
+  function el(tag, clase, texto) {
+    var n = document.createElement(tag);
+    if (clase) n.className = clase;
+    if (texto !== undefined && texto !== null) n.textContent = texto;
+    return n;
+  }
+  function td(texto, clase) { return el('td', clase, texto); }
+  function tr(celdas, clase) {
+    var f = el('tr', clase);
+    celdas.forEach(function (c) { f.appendChild(c); });
+    return f;
+  }
+  function vaciar(nodo) { while (nodo && nodo.firstChild) nodo.removeChild(nodo.firstChild); }
+
+  function filaVacia(columnas, mensaje) {
+    var c = el('td', 'vacio', mensaje);
+    c.colSpan = columnas;
+    return tr([c]);
+  }
+
+  function celdaBarra(porcentaje, etiqueta, neutra) {
+    var celda = el('td', 'num');
+    var caja = el('div', 'barra-celda');
+    var pista = el('div', 'pista' + (neutra ? '' : severidadCobertura(porcentaje / 100)));
+    var relleno = el('i');
+    relleno.style.width = Math.max(0, Math.min(100, porcentaje)) + '%';
+    pista.appendChild(relleno);
+    caja.appendChild(pista);
+    caja.appendChild(el('span', 'cifra', etiqueta !== undefined ? etiqueta : pct(porcentaje)));
+    celda.appendChild(caja);
+    return celda;
+  }
+
+  function severidadCobertura(fraccion) {
+    if (fraccion >= CFG.metaCobertura) return '';
+    if (fraccion >= CFG.umbralCoberturaCritica) return ' riesgo';
+    return ' critico';
+  }
+
+  function pildora(texto, tipo) { return el('span', 'pildora ' + (tipo || 'neutra'), texto); }
+
+  function pintarTira(id, celdas) {
+    var cont = $(id);
+    if (!cont) return;
+    vaciar(cont);
+    celdas.forEach(function (c) {
+      var caja = el('div', 'celda');
+      caja.appendChild(el('span', 'rotulo', c.rotulo));
+      caja.appendChild(el('span', 'valor', c.valor));
+      if (c.nota) caja.appendChild(el('span', 'nota', c.nota));
+      cont.appendChild(caja);
+    });
+  }
+
+  function pintarMedidor(id, fraccion) {
+    var m = $(id);
+    if (!m) return;
+    m.className = 'medidor' + severidadCobertura(fraccion);
+    m.firstElementChild.style.width = Math.max(0, Math.min(100, fraccion * 100)) + '%';
+  }
+
+  function pintarLeyenda(id, series, tipo) {
+    var cont = $(id);
+    if (!cont) return;
+    vaciar(cont);
+    series.forEach(function (s) {
+      var item = el('span', 'leyenda-item');
+      var marca = el('span', 'leyenda-marca' + (tipo === 'linea' ? ' linea' : ''));
+      marca.style.background = s.color;
+      item.appendChild(marca);
+      item.appendChild(el('span', null, s.etiqueta));
+      cont.appendChild(item);
+    });
+  }
+
+  function pintarAlertas(id, items) {
+    var lista = $(id);
+    if (!lista) return;
+    vaciar(lista);
+    if (!items.length) {
+      var li0 = el('li');
+      li0.appendChild(iconoEstado('ok'));
+      var t0 = el('div', 'texto');
+      t0.appendChild(el('span', 'titulo', 'Sin puntos de atencion'));
+      t0.appendChild(el('span', 'detalle', 'Todos los indicadores del periodo estan dentro de meta.'));
+      li0.appendChild(t0);
+      lista.appendChild(li0);
+      return;
+    }
+    items.forEach(function (a) {
+      var li = el('li');
+      li.appendChild(iconoEstado(a.nivel));
+      var texto = el('div', 'texto');
+      texto.appendChild(el('span', 'titulo', a.titulo));
+      texto.appendChild(el('span', 'detalle', a.detalle));
+      li.appendChild(texto);
+      if (a.cifra !== undefined) li.appendChild(el('span', 'cifra', a.cifra));
+      lista.appendChild(li);
+    });
+  }
+
+  function iconoEstado(nivel) {
+    var mapa = {
+      critico: ['warning-circle', 'i-critico'],
+      alerta: ['warning', 'i-alerta'],
+      grave: ['warning', 'i-grave'],
+      ok: ['check-circle', 'i-ok'],
+      info: ['info', 'i-neutro']
+    };
+    var m = mapa[nivel] || mapa.info;
+    return icono(m[0], m[1]);
+  }
+
+  /** Un icono del sprite incrustado. Sin dependencias externas. */
+  function icono(nombre, clase) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'ico ' + (clase || ''));
+    svg.setAttribute('aria-hidden', 'true');
+    var uso = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    uso.setAttribute('href', '#i-' + nombre);
+    svg.appendChild(uso);
+    return svg;
+  }
+
+  /* ================================================================
+     Chart.js: ajustes globales, complementos y ayudantes
+     ================================================================ */
+  function prepararChart() {
+    Chart.defaults.font.family = "'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif";
+    Chart.defaults.font.size = 11.5;
+    Chart.defaults.color = C.tinta3;
+    Chart.defaults.animation = reduceMovimiento ? false : { duration: 420, easing: 'easeOutQuart' };
+    Chart.defaults.plugins.legend.display = false;
+    Chart.defaults.plugins.tooltip.backgroundColor = C.tinta;
+    Chart.defaults.plugins.tooltip.titleColor = '#ffffff';
+    Chart.defaults.plugins.tooltip.bodyColor = '#dfe6e2';
+    Chart.defaults.plugins.tooltip.titleFont = { size: 12, weight: '600' };
+    Chart.defaults.plugins.tooltip.bodyFont = { size: 12 };
+    Chart.defaults.plugins.tooltip.padding = 10;
+    Chart.defaults.plugins.tooltip.cornerRadius = 8;
+    Chart.defaults.plugins.tooltip.boxWidth = 10;
+    Chart.defaults.plugins.tooltip.boxHeight = 3;
+    Chart.defaults.plugins.tooltip.boxPadding = 5;
+    Chart.defaults.plugins.tooltip.displayColors = true;
+    Chart.defaults.maintainAspectRatio = false;
+
+    Chart.register(plugCruz, plugEtiquetas, plugMeta, plugSinDatos);
+  }
+
+  /** Hairline vertical que ayuda a apuntar a un mes en los graficos de linea. */
+  var plugCruz = {
+    id: 'cruz',
+    afterDatasetsDraw: function (chart, args, opts) {
+      if (!opts || opts.activo === false) return;
+      var activos = chart.tooltip && chart.tooltip.getActiveElements ? chart.tooltip.getActiveElements() : [];
+      if (!activos.length) return;
+      var x = activos[0].element.x;
+      var ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = C.lineaFuerte;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, chart.chartArea.top);
+      ctx.lineTo(x, chart.chartArea.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  /** Etiquetas directas al extremo de la barra o al final de la linea. */
+  var plugEtiquetas = {
+    id: 'etiquetas',
+    afterDatasetsDraw: function (chart, args, opts) {
+      if (!opts || !opts.formato) return;
+      var ctx = chart.ctx;
+      ctx.save();
+      ctx.font = '500 11px ' + Chart.defaults.font.family;
+      ctx.fillStyle = C.tinta2;
+
+      chart.data.datasets.forEach(function (ds, di) {
+        var meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        var ultimoConDato = -1;
+        if (opts.ultimoConDato) {
+          for (var k = ds.data.length - 1; k >= 0; k--) {
+            if (ds.data[k] !== null && ds.data[k] !== undefined) { ultimoConDato = k; break; }
+          }
+        }
+        meta.data.forEach(function (barra, i) {
+          if (opts.ultimoConDato && i !== ultimoConDato) return;
+          var valor = ds.data[i];
+          if (valor === null || valor === undefined || valor === 0) return;
+          var texto = opts.formato(valor, ds, i);
+          if (!texto) return;
+          if (chart.options.indexAxis === 'y') {
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(texto, barra.x + 7, barra.y);
+          } else {
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(texto, barra.x, barra.y - 6);
+          }
+        });
+      });
+      ctx.restore();
+    }
+  };
+
+  /** Linea de referencia de meta. */
+  var plugMeta = {
+    id: 'metaLinea',
+    afterDatasetsDraw: function (chart, args, opts) {
+      if (!opts || opts.valor === undefined) return;
+      var escala = chart.options.indexAxis === 'y' ? chart.scales.x : chart.scales.y;
+      if (!escala) return;
+      var p = escala.getPixelForValue(opts.valor);
+      var ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = C.tinta3;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (chart.options.indexAxis === 'y') {
+        ctx.moveTo(p, chart.chartArea.top);
+        ctx.lineTo(p, chart.chartArea.bottom);
+      } else {
+        ctx.moveTo(chart.chartArea.left, p);
+        ctx.lineTo(chart.chartArea.right, p);
+      }
+      ctx.stroke();
+      if (opts.texto) {
+        ctx.font = '500 10.5px ' + Chart.defaults.font.family;
+        ctx.fillStyle = C.tinta3;
+        ctx.textAlign = 'left';
+        if (chart.options.indexAxis === 'y') {
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(opts.texto, p + 5, chart.chartArea.top - 4);
+        } else {
+          ctx.textBaseline = 'top';
+          ctx.fillText(opts.texto, chart.chartArea.left + 4, p + 3);
+        }
+      }
+      ctx.restore();
+    }
+  };
+
+  var plugSinDatos = {
+    id: 'sinDatos',
+    afterDraw: function (chart) {
+      var hay = chart.data.datasets.some(function (ds) {
+        return (ds.data || []).some(function (v) { return v !== null && v !== undefined && v !== 0; });
+      });
+      if (hay) return;
+      var ctx = chart.ctx;
+      ctx.save();
+      ctx.font = '400 12px ' + Chart.defaults.font.family;
+      ctx.fillStyle = C.tinta3;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Sin datos para los filtros aplicados',
+        (chart.chartArea.left + chart.chartArea.right) / 2,
+        (chart.chartArea.top + chart.chartArea.bottom) / 2);
+      ctx.restore();
+    }
+  };
+
+  function grafico(id, config) {
+    if (typeof Chart === 'undefined') return null;
+    if (graficos[id]) graficos[id].destroy();
+    var lienzo = $(id);
+    if (!lienzo) return null;
+    graficos[id] = new Chart(lienzo.getContext('2d'), config);
+    return graficos[id];
+  }
+
+  function ejeValor(extra) {
+    var base = {
+      beginAtZero: true,
+      border: { display: false },
+      grid: { color: C.linea, drawTicks: false, lineWidth: 1 },
+      ticks: { padding: 8, maxTicksLimit: 6 }
+    };
+    return Object.assign(base, extra || {});
+  }
+
+  function ejeCategoria(extra) {
+    var base = {
+      border: { color: C.lineaFuerte },
+      grid: { display: false },
+      ticks: { padding: 6, autoSkip: false }
+    };
+    return Object.assign(base, extra || {});
+  }
+
+  /* ================================================================
+     Carga de datos
+     ================================================================ */
+  function cargar(forzar) {
+    document.body.classList.add('cargando');
+    $('selloDatos').textContent = forzar ? 'Actualizando' : 'Cargando datos';
+    if (graficosDisponibles) $('avisoError').hidden = true;
+
+    google.script.run
+      .withSuccessHandler(function (resp) {
+        DATOS = resp || DATOS;
+        CFG = Object.assign(CFG, DATOS.config || {});
+        $('dotacionEst').value = CFG.dotacionEstPorDefecto || 100;
+        poblarFiltros();
+        redibujarTodo();
+        sellarFecha();
+        document.body.classList.remove('cargando');
+      })
+      .withFailureHandler(function (err) {
+        document.body.classList.remove('cargando');
+        $('selloDatos').textContent = 'Sin conexion con la planilla';
+        $('avisoError').hidden = false;
+        $('avisoError').querySelector('strong').textContent = 'No se pudieron cargar los datos.';
+        $('textoError').textContent = (err && err.message) ? err.message : 'Revisa los permisos de la planilla y vuelve a intentar.';
+      })
+      .obtenerDatosConsolidados(!!forzar);
+  }
+
+  function sellarFecha() {
+    var meta = DATOS.meta || {};
+    var fecha = meta.actualizado ? new Date(meta.actualizado) : new Date();
+    var hh = ('0' + fecha.getHours()).slice(-2) + ':' + ('0' + fecha.getMinutes()).slice(-2);
+    var dd = fecha.getDate() + ' ' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][fecha.getMonth()];
+    $('selloDatos').textContent = 'Datos al ' + dd + ', ' + hh;
+  }
+
+  /* ================================================================
+     Filtros
+     ================================================================ */
+  function poblarFiltros() {
+    var anios = {}, gerencias = {}, empresas = {}, categorias = {}, modalidades = {};
+
+    DATOS.capacitaciones.forEach(function (d) {
+      if (d.Anio) anios[d.Anio] = true;
+      if (d.Gerencia && d.Gerencia !== 'Sin Gerencia') gerencias[d.Gerencia] = true;
+      if (d.Empresa && d.Empresa !== 'Sin Empresa') empresas[d.Empresa] = true;
+      if (d.Categoria && d.Categoria !== 'Sin Categoria') categorias[d.Categoria] = true;
+      if (d.Modalidad) modalidades[d.Modalidad] = true;
+    });
+    DATOS.dotacion.forEach(function (d) {
+      if (d.Gerencia && d.Gerencia !== 'Sin Gerencia') gerencias[d.Gerencia] = true;
+      if (d.Empresa && d.Empresa !== 'Sin Empresa') empresas[d.Empresa] = true;
+    });
+    (DATOS.becas || []).forEach(function (b) { if (b.Anio) anios[b.Anio] = true; });
+    (DATOS.saldos || []).forEach(function (s) { if (s.Anio) anios[s.Anio] = true; });
+
+    llenarSelect('fAnio', Object.keys(anios).sort().reverse(), 'Todos');
+    llenarSelect('fGerencia', ordenar(Object.keys(gerencias)), 'Todas');
+    llenarSelect('fModalidad', ordenar(Object.keys(modalidades)), 'Todas');
+    llenarMulti('panelEmpresa', 'rotuloEmpresa', ordenar(Object.keys(empresas)), 'empresas', 'Todas');
+    llenarMulti('panelCategoria', 'rotuloCategoria', ordenar(Object.keys(categorias)), 'categorias', 'Todas');
+  }
+
+  function ordenar(lista) {
+    return lista.sort(function (a, b) { return a.localeCompare(b, 'es', { sensitivity: 'base' }); });
+  }
+
+  function llenarSelect(id, valores, textoTodos) {
+    var sel = $(id);
+    var previo = sel.value;
+    vaciar(sel);
+    var opt = el('option', null, textoTodos);
+    opt.value = 'TODOS';
+    sel.appendChild(opt);
+    valores.forEach(function (v) {
+      var o = el('option', null, v);
+      o.value = v;
+      sel.appendChild(o);
+    });
+    sel.value = (previo && Array.prototype.some.call(sel.options, function (o) { return o.value === previo; })) ? previo : 'TODOS';
+  }
+
+  function llenarMulti(panelId, rotuloId, valores, clave, textoTodos) {
+    var panel = $(panelId);
+    vaciar(panel);
+    filtros[clave] = [];
+
+    var todas = el('label', 'opcion opcion-todas');
+    var chkTodas = document.createElement('input');
+    chkTodas.type = 'checkbox';
+    chkTodas.checked = true;
+    chkTodas.dataset.maestro = clave;
+    todas.appendChild(chkTodas);
+    todas.appendChild(el('span', null, 'Seleccionar todas'));
+    panel.appendChild(todas);
+
+    valores.forEach(function (v) {
+      var lab = el('label', 'opcion');
+      var chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = true;
+      chk.value = v;
+      chk.dataset.grupo = clave;
+      lab.appendChild(chk);
+      lab.appendChild(el('span', null, v));
+      panel.appendChild(lab);
+    });
+
+    if (panel.dataset.conectado !== 'si') {
+      panel.dataset.conectado = 'si';
+      conectarPanelMulti(panel, panelId, rotuloId, clave, textoTodos);
+    }
+
+    actualizarMulti(panelId, rotuloId, clave, textoTodos);
+  }
+
+  function conectarPanelMulti(panel, panelId, rotuloId, clave, textoTodos) {
+    panel.addEventListener('change', function (ev) {
+      var chkTodas = panel.querySelector('input[data-maestro]');
+      var casillas = panel.querySelectorAll('input[data-grupo]');
+      if (ev.target.dataset.maestro) {
+        Array.prototype.forEach.call(casillas, function (c) { c.checked = ev.target.checked; });
+      } else {
+        chkTodas.checked = Array.prototype.every.call(casillas, function (c) { return c.checked; });
+      }
+      actualizarMulti(panelId, rotuloId, clave, textoTodos);
+      redibujarTodo();
+    });
+  }
+
+  function actualizarMulti(panelId, rotuloId, clave, textoTodos) {
+    var casillas = $(panelId).querySelectorAll('input[data-grupo]');
+    var marcadas = Array.prototype.filter.call(casillas, function (c) { return c.checked; });
+    var total = casillas.length;
+    var rotulo = $(rotuloId);
+    var disparador = rotulo.parentElement;
+
+    if (total === 0 || marcadas.length === total) {
+      filtros[clave] = [];
+      rotulo.textContent = textoTodos;
+      disparador.classList.remove('filtrado');
+    } else if (marcadas.length === 0) {
+      filtros[clave] = ['__ninguna__'];
+      rotulo.textContent = 'Ninguna seleccionada';
+      disparador.classList.add('filtrado');
+    } else {
+      filtros[clave] = marcadas.map(function (c) { return c.value; });
+      rotulo.textContent = marcadas.length === 1 ? marcadas[0].value : marcadas.length + ' de ' + total;
+      disparador.classList.add('filtrado');
+    }
+  }
+
+  function leerFiltros() {
+    filtros.anio = $('fAnio').value;
+    filtros.gerencia = $('fGerencia').value;
+    filtros.modalidad = $('fModalidad').value;
+  }
+
+  /* ================================================================
+     Modelo derivado. Se recalcula una vez por cambio de filtro y lo
+     comparten todas las secciones, para que las cifras nunca discrepen.
+     ================================================================ */
+  function calcularModelo() {
+    leerFiltros();
+
+    var capacitaciones = DATOS.capacitaciones.filter(function (d) {
+      if (filtros.anio !== 'TODOS' && d.Anio !== filtros.anio) return false;
+      if (filtros.gerencia !== 'TODOS' && d.Gerencia !== filtros.gerencia) return false;
+      if (filtros.categorias.length && filtros.categorias.indexOf(d.Categoria) === -1) return false;
+      if (filtros.modalidad !== 'TODOS' && d.Modalidad !== filtros.modalidad) return false;
+      if (!coincideEmpresa(d.Empresa, filtros.empresas)) return false;
+      return true;
+    });
+
+    var internas = capacitaciones.filter(function (d) { return !esExterno(d); });
+
+    var dotacion = DATOS.dotacion.filter(function (p) {
+      if (filtros.gerencia !== 'TODOS' && p.Gerencia !== filtros.gerencia) return false;
+      if (!coincideEmpresa(p.Empresa, filtros.empresas)) return false;
+      return true;
+    });
+    var vigentes = dotacion.filter(function (p) { return p.Vigente !== false; });
+
+    // Acumulado por persona a partir de los cursos internos.
+    var porPersona = {};
+    internas.forEach(function (d) {
+      var id = d.RutId;
+      if (!id) return;
+      if (!porPersona[id]) porPersona[id] = { horas: 0, aprobados: 0, registros: 0, cursos: {}, dato: d };
+      var p = porPersona[id];
+      p.horas += d.Horas || 0;
+      p.registros += 1;
+      if (d.Aprobado) {
+        p.aprobados += 1;
+        p.cursos[d.Curso] = true;
+      }
+    });
+
+    var dotVigente = vigentes.length;
+    var capacitadosEnDotacion = 0;
+    var horasDotacion = 0;
+    var sinCapacitacion = [];
+    var tramos = [0, 0, 0, 0, 0];
+    var horasPorPersonaLista = [];
+    var horasM = 0, horasH = 0, dotM = 0, dotH = 0, capM = 0, capH = 0;
+
+    vigentes.forEach(function (p) {
+      var registro = porPersona[p.RutId];
+      var h = registro ? registro.horas : 0;
+      var aprobado = !!(registro && registro.aprobados > 0);
+
+      if (aprobado) capacitadosEnDotacion++;
+      horasDotacion += h;
+      horasPorPersonaLista.push(h);
+      if (!aprobado) sinCapacitacion.push(p);
+
+      if (h <= 0) tramos[0]++;
+      else if (h < 8) tramos[1]++;
+      else if (h < 16) tramos[2]++;
+      else if (h < 40) tramos[3]++;
+      else tramos[4]++;
+
+      if (esMujer(p.Genero)) { dotM++; horasM += h; if (aprobado) capM++; }
+      else if (esHombre(p.Genero)) { dotH++; horasH += h; if (aprobado) capH++; }
+    });
+
+    var horasTotales = 0, costoEmpresa = 0, costoSence = 0;
+    internas.forEach(function (d) {
+      horasTotales += d.Horas || 0;
+      costoEmpresa += d.CostoEmpresa || 0;
+      costoSence += d.CostoSence || 0;
+    });
+
+    // Concentracion: parte de las horas que se lleva el decil mas formado.
+    horasPorPersonaLista.sort(function (a, b) { return b - a; });
+    var decil = Math.max(1, Math.round(horasPorPersonaLista.length * 0.1));
+    var horasDecil = horasPorPersonaLista.slice(0, decil).reduce(function (s, v) { return s + v; }, 0);
+    var concentracion = horasDotacion > 0 ? horasDecil / horasDotacion : 0;
+
+    return {
+      capacitaciones: capacitaciones,
+      internas: internas,
+      dotacion: dotacion,
+      vigentes: vigentes,
+      porPersona: porPersona,
+      dotVigente: dotVigente,
+      capacitados: capacitadosEnDotacion,
+      cobertura: dotVigente > 0 ? capacitadosEnDotacion / dotVigente : 0,
+      horasTotales: horasTotales,
+      horasDotacion: horasDotacion,
+      horasPerCapita: dotVigente > 0 ? horasDotacion / dotVigente : 0,
+      costoEmpresa: costoEmpresa,
+      costoSence: costoSence,
+      inversion: costoEmpresa + costoSence,
+      sinCapacitacion: sinCapacitacion,
+      tramos: tramos,
+      concentracion: concentracion,
+      genero: {
+        dotM: dotM, dotH: dotH, capM: capM, capH: capH, horasM: horasM, horasH: horasH,
+        pcM: dotM > 0 ? horasM / dotM : 0,
+        pcH: dotH > 0 ? horasH / dotH : 0
+      }
+    };
+  }
+
+  function agruparPorClave(mod, campo) {
+    var mapa = {};
+
+    mod.vigentes.forEach(function (p) {
+      var k = p[campo] || 'Sin asignar';
+      if (!mapa[k]) mapa[k] = nuevoGrupo();
+      mapa[k].dotacion++;
+      var reg = mod.porPersona[p.RutId];
+      if (reg && reg.aprobados > 0) mapa[k].capacitados++;
+      if (reg) mapa[k].horas += reg.horas;
+    });
+
+    mod.internas.forEach(function (d) {
+      var k = d[campo] || 'Sin asignar';
+      if (!mapa[k]) mapa[k] = nuevoGrupo();
+      mapa[k].inversion += (d.CostoEmpresa || 0) + (d.CostoSence || 0);
+      mapa[k].horasDictadas += d.Horas || 0;
+    });
+
+    return Object.keys(mapa).map(function (k) {
+      var g = mapa[k];
+      return {
+        clave: k,
+        dotacion: g.dotacion,
+        capacitados: g.capacitados,
+        cobertura: g.dotacion > 0 ? g.capacitados / g.dotacion : 0,
+        horas: g.horas,
+        horasDictadas: g.horasDictadas,
+        perCapita: g.dotacion > 0 ? g.horas / g.dotacion : 0,
+        inversion: g.inversion,
+        costoHora: g.horasDictadas > 0 ? g.inversion / g.horasDictadas : 0
+      };
+    });
+  }
+
+  function nuevoGrupo() {
+    return { dotacion: 0, capacitados: 0, horas: 0, horasDictadas: 0, inversion: 0 };
+  }
+
+  /* ================================================================
+     Vista: resumen
+     ================================================================ */
+  function renderResumen(mod) {
+    $('heroCobertura').textContent = pct(mod.cobertura * 100, 1);
+    $('heroApoyo').textContent = num(mod.capacitados) + ' de ' + num(mod.dotVigente) + ' personas de la dotacion vigente con al menos un curso aprobado';
+    $('heroMeta').textContent = 'Meta ' + pct(CFG.metaCobertura * 100, 0);
+    pintarMedidor('heroMedidor', mod.cobertura);
+
+    var g = mod.genero;
+    $('heroCobM').textContent = g.dotM > 0 ? pct(g.capM / g.dotM * 100) : '-';
+    $('heroCobH').textContent = g.dotH > 0 ? pct(g.capH / g.dotH * 100) : '-';
+
+    var costoHora = mod.horasTotales > 0 ? mod.inversion / mod.horasTotales : 0;
+    var costoPersona = mod.capacitados > 0 ? mod.inversion / mod.capacitados : 0;
+
+    pintarTira('tiraResumen', [
+      { rotulo: 'Dotacion vigente', valor: num(mod.dotVigente), nota: num(mod.dotacion.length - mod.dotVigente) + ' con contrato terminado' },
+      { rotulo: 'Personas capacitadas', valor: num(mod.capacitados), nota: 'Con al menos un curso aprobado' },
+      { rotulo: 'Horas de formacion', valor: num(mod.horasTotales), nota: 'Registradas en el periodo' },
+      { rotulo: 'Horas por persona', valor: dec(mod.horasPerCapita), nota: 'Meta ' + dec(CFG.metaHorasPerCapita) + ' h' },
+      { rotulo: 'Inversion total', valor: moneyCorto(mod.inversion), nota: 'Empresa mas SENCE' },
+      { rotulo: 'Costo por hora', valor: money(costoHora), nota: money(costoPersona) + ' por persona' }
+    ]);
+
+    renderRitmo(mod);
+    renderGerencias(mod);
+    renderAlertas(mod);
+  }
+
+  function renderRitmo(mod) {
+    var anios = {};
+    DATOS.capacitaciones.forEach(function (d) { if (d.Anio) anios[d.Anio] = true; });
+    var listaAnios = Object.keys(anios).sort();
+
+    var seleccion;
+    if (filtros.anio !== 'TODOS') {
+      var idx = listaAnios.indexOf(filtros.anio);
+      seleccion = idx > 0 ? [listaAnios[idx - 1], filtros.anio] : [filtros.anio];
+    } else {
+      seleccion = listaAnios.slice(-2);
+    }
+
+    var series = seleccion.map(function (anio, i) {
+      // Hasta donde llegan los registros de ese ano. Sin esto la linea sigue
+      // plana hasta diciembre y parece estancamiento en vez de falta de datos.
+      var ultimoMes = 0;
+      DATOS.capacitaciones.forEach(function (d) {
+        if (d.Anio === anio && (d.Mes || 0) > ultimoMes) ultimoMes = d.Mes;
+      });
+
+      var vistos = {};
+      var acumulado = [];
+      var total = 0;
+      for (var m = 1; m <= 12; m++) {
+        DATOS.capacitaciones.forEach(function (d) {
+          if (d.Anio !== anio || (d.Mes || 0) !== m) return;
+          if (esExterno(d) || !d.Aprobado || !d.RutId) return;
+          if (filtros.gerencia !== 'TODOS' && d.Gerencia !== filtros.gerencia) return;
+          if (filtros.categorias.length && filtros.categorias.indexOf(d.Categoria) === -1) return;
+          if (filtros.modalidad !== 'TODOS' && d.Modalidad !== filtros.modalidad) return;
+          if (!coincideEmpresa(d.Empresa, filtros.empresas)) return;
+          if (!vistos[d.RutId]) { vistos[d.RutId] = true; total++; }
+        });
+        acumulado.push(m <= ultimoMes ? total : null);
+      }
+      return { anio: anio, datos: acumulado, color: C.s[i], ultimoMes: ultimoMes };
+    });
+
+    grafico('chartRitmo', {
+      type: 'line',
+      data: {
+        labels: MESES,
+        datasets: series.map(function (s) {
+          return {
+            label: s.anio,
+            data: s.datos,
+            borderColor: s.color,
+            backgroundColor: s.color,
+            borderWidth: 2,
+            tension: .28,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHoverBorderColor: C.superficie,
+            pointHoverBorderWidth: 2,
+            spanGaps: false
+          };
+        })
+      },
+      options: {
+        responsive: true,
+        layout: { padding: { right: 34, top: 8 } },
+        interaction: { mode: 'index', intersect: false },
+        scales: { x: ejeCategoria(), y: ejeValor({ ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return num(v); } } }) },
+        plugins: {
+          cruz: { activo: true },
+          etiquetas: { ultimoConDato: true, formato: function (v, ds) { return v ? ds.label + ': ' + num(v) : ''; } },
+          tooltip: { callbacks: { label: function (ctx) { return ' ' + num(ctx.parsed.y) + ' personas en ' + ctx.dataset.label; } } }
+        }
+      }
+    });
+
+    pintarLeyenda('leyendaRitmo', series.map(function (s) { return { etiqueta: s.anio, color: s.color }; }), 'linea');
+
+    var filas = MESES.map(function (m, i) {
+      return [m].concat(series.map(function (s) { return s.datos[i]; }));
+    });
+    registrarExportable('ritmo', 'ejecucion-mensual', ['Mes'].concat(series.map(function (s) { return s.anio; })), filas);
+    pintarTablaSimple('tablaRitmo', ['Mes'].concat(series.map(function (s) { return s.anio; })), filas);
+  }
+
+  function renderGerencias(mod) {
+    var grupos = agruparPorClave(mod, 'Gerencia')
+      .filter(function (g) { return g.dotacion > 0; })
+      .sort(function (a, b) { return a.cobertura - b.cobertura; });
+
+    var top = grupos.slice(0, 14);
+
+    grafico('chartCoberturaGerencia', {
+      type: 'bar',
+      data: {
+        labels: top.map(function (g) { return g.clave; }),
+        datasets: [{
+          label: 'Cobertura',
+          data: top.map(function (g) { return +(g.cobertura * 100).toFixed(1); }),
+          backgroundColor: C.s[0],
+          borderRadius: 4,
+          borderSkipped: 'start',
+          maxBarThickness: 18
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 46, top: 16 } },
+        scales: {
+          x: ejeValor({ max: 100, ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return v + '%'; } } }),
+          y: ejeCategoria({ ticks: { padding: 6, autoSkip: false, crossAlign: 'far' } })
+        },
+        plugins: {
+          metaLinea: { valor: CFG.metaCobertura * 100, texto: 'Meta' },
+          etiquetas: { formato: function (v) { return dec1(v, 1) + '%'; } },
+          tooltip: { callbacks: { label: function (ctx) { var g = top[ctx.dataIndex]; return ' ' + dec1(ctx.parsed.x, 1) + '% (' + num(g.capacitados) + ' de ' + num(g.dotacion) + ')'; } } }
+        }
+      }
+    });
+
+    var cuerpo = $('tablaGerencias').querySelector('tbody');
+    var pie = $('tablaGerencias').querySelector('tfoot');
+    vaciar(cuerpo); vaciar(pie);
+
+    if (!grupos.length) {
+      cuerpo.appendChild(filaVacia(8, 'No hay dotacion para los filtros aplicados.'));
+    } else {
+      grupos.forEach(function (g) {
+        cuerpo.appendChild(tr([
+          td(g.clave, 'principal'),
+          td(num(g.dotacion), 'num'),
+          td(num(g.capacitados), 'num'),
+          celdaBarra(g.cobertura * 100),
+          td(dec(g.horas), 'num'),
+          td(dec(g.perCapita), 'num'),
+          td(money(g.inversion), 'num'),
+          td(g.costoHora ? money(g.costoHora) : '-', 'num')
+        ]));
+      });
+      pie.appendChild(tr([
+        td('Total'),
+        td(num(mod.dotVigente), 'num'),
+        td(num(mod.capacitados), 'num'),
+        td(pct(mod.cobertura * 100), 'num'),
+        td(dec(mod.horasDotacion), 'num'),
+        td(dec(mod.horasPerCapita), 'num'),
+        td(money(mod.inversion), 'num'),
+        td(mod.horasTotales > 0 ? money(mod.inversion / mod.horasTotales) : '-', 'num')
+      ]));
+    }
+
+    registrarExportable('gerencias', 'cobertura-por-gerencia',
+      ['Gerencia', 'Dotacion vigente', 'Capacitados', 'Cobertura %', 'Horas', 'Horas por persona', 'Inversion', 'Costo por hora'],
+      grupos.map(function (g) {
+        return [g.clave, g.dotacion, g.capacitados, (g.cobertura * 100).toFixed(1), g.horas.toFixed(1), g.perCapita.toFixed(1), Math.round(g.inversion), Math.round(g.costoHora)];
+      }));
+  }
+
+  function renderAlertas(mod) {
+    var alertas = [];
+
+    var bajoMeta = agruparPorClave(mod, 'Gerencia')
+      .filter(function (g) { return g.dotacion >= 3 && g.cobertura < CFG.umbralCoberturaCritica; });
+    if (bajoMeta.length) {
+      alertas.push({
+        nivel: 'critico',
+        titulo: 'Gerencias bajo cobertura critica',
+        detalle: 'Menos de ' + pct(CFG.umbralCoberturaCritica * 100, 0) + ' de su dotacion capacitada. La menor es ' + bajoMeta.sort(function (a, b) { return a.cobertura - b.cobertura; })[0].clave + '.',
+        cifra: num(bajoMeta.length)
+      });
+    }
+
+    if (mod.sinCapacitacion.length) {
+      alertas.push({
+        nivel: mod.sinCapacitacion.length > mod.dotVigente * 0.3 ? 'critico' : 'alerta',
+        titulo: 'Personas sin ninguna capacitacion',
+        detalle: 'Dotacion vigente sin cursos aprobados en el periodo. La nomina esta en Personas y equidad.',
+        cifra: num(mod.sinCapacitacion.length)
+      });
+    }
+
+    if (mod.horasPerCapita < CFG.metaHorasPerCapita) {
+      alertas.push({
+        nivel: mod.horasPerCapita < CFG.metaHorasPerCapita / 2 ? 'alerta' : 'info',
+        titulo: 'Horas por persona bajo la meta',
+        detalle: 'Van ' + dec(mod.horasPerCapita) + ' h de las ' + dec(CFG.metaHorasPerCapita) + ' h comprometidas por persona al ano.',
+        cifra: dec(CFG.metaHorasPerCapita - mod.horasPerCapita) + ' h'
+      });
+    }
+
+    var g = mod.genero;
+    if (g.pcM > 0 && g.pcH > 0) {
+      var paridad = g.pcM / g.pcH;
+      if (paridad < 0.9 || paridad > 1.1) {
+        alertas.push({
+          nivel: (paridad < 0.75 || paridad > 1.33) ? 'alerta' : 'info',
+          titulo: 'Brecha de horas entre mujeres y hombres',
+          detalle: 'Mujeres ' + dec(g.pcM) + ' h por persona, hombres ' + dec(g.pcH) + ' h. El equilibrio esta en 1,00.',
+          cifra: dec1(paridad, 2)
+        });
+      }
+    }
+
+    if (mod.concentracion > 0.5) {
+      alertas.push({
+        nivel: 'info',
+        titulo: 'Formacion concentrada en pocas personas',
+        detalle: 'El decil mas formado se lleva esta parte de las horas totales. Conviene revisar el reparto.',
+        cifra: pct(mod.concentracion * 100, 0)
+      });
+    }
+
+    var otic = calcularOtic();
+    if (otic.saldoExcedentes > 0) {
+      alertas.push({
+        nivel: otic.saldoExcedentes > CFG.fondoInicialExcedentes * 0.5 ? 'alerta' : 'info',
+        titulo: 'Excedentes OTIC sin ejecutar',
+        detalle: 'Los excedentes tienen plazo de uso. Quedan ' + pct(otic.pctExcedentesDisponible * 100, 0) + ' del fondo inicial disponible.',
+        cifra: moneyCorto(otic.saldoExcedentes)
+      });
+    }
+
+    pintarAlertas('listaAlertas', alertas);
+  }
+
+  /* ================================================================
+     Vista: cobertura
+     ================================================================ */
+  function renderCobertura(mod) {
+    renderEst(mod);
+    renderUbicaciones(mod);
+    renderMatrizEnia(mod);
+  }
+
+  function renderEst(mod) {
+    var objetivo = Math.max(1, parseInt($('dotacionEst').value, 10) || 1);
+    var vistos = {};
+    mod.capacitaciones.forEach(function (d) {
+      if (esContratista(d) && d.Aprobado && d.RutId) vistos[d.RutId] = true;
+    });
+    var capacitados = Object.keys(vistos).length;
+    var pendientes = Math.max(0, objetivo - capacitados);
+    var fraccion = capacitados / objetivo;
+
+    pintarMedidor('medidorEst', fraccion);
+    $('estTexto').textContent = num(capacitados) + ' de ' + num(objetivo) + ' capacitados';
+    $('estPct').textContent = pct(fraccion * 100, 1);
+    $('estCapacitados').textContent = num(capacitados);
+    $('estPendientes').textContent = num(pendientes);
+  }
+
+  function renderUbicaciones(mod) {
+    var grupos = agruparPorClave(mod, 'Ubicacion')
+      .filter(function (g) { return g.dotacion > 0; })
+      .sort(function (a, b) { return a.cobertura - b.cobertura; })
+      .slice(0, 12);
+
+    grafico('chartCoberturaUbicacion', {
+      type: 'bar',
+      data: {
+        labels: grupos.map(function (g) { return g.clave; }),
+        datasets: [{
+          label: 'Cobertura',
+          data: grupos.map(function (g) { return +(g.cobertura * 100).toFixed(1); }),
+          backgroundColor: C.s[0],
+          borderRadius: 4,
+          borderSkipped: 'start',
+          maxBarThickness: 18
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 46, top: 16 } },
+        scales: {
+          x: ejeValor({ max: 100, ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return v + '%'; } } }),
+          y: ejeCategoria({ ticks: { padding: 6, autoSkip: false, crossAlign: 'far' } })
+        },
+        plugins: {
+          metaLinea: { valor: CFG.metaCobertura * 100, texto: 'Meta' },
+          etiquetas: { formato: function (v) { return dec1(v, 1) + '%'; } },
+          tooltip: { callbacks: { label: function (ctx) { var g = grupos[ctx.dataIndex]; return ' ' + dec1(ctx.parsed.x, 1) + '% (' + num(g.capacitados) + ' de ' + num(g.dotacion) + ')'; } } }
+        }
+      }
+    });
+
+    registrarExportable('ubicaciones', 'cobertura-por-ubicacion',
+      ['Ubicacion', 'Dotacion vigente', 'Capacitados', 'Cobertura %', 'Horas por persona'],
+      grupos.map(function (g) { return [g.clave, g.dotacion, g.capacitados, (g.cobertura * 100).toFixed(1), g.perCapita.toFixed(1)]; }));
+  }
+
+  function renderMatrizEnia(mod) {
+    var mapa = {};
+    function base(k) {
+      if (!mapa[k]) mapa[k] = { dotM: 0, dotH: 0, capM: 0, capH: 0, hM: 0, hH: 0 };
+      return mapa[k];
+    }
+
+    mod.vigentes.forEach(function (p) {
+      var g = base(p.Enia || 'Sin clasificar');
+      var reg = mod.porPersona[p.RutId];
+      var h = reg ? reg.horas : 0;
+      var aprobado = !!(reg && reg.aprobados > 0);
+      if (esMujer(p.Genero)) { g.dotM++; g.hM += h; if (aprobado) g.capM++; }
+      else if (esHombre(p.Genero)) { g.dotH++; g.hH += h; if (aprobado) g.capH++; }
+    });
+
+    var claves = ordenar(Object.keys(mapa));
+    var cuerpo = $('tablaEnia').querySelector('tbody');
+    var pie = $('tablaEnia').querySelector('tfoot');
+    vaciar(cuerpo); vaciar(pie);
+
+    if (!claves.length) {
+      cuerpo.appendChild(filaVacia(13, 'No hay dotacion para los filtros aplicados.'));
+      return;
+    }
+
+    var t = { dotM: 0, dotH: 0, capM: 0, capH: 0, hM: 0, hH: 0 };
+    var filasCsv = [];
+
+    claves.forEach(function (k) {
+      var g = mapa[k];
+      t.dotM += g.dotM; t.dotH += g.dotH; t.capM += g.capM; t.capH += g.capH; t.hM += g.hM; t.hH += g.hH;
+
+      var dotTotal = g.dotM + g.dotH;
+      var capTotal = g.capM + g.capH;
+      var hTotal = g.hM + g.hH;
+      var cobM = g.dotM > 0 ? g.capM / g.dotM : 0;
+      var cobH = g.dotH > 0 ? g.capH / g.dotH : 0;
+      var cobT = dotTotal > 0 ? capTotal / dotTotal : 0;
+
+      var fila = tr([
+        td(k, 'principal'),
+        td(num(g.dotM), 'num division'), td(num(g.capM), 'num'), td(dec(g.hM), 'num'), td(pct(cobM * 100), 'num'),
+        td(num(g.dotH), 'num division'), td(num(g.capH), 'num'), td(dec(g.hH), 'num'), td(pct(cobH * 100), 'num'),
+        td(num(dotTotal), 'num division'), td(num(capTotal), 'num'),
+        td(dotTotal > 0 ? dec(hTotal / dotTotal) : '0,0', 'num'),
+        celdaBarra(cobT * 100)
+      ], 'clicable');
+      fila.dataset.enia = k;
+      cuerpo.appendChild(fila);
+
+      filasCsv.push([k, g.dotM, g.capM, g.hM.toFixed(1), (cobM * 100).toFixed(1),
+        g.dotH, g.capH, g.hH.toFixed(1), (cobH * 100).toFixed(1),
+        dotTotal, capTotal, hTotal.toFixed(1), (cobT * 100).toFixed(1)]);
+    });
+
+    var dotT = t.dotM + t.dotH, capT = t.capM + t.capH, hT = t.hM + t.hH;
+    pie.appendChild(tr([
+      td('Total'),
+      td(num(t.dotM), 'num'), td(num(t.capM), 'num'), td(dec(t.hM), 'num'), td(t.dotM ? pct(t.capM / t.dotM * 100) : '-', 'num'),
+      td(num(t.dotH), 'num'), td(num(t.capH), 'num'), td(dec(t.hH), 'num'), td(t.dotH ? pct(t.capH / t.dotH * 100) : '-', 'num'),
+      td(num(dotT), 'num'), td(num(capT), 'num'), td(dotT ? dec(hT / dotT) : '-', 'num'), td(dotT ? pct(capT / dotT * 100) : '-', 'num')
+    ]));
+
+    registrarExportable('enia', 'cobertura-enia',
+      ['Categoria ENIA', 'Dotacion M', 'Capacitadas M', 'Horas M', 'Cobertura M %',
+        'Dotacion H', 'Capacitados H', 'Horas H', 'Cobertura H %',
+        'Dotacion total', 'Capacitados total', 'Horas total', 'Cobertura total %'], filasCsv);
+  }
+
+  /* ================================================================
+     Vista: personas y equidad
+     ================================================================ */
+  function renderPersonas(mod) {
+    var g = mod.genero;
+    var paridad = g.pcH > 0 ? g.pcM / g.pcH : 0;
+
+    pintarTira('tiraPersonas', [
+      { rotulo: 'Horas por persona', valor: dec(mod.horasPerCapita), nota: 'Sobre dotacion vigente' },
+      { rotulo: 'Mujeres', valor: dec(g.pcM), nota: num(g.dotM) + ' personas en dotacion' },
+      { rotulo: 'Hombres', valor: dec(g.pcH), nota: num(g.dotH) + ' personas en dotacion' },
+      { rotulo: 'Indice de paridad', valor: paridad ? dec1(paridad, 2) : '-', nota: 'Equilibrio en 1,00' },
+      { rotulo: 'Sin capacitacion', valor: num(mod.sinCapacitacion.length), nota: pct(mod.dotVigente ? mod.sinCapacitacion.length / mod.dotVigente * 100 : 0) + ' de la dotacion' },
+      { rotulo: 'Concentracion', valor: pct(mod.concentracion * 100, 0), nota: 'Horas del decil mas formado' }
+    ]);
+
+    renderEquidad(mod);
+    renderTramos(mod);
+    renderSinCapacitacion(mod);
+  }
+
+  function renderEquidad(mod) {
+    var mapa = {};
+    mod.vigentes.forEach(function (p) {
+      var k = p.Enia || 'Sin clasificar';
+      if (!mapa[k]) mapa[k] = { dotM: 0, dotH: 0, hM: 0, hH: 0 };
+      var reg = mod.porPersona[p.RutId];
+      var h = reg ? reg.horas : 0;
+      if (esMujer(p.Genero)) { mapa[k].dotM++; mapa[k].hM += h; }
+      else if (esHombre(p.Genero)) { mapa[k].dotH++; mapa[k].hH += h; }
+    });
+
+    var claves = ordenar(Object.keys(mapa));
+    var pcM = claves.map(function (k) { return mapa[k].dotM > 0 ? +(mapa[k].hM / mapa[k].dotM).toFixed(1) : 0; });
+    var pcH = claves.map(function (k) { return mapa[k].dotH > 0 ? +(mapa[k].hH / mapa[k].dotH).toFixed(1) : 0; });
+
+    grafico('chartEquidad', {
+      type: 'bar',
+      data: {
+        labels: claves,
+        datasets: [
+          { label: 'Mujeres', data: pcM, backgroundColor: C.s[0], borderRadius: 4, borderSkipped: 'start', maxBarThickness: 13, barPercentage: .78, categoryPercentage: .74 },
+          { label: 'Hombres', data: pcH, backgroundColor: C.s[1], borderRadius: 4, borderSkipped: 'start', maxBarThickness: 13, barPercentage: .78, categoryPercentage: .74 }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 40, top: 16 } },
+        scales: {
+          x: ejeValor({ ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return v + ' h'; } } }),
+          y: ejeCategoria({ ticks: { padding: 6, autoSkip: false, crossAlign: 'far' } })
+        },
+        plugins: {
+          metaLinea: { valor: CFG.metaHorasPerCapita, texto: 'Meta' },
+          tooltip: { callbacks: { label: function (ctx) { return ' ' + dec(ctx.parsed.x) + ' h por persona, ' + ctx.dataset.label.toLowerCase(); } } }
+        }
+      }
+    });
+
+    pintarLeyenda('leyendaEquidad', [
+      { etiqueta: 'Mujeres', color: C.s[0] },
+      { etiqueta: 'Hombres', color: C.s[1] }
+    ]);
+
+    var filas = claves.map(function (k, i) {
+      return [k, mapa[k].dotM, mapa[k].hM.toFixed(1), pcM[i], mapa[k].dotH, mapa[k].hH.toFixed(1), pcH[i]];
+    });
+    var enc = ['Categoria ENIA', 'Dotacion M', 'Horas M', 'Horas por persona M', 'Dotacion H', 'Horas H', 'Horas por persona H'];
+    registrarExportable('equidad', 'horas-por-persona-genero', enc, filas);
+    pintarTablaSimple('tablaEquidad', enc, filas);
+  }
+
+  function renderTramos(mod) {
+    var etiquetas = ['Sin horas', 'Menos de 8 h', 'De 8 a 16 h', 'De 16 a 40 h', '40 h o mas'];
+
+    grafico('chartTramos', {
+      type: 'bar',
+      data: {
+        labels: etiquetas,
+        datasets: [{
+          label: 'Personas',
+          data: mod.tramos,
+          backgroundColor: C.rampa,
+          borderRadius: 4,
+          borderSkipped: 'start',
+          maxBarThickness: 24
+        }]
+      },
+      options: {
+        responsive: true,
+        layout: { padding: { top: 22 } },
+        scales: {
+          x: ejeCategoria(),
+          y: ejeValor({ ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return num(v); } } })
+        },
+        plugins: {
+          etiquetas: { formato: function (v) { return num(v); } },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                var total = mod.dotVigente || 1;
+                return ' ' + num(ctx.parsed.y) + ' personas (' + pct(ctx.parsed.y / total * 100) + ')';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    registrarExportable('tramos', 'distribucion-horas',
+      ['Tramo de horas', 'Personas', 'Parte de la dotacion %'],
+      etiquetas.map(function (e, i) {
+        return [e, mod.tramos[i], mod.dotVigente ? (mod.tramos[i] / mod.dotVigente * 100).toFixed(1) : '0.0'];
+      }));
+  }
+
+  function renderSinCapacitacion(mod) {
+    var consulta = norm($('buscarPendientes').value || '').trim();
+    var lista = mod.sinCapacitacion.filter(function (p) {
+      if (!consulta) return true;
+      return norm([p.Nombre, p.Rut, p.Gerencia, p.Ubicacion, p.Enia, p.Empresa].join(' ')).indexOf(consulta) !== -1;
+    }).sort(function (a, b) { return (a.Nombre || '').localeCompare(b.Nombre || '', 'es', { sensitivity: 'base' }); });
+
+    $('subSinCapacitacion').textContent = num(mod.sinCapacitacion.length) + ' personas de la dotacion vigente sin ningun curso aprobado en el periodo filtrado.'
+      + (consulta ? ' Mostrando ' + num(lista.length) + ' coincidencias.' : '');
+
+    var cuerpo = $('tablaPendientes').querySelector('tbody');
+    vaciar(cuerpo);
+
+    if (!lista.length) {
+      cuerpo.appendChild(filaVacia(7, consulta ? 'Ninguna persona coincide con la busqueda.' : 'Toda la dotacion vigente registra al menos un curso aprobado.'));
+    } else {
+      var frag = document.createDocumentFragment();
+      lista.slice(0, 600).forEach(function (p) {
+        frag.appendChild(tr([
+          td(p.Nombre || 'Sin nombre', 'principal'),
+          td(p.Rut || '-'),
+          td(p.Genero || '-'),
+          td(p.Empresa || '-'),
+          td(p.Gerencia || '-'),
+          td(p.Ubicacion || '-'),
+          td(p.Enia || '-')
+        ]));
+      });
+      cuerpo.appendChild(frag);
+      if (lista.length > 600) {
+        cuerpo.appendChild(filaVacia(7, 'Se muestran las primeras 600 personas. Descarga el CSV para la nomina completa.'));
+      }
+    }
+
+    registrarExportable('pendientes', 'sin-capacitacion',
+      ['Colaborador', 'RUT', 'Genero', 'Empresa', 'Gerencia', 'Ubicacion', 'Categoria ENIA'],
+      lista.map(function (p) { return [p.Nombre, p.Rut, p.Genero, p.Empresa, p.Gerencia, p.Ubicacion, p.Enia]; }));
+  }
+
+  /* ================================================================
+     Vista: cursos y proveedores
+     ================================================================ */
+  function renderCursos(mod) {
+    renderTopCursos(mod);
+    renderModalidad(mod);
+    renderCatalogo(mod);
+    renderProveedores(mod);
+  }
+
+  function renderTopCursos(mod) {
+    var mapa = {};
+    mod.internas.forEach(function (d) {
+      var k = d.Curso || 'Sin nombre';
+      if (!mapa[k]) mapa[k] = { personas: {}, horas: 0 };
+      if (d.Aprobado && d.RutId) mapa[k].personas[d.RutId] = true;
+      mapa[k].horas += d.Horas || 0;
+    });
+
+    var lista = Object.keys(mapa).map(function (k) {
+      return { curso: k, personas: Object.keys(mapa[k].personas).length, horas: mapa[k].horas };
+    }).filter(function (c) { return c.personas > 0; })
+      .sort(function (a, b) { return b.personas - a.personas; });
+
+    var top = lista.slice(0, 15).reverse();
+
+    grafico('chartTopCursos', {
+      type: 'bar',
+      data: {
+        labels: top.map(function (c) { return recortar(c.curso, 42); }),
+        datasets: [{
+          label: 'Participantes',
+          data: top.map(function (c) { return c.personas; }),
+          backgroundColor: C.s[0],
+          borderRadius: 4,
+          borderSkipped: 'start',
+          maxBarThickness: 16
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 40 } },
+        scales: {
+          x: ejeValor({ ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return num(v); } } }),
+          y: ejeCategoria({ ticks: { padding: 6, autoSkip: false, crossAlign: 'far', font: { size: 11 } } })
+        },
+        plugins: {
+          etiquetas: { formato: function (v) { return num(v); } },
+          tooltip: {
+            callbacks: {
+              title: function (ctx) { return top[ctx[0].dataIndex].curso; },
+              label: function (ctx) { return ' ' + num(ctx.parsed.x) + ' personas, ' + dec(top[ctx.dataIndex].horas) + ' h dictadas'; }
+            }
+          }
+        }
+      }
+    });
+
+    registrarExportable('cursos', 'cursos-por-participantes',
+      ['Curso', 'Participantes', 'Horas dictadas'],
+      lista.map(function (c) { return [c.curso, c.personas, c.horas.toFixed(1)]; }));
+  }
+
+  function renderModalidad(mod) {
+    var mapa = {};
+    mod.internas.forEach(function (d) {
+      var k = d.Modalidad || 'Sin modalidad';
+      mapa[k] = (mapa[k] || 0) + (d.Horas || 0);
+    });
+
+    var claves = Object.keys(mapa).sort(function (a, b) { return mapa[b] - mapa[a]; });
+    var resto = 0;
+    if (claves.length > 6) {
+      claves.slice(6).forEach(function (k) { resto += mapa[k]; });
+      claves = claves.slice(0, 6);
+    }
+    var total = claves.reduce(function (s, k) { return s + mapa[k]; }, 0) + resto;
+
+    var series = claves.map(function (k, i) { return { etiqueta: k, valor: mapa[k], color: C.s[i] }; });
+    if (resto > 0) series.push({ etiqueta: 'Otras', valor: resto, color: C.s[claves.length] || C.s[7] });
+
+    grafico('chartModalidad', {
+      type: 'bar',
+      data: {
+        labels: ['Horas'],
+        datasets: series.map(function (s) {
+          return {
+            label: s.etiqueta,
+            data: [s.valor],
+            backgroundColor: s.color,
+            borderColor: C.superficie,
+            borderWidth: 2,
+            borderRadius: 4,
+            borderSkipped: false,
+            maxBarThickness: 40
+          };
+        })
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        scales: {
+          x: Object.assign(ejeValor({ stacked: true, ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return num(v); } } })),
+          y: ejeCategoria({ stacked: true, display: false })
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return ' ' + dec(ctx.parsed.x) + ' h  ' + ctx.dataset.label + ' (' + pct(total ? ctx.parsed.x / total * 100 : 0) + ')';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    pintarLeyenda('leyendaModalidad', series.map(function (s) { return { etiqueta: s.etiqueta + '  ' + pct(total ? s.valor / total * 100 : 0), color: s.color }; }));
+
+    pintarTablaSimple('tablaModalidad', ['Modalidad', 'Horas', 'Parte %'],
+      series.map(function (s) { return [s.etiqueta, dec(s.valor), dec1(total ? s.valor / total * 100 : 0, 1)]; }));
+  }
+
+  function renderCatalogo(mod) {
+    var mapa = {};
+    mod.internas.forEach(function (d) {
+      var cat = d.Categoria || 'Sin categoria';
+      var curso = d.Curso || 'Sin nombre';
+      if (!mapa[cat]) mapa[cat] = { personas: {}, hM: 0, hH: 0, horas: 0, costo: 0, cursos: {} };
+      var g = mapa[cat];
+      if (!g.cursos[curso]) g.cursos[curso] = { personas: {}, hM: 0, hH: 0, horas: 0, costo: 0, modalidad: d.Modalidad };
+
+      var c = g.cursos[curso];
+      var h = d.Horas || 0;
+      var costo = (d.CostoEmpresa || 0) + (d.CostoSence || 0);
+
+      if (d.Aprobado && d.RutId) { g.personas[d.RutId] = true; c.personas[d.RutId] = true; }
+      if (esMujer(d.Genero)) { g.hM += h; c.hM += h; }
+      else if (esHombre(d.Genero)) { g.hH += h; c.hH += h; }
+      g.horas += h; c.horas += h;
+      g.costo += costo; c.costo += costo;
+    });
+
+    var cuerpo = $('tablaCatalogo').querySelector('tbody');
+    vaciar(cuerpo);
+
+    var categorias = ordenar(Object.keys(mapa));
+    if (!categorias.length) {
+      cuerpo.appendChild(filaVacia(6, 'No hay cursos para los filtros aplicados.'));
+      return;
+    }
+
+    var filasCsv = [];
+    categorias.forEach(function (cat, idx) {
+      var g = mapa[cat];
+      var cursos = ordenar(Object.keys(g.cursos));
+
+      var nombre = el('td', 'principal');
+      nombre.style.display = 'flex';
+      nombre.style.alignItems = 'center';
+      nombre.style.gap = '8px';
+      var caret = icono('caret-right', 'i-neutro');
+      nombre.appendChild(caret);
+      nombre.appendChild(document.createTextNode(cat + ' '));
+      nombre.appendChild(pildora(cursos.length === 1 ? '1 curso' : cursos.length + ' cursos'));
+
+      var filaCat = tr([
+        nombre,
+        td(num(Object.keys(g.personas).length), 'num'),
+        td(dec(g.hM), 'num'),
+        td(dec(g.hH), 'num'),
+        td(dec(g.horas), 'num'),
+        td(money(g.costo), 'num')
+      ], 'clicable');
+      filaCat.dataset.categoria = 'cat-' + idx;
+      cuerpo.appendChild(filaCat);
+
+      cursos.forEach(function (nombreCurso) {
+        var c = g.cursos[nombreCurso];
+        var celdaCurso = el('td', 'principal');
+        var enlace = el('span', null, nombreCurso);
+        enlace.style.color = '#0e5f41';
+        enlace.style.cursor = 'pointer';
+        enlace.style.textDecoration = 'underline';
+        enlace.style.textUnderlineOffset = '2px';
+        enlace.dataset.curso = nombreCurso;
+        celdaCurso.appendChild(enlace);
+        celdaCurso.appendChild(document.createTextNode(' '));
+        celdaCurso.appendChild(pildora(c.modalidad || 'Sin modalidad'));
+
+        var filaCurso = tr([
+          celdaCurso,
+          td(num(Object.keys(c.personas).length), 'num'),
+          td(dec(c.hM), 'num'),
+          td(dec(c.hH), 'num'),
+          td(dec(c.horas), 'num'),
+          td(money(c.costo), 'num')
+        ], 'sub');
+        filaCurso.dataset.hijoDe = 'cat-' + idx;
+        filaCurso.hidden = true;
+        cuerpo.appendChild(filaCurso);
+
+        filasCsv.push([cat, nombreCurso, c.modalidad, Object.keys(c.personas).length, c.hM.toFixed(1), c.hH.toFixed(1), c.horas.toFixed(1), Math.round(c.costo)]);
+      });
+    });
+
+    registrarExportable('catalogo', 'catalogo-cursos',
+      ['Categoria', 'Curso', 'Modalidad', 'Participantes', 'Horas mujeres', 'Horas hombres', 'Horas totales', 'Costo total'], filasCsv);
+  }
+
+  function renderProveedores(mod) {
+    var mapa = {};
+    mod.internas.forEach(function (d) {
+      var k = d.Proveedor || 'Interno / no informado';
+      if (!mapa[k]) mapa[k] = { cursos: {}, personas: {}, horas: 0, costo: 0, registros: 0, aprobados: 0 };
+      var g = mapa[k];
+      g.cursos[d.Curso || 'Sin nombre'] = true;
+      g.registros++;
+      if (d.Aprobado) {
+        g.aprobados++;
+        if (d.RutId) g.personas[d.RutId] = true;
+      }
+      g.horas += d.Horas || 0;
+      g.costo += (d.CostoEmpresa || 0) + (d.CostoSence || 0);
+    });
+
+    var lista = Object.keys(mapa).map(function (k) {
+      var g = mapa[k];
+      var personas = Object.keys(g.personas).length;
+      return {
+        proveedor: k,
+        cursos: Object.keys(g.cursos).length,
+        personas: personas,
+        horas: g.horas,
+        costo: g.costo,
+        costoHora: g.horas > 0 ? g.costo / g.horas : 0,
+        costoPersona: personas > 0 ? g.costo / personas : 0,
+        aprobacion: g.registros > 0 ? g.aprobados / g.registros : 0
+      };
+    }).sort(function (a, b) { return b.costo - a.costo || b.personas - a.personas; });
+
+    var cuerpo = $('tablaProveedores').querySelector('tbody');
+    vaciar(cuerpo);
+
+    if (!lista.length) {
+      cuerpo.appendChild(filaVacia(8, 'No hay proveedores para los filtros aplicados.'));
+    } else {
+      lista.forEach(function (p) {
+        var celdaAprob = el('td', 'num');
+        var senal = el('span', 'senal');
+        senal.style.justifyContent = 'flex-end';
+        senal.appendChild(iconoEstado(p.aprobacion >= 0.9 ? 'ok' : p.aprobacion >= 0.7 ? 'alerta' : 'critico'));
+        senal.appendChild(el('span', null, pct(p.aprobacion * 100, 0)));
+        celdaAprob.appendChild(senal);
+
+        cuerpo.appendChild(tr([
+          td(p.proveedor, 'principal'),
+          td(num(p.cursos), 'num'),
+          td(num(p.personas), 'num'),
+          td(dec(p.horas), 'num'),
+          td(money(p.costo), 'num'),
+          td(p.costoHora ? money(p.costoHora) : '-', 'num'),
+          td(p.costoPersona ? money(p.costoPersona) : '-', 'num'),
+          celdaAprob
+        ]));
+      });
+    }
+
+    registrarExportable('proveedores', 'proveedores',
+      ['Proveedor', 'Cursos', 'Participantes', 'Horas', 'Costo total', 'Costo por hora', 'Costo por persona', 'Tasa de aprobacion %'],
+      lista.map(function (p) {
+        return [p.proveedor, p.cursos, p.personas, p.horas.toFixed(1), Math.round(p.costo), Math.round(p.costoHora), Math.round(p.costoPersona), (p.aprobacion * 100).toFixed(1)];
+      }));
+  }
+
+  /* ================================================================
+     Vista: inversion
+     ================================================================ */
+  function calcularOtic() {
+    var anio = filtros.anio;
+    var coincide = function (a) { return anio === 'TODOS' || (a || '').toString().trim() === anio; };
+
+    var excedentesSence = 0, excedentesOtros = 0;
+    var normalSence = 0, normalOtros = 0;
+    var aporteBruto = 0, costoEmpresa = 0;
+    var viaticos = 0, traslados = 0;
+
+    DATOS.capacitaciones.forEach(function (d) {
+      if (!coincide(d.Anio)) return;
+      costoEmpresa += d.CostoEmpresa || 0;
+      var cuenta = norm(d.OrigenCuenta);
+      if (cuenta.indexOf('exced') !== -1) excedentesSence += d.CostoSence || 0;
+      else normalSence += d.CostoSence || 0;
+    });
+
+    (DATOS.costoOtic || []).forEach(function (m) {
+      if (!coincide(m.Anio)) return;
+      var cuenta = norm(m.TipoCuenta);
+      var mov = norm(m.TipoMovimiento);
+      costoEmpresa += m.DescontadoEmpresa || 0;
+
+      if (mov.indexOf('apor') !== -1 || mov.indexOf('ingreso') !== -1 || mov.indexOf('deposito') !== -1) {
+        if (cuenta.indexOf('exced') === -1) aporteBruto += m.MontoAportado || 0;
+        return;
+      }
+
+      var logistica = (m.DescontadoOtic || 0) + (m.DescontadoEmpresa || 0);
+      if (mov.indexOf('viatic') !== -1 || mov.indexOf('alojam') !== -1 || mov.indexOf('hotel') !== -1) viaticos += logistica;
+      else if (mov.indexOf('traslad') !== -1 || mov.indexOf('pasaj') !== -1 || mov.indexOf('transfer') !== -1) traslados += logistica;
+
+      if (cuenta.indexOf('exced') !== -1) excedentesOtros += m.DescontadoOtic || 0;
+      else normalOtros += m.DescontadoOtic || 0;
+    });
+
+    var fondo = CFG.fondoInicialExcedentes || 0;
+    var gastoExcedentes = excedentesSence + excedentesOtros;
+    var saldoExcedentes = fondo - gastoExcedentes;
+
+    var aporteLiquido = aporteBruto * (1 - (CFG.comisionOtic || 0));
+    var gastoNormal = normalSence + normalOtros;
+
+    return {
+      fondoExcedentes: fondo,
+      gastoExcedentes: gastoExcedentes,
+      saldoExcedentes: saldoExcedentes,
+      pctExcedentesDisponible: fondo > 0 ? saldoExcedentes / fondo : 0,
+      aporteBruto: aporteBruto,
+      aporteLiquido: aporteLiquido,
+      gastoNormal: gastoNormal,
+      saldoNormal: aporteLiquido - gastoNormal,
+      costoEmpresa: costoEmpresa,
+      viaticos: viaticos,
+      traslados: traslados
+    };
+  }
+
+  function renderInversion(mod) {
+    var anio = filtros.anio;
+    var coincide = function (a) { return anio === 'TODOS' || (a || '').toString().trim() === anio; };
+
+    var presupuestoInicial = 0, aportes = 0, gastosDirectos = 0;
+    var saldos = (DATOS.saldos || []).filter(function (s) { return coincide(s.Anio); });
+    saldos.forEach(function (s) {
+      var mov = norm(s.TipoMovimiento);
+      if (mov.indexOf('inicial') !== -1) presupuestoInicial += s.Monto || 0;
+      else if (mov.indexOf('aporte') !== -1) aportes += s.Monto || 0;
+      else if (mov.indexOf('gasto') !== -1) gastosDirectos += s.Monto || 0;
+    });
+
+    var gastoBecas = 0;
+    (DATOS.becas || []).forEach(function (b) { if (coincide(b.Anio)) gastoBecas += b.Monto || 0; });
+
+    var gastoEmpresa = 0, gastoSence = 0;
+    DATOS.capacitaciones.forEach(function (d) {
+      if (!coincide(d.Anio) || !d.Aprobado) return;
+      gastoEmpresa += d.CostoEmpresa || 0;
+      gastoSence += d.CostoSence || 0;
+    });
+
+    var presupuesto = presupuestoInicial + aportes;
+    var ejecutado = gastosDirectos + gastoBecas + gastoEmpresa + gastoSence;
+    var saldo = presupuesto - ejecutado;
+    var avance = presupuesto > 0 ? ejecutado / presupuesto : 0;
+
+    // Proyeccion simple: el ritmo del ano llevado a doce meses.
+    var ultimoMesGasto = 0;
+    DATOS.capacitaciones.forEach(function (d) {
+      if (coincide(d.Anio) && d.Aprobado && (d.Mes || 0) > ultimoMesGasto) ultimoMesGasto = d.Mes;
+    });
+    var proyeccion = (anio !== 'TODOS' && ultimoMesGasto > 0 && ultimoMesGasto < 12)
+      ? ejecutado * 12 / ultimoMesGasto : null;
+
+    $('heroSaldo').textContent = moneyCorto(saldo);
+    $('heroSaldoApoyo').textContent = money(presupuesto) + ' de presupuesto acumulado, ' + money(ejecutado) + ' ejecutado';
+    $('heroEjecutado').textContent = moneyCorto(ejecutado);
+    $('heroProyeccion').textContent = proyeccion
+      ? moneyCorto(proyeccion) + '  ' + pct(presupuesto > 0 ? proyeccion / presupuesto * 100 : 0, 0)
+      : 'Selecciona un ano';
+    $('presupuestoConsumido').textContent = pct(avance * 100) + ' consumido';
+    $('presupuestoTotal').textContent = money(presupuesto);
+
+    var medidor = $('medidorPresupuesto');
+    medidor.className = 'medidor' + (avance > 1 ? ' critico' : avance > 0.9 ? ' riesgo' : '');
+    medidor.firstElementChild.style.width = Math.min(100, avance * 100) + '%';
+
+    var partes = [
+      { etiqueta: 'Costo empresa cursos', valor: gastoEmpresa, color: C.s[0] },
+      { etiqueta: 'Costo SENCE cursos', valor: gastoSence, color: C.s[1] },
+      { etiqueta: 'Becas', valor: gastoBecas, color: C.s[2] },
+      { etiqueta: 'Gastos directos', valor: gastosDirectos, color: C.s[3] }
+    ].filter(function (p) { return p.valor > 0; });
+
+    grafico('chartComposicion', {
+      type: 'bar',
+      data: {
+        labels: ['Ejecucion'],
+        datasets: partes.map(function (p) {
+          return {
+            label: p.etiqueta,
+            data: [p.valor],
+            backgroundColor: p.color,
+            borderColor: C.superficie,
+            borderWidth: 2,
+            borderRadius: 4,
+            borderSkipped: false,
+            maxBarThickness: 40
+          };
+        })
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        scales: {
+          x: ejeValor({ stacked: true, ticks: { padding: 8, maxTicksLimit: 4, callback: function (v) { return moneyCorto(v); } } }),
+          y: ejeCategoria({ stacked: true, display: false })
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                return ' ' + money(ctx.parsed.x) + '  ' + ctx.dataset.label + ' (' + pct(ejecutado ? ctx.parsed.x / ejecutado * 100 : 0) + ')';
+              }
+            }
+          }
+        }
+      }
+    });
+
+    pintarLeyenda('leyendaComposicion', partes.map(function (p) {
+      return { etiqueta: p.etiqueta + '  ' + pct(ejecutado ? p.valor / ejecutado * 100 : 0), color: p.color };
+    }));
+
+    pintarTablaSimple('tablaComposicion', ['Concepto', 'Monto', 'Parte %'],
+      partes.map(function (p) { return [p.etiqueta, money(p.valor), dec1(ejecutado ? p.valor / ejecutado * 100 : 0, 1)]; }));
+
+    var otic = calcularOtic();
+
+    pintarTira('tiraOtic', [
+      { rotulo: 'Fondo excedentes', valor: moneyCorto(otic.fondoExcedentes), nota: 'Saldo inicial cargado en la configuracion' },
+      { rotulo: 'Saldo excedentes', valor: moneyCorto(otic.saldoExcedentes), nota: pct(otic.pctExcedentesDisponible * 100, 0) + ' sin usar' },
+      { rotulo: 'Aporte liquido cuenta normal', valor: moneyCorto(otic.aporteLiquido), nota: 'Bruto menos ' + pct((CFG.comisionOtic || 0) * 100, 0) + ' de comision' },
+      { rotulo: 'Saldo cuenta normal', valor: moneyCorto(otic.saldoNormal), nota: moneyCorto(otic.gastoNormal) + ' ejecutado' },
+      { rotulo: 'Viaticos', valor: moneyCorto(otic.viaticos), nota: 'Alojamiento y estadias' },
+      { rotulo: 'Traslados', valor: moneyCorto(otic.traslados), nota: 'Pasajes y transporte' }
+    ]);
+
+    pintarAlertas('listaOtic', [
+      {
+        nivel: otic.saldoExcedentes > 0 ? (otic.pctExcedentesDisponible > 0.5 ? 'alerta' : 'info') : 'ok',
+        titulo: 'Cuenta excedentes',
+        detalle: moneyCorto(otic.gastoExcedentes) + ' ejecutado sobre ' + moneyCorto(otic.fondoExcedentes) + ' del fondo inicial.',
+        cifra: moneyCorto(otic.saldoExcedentes)
+      },
+      {
+        nivel: otic.saldoNormal < 0 ? 'critico' : 'ok',
+        titulo: 'Cuenta normal',
+        detalle: 'Aporte liquido ' + moneyCorto(otic.aporteLiquido) + ' menos ' + moneyCorto(otic.gastoNormal) + ' ejecutado.',
+        cifra: moneyCorto(otic.saldoNormal)
+      },
+      {
+        nivel: 'info',
+        titulo: 'Costo asumido por la empresa',
+        detalle: 'Parte de la formacion que no cubre la franquicia.',
+        cifra: moneyCorto(otic.costoEmpresa)
+      }
+    ]);
+
+    renderGastoMensual(coincide);
+    renderTablaSaldos(saldos);
+    renderTablaOtic(coincide);
+  }
+
+  function renderGastoMensual(coincide) {
+    var meses = new Array(12).fill(0);
+    DATOS.capacitaciones.forEach(function (d) {
+      if (!coincide(d.Anio)) return;
+      var m = (d.Mes || 0) - 1;
+      if (m < 0 || m > 11) return;
+      meses[m] += (d.CostoEmpresa || 0) + (d.CostoSence || 0);
+    });
+
+    grafico('chartGastoMensual', {
+      type: 'bar',
+      data: {
+        labels: MESES,
+        datasets: [{
+          label: 'Gasto',
+          data: meses,
+          backgroundColor: C.s[0],
+          borderRadius: 4,
+          borderSkipped: 'start',
+          maxBarThickness: 24
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: ejeCategoria(),
+          y: ejeValor({ ticks: { padding: 8, maxTicksLimit: 5, callback: function (v) { return moneyCorto(v); } } })
+        },
+        plugins: { tooltip: { callbacks: { label: function (ctx) { return ' ' + money(ctx.parsed.y); } } } }
+      }
+    });
+
+    registrarExportable('gastoMensual', 'gasto-mensual', ['Mes', 'Gasto'],
+      MESES.map(function (m, i) { return [m, Math.round(meses[i])]; }));
+  }
+
+  function renderTablaSaldos(saldos) {
+    var cuerpo = $('tablaSaldos').querySelector('tbody');
+    vaciar(cuerpo);
+    if (!saldos.length) {
+      cuerpo.appendChild(filaVacia(6, 'Sin movimientos registrados para el ano seleccionado.'));
+      return;
+    }
+    saldos.forEach(function (s) {
+      var celdaMov = el('td');
+      celdaMov.appendChild(pildora(s.TipoMovimiento, norm(s.TipoMovimiento).indexOf('gasto') !== -1 ? 'pendiente' : 'buena'));
+      cuerpo.appendChild(tr([
+        td(s.Anio), td(s.Mes || '-'), td(s.CentroCosto, 'principal'),
+        celdaMov, td(money(s.Monto), 'num'), td(s.Observacion || '-')
+      ]));
+    });
+  }
+
+  function renderTablaOtic(coincide) {
+    var movimientos = (DATOS.costoOtic || []).filter(function (m) { return coincide(m.Anio); });
+    var cuerpo = $('tablaOticMov').querySelector('tbody');
+    vaciar(cuerpo);
+    if (!movimientos.length) {
+      cuerpo.appendChild(filaVacia(7, 'Sin movimientos OTIC para el ano seleccionado.'));
+      return;
+    }
+    movimientos.forEach(function (m) {
+      cuerpo.appendChild(tr([
+        td(m.Anio), td(m.Mes || '-'), td(m.TipoCuenta), td(m.TipoMovimiento),
+        td(m.Concepto, 'principal'),
+        td(m.MontoAportado ? money(m.MontoAportado) : '-', 'num'),
+        td(money((m.DescontadoOtic || 0) + (m.DescontadoEmpresa || 0)), 'num')
+      ]));
+    });
+  }
+
+  /* ================================================================
+     Vista: becas
+     ================================================================ */
+  function renderBecas() {
+    var anio = filtros.anio;
+    var lista = (DATOS.becas || []).filter(function (b) { return anio === 'TODOS' || (b.Anio || '').toString().trim() === anio; });
+
+    var personas = {}, instituciones = {}, porGerencia = {}, porInstitucion = {};
+    var monto = 0, mujeres = 0, hombres = 0;
+
+    lista.forEach(function (b) {
+      if (b.RutId) personas[b.RutId] = true;
+      monto += b.Monto || 0;
+      if (b.Institucion && b.Institucion !== 'No Informada') instituciones[b.Institucion] = true;
+      if (esMujer(b.Genero)) mujeres++;
+      else if (esHombre(b.Genero)) hombres++;
+      porGerencia[b.Gerencia || 'Sin gerencia'] = (porGerencia[b.Gerencia || 'Sin gerencia'] || 0) + (b.Monto || 0);
+      porInstitucion[b.Institucion || 'No informada'] = (porInstitucion[b.Institucion || 'No informada'] || 0) + 1;
+    });
+
+    var totalPersonas = Object.keys(personas).length || lista.length;
+
+    pintarTira('tiraBecas', [
+      { rotulo: 'Personas beneficiadas', valor: num(totalPersonas), nota: num(lista.length) + ' registros' },
+      { rotulo: 'Monto becado', valor: moneyCorto(monto), nota: 'Aporte de la empresa' },
+      { rotulo: 'Aporte promedio', valor: totalPersonas ? moneyCorto(monto / totalPersonas) : '$0', nota: 'Por persona beneficiada' },
+      { rotulo: 'Instituciones', valor: num(Object.keys(instituciones).length), nota: 'Casas de estudio distintas' },
+      { rotulo: 'Mujeres', valor: num(mujeres), nota: pct(lista.length ? mujeres / lista.length * 100 : 0) + ' de las becas' },
+      { rotulo: 'Hombres', valor: num(hombres), nota: pct(lista.length ? hombres / lista.length * 100 : 0) + ' de las becas' }
+    ]);
+
+    barrasSimples('chartBecasGerencia', porGerencia, function (v) { return moneyCorto(v); }, function (v) { return money(v); }, 'becasGerencia', 'becas-por-gerencia', ['Gerencia', 'Monto becado']);
+    barrasSimples('chartBecasInstitucion', porInstitucion, function (v) { return num(v); }, function (v) { return num(v) + ' becas'; }, 'becasInstitucion', 'becas-por-institucion', ['Institucion', 'Becas']);
+
+    renderTablaBecas(lista);
+  }
+
+  function barrasSimples(idLienzo, mapa, formatoEtiqueta, formatoTooltip, claveCsv, nombreCsv, encabezados) {
+    var claves = Object.keys(mapa).sort(function (a, b) { return mapa[b] - mapa[a]; }).slice(0, 12).reverse();
+
+    grafico(idLienzo, {
+      type: 'bar',
+      data: {
+        labels: claves.map(function (k) { return recortar(k, 34); }),
+        datasets: [{
+          data: claves.map(function (k) { return mapa[k]; }),
+          backgroundColor: C.s[0],
+          borderRadius: 4,
+          borderSkipped: 'start',
+          maxBarThickness: 18
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        layout: { padding: { right: 62 } },
+        scales: {
+          x: ejeValor({ ticks: { padding: 8, maxTicksLimit: 4, callback: formatoEtiqueta } }),
+          y: ejeCategoria({ ticks: { padding: 6, autoSkip: false, crossAlign: 'far' } })
+        },
+        plugins: {
+          etiquetas: { formato: formatoEtiqueta },
+          tooltip: {
+            callbacks: {
+              title: function (ctx) { return claves[ctx[0].dataIndex]; },
+              label: function (ctx) { return ' ' + formatoTooltip(ctx.parsed.x); }
+            }
+          }
+        }
+      }
+    });
+
+    registrarExportable(claveCsv, nombreCsv, encabezados,
+      Object.keys(mapa).sort(function (a, b) { return mapa[b] - mapa[a]; }).map(function (k) { return [k, Math.round(mapa[k])]; }));
+  }
+
+  function renderTablaBecas(lista) {
+    var consulta = norm($('buscarBecas').value || '').trim();
+    var filtrada = lista.filter(function (b) {
+      if (!consulta) return true;
+      return norm([b.Nombre, b.Rut, b.Programa, b.Institucion, b.Gerencia, b.Empresa].join(' ')).indexOf(consulta) !== -1;
+    });
+
+    var cuerpo = $('tablaBecas').querySelector('tbody');
+    var pie = $('tablaBecas').querySelector('tfoot');
+    vaciar(cuerpo); vaciar(pie);
+
+    if (!filtrada.length) {
+      cuerpo.appendChild(filaVacia(10, consulta ? 'Ninguna beca coincide con la busqueda.' : 'Sin becas registradas para el ano seleccionado.'));
+      return;
+    }
+
+    var total = 0;
+    filtrada.forEach(function (b) {
+      total += b.Monto || 0;
+      var celdaAvance = el('td', 'centro');
+      if (b.PctAprobado) {
+        var valorAvance = parseFloat((b.PctAprobado + '').replace(/[^0-9,.]/g, '').replace(',', '.'));
+        var tono = isNaN(valorAvance) ? 'neutra' : (valorAvance >= 90 ? 'buena' : valorAvance >= 70 ? 'neutra' : 'pendiente');
+        celdaAvance.appendChild(pildora(b.PctAprobado, tono));
+      } else {
+        celdaAvance.appendChild(el('span', null, '-'));
+      }
+
+      cuerpo.appendChild(tr([
+        td((b.Anio || '') + (b.Mes ? ' ' + b.Mes : '')),
+        td(b.Nombre || 'Sin nombre', 'principal'),
+        td(b.Rut || '-'),
+        td(b.Genero || '-'),
+        td(b.Empresa || '-'),
+        td(b.Gerencia || '-'),
+        td(b.Programa || '-'),
+        td(b.Institucion || '-'),
+        celdaAvance,
+        td(money(b.Monto), 'num')
+      ]));
+    });
+
+    var celdaTexto = td('Total becado');
+    celdaTexto.colSpan = 9;
+    pie.appendChild(tr([celdaTexto, td(money(total), 'num')]));
+
+    registrarExportable('becas', 'becas',
+      ['Ano', 'Mes', 'Colaborador', 'RUT', 'Genero', 'Empresa', 'Gerencia', 'Programa', 'Institucion', 'Avance', 'Monto'],
+      filtrada.map(function (b) { return [b.Anio, b.Mes, b.Nombre, b.Rut, b.Genero, b.Empresa, b.Gerencia, b.Programa, b.Institucion, b.PctAprobado, Math.round(b.Monto)]; }));
+  }
+
+  /* ================================================================
+     Modales
+     ================================================================ */
+  function abrirNomina(categoria) {
+    var mod = modelo;
+    var capacitados = [], pendientes = [];
+
+    mod.vigentes.forEach(function (p) {
+      if ((p.Enia || 'Sin clasificar') !== categoria) return;
+      var reg = mod.porPersona[p.RutId];
+      var registro = {
+        Nombre: p.Nombre, Rut: p.Rut, Genero: p.Genero, Empresa: p.Empresa,
+        Gerencia: p.Gerencia, Ubicacion: p.Ubicacion,
+        Horas: reg ? reg.horas : 0,
+        Cursos: reg ? Object.keys(reg.cursos).length : 0
+      };
+      if (reg && reg.aprobados > 0) capacitados.push(registro);
+      else pendientes.push(registro);
+    });
+
+    var porNombre = function (a, b) { return (a.Nombre || '').localeCompare(b.Nombre || '', 'es', { sensitivity: 'base' }); };
+    capacitados.sort(porNombre);
+    pendientes.sort(porNombre);
+
+    contextoNomina = { categoria: categoria, capacitados: capacitados, pendientes: pendientes };
+
+    $('nominaTitulo').textContent = 'Categoria ENIA: ' + categoria;
+    $('nominaSubtitulo').textContent = descripcionFiltros();
+    $('contadorCapacitados').textContent = num(capacitados.length);
+    $('contadorPendientes').textContent = num(pendientes.length);
+
+    pintarNomina('nominaCapacitados', capacitados, true);
+    pintarNomina('nominaPendientes', pendientes, false);
+    cambiarSubPestana('capacitados');
+
+    registrarExportable('nomina', 'nomina-' + categoria.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      ['Estado', 'Colaborador', 'RUT', 'Genero', 'Empresa', 'Gerencia', 'Ubicacion', 'Horas', 'Cursos aprobados'],
+      capacitados.map(function (p) { return ['Capacitado', p.Nombre, p.Rut, p.Genero, p.Empresa, p.Gerencia, p.Ubicacion, p.Horas.toFixed(1), p.Cursos]; })
+        .concat(pendientes.map(function (p) { return ['Pendiente', p.Nombre, p.Rut, p.Genero, p.Empresa, p.Gerencia, p.Ubicacion, p.Horas.toFixed(1), p.Cursos]; })));
+
+    $('modalNomina').hidden = false;
+  }
+
+  function pintarNomina(id, lista, esCapacitado) {
+    var cont = $(id);
+    vaciar(cont);
+
+    if (!lista.length) {
+      cont.appendChild(el('p', 'vacio', esCapacitado
+        ? 'Nadie de esta categoria registra cursos aprobados con los filtros actuales.'
+        : 'Toda la dotacion vigente de esta categoria esta capacitada.'));
+      return;
+    }
+
+    var tabla = el('table', 'datos');
+    var thead = el('thead');
+    thead.appendChild(tr(['Colaborador', 'RUT', 'Genero', 'Empresa', 'Gerencia', 'Ubicacion', 'Horas', 'Cursos'].map(function (h, i) {
+      return el('th', i >= 6 ? 'num' : null, h);
+    })));
+    tabla.appendChild(thead);
+
+    var tbody = el('tbody');
+    lista.forEach(function (p) {
+      tbody.appendChild(tr([
+        td(p.Nombre || 'Sin nombre', 'principal'),
+        td(p.Rut || '-'),
+        td(p.Genero || '-'),
+        td(p.Empresa || '-'),
+        td(p.Gerencia || '-'),
+        td(p.Ubicacion || '-'),
+        td(dec(p.Horas), 'num'),
+        td(num(p.Cursos), 'num')
+      ]));
+    });
+    tabla.appendChild(tbody);
+    cont.appendChild(tabla);
+  }
+
+  function cambiarSubPestana(cual) {
+    document.querySelectorAll('.sub-pestana').forEach(function (b) {
+      b.setAttribute('aria-selected', b.dataset.nomina === cual ? 'true' : 'false');
+    });
+    $('nominaCapacitados').hidden = cual !== 'capacitados';
+    $('nominaPendientes').hidden = cual !== 'pendientes';
+  }
+
+  function abrirCurso(nombreCurso) {
+    var registros = modelo.internas.filter(function (d) {
+      return (d.Curso || '').trim() === nombreCurso && d.Aprobado;
+    });
+
+    $('cursoTitulo').textContent = nombreCurso;
+    $('cursoSubtitulo').textContent = descripcionFiltros();
+
+    var cuerpo = $('cursoCuerpo');
+    vaciar(cuerpo);
+
+    if (!registros.length) {
+      cuerpo.appendChild(el('p', 'vacio', 'Este curso no tiene participantes aprobados con los filtros actuales.'));
+      $('modalCurso').hidden = false;
+      return;
+    }
+
+    var porEmpresa = {};
+    var totalPersonas = {};
+    registros.forEach(function (d) {
+      var emp = d.Empresa || 'Sin empresa';
+      if (!porEmpresa[emp]) porEmpresa[emp] = { personas: {}, filas: [] };
+      if (d.RutId) { porEmpresa[emp].personas[d.RutId] = true; totalPersonas[d.RutId] = true; }
+      porEmpresa[emp].filas.push(d);
+    });
+
+    var total = Object.keys(totalPersonas).length || registros.length;
+    var empresas = ordenar(Object.keys(porEmpresa));
+    var filasCsv = [];
+
+    var resumen = el('div');
+    resumen.style.padding = '16px 18px';
+    var tablaResumen = el('table', 'datos');
+    var head = el('thead');
+    head.appendChild(tr([el('th', null, 'Empresa'), el('th', 'num', 'Participantes'), el('th', 'num', 'Parte del curso')]));
+    tablaResumen.appendChild(head);
+    var body = el('tbody');
+    empresas.forEach(function (emp) {
+      var cantidad = Object.keys(porEmpresa[emp].personas).length || porEmpresa[emp].filas.length;
+      body.appendChild(tr([
+        td(emp, 'principal'),
+        td(num(cantidad), 'num'),
+        celdaBarra(total ? cantidad / total * 100 : 0, undefined, true)
+      ]));
+    });
+    tablaResumen.appendChild(body);
+    resumen.appendChild(tablaResumen);
+    cuerpo.appendChild(resumen);
+
+    empresas.forEach(function (emp) {
+      var bloque = el('div');
+      bloque.style.borderTop = '1px solid ' + C.linea;
+
+      var cabecera = el('div');
+      cabecera.style.padding = '12px 18px';
+      cabecera.style.background = '#f5f8f6';
+      cabecera.style.display = 'flex';
+      cabecera.style.alignItems = 'center';
+      cabecera.style.gap = '10px';
+      var titulo = el('strong', null, emp);
+      titulo.style.color = C.tinta;
+      titulo.style.fontSize = '12.5px';
+      cabecera.appendChild(titulo);
+
+      var vistos = {};
+      var unicos = [];
+      porEmpresa[emp].filas.forEach(function (d) {
+        var id = d.RutId || (d.Colaborador + Math.random());
+        if (vistos[id]) return;
+        vistos[id] = true;
+        unicos.push(d);
+      });
+      unicos.sort(function (a, b) { return (a.Colaborador || '').localeCompare(b.Colaborador || '', 'es', { sensitivity: 'base' }); });
+      cabecera.appendChild(pildora(unicos.length === 1 ? '1 persona' : num(unicos.length) + ' personas', 'buena'));
+      bloque.appendChild(cabecera);
+
+      var tabla = el('table', 'datos');
+      var th = el('thead');
+      th.appendChild(tr(['Colaborador', 'RUT', 'Ubicacion', 'Gerencia', 'Modalidad', 'Horas'].map(function (h, i) {
+        return el('th', i === 5 ? 'num' : null, h);
+      })));
+      tabla.appendChild(th);
+      var tb = el('tbody');
+      unicos.forEach(function (d) {
+        tb.appendChild(tr([
+          td(d.Colaborador || 'Sin nombre', 'principal'),
+          td(d.Rut || '-'),
+          td(d.Ubicacion || '-'),
+          td(d.Gerencia || '-'),
+          td(d.Modalidad || '-'),
+          td(dec(d.Horas), 'num')
+        ]));
+        filasCsv.push([emp, d.Colaborador, d.Rut, d.Ubicacion, d.Gerencia, d.Modalidad, (d.Horas || 0).toFixed(1)]);
+      });
+      tabla.appendChild(tb);
+      bloque.appendChild(tabla);
+      cuerpo.appendChild(bloque);
+    });
+
+    registrarExportable('curso', 'curso-' + nombreCurso.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40),
+      ['Empresa', 'Colaborador', 'RUT', 'Ubicacion', 'Gerencia', 'Modalidad', 'Horas'], filasCsv);
+
+    $('modalCurso').hidden = false;
+  }
+
+  function descripcionFiltros() {
+    var partes = [];
+    partes.push(filtros.anio === 'TODOS' ? 'Todos los anos' : 'Ano ' + filtros.anio);
+    if (filtros.gerencia !== 'TODOS') partes.push('Gerencia ' + filtros.gerencia);
+    if (filtros.empresas.length) partes.push('Empresas ' + filtros.empresas.join(', '));
+    if (filtros.categorias.length) partes.push(filtros.categorias.length + ' categorias');
+    if (filtros.modalidad !== 'TODOS') partes.push('Modalidad ' + filtros.modalidad);
+    return partes.join('. ');
+  }
+
+  /* ================================================================
+     Tablas auxiliares y exportacion
+     ================================================================ */
+  function pintarTablaSimple(id, encabezados, filas) {
+    var cont = $(id);
+    if (!cont) return;
+    vaciar(cont);
+    var tabla = el('table', 'datos');
+    var head = el('thead');
+    head.appendChild(tr(encabezados.map(function (h, i) { return el('th', i > 0 ? 'num' : null, h); })));
+    tabla.appendChild(head);
+    var body = el('tbody');
+    filas.forEach(function (f) {
+      body.appendChild(tr(f.map(function (v, i) { return td(String(v), i > 0 ? 'num' : null); })));
+    });
+    tabla.appendChild(body);
+    cont.appendChild(tabla);
+  }
+
+  function registrarExportable(clave, nombre, encabezados, filas) {
+    exportables[clave] = { nombre: nombre, encabezados: encabezados, filas: filas };
+  }
+
+  function descargarCsv(clave) {
+    var datos = exportables[clave];
+    if (!datos) return;
+
+    var escapar = function (v) {
+      var s = (v === null || v === undefined) ? '' : String(v);
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    var lineas = [datos.encabezados.map(escapar).join(';')];
+    datos.filas.forEach(function (f) { lineas.push(f.map(escapar).join(';')); });
+
+    // El BOM y el punto y coma hacen que Excel en espanol abra bien el archivo.
+    var contenido = '﻿' + lineas.join('\r\n');
+    var nombreArchivo = datos.nombre + '-' + new Date().toISOString().slice(0, 10) + '.csv';
+
+    try {
+      var blob = new Blob([contenido], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+      enlace.style.display = 'none';
+      document.body.appendChild(enlace);
+      enlace.click();
+      setTimeout(function () {
+        document.body.removeChild(enlace);
+        URL.revokeObjectURL(url);
+      }, 1500);
+    } catch (e) {
+      var ventana = window.open('', '_blank');
+      if (ventana) {
+        ventana.document.write('<pre>' + contenido.replace(/[<>&]/g, function (c) {
+          return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c];
+        }) + '</pre>');
+        ventana.document.close();
+      }
+    }
+  }
+
+  function recortar(texto, largo) {
+    var t = (texto || '').toString();
+    return t.length > largo ? t.slice(0, largo - 1) + '…' : t;
+  }
+
+  /* ================================================================
+     Navegacion y redibujo
+     ================================================================ */
+  function cambiarVista(vista) {
+    vistaActual = vista;
+    document.querySelectorAll('.pestana').forEach(function (b) {
+      b.setAttribute('aria-selected', b.dataset.vista === vista ? 'true' : 'false');
+    });
+    document.querySelectorAll('.vista').forEach(function (s) {
+      s.hidden = s.id !== 'vista-' + vista;
+    });
+    redibujarVista();
+    window.scrollTo({ top: 0, behavior: reduceMovimiento ? 'auto' : 'smooth' });
+  }
+
+  function redibujarTodo() {
+    modelo = calcularModelo();
+    redibujarVista();
+  }
+
+  function redibujarVista() {
+    if (!modelo) return;
+    if (vistaActual === 'resumen') renderResumen(modelo);
+    else if (vistaActual === 'cobertura') renderCobertura(modelo);
+    else if (vistaActual === 'personas') renderPersonas(modelo);
+    else if (vistaActual === 'cursos') renderCursos(modelo);
+    else if (vistaActual === 'inversion') renderInversion(modelo);
+    else if (vistaActual === 'becas') renderBecas();
+  }
+
+  /* ================================================================
+     Eventos
+     ================================================================ */
+  function conectarEventos() {
+    document.querySelectorAll('.pestana').forEach(function (b) {
+      b.addEventListener('click', function () { cambiarVista(b.dataset.vista); });
+    });
+
+    ['fAnio', 'fGerencia', 'fModalidad'].forEach(function (id) {
+      $(id).addEventListener('change', redibujarTodo);
+    });
+
+    $('btnLimpiar').addEventListener('click', function () {
+      $('fAnio').value = 'TODOS';
+      $('fGerencia').value = 'TODOS';
+      $('fModalidad').value = 'TODOS';
+      document.querySelectorAll('.multi-panel input').forEach(function (c) { c.checked = true; });
+      actualizarMulti('panelEmpresa', 'rotuloEmpresa', 'empresas', 'Todas');
+      actualizarMulti('panelCategoria', 'rotuloCategoria', 'categorias', 'Todas');
+      redibujarTodo();
+    });
+
+    $('btnActualizar').addEventListener('click', function () { cargar(true); });
+    $('btnImprimir').addEventListener('click', function () { window.print(); });
+    $('btnImprimirNomina').addEventListener('click', function () { window.print(); });
+    $('btnImprimirCurso').addEventListener('click', function () { window.print(); });
+
+    $('dotacionEst').addEventListener('input', function () { if (modelo) renderEst(modelo); });
+    $('buscarPendientes').addEventListener('input', function () { if (modelo) renderSinCapacitacion(modelo); });
+    $('buscarBecas').addEventListener('input', function () { if (modelo) renderBecas(); });
+
+    // Desplegables de seleccion multiple
+    document.querySelectorAll('.multi-disparador').forEach(function (boton) {
+      boton.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        var panel = $(boton.dataset.abre);
+        var abierto = !panel.hidden;
+        document.querySelectorAll('.multi-panel').forEach(function (p) { p.hidden = true; });
+        document.querySelectorAll('.multi-disparador').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+        panel.hidden = abierto;
+        boton.setAttribute('aria-expanded', String(!abierto));
+      });
+    });
+
+    document.addEventListener('click', function (ev) {
+      if (!ev.target.closest('.multi')) {
+        document.querySelectorAll('.multi-panel').forEach(function (p) { p.hidden = true; });
+        document.querySelectorAll('.multi-disparador').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+      }
+    });
+
+    // Delegacion: tablas, exportacion, modales
+    document.addEventListener('click', function (ev) {
+      var botonTabla = ev.target.closest('[data-tabla]');
+      if (botonTabla) {
+        var destino = $(botonTabla.dataset.tabla);
+        destino.hidden = !destino.hidden;
+        botonTabla.classList.toggle('activo', !destino.hidden);
+        return;
+      }
+
+      var botonCsv = ev.target.closest('[data-csv]');
+      if (botonCsv) { descargarCsv(botonCsv.dataset.csv); return; }
+
+      var cierre = ev.target.closest('[data-cierra]');
+      if (cierre) { $(cierre.dataset.cierra).hidden = true; return; }
+
+      var subPestana = ev.target.closest('.sub-pestana');
+      if (subPestana) { cambiarSubPestana(subPestana.dataset.nomina); return; }
+
+      var enlaceCurso = ev.target.closest('[data-curso]');
+      if (enlaceCurso) { ev.stopPropagation(); abrirCurso(enlaceCurso.dataset.curso); return; }
+
+      var filaEnia = ev.target.closest('tr[data-enia]');
+      if (filaEnia) { abrirNomina(filaEnia.dataset.enia); return; }
+
+      var filaCategoria = ev.target.closest('tr[data-categoria]');
+      if (filaCategoria) {
+        var grupo = filaCategoria.dataset.categoria;
+        var uso = filaCategoria.querySelector('svg.ico use');
+        var abriendo = false;
+        document.querySelectorAll('tr[data-hijo-de="' + grupo + '"]').forEach(function (f) {
+          f.hidden = !f.hidden;
+          abriendo = !f.hidden;
+        });
+        if (uso) uso.setAttribute('href', abriendo ? '#i-caret-down' : '#i-caret-right');
+        return;
+      }
+
+      var fondo = ev.target.classList && ev.target.classList.contains('fondo-modal');
+      if (fondo) ev.target.hidden = true;
+    });
+
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') {
+        document.querySelectorAll('.fondo-modal').forEach(function (m) { m.hidden = true; });
+        document.querySelectorAll('.multi-panel').forEach(function (p) { p.hidden = true; });
+      }
+    });
+
+    window.addEventListener('resize', function () {
+      Object.keys(graficos).forEach(function (k) { if (graficos[k]) graficos[k].resize(); });
+    });
+  }
+
+  /* ================================================================
+     Arranque
+     ================================================================ */
+  window.addEventListener('DOMContentLoaded', function () {
+    conectarEventos();
+
+    // Chart.js viene de un CDN. Si la red corporativa lo bloquea, el tablero
+    // sigue sirviendo: se avisa y las tablas se cargan igual.
+    if (typeof Chart === 'undefined') {
+      graficosDisponibles = false;
+      $('avisoError').hidden = false;
+      $('textoError').textContent = 'No se pudo cargar la libreria de graficos desde cdn.jsdelivr.net. '
+        + 'Las tablas y las descargas funcionan igual. Pide a TI habilitar ese dominio.';
+      $('avisoError').querySelector('strong').textContent = 'Los graficos no estan disponibles.';
+    } else {
+      prepararChart();
+    }
+
+    cargar(false);
+  });
+})();
+</script>

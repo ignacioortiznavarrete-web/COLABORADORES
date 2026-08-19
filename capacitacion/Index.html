@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tablero de Capacitacion | Masisa</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <?!= include('Estilos'); ?>
+</head>
+<body>
+
+<?!= include('Iconos'); ?>
+
+<header class="barra">
+  <div class="marca">
+    <div class="marca-sello" aria-hidden="true">M</div>
+    <div>
+      <h1>Formacion y Desarrollo</h1>
+      <p>Capacitacion, becas y presupuesto</p>
+    </div>
+  </div>
+  <div class="barra-acciones">
+    <span class="sello-datos" id="selloDatos">Cargando datos</span>
+    <button class="btn" id="btnImprimir" type="button">
+      <svg class="ico" aria-hidden="true"><use href="#i-printer"></use></svg><span>Imprimir</span>
+    </button>
+    <button class="btn btn-primario" id="btnActualizar" type="button">
+      <svg class="ico" aria-hidden="true"><use href="#i-arrow-clockwise"></use></svg><span>Actualizar</span>
+    </button>
+  </div>
+</header>
+
+<nav class="pestanas" role="tablist" aria-label="Secciones del tablero">
+  <button class="pestana" role="tab" data-vista="resumen" aria-selected="true">
+    <svg class="ico" aria-hidden="true"><use href="#i-gauge"></use></svg>Resumen
+  </button>
+  <button class="pestana" role="tab" data-vista="cobertura" aria-selected="false">
+    <svg class="ico" aria-hidden="true"><use href="#i-target"></use></svg>Cobertura y brechas
+  </button>
+  <button class="pestana" role="tab" data-vista="personas" aria-selected="false">
+    <svg class="ico" aria-hidden="true"><use href="#i-users-three"></use></svg>Personas y equidad
+  </button>
+  <button class="pestana" role="tab" data-vista="cursos" aria-selected="false">
+    <svg class="ico" aria-hidden="true"><use href="#i-books"></use></svg>Cursos y proveedores
+  </button>
+  <button class="pestana" role="tab" data-vista="inversion" aria-selected="false">
+    <svg class="ico" aria-hidden="true"><use href="#i-wallet"></use></svg>Inversion
+  </button>
+  <button class="pestana" role="tab" data-vista="becas" aria-selected="false">
+    <svg class="ico" aria-hidden="true"><use href="#i-graduation-cap"></use></svg>Becas
+  </button>
+</nav>
+
+<!-- Una sola fila de filtros. Alcanza a todas las secciones. -->
+<div class="filtros" id="filaFiltros">
+  <div class="campo">
+    <label for="fAnio">Ano</label>
+    <select class="control" id="fAnio"><option value="TODOS">Todos</option></select>
+  </div>
+  <div class="campo">
+    <label for="fGerencia">Gerencia</label>
+    <select class="control" id="fGerencia"><option value="TODOS">Todas</option></select>
+  </div>
+  <div class="campo multi" id="multiEmpresa">
+    <span class="etiqueta">Empresa</span>
+    <button class="multi-disparador" type="button" data-abre="panelEmpresa" aria-expanded="false">
+      <span id="rotuloEmpresa">Todas</span><svg class="ico" aria-hidden="true"><use href="#i-caret-down"></use></svg>
+    </button>
+    <div class="multi-panel" id="panelEmpresa" hidden></div>
+  </div>
+  <div class="campo multi" id="multiCategoria">
+    <span class="etiqueta">Categoria de curso</span>
+    <button class="multi-disparador" type="button" data-abre="panelCategoria" aria-expanded="false">
+      <span id="rotuloCategoria">Todas</span><svg class="ico" aria-hidden="true"><use href="#i-caret-down"></use></svg>
+    </button>
+    <div class="multi-panel" id="panelCategoria" hidden></div>
+  </div>
+  <div class="campo">
+    <label for="fModalidad">Modalidad</label>
+    <select class="control" id="fModalidad"><option value="TODOS">Todas</option></select>
+  </div>
+  <div class="campo">
+    <span class="etiqueta">&nbsp;</span>
+    <button class="btn" id="btnLimpiar" type="button">
+      <svg class="ico" aria-hidden="true"><use href="#i-funnel"></use></svg><span>Limpiar filtros</span>
+    </button>
+  </div>
+</div>
+
+<main>
+
+  <div class="aviso" id="avisoError" hidden>
+    <svg class="ico i-critico" aria-hidden="true"><use href="#i-warning-circle"></use></svg>
+    <div><strong>No se pudieron cargar los datos.</strong> <span id="textoError"></span></div>
+  </div>
+
+  <!-- ============================ RESUMEN ============================ -->
+  <section class="vista" id="vista-resumen">
+    <div class="encabezado-vista">
+      <h2>Resumen ejecutivo</h2>
+      <p>Estado de la formacion sobre la dotacion vigente, ritmo de ejecucion del ano y los puntos que necesitan decision esta semana.</p>
+    </div>
+
+    <div class="rejilla principal">
+      <div class="panel">
+        <div class="cifra-principal">
+          <span class="rotulo">Cobertura de formacion</span>
+          <span class="valor" id="heroCobertura">0%</span>
+          <span class="apoyo" id="heroApoyo">Sin datos cargados</span>
+          <div class="sub-cifras">
+            <div><span class="rot">Cobertura mujeres</span><span class="val" id="heroCobM">0%</span></div>
+            <div><span class="rot">Cobertura hombres</span><span class="val" id="heroCobH">0%</span></div>
+          </div>
+          <div>
+            <div class="medidor" id="heroMedidor"><i style="width:0%"></i></div>
+            <div class="medidor-pie">
+              <span>0%</span>
+              <span id="heroMeta">Meta 80%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Ejecucion mensual acumulada</h3>
+            <p>Personas distintas con al menos un curso aprobado, acumuladas mes a mes.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-tabla="tablaRitmo" title="Ver tabla de datos" aria-label="Ver tabla de datos"><svg class="ico" aria-hidden="true"><use href="#i-table"></use></svg></button>
+            <button class="btn-icono" type="button" data-csv="ritmo" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-m"><canvas id="chartRitmo"></canvas></div>
+          <div class="leyenda" id="leyendaRitmo"></div>
+          <div class="envoltura-tabla" id="tablaRitmo" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tira" id="tiraResumen"></div>
+
+    <div class="rejilla principal arriba" style="margin-top:16px">
+      <div class="panel">
+        <div class="panel-cabecera"><div><h3>Puntos de atencion</h3><p>Ordenados por urgencia.</p></div></div>
+        <ul class="lista-alertas" id="listaAlertas"></ul>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Cobertura por gerencia</h3>
+            <p>De menor a mayor. La linea marca la meta institucional.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="gerencias" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-l"><canvas id="chartCoberturaGerencia"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-cabecera">
+        <div>
+          <h3>Detalle por gerencia</h3>
+          <p>Dotacion, cobertura, intensidad horaria e inversion. Horas dotacion cuenta solo las horas de quienes siguen vigentes, por eso puede ser menor al total dictado.</p>
+        </div>
+        <div class="panel-herramientas">
+          <button class="btn-icono" type="button" data-csv="gerencias" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+        </div>
+      </div>
+      <div class="envoltura-tabla">
+        <table class="datos" id="tablaGerencias">
+          <thead>
+            <tr>
+              <th>Gerencia</th>
+              <th class="num">Dotacion vigente</th>
+              <th class="num">Capacitados</th>
+              <th class="num">Cobertura</th>
+              <th class="num">Horas dotacion</th>
+              <th class="num">Horas por persona</th>
+              <th class="num">Inversion</th>
+              <th class="num">Costo por hora</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== COBERTURA =========================== -->
+  <section class="vista" id="vista-cobertura" hidden>
+    <div class="encabezado-vista">
+      <h2>Cobertura y brechas</h2>
+      <p>Quien esta capacitado y quien falta, por categoria ENIA y por ubicacion. Haz clic en una fila para ver la nomina.</p>
+    </div>
+
+    <div class="rejilla principal arriba">
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Contratistas (EST)</h3>
+            <p>La dotacion externa se controla a mano porque no llega en la exportacion.</p>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="campo angosto" style="margin-bottom:14px">
+            <label for="dotacionEst">Dotacion EST de hoy</label>
+            <input class="control" type="number" id="dotacionEst" min="1" step="1" value="100">
+          </div>
+          <div class="medidor" id="medidorEst"><i style="width:0%"></i></div>
+          <div class="medidor-pie"><span id="estTexto">0 de 0 capacitados</span><span id="estPct">0%</span></div>
+          <div class="tira" style="margin-top:14px;border-radius:var(--r-control)">
+            <div class="celda"><span class="rotulo">Capacitados</span><span class="valor" id="estCapacitados">0</span></div>
+            <div class="celda"><span class="rotulo">Pendientes</span><span class="valor" id="estPendientes">0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Cobertura por ubicacion</h3>
+            <p>Personas capacitadas sobre dotacion vigente de cada planta o sede.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="ubicaciones" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-l"><canvas id="chartCoberturaUbicacion"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-cabecera">
+        <div>
+          <h3>Matriz de cobertura por categoria ENIA</h3>
+          <p>Dotacion, capacitados y horas separados por genero. Haz clic en una fila para abrir la nomina de capacitados y pendientes.</p>
+        </div>
+        <div class="panel-herramientas">
+          <button class="btn-icono" type="button" data-csv="enia" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+        </div>
+      </div>
+      <div class="envoltura-tabla">
+        <table class="datos" id="tablaEnia">
+          <thead>
+            <tr class="grupos">
+              <th></th>
+              <th colspan="4" class="division">Mujeres</th>
+              <th colspan="4" class="division">Hombres</th>
+              <th colspan="4" class="division">Total</th>
+            </tr>
+            <tr>
+              <th>Categoria ENIA</th>
+              <th class="num division">Dotacion</th>
+              <th class="num">Capacit.</th>
+              <th class="num">Horas</th>
+              <th class="num">Cobertura</th>
+              <th class="num division">Dotacion</th>
+              <th class="num">Capacit.</th>
+              <th class="num">Horas</th>
+              <th class="num">Cobertura</th>
+              <th class="num division">Dotacion</th>
+              <th class="num">Capacit.</th>
+              <th class="num">Horas por persona</th>
+              <th class="num">Cobertura</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== PERSONAS ============================ -->
+  <section class="vista" id="vista-personas" hidden>
+    <div class="encabezado-vista">
+      <h2>Personas y equidad</h2>
+      <p>Intensidad de formacion por persona, brecha de genero y la nomina de quienes no registran ninguna capacitacion. Base del reporte GRI 404-1.</p>
+    </div>
+
+    <div class="tira" id="tiraPersonas"></div>
+
+    <div class="rejilla dos" style="margin-top:16px">
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Horas por persona segun genero</h3>
+            <p>Horas totales divididas por la dotacion vigente de cada categoria ENIA.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-tabla="tablaEquidad" title="Ver tabla de datos" aria-label="Ver tabla de datos"><svg class="ico" aria-hidden="true"><use href="#i-table"></use></svg></button>
+            <button class="btn-icono" type="button" data-csv="equidad" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-l"><canvas id="chartEquidad"></canvas></div>
+          <div class="leyenda" id="leyendaEquidad"></div>
+          <div class="envoltura-tabla" id="tablaEquidad" hidden></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Distribucion de horas por persona</h3>
+            <p>Cuantas personas de la dotacion caen en cada tramo de horas. Los tramos estan ordenados, por eso el color se oscurece.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="tramos" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-l"><canvas id="chartTramos"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-cabecera">
+        <div>
+          <h3>Sin capacitacion registrada</h3>
+          <p id="subSinCapacitacion">Personas de la dotacion vigente sin ningun curso aprobado en el periodo filtrado.</p>
+        </div>
+        <div class="panel-herramientas">
+          <div class="buscador" style="margin-right:6px">
+            <svg class="ico" aria-hidden="true"><use href="#i-magnifying-glass"></use></svg>
+            <input class="control" type="search" id="buscarPendientes" placeholder="Buscar persona">
+          </div>
+          <button class="btn-icono" type="button" data-csv="pendientes" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+        </div>
+      </div>
+      <div class="envoltura-tabla" style="max-height:460px;overflow-y:auto">
+        <table class="datos" id="tablaPendientes">
+          <thead>
+            <tr>
+              <th>Colaborador</th>
+              <th>RUT</th>
+              <th>Genero</th>
+              <th>Empresa</th>
+              <th>Gerencia</th>
+              <th>Ubicacion</th>
+              <th>Categoria ENIA</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ CURSOS ============================= -->
+  <section class="vista" id="vista-cursos" hidden>
+    <div class="encabezado-vista">
+      <h2>Cursos y proveedores</h2>
+      <p>Que se dicta, en que modalidad, con quien y a que costo por hora. Haz clic en un curso para ver como se reparte entre empresas.</p>
+    </div>
+
+    <div class="rejilla dos arriba">
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Cursos con mas participantes</h3>
+            <p>Personas distintas aprobadas. Se muestran los quince primeros.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="cursos" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-xl"><canvas id="chartTopCursos"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Horas por modalidad</h3>
+            <p>Reparto de las horas dictadas entre las modalidades registradas.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-tabla="tablaModalidad" title="Ver tabla de datos" aria-label="Ver tabla de datos"><svg class="ico" aria-hidden="true"><use href="#i-table"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-s"><canvas id="chartModalidad"></canvas></div>
+          <div class="leyenda" id="leyendaModalidad"></div>
+          <div class="envoltura-tabla" id="tablaModalidad" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-cabecera">
+        <div>
+          <h3>Catalogo por categoria</h3>
+          <p>Haz clic en una categoria para desplegar sus cursos, y en un curso para ver la nomina por empresa.</p>
+        </div>
+        <div class="panel-herramientas">
+          <button class="btn-icono" type="button" data-csv="catalogo" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+        </div>
+      </div>
+      <div class="envoltura-tabla">
+        <table class="datos" id="tablaCatalogo">
+          <thead>
+            <tr>
+              <th>Categoria y curso</th>
+              <th class="num">Participantes</th>
+              <th class="num">Horas mujeres</th>
+              <th class="num">Horas hombres</th>
+              <th class="num">Horas totales</th>
+              <th class="num">Costo total</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-cabecera">
+        <div>
+          <h3>Proveedores</h3>
+          <p>Costo por hora y tasa de aprobacion de cada proveedor. Sirve para preparar la negociacion del proximo ano.</p>
+        </div>
+        <div class="panel-herramientas">
+          <button class="btn-icono" type="button" data-csv="proveedores" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+        </div>
+      </div>
+      <div class="envoltura-tabla">
+        <table class="datos" id="tablaProveedores">
+          <thead>
+            <tr>
+              <th>Proveedor</th>
+              <th class="num">Cursos</th>
+              <th class="num">Participantes</th>
+              <th class="num">Horas</th>
+              <th class="num">Costo total</th>
+              <th class="num">Costo por hora</th>
+              <th class="num">Costo por persona</th>
+              <th class="num">Aprobacion</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== INVERSION =========================== -->
+  <section class="vista" id="vista-inversion" hidden>
+    <div class="encabezado-vista">
+      <h2>Inversion</h2>
+      <p>Presupuesto anual, ejecucion por modulo y estado de las cuentas OTIC. El saldo de excedentes tiene fecha de caducidad, por eso aparece primero.</p>
+    </div>
+
+    <div class="rejilla principal">
+      <div class="panel">
+        <div class="cifra-principal">
+          <span class="rotulo">Saldo disponible</span>
+          <span class="valor" id="heroSaldo">$0</span>
+          <span class="apoyo" id="heroSaldoApoyo">Presupuesto acumulado menos ejecucion</span>
+          <div class="sub-cifras">
+            <div><span class="rot">Ejecutado a la fecha</span><span class="val" id="heroEjecutado">$0</span></div>
+            <div><span class="rot">Proyeccion de cierre</span><span class="val" id="heroProyeccion">-</span></div>
+          </div>
+          <div>
+            <div class="medidor" id="medidorPresupuesto"><i style="width:0%"></i></div>
+            <div class="medidor-pie">
+              <span id="presupuestoConsumido">0% consumido</span>
+              <span id="presupuestoTotal">$0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Composicion de la ejecucion</h3>
+            <p>En que se gasto el presupuesto del periodo filtrado.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-tabla="tablaComposicion" title="Ver tabla de datos" aria-label="Ver tabla de datos"><svg class="ico" aria-hidden="true"><use href="#i-table"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-s"><canvas id="chartComposicion"></canvas></div>
+          <div class="leyenda" id="leyendaComposicion"></div>
+          <div class="envoltura-tabla" id="tablaComposicion" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tira" id="tiraOtic"></div>
+
+    <div class="rejilla principal arriba" style="margin-top:16px">
+      <div class="panel">
+        <div class="panel-cabecera"><div><h3>Estado de las cuentas OTIC</h3><p>Aporte liquido despues de comision, gasto y saldo.</p></div></div>
+        <ul class="lista-alertas" id="listaOtic"></ul>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Gasto mensual</h3>
+            <p>Costo empresa mas costo SENCE de los cursos, mes a mes.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="gastoMensual" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo">
+          <div class="lienzo alto-m"><canvas id="chartGastoMensual"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="rejilla dos">
+      <div class="panel">
+        <div class="panel-cabecera"><div><h3>Movimientos de presupuesto</h3><p>Hoja Saldos.</p></div></div>
+        <div class="envoltura-tabla" style="max-height:380px;overflow-y:auto">
+          <table class="datos" id="tablaSaldos">
+            <thead>
+              <tr>
+                <th>Ano</th><th>Mes</th><th>Centro de costo</th>
+                <th>Movimiento</th><th class="num">Monto</th><th>Observacion</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera"><div><h3>Movimientos OTIC</h3><p>Hoja Costo OTIC.</p></div></div>
+        <div class="envoltura-tabla" style="max-height:380px;overflow-y:auto">
+          <table class="datos" id="tablaOticMov">
+            <thead>
+              <tr>
+                <th>Ano</th><th>Mes</th><th>Cuenta</th><th>Movimiento</th>
+                <th>Concepto</th><th class="num">Aportado</th><th class="num">Descontado</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================= BECAS ============================= -->
+  <section class="vista" id="vista-becas" hidden>
+    <div class="encabezado-vista">
+      <h2>Becas de estudio</h2>
+      <p>Beneficiarios, monto aportado por la empresa e instituciones. Se filtra con el ano de la fila de filtros.</p>
+    </div>
+
+    <div class="tira" id="tiraBecas"></div>
+
+    <div class="rejilla dos" style="margin-top:16px">
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Monto becado por gerencia</h3>
+            <p>Aporte de la empresa acumulado en el periodo.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="becasGerencia" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo"><div class="lienzo alto-l"><canvas id="chartBecasGerencia"></canvas></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-cabecera">
+          <div>
+            <h3>Beneficiarios por institucion</h3>
+            <p>Numero de becas por casa de estudios.</p>
+          </div>
+          <div class="panel-herramientas">
+            <button class="btn-icono" type="button" data-csv="becasInstitucion" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+          </div>
+        </div>
+        <div class="panel-cuerpo"><div class="lienzo alto-l"><canvas id="chartBecasInstitucion"></canvas></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-cabecera">
+        <div>
+          <h3>Detalle de beneficiarios</h3>
+          <p>Listado completo con programa, institucion y aporte.</p>
+        </div>
+        <div class="panel-herramientas">
+          <div class="buscador" style="margin-right:6px">
+            <svg class="ico" aria-hidden="true"><use href="#i-magnifying-glass"></use></svg>
+            <input class="control" type="search" id="buscarBecas" placeholder="Buscar beca">
+          </div>
+          <button class="btn-icono" type="button" data-csv="becas" title="Descargar CSV" aria-label="Descargar CSV"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg></button>
+        </div>
+      </div>
+      <div class="envoltura-tabla">
+        <table class="datos" id="tablaBecas">
+          <thead>
+            <tr>
+              <th>Periodo</th><th>Colaborador</th><th>RUT</th><th>Genero</th>
+              <th>Empresa</th><th>Gerencia</th><th>Programa</th><th>Institucion</th>
+              <th class="centro">Avance</th><th class="num">Monto becado</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+          <tfoot></tfoot>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============================= MODALES ============================= -->
+
+<div class="fondo-modal" id="modalNomina" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="nominaTitulo">
+    <div class="modal-cabecera">
+      <div>
+        <h3 id="nominaTitulo">Nomina</h3>
+        <p id="nominaSubtitulo"></p>
+      </div>
+      <div class="modal-acciones">
+        <button class="btn" type="button" data-csv="nomina"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg><span>CSV</span></button>
+        <button class="btn" type="button" id="btnImprimirNomina"><svg class="ico" aria-hidden="true"><use href="#i-printer"></use></svg><span>Imprimir</span></button>
+        <button class="btn-icono" type="button" data-cierra="modalNomina" aria-label="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+    </div>
+    <div class="sub-pestanas sin-imprimir">
+      <button class="sub-pestana" data-nomina="capacitados" aria-selected="true">
+        Capacitados <span class="pildora buena" id="contadorCapacitados">0</span>
+      </button>
+      <button class="sub-pestana" data-nomina="pendientes" aria-selected="false">
+        Pendientes <span class="pildora pendiente" id="contadorPendientes">0</span>
+      </button>
+    </div>
+    <div class="modal-cuerpo">
+      <div class="envoltura-tabla" id="nominaCapacitados"></div>
+      <div class="envoltura-tabla" id="nominaPendientes" hidden></div>
+    </div>
+  </div>
+</div>
+
+<div class="fondo-modal" id="modalCurso" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cursoTitulo">
+    <div class="modal-cabecera">
+      <div>
+        <h3 id="cursoTitulo">Curso</h3>
+        <p id="cursoSubtitulo"></p>
+      </div>
+      <div class="modal-acciones">
+        <button class="btn" type="button" data-csv="curso"><svg class="ico" aria-hidden="true"><use href="#i-download-simple"></use></svg><span>CSV</span></button>
+        <button class="btn" type="button" id="btnImprimirCurso"><svg class="ico" aria-hidden="true"><use href="#i-printer"></use></svg><span>Imprimir</span></button>
+        <button class="btn-icono" type="button" data-cierra="modalCurso" aria-label="Cerrar"><svg class="ico" aria-hidden="true"><use href="#i-x"></use></svg></button>
+      </div>
+    </div>
+    <div class="modal-cuerpo" id="cursoCuerpo"></div>
+  </div>
+</div>
+
+<?!= include('Guion'); ?>
+</body>
+</html>
