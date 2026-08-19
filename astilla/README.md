@@ -31,18 +31,38 @@ la descarga viene sin encabezados, se usan las posiciones fijas de
 
 `PlanAstilla` admite el mes como `AGO-2026`, `2026-08` o una fecha real.
 
-## Sub-productos que entran
+## Sub-productos: SAP y la planilla no hablan igual
 
-Solo estos tres; el resto de la planilla (aserrín, álamo, pino
-combustible) se ignora:
+**La planilla** (el correo) desglosa en tres sub-productos; el resto
+(aserrín, álamo, pino combustible) se ignora:
 
 - `ASTILLA EUCALYPTUS NITENS`
 - `AST. PINO VERDE C/ CORTEZA`
 - `ASTILLA PINO VERDE`
 
+**SAP no desglosa nada.** Todo el ingreso de astilla llega con una sola
+descripción, `ASTILLA VERDE (TS)`, bajo el material `3000039`. Por eso
+existe un cuarto bucket, `ASTILLA VERDE (TOTAL SAP)`, y por eso el
+cruce por sub-producto solo se puede comparar a nivel de total: SAP no
+tiene con qué repartir su cifra entre los tres.
+
 El reconocimiento tolera `AST.` vs `ASTILLA`, plural, `C/ CORTEZA` vs
-`CON CORTEZA`, tildes y espacios dobles. Si SAP empieza a usar otro
-nombre, se agrega en `canonicalSubproducto_`.
+`CON CORTEZA`, tildes y espacios dobles. Si aparece otro nombre, se
+agrega en `canonicalSubproducto_`; si es un código nuevo de SAP, en
+`CONFIG.SAP_MATERIALES`.
+
+## Si el dashboard no toma la hoja de SAP
+
+Menú **Astilla Dashboard › Diagnosticar hoja de SAP**. Dice, en una
+sola pantalla: qué hojas existen realmente y si `SHEET_INGRESOS`
+coincide con alguna; los encabezados de la fila 1 y a qué columna quedó
+mapeado cada campo; cuántas filas se descartaron y **por qué motivo**
+(sin fecha, fuera de la ventana, material no reconocido); y las
+descripciones que quedaron fuera del filtro.
+
+Los encabezados se detectan por nombre exacto y, si eso falla, por
+prefijo. Eso es lo que permite reconocer títulos de SAP como
+`Proveedor Origen (RUT + NOMBRE )`, que ningún alias exacto cubre.
 
 ---
 
@@ -76,6 +96,15 @@ Antes de una carga masiva, corre siempre **Probar último correo**.
 ---
 
 ## Pendiente conocido
+
+**El dato de astilla que hay hoy es mensual, no diario.** La hoja `bd`
+de la planilla *Astilla verde* trae `mes` (`ene-2025`, `feb-2025`…) y
+`Recepción`, pero **ninguna columna de fecha diaria**. Sin una
+*Fecha Contab.* por día no existe "último día cerrado en SAP", y por lo
+tanto no hay hueco que rellenar: la regla de complemento no tiene dónde
+engancharse. Hace falta la descarga diaria de SAP del material
+`3000039`.
+
 
 `readPlan_` lee **solo la columna del mes calendario vigente**. Si en el
 dashboard se mueve *Fecha desde* a otro mes, el plan que se compara

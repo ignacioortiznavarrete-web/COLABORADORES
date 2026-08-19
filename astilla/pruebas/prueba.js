@@ -199,6 +199,134 @@ console.log('\n5. canonicalSubproducto_');
   );
 });
 
+/* =====================================================================
+ * 6-8. LECTURA DE LA HOJA DE SAP
+ *
+ * Los encabezados y las filas de abajo son los reales de la planilla
+ * "Astilla verde" (hoja `bd`), no inventados.
+ * ===================================================================== */
+
+function planillaFalsa(nombreHoja, matriz) {
+  return {
+    getSpreadsheetTimeZone: function() { return 'America/Santiago'; },
+    getName: function() { return 'planilla de prueba'; },
+    // El nombre de la hoja no es lo que se prueba aquí: se devuelve
+    // la matriz sea cual sea el nombre que pida readIngresos_.
+    getSheetByName: function() {
+      return {
+        getLastRow: function() { return matriz.length; },
+        getDataRange: function() {
+          return {
+            getValues: function() { return matriz; },
+            getDisplayValues: function() {
+              return matriz.map(function(fila) {
+                return fila.map(function(celda) {
+                  return celda === null || celda === undefined
+                    ? ''
+                    : String(celda);
+                });
+              });
+            }
+          };
+        }
+      };
+    }
+  };
+}
+
+const CABECERA_BD = [
+  'Marcar', 'Rut', 'Proveedor Origen (RUT + NOMBRE )', 'Cod.Proveedor',
+  'Documento compras', 'Posición', 'Centro', 'Material',
+  'Descripción Material', 'Unidad medida pedido', 'P/Unit', 'Recepción',
+  'Neto', 'IVA', 'Total', 'Total Neto/Usd', 'mes', 'Familia', 'PU/USD'
+];
+
+const FILA_BD = [
+  'Proveedor', '96540490-2', 'PROMASA SPA.', '6000006995',
+  4800083117, 10, 'TCP7', 3000039,
+  'ASTILLA VERDE (TS)', 'TS', '90.548,24', '110,14',
+  '9.972.892', '1.894.849', '11.867.741', '$10.132,79',
+  'ene-2025', 'Astilla Verde', '$92,00'
+];
+
+console.log('\n6. Hoja `bd` tal como está hoy (sin columna de fecha)');
+
+let r = sandbox.readIngresos_(
+  planillaFalsa('bd', [CABECERA_BD, FILA_BD]),
+  'America/Santiago',
+  '2026-03-01'
+);
+
+check('el material SÍ se reconoce ahora',
+  sandbox.canonicalSubproducto_('ASTILLA VERDE (TS)') ===
+  'ASTILLA VERDE (TOTAL SAP)');
+
+check('pero la fila se cae por falta de fecha',
+  r.rows.length === 0 && r.skipped.sinFecha === 1,
+  'aceptadas=' + r.rows.length + ' sinFecha=' + r.skipped.sinFecha);
+
+check('NO se cae por material no reconocido',
+  r.skipped.materialNoReconocido === 0,
+  String(r.skipped.materialNoReconocido));
+
+console.log('\n7. Descarga diaria estilo SAP (encabezados "Des. ...")');
+
+const CABECERA_SAP = [
+  'Documento MM', 'Nº Guia', 'Material', 'Des. Material',
+  'Fecha Contab.', 'Pedido', 'Posicion', 'Texto Posicion',
+  'Cantidad', 'Credito FSC(TS)', 'UM', 'Proveedor',
+  'Des. Proveedor', 'Destino', 'Rol', 'Comuna', 'Predio'
+];
+
+const FILA_SAP = [
+  5022559326, 5167, 3000039, 'ASTILLA VERDE (TS)',
+  '04-08-2026', 4800085674, 10, 'ASTILLA VERDE',
+  '16,56', 0, 'TS', 6000092466,
+  'PROMASA SPA.', 'TCP7', '251-19', 'Cabrero', 'LAS CRUCES'
+];
+
+r = sandbox.readIngresos_(
+  planillaFalsa('bd', [CABECERA_SAP, FILA_SAP]),
+  'America/Santiago',
+  '2026-03-01'
+);
+
+check('acepta la fila', r.rows.length === 1,
+  'aceptadas=' + r.rows.length + ' ' + JSON.stringify(r.skipped));
+
+if (r.rows.length === 1) {
+  const f = r.rows[0];
+  check('fecha 04/08/2026', f.fecha === '2026-08-04', f.fecha);
+  check('proveedor por "Des. Proveedor"',
+    f.proveedor === 'PROMASA SPA.', f.proveedor);
+  check('cantidad 16,56 -> 16.56', f.ts === 16.56, String(f.ts));
+  check('unidad TS', f.um === 'TS', f.um);
+}
+
+console.log('\n8. Layout `bd` + columna de fecha (alias Recepción / Proveedor Origen)');
+
+const CABECERA_BD_FECHA = CABECERA_BD.concat(['Fecha Contab.']);
+const FILA_BD_FECHA = FILA_BD.concat(['04-08-2026']);
+
+r = sandbox.readIngresos_(
+  planillaFalsa('bd', [CABECERA_BD_FECHA, FILA_BD_FECHA]),
+  'America/Santiago',
+  '2026-03-01'
+);
+
+check('acepta la fila', r.rows.length === 1,
+  'aceptadas=' + r.rows.length + ' ' + JSON.stringify(r.skipped));
+
+if (r.rows.length === 1) {
+  const f = r.rows[0];
+  check('cantidad desde "Recepción" (110,14)',
+    f.ts === 110.14, String(f.ts));
+  check('proveedor desde "Proveedor Origen (RUT + NOMBRE )"',
+    f.proveedor === 'PROMASA SPA.', f.proveedor);
+  check('unidad desde "Unidad medida pedido"',
+    f.um === 'TS', f.um);
+}
+
 console.log(
   '\n' + (fallos ? fallos + ' comprobaciones fallaron' : 'Todo OK')
 );

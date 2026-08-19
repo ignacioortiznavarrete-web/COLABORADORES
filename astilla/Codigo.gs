@@ -49,6 +49,13 @@ const CONFIG = Object.freeze({
   FACTOR_CAMION: 11,
   UNIDAD: 'TS',
 
+  // Códigos de material de SAP que cuentan como astilla a proceso.
+  // OJO: SAP no desglosa sub-productos. Todo el ingreso llega como
+  // "ASTILLA VERDE (TS)" bajo el material 3000039; el desglose en
+  // NITENS / PINO VERDE C/CORTEZA / PINO VERDE solo existe en la
+  // planilla que llega por Gmail.
+  SAP_MATERIALES: Object.freeze(['3000039']),
+
   // Meses de historia que viajan al dashboard (el mes vigente
   // siempre entra). Súbelo si quieres más estadística.
   HISTORY_MONTHS: 6,
@@ -108,6 +115,12 @@ const SUBPRODUCTOS_OBJETIVO = Object.freeze([
   'ASTILLA PINO VERDE'
 ]);
 
+/**
+ * Lo que SAP entrega sin desglosar. No se puede repartir entre los
+ * tres sub-productos de arriba, así que vive en su propio bucket.
+ */
+const SUBPRODUCTO_SAP = 'ASTILLA VERDE (TOTAL SAP)';
+
 const INFORME_HEADERS = Object.freeze([
   'Fecha Informe',
   'Fecha ISO',
@@ -148,6 +161,10 @@ function onOpen() {
     .addItem(
       'Probar último correo (sin escribir)',
       'probarUltimoCorreo'
+    )
+    .addItem(
+      'Diagnosticar hoja de SAP',
+      'diagnosticarIngresos'
     )
     .addItem(
       'Diagnosticar cruce SAP vs planilla',
@@ -315,6 +332,14 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       rows: [],
       proveedores: [],
       ignored: 0,
+      skipped: {
+        sinFecha: 0,
+        fueraDeHistoria: 0,
+        materialNoReconocido: 0
+      },
+      columns: null,
+      headers: [],
+      totalRows: 0,
       materialesSinReconocer: [],
       missingSheet: !sheet
     };
@@ -327,6 +352,12 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
 
   const rows = [];
   const noMatch = {};
+
+  const skipped = {
+    sinFecha: 0,
+    fueraDeHistoria: 0,
+    materialNoReconocido: 0
+  };
 
   let ignored = 0;
 
@@ -344,7 +375,13 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       timezone
     );
 
-    if (!dateKey || dateKey < historyStart) {
+    if (!dateKey) {
+      skipped.sinFecha++;
+      continue;
+    }
+
+    if (dateKey < historyStart) {
+      skipped.fueraDeHistoria++;
       continue;
     }
 
@@ -354,12 +391,12 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
 
     const subproducto =
       canonicalSubproducto_(descripcion) ||
-      canonicalSubproducto_(
-        row[columns.MATERIAL]
-      );
+      canonicalSubproducto_(row[columns.MATERIAL]) ||
+      subproductoPorMaterial_(row[columns.MATERIAL]);
 
     if (!subproducto) {
       ignored++;
+      skipped.materialNoReconocido++;
 
       if (descripcion) {
         noMatch[descripcion] = true;
@@ -405,6 +442,10 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       })
     ),
     ignored: ignored,
+    skipped: skipped,
+    columns: columns,
+    headers: values[0].map(text_),
+    totalRows: values.length - 1,
     materialesSinReconocer: Object.keys(noMatch).sort(),
     missingSheet: false
   };
@@ -416,11 +457,26 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
  */
 function resolveIngresosColumns_(headerRow) {
   const map = buildHeaderMap_(headerRow);
+  const keys = Object.keys(map);
 
   function pick(names, fallback) {
+    // 1) Coincidencia exacta. Va primero para que una hoja con
+    //    "Proveedor" (código) y "Des. Proveedor" (nombre) elija el
+    //    nombre y no el código.
     for (let index = 0; index < names.length; index++) {
       if (map[names[index]] !== undefined) {
         return map[names[index]];
+      }
+    }
+
+    // 2) El encabezado empieza por el alias. Necesario porque SAP
+    //    exporta títulos como "Proveedor Origen (RUT + NOMBRE )",
+    //    que ningún alias exacto puede cubrir.
+    for (let index = 0; index < names.length; index++) {
+      for (let k = 0; k < keys.length; k++) {
+        if (keys[k].indexOf(names[index]) === 0) {
+          return map[keys[k]];
+        }
       }
     }
 
@@ -437,6 +493,7 @@ function resolveIngresosColumns_(headerRow) {
     DESCRIPCION_MATERIAL: pick(
       [
         'descripcion material',
+        'des material',
         'desc material',
         'texto breve material',
         'descripcion del material'
@@ -452,18 +509,31 @@ function resolveIngresosColumns_(headerRow) {
       defaults.FECHA_CONTABLE
     ),
     CANTIDAD: pick(
-      ['cantidad', 'cantidad ts', 'ts', 'volumen'],
+      [
+        'cantidad',
+        'cantidad ts',
+        'recepcion',
+        'volumen',
+        'ts'
+      ],
       defaults.CANTIDAD
     ),
     UM: pick(
-      ['um', 'unidad', 'unidad medida'],
+      [
+        'um',
+        'unidad medida pedido',
+        'unidad medida',
+        'unidad'
+      ],
       defaults.UM
     ),
     DESCRIPCION_PROVEEDOR: pick(
       [
         'descripcion proveedor',
-        'proveedor',
-        'nombre proveedor'
+        'des proveedor',
+        'proveedor origen',
+        'nombre proveedor',
+        'proveedor'
       ],
       defaults.DESCRIPCION_PROVEEDOR
     ),
@@ -1360,6 +1430,102 @@ function diagnosticarCruce() {
   SpreadsheetApp.getUi().alert(lines.join('\n'));
 }
 
+/**
+ * Responde la pregunta "¿por qué no me toma la hoja Ingresos?".
+ * Muestra qué hojas existen, qué encabezados encontró, a qué columna
+ * mapeó cada campo y cuántas filas descartó por cada motivo.
+ */
+function diagnosticarIngresos() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+  const timezone =
+    spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
+
+  const nombres = spreadsheet.getSheets().map(function(hoja) {
+    return hoja.getName();
+  });
+
+  const lines = [
+    'Diagnóstico de la hoja de SAP',
+    '',
+    'Planilla: ' + spreadsheet.getName(),
+    'Hojas que existen: ' + nombres.join(' · '),
+    'Hoja buscada (CONFIG.SHEET_INGRESOS): ' + CONFIG.SHEET_INGRESOS
+  ];
+
+  if (nombres.indexOf(CONFIG.SHEET_INGRESOS) === -1) {
+    lines.push('');
+    lines.push('>>> Esa hoja NO existe en esta planilla.');
+    lines.push(
+      'Corrige CONFIG.SHEET_INGRESOS con uno de los nombres de arriba, ' +
+      'o revisa que CONFIG.SPREADSHEET_ID apunte al archivo correcto.'
+    );
+
+    SpreadsheetApp.getUi().alert(lines.join('\n'));
+    return;
+  }
+
+  const month = getCurrentMonthWindow_(timezone);
+  const historyStart = buildHistoryStart_(month);
+  const sap = readIngresos_(spreadsheet, timezone, historyStart);
+
+  lines.push('Ventana de historia: desde ' + formatDateKey_(historyStart));
+  lines.push('');
+  lines.push('Encabezados de la fila 1:');
+  lines.push(sap.headers.join(' | '));
+  lines.push('');
+  lines.push('Columnas que se van a usar (base cero):');
+
+  if (sap.columns) {
+    Object.keys(sap.columns).forEach(function(campo) {
+      const indice = sap.columns[campo];
+
+      lines.push(
+        '  ' + campo + ' -> col ' + indice +
+        ' (' + (sap.headers[indice] || 'FUERA DE RANGO') + ')'
+      );
+    });
+  }
+
+  lines.push('');
+  lines.push('Filas de datos: ' + sap.totalRows);
+  lines.push('  Aceptadas: ' + sap.rows.length);
+  lines.push('  Sin fecha legible: ' + sap.skipped.sinFecha);
+  lines.push('  Fuera de la ventana: ' + sap.skipped.fueraDeHistoria);
+  lines.push('  Material no reconocido: ' + sap.skipped.materialNoReconocido);
+
+  if (sap.materialesSinReconocer.length) {
+    lines.push('');
+    lines.push('Descripciones que quedaron fuera:');
+
+    sap.materialesSinReconocer.slice(0, 15).forEach(function(item) {
+      lines.push('  - ' + item);
+    });
+
+    lines.push('');
+    lines.push(
+      'Si alguna de esas SÍ es astilla a proceso, agrégala en ' +
+      'canonicalSubproducto_ o suma su código a CONFIG.SAP_MATERIALES.'
+    );
+  }
+
+  if (sap.rows.length) {
+    lines.push('');
+    lines.push('Primeras filas aceptadas:');
+
+    sap.rows.slice(0, 5).forEach(function(item) {
+      lines.push(
+        '  ' + item.fechaLabel +
+        ' | ' + item.subproducto +
+        ' | ' + item.proveedor +
+        ' | ' + item.ts + ' ' + item.um
+      );
+    });
+  }
+
+  SpreadsheetApp.getUi().alert(lines.join('\n'));
+}
+
 function instalarDisparador() {
   eliminarDisparadores();
 
@@ -1862,7 +2028,24 @@ function canonicalSubproducto_(value) {
     return 'ASTILLA PINO VERDE';
   }
 
+  // "ASTILLA VERDE (TS)": el nombre que usa SAP para todo el ingreso.
+  // Se acepta al final, después de los tres específicos, para no
+  // robarle filas al desglose de la planilla.
+  if (/^ASTILLA VERDE\b/.test(key)) {
+    return SUBPRODUCTO_SAP;
+  }
+
   return '';
+}
+
+/**
+ * Respaldo por código de material, para cuando la descripción viene
+ * abreviada o en blanco pero el código sí identifica la astilla.
+ */
+function subproductoPorMaterial_(value) {
+  return CONFIG.SAP_MATERIALES.indexOf(text_(value)) !== -1
+    ? SUBPRODUCTO_SAP
+    : '';
 }
 
 /* =====================================================================
