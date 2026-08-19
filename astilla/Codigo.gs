@@ -42,6 +42,7 @@ const CONFIG = Object.freeze({
   SHEET_INGRESOS: 'Ingresos',
   SHEET_INFORME: 'InformeAstilla',
   SHEET_PLAN: 'PlanAstilla',
+  SHEET_MAPEOS: 'Mapeos',
   HTML_FILE: 'Index',
   TIMEZONE: 'America/Santiago',
 
@@ -170,6 +171,9 @@ function onOpen() {
       'Diagnosticar cruce SAP vs planilla',
       'diagnosticarCruce'
     )
+    .addSeparator()
+    .addItem('Preparar hoja de mapeos', 'instalarMapeos')
+    .addItem('Geocodificar direcciones', 'geocodificarMapeos')
     .addSeparator()
     .addItem('Instalar automatización', 'instalarDisparador')
     .addItem('Eliminar automatización', 'eliminarDisparadores')
@@ -2698,4 +2702,495 @@ function decodeHtmlEntities_(text) {
       return String.fromCharCode(Number(code));
     }
   );
+}
+
+/* =====================================================================
+ * MAPEO DE ASERRADEROS (HOJA "Mapeos")
+ *
+ * Una fila por aserradero. Tú pones nombre y dirección; el resto lo
+ * maneja el dashboard.
+ *
+ * El estado ES el motivo: "Cerrado" cuando se cerró carga, y
+ * cualquiera de los otros cuando no. Todo nace en "Por visitar".
+ * Solo "Cerrado" pide cargas, y las exige mayores que cero.
+ * ===================================================================== */
+
+const MAPEOS_HEADERS = Object.freeze([
+  'ID',
+  'Nombre',
+  'Dirección',
+  'Comuna',
+  'Estado',
+  'Cargas',
+  'Contacto',
+  'Teléfono',
+  'Latitud',
+  'Longitud',
+  'Última actualización',
+  'Actualizado por',
+  'Notas'
+]);
+
+const ESTADO_INICIAL = 'Por visitar';
+const ESTADO_CERRADO = 'Cerrado';
+
+/**
+ * El orden importa: así se ven en el filtro y en la leyenda del mapa.
+ * Del primero al último es el recorrido natural de una gestión.
+ */
+const ESTADOS_MAPEO = Object.freeze([
+  { nombre: 'Por visitar', color: '#6E8088', cierra: false },
+  { nombre: 'En negociación', color: '#3E9E9E', cierra: false },
+  { nombre: 'Cerrado', color: '#E3A63C', cierra: true },
+  { nombre: 'Sin stock', color: '#8A6FA8', cierra: false },
+  { nombre: 'Precio fuera de mercado', color: '#D9573F', cierra: false },
+  { nombre: 'Comprometido con otro', color: '#B0553F', cierra: false },
+  { nombre: 'No hubo contacto', color: '#4C5A61', cierra: false }
+]);
+
+function nombresEstados_() {
+  return ESTADOS_MAPEO.map(function(item) {
+    return item.nombre;
+  });
+}
+
+/**
+ * Crea o repara la hoja: encabezados, validación de Estado, formatos y
+ * relleno de los estados vacíos. Se puede correr las veces que sea.
+ */
+function instalarMapeos() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+  let sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.SHEET_MAPEOS);
+  }
+
+  sheet
+    .getRange(1, 1, 1, MAPEOS_HEADERS.length)
+    .setValues([MAPEOS_HEADERS])
+    .setBackground('#12171A')
+    .setFontColor('#E3A63C')
+    .setFontWeight('bold');
+
+  sheet.setFrozenRows(1);
+
+  const anchos = [
+    90, 260, 320, 140, 190, 90, 180, 130, 110, 110, 165, 210, 300
+  ];
+
+  anchos.forEach(function(ancho, indice) {
+    sheet.setColumnWidth(indice + 1, ancho);
+  });
+
+  const ultima = sheet.getLastRow();
+
+  if (ultima < 2) {
+    SpreadsheetApp.getUi().alert(
+      'Hoja "' + CONFIG.SHEET_MAPEOS + '" lista.\n\n' +
+      'Agrega una fila por aserradero con Nombre y Dirección. ' +
+      'El estado se rellena solo en "' + ESTADO_INICIAL + '".'
+    );
+    return;
+  }
+
+  const filas = ultima - 1;
+
+  sheet
+    .getRange(2, 5, filas, 1)
+    .setDataValidation(
+      SpreadsheetApp.newDataValidation()
+        .requireValueInList(nombresEstados_(), true)
+        .setAllowInvalid(false)
+        .setHelpText(
+          'Solo "' + ESTADO_CERRADO + '" lleva cargas. ' +
+          'Los demás estados son el motivo por el que no se cerró.'
+        )
+        .build()
+    );
+
+  sheet.getRange(2, 6, filas, 1).setNumberFormat('#,##0');
+  sheet.getRange(2, 9, filas, 2).setNumberFormat('0.000000');
+  sheet.getRange(2, 11, filas, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+
+  // Todo lo que no tenga estado arranca en "Por visitar", y todo lo que
+  // no tenga ID recibe uno correlativo.
+  const rango = sheet.getRange(2, 1, filas, MAPEOS_HEADERS.length);
+  const valores = rango.getValues();
+
+  let maximo = 0;
+
+  valores.forEach(function(fila) {
+    const numero = Number(String(fila[0] || '').replace(/\D/g, ''));
+
+    if (numero > maximo) {
+      maximo = numero;
+    }
+  });
+
+  let sinEstado = 0;
+  let sinId = 0;
+
+  valores.forEach(function(fila) {
+    if (!text_(fila[1]) && !text_(fila[2])) {
+      return;
+    }
+
+    if (!text_(fila[0])) {
+      maximo++;
+      fila[0] = 'MAP-' + String(maximo).padStart(4, '0');
+      sinId++;
+    }
+
+    if (!text_(fila[4])) {
+      fila[4] = ESTADO_INICIAL;
+      sinEstado++;
+    }
+  });
+
+  rango.setValues(valores);
+
+  SpreadsheetApp.getUi().alert(
+    'Hoja "' + CONFIG.SHEET_MAPEOS + '" lista.\n\n' +
+    'Aserraderos: ' + filas + '\n' +
+    'IDs asignados: ' + sinId + '\n' +
+    'Estados puestos en "' + ESTADO_INICIAL + '": ' + sinEstado + '\n\n' +
+    'Ahora corre "Geocodificar direcciones" para ubicarlos en el mapa.'
+  );
+}
+
+/**
+ * Convierte direcciones en coordenadas y las escribe en la hoja, para
+ * no volver a geocodificar lo mismo en cada carga del dashboard.
+ * Solo toca las filas que aún no tienen latitud.
+ */
+function geocodificarMapeos() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    SpreadsheetApp.getUi().alert(
+      'No hay nada que geocodificar. Corre primero ' +
+      '"Preparar hoja de mapeos".'
+    );
+    return;
+  }
+
+  const filas = sheet.getLastRow() - 1;
+  const rango = sheet.getRange(2, 1, filas, MAPEOS_HEADERS.length);
+  const valores = rango.getValues();
+
+  const geocoder = Maps.newGeocoder().setRegion('cl');
+
+  let ubicados = 0;
+  let sinResultado = 0;
+  const fallidas = [];
+
+  valores.forEach(function(fila) {
+    const direccion = text_(fila[2]);
+    const comuna = text_(fila[3]);
+
+    if (!direccion || Number(fila[8])) {
+      return;
+    }
+
+    // La comuna desambigua: hay "Camino a Nacimiento" en varias.
+    const consulta = [direccion, comuna, 'Chile']
+      .filter(Boolean)
+      .join(', ');
+
+    try {
+      const respuesta = geocoder.geocode(consulta);
+
+      if (
+        respuesta.status === 'OK' &&
+        respuesta.results &&
+        respuesta.results.length
+      ) {
+        const punto = respuesta.results[0].geometry.location;
+        fila[8] = punto.lat;
+        fila[9] = punto.lng;
+        ubicados++;
+      } else {
+        sinResultado++;
+        fallidas.push(text_(fila[1]) || direccion);
+      }
+    } catch (error) {
+      sinResultado++;
+      fallidas.push(
+        (text_(fila[1]) || direccion) +
+        ' (' + String(error.message || error) + ')'
+      );
+    }
+
+    Utilities.sleep(220);
+  });
+
+  rango.setValues(valores);
+
+  const lineas = [
+    'Geocodificación terminada.',
+    '',
+    'Ubicados ahora: ' + ubicados,
+    'Sin resultado: ' + sinResultado
+  ];
+
+  if (fallidas.length) {
+    lineas.push('');
+    lineas.push('No se pudieron ubicar:');
+
+    fallidas.slice(0, 15).forEach(function(item) {
+      lineas.push('  - ' + item);
+    });
+
+    lineas.push('');
+    lineas.push(
+      'Agrega la comuna, o escribe latitud y longitud a mano en la hoja.'
+    );
+  }
+
+  SpreadsheetApp.getUi().alert(lineas.join('\n'));
+}
+
+/**
+ * Lo que consume el mapa. Devuelve también los aserraderos sin
+ * coordenadas, para poder mostrarlos aparte en vez de perderlos.
+ */
+function getMapeos() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
+
+  const base = {
+    estados: ESTADOS_MAPEO.map(function(item) {
+      return {
+        nombre: item.nombre,
+        color: item.color,
+        cierra: item.cierra
+      };
+    }),
+    estadoInicial: ESTADO_INICIAL,
+    estadoCerrado: ESTADO_CERRADO,
+    rows: [],
+    sinUbicar: 0,
+    missingSheet: !sheet
+  };
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return base;
+  }
+
+  const valores = sheet
+    .getRange(2, 1, sheet.getLastRow() - 1, MAPEOS_HEADERS.length)
+    .getValues();
+
+  const timezone =
+    spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
+
+  valores.forEach(function(fila) {
+    const nombre = text_(fila[1]);
+    const direccion = text_(fila[2]);
+
+    if (!nombre && !direccion) {
+      return;
+    }
+
+    const lat = Number(fila[8]);
+    const lng = Number(fila[9]);
+    const ubicado = isFinite(lat) && isFinite(lng) && lat !== 0;
+
+    if (!ubicado) {
+      base.sinUbicar++;
+    }
+
+    base.rows.push({
+      id: text_(fila[0]),
+      nombre: nombre || direccion,
+      direccion: direccion,
+      comuna: text_(fila[3]),
+      estado: text_(fila[4]) || ESTADO_INICIAL,
+      cargas: toNumber_(fila[5], ''),
+      contacto: text_(fila[6]),
+      telefono: text_(fila[7]),
+      lat: ubicado ? lat : null,
+      lng: ubicado ? lng : null,
+      actualizado: fila[10] instanceof Date
+        ? Utilities.formatDate(fila[10], timezone, 'dd/MM/yyyy HH:mm')
+        : '',
+      actualizadoPor: text_(fila[11]),
+      notas: text_(fila[12])
+    });
+  });
+
+  return base;
+}
+
+/**
+ * Guarda el resultado de una visita.
+ *
+ * "Cerrado" sin cargas es el error que hay que atajar: sería una
+ * gestión cerrada que no suma tonelaje. Se rechaza antes de escribir.
+ */
+function guardarMapeo(payload) {
+  payload = payload || {};
+
+  const id = text_(payload.id);
+  const estado = text_(payload.estado);
+
+  if (!id) {
+    throw new Error('Falta el identificador del aserradero.');
+  }
+
+  if (nombresEstados_().indexOf(estado) === -1) {
+    throw new Error('Estado desconocido: ' + estado);
+  }
+
+  const cierra = estado === ESTADO_CERRADO;
+  const cargas = cierra ? Number(payload.cargas) : '';
+
+  if (cierra && (!isFinite(cargas) || cargas <= 0)) {
+    throw new Error(
+      'Un aserradero en "' + ESTADO_CERRADO +
+      '" necesita cuántas cargas se cerraron.'
+    );
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
+
+    if (!sheet) {
+      throw new Error(
+        'No existe la hoja "' + CONFIG.SHEET_MAPEOS + '".'
+      );
+    }
+
+    const filas = sheet.getLastRow() - 1;
+    const ids = sheet.getRange(2, 1, filas, 1).getValues();
+
+    let objetivo = -1;
+
+    for (let indice = 0; indice < ids.length; indice++) {
+      if (text_(ids[indice][0]) === id) {
+        objetivo = indice + 2;
+        break;
+      }
+    }
+
+    if (objetivo === -1) {
+      throw new Error('No se encontró el aserradero ' + id + '.');
+    }
+
+    let autor = '';
+
+    try {
+      autor = Session.getActiveUser().getEmail() || '';
+    } catch (ignored) {}
+
+    sheet.getRange(objetivo, 5).setValue(estado);
+    sheet.getRange(objetivo, 6).setValue(cargas);
+    sheet.getRange(objetivo, 11).setValue(new Date());
+    sheet.getRange(objetivo, 12).setValue(autor);
+    sheet.getRange(objetivo, 13).setValue(text_(payload.notas));
+
+    return getMapeos();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Alta rápida desde el mapa, sin pasar por la hoja. */
+function agregarMapeo(payload) {
+  payload = payload || {};
+
+  const nombre = text_(payload.nombre);
+  const direccion = text_(payload.direccion);
+
+  if (!nombre || !direccion) {
+    throw new Error('Nombre y dirección son obligatorios.');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
+
+    if (!sheet) {
+      throw new Error(
+        'No existe la hoja "' + CONFIG.SHEET_MAPEOS +
+        '". Corre "Preparar hoja de mapeos".'
+      );
+    }
+
+    let maximo = 0;
+
+    if (sheet.getLastRow() > 1) {
+      sheet
+        .getRange(2, 1, sheet.getLastRow() - 1, 1)
+        .getValues()
+        .forEach(function(fila) {
+          const numero = Number(
+            String(fila[0] || '').replace(/\D/g, '')
+          );
+
+          if (numero > maximo) {
+            maximo = numero;
+          }
+        });
+    }
+
+    const id = 'MAP-' + String(maximo + 1).padStart(4, '0');
+    const comuna = text_(payload.comuna);
+
+    let lat = '';
+    let lng = '';
+
+    try {
+      const respuesta = Maps.newGeocoder()
+        .setRegion('cl')
+        .geocode(
+          [direccion, comuna, 'Chile'].filter(Boolean).join(', ')
+        );
+
+      if (
+        respuesta.status === 'OK' &&
+        respuesta.results &&
+        respuesta.results.length
+      ) {
+        lat = respuesta.results[0].geometry.location.lat;
+        lng = respuesta.results[0].geometry.location.lng;
+      }
+    } catch (ignored) {}
+
+    let autor = '';
+
+    try {
+      autor = Session.getActiveUser().getEmail() || '';
+    } catch (ignored) {}
+
+    sheet.appendRow([
+      id,
+      nombre,
+      direccion,
+      comuna,
+      ESTADO_INICIAL,
+      '',
+      text_(payload.contacto),
+      text_(payload.telefono),
+      lat,
+      lng,
+      new Date(),
+      autor,
+      ''
+    ]);
+
+    return getMapeos();
+  } finally {
+    lock.releaseLock();
+  }
 }

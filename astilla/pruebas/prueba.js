@@ -29,7 +29,19 @@ const sandbox = {
 };
 
 vm.createContext(sandbox);
-vm.runInContext(codigo, sandbox);
+
+// Los `const` de nivel superior viven en el ámbito léxico del script,
+// no en el objeto del contexto, así que hay que exponerlos a mano.
+vm.runInContext(
+  codigo +
+  '\n;globalThis.K = {' +
+  '  CONFIG, SUBPRODUCTOS_OBJETIVO, SUBPRODUCTO_SAP,' +
+  '  ESTADOS_MAPEO, ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS' +
+  '};',
+  sandbox
+);
+
+const K = sandbox.K;
 
 let fallos = 0;
 
@@ -326,6 +338,63 @@ if (r.rows.length === 1) {
   check('unidad desde "Unidad medida pedido"',
     f.um === 'TS', f.um);
 }
+
+/* =====================================================================
+ * 9. REGLA DEL MAPEO DE ASERRADEROS
+ * ===================================================================== */
+
+console.log('\n9. Mapeos: "Cerrado" exige cargas');
+
+function guardarFalla(payload) {
+  try {
+    sandbox.guardarMapeo(payload);
+    return '';
+  } catch (e) {
+    return e.message;
+  }
+}
+
+check('rechaza Cerrado sin cargas',
+  guardarFalla({ id: 'MAP-0001', estado: 'Cerrado' })
+    .indexOf('cuántas cargas') !== -1);
+
+check('rechaza Cerrado con cero cargas',
+  guardarFalla({ id: 'MAP-0001', estado: 'Cerrado', cargas: 0 })
+    .indexOf('cuántas cargas') !== -1);
+
+check('rechaza Cerrado con cargas negativas',
+  guardarFalla({ id: 'MAP-0001', estado: 'Cerrado', cargas: -3 })
+    .indexOf('cuántas cargas') !== -1);
+
+check('rechaza un estado inventado',
+  guardarFalla({ id: 'MAP-0001', estado: 'Tal vez' })
+    .indexOf('Estado desconocido') !== -1);
+
+check('rechaza una fila sin id',
+  guardarFalla({ estado: 'Cerrado', cargas: 4 })
+    .indexOf('identificador') !== -1);
+
+// Con cargas válidas la validación pasa y el fallo pasa a ser el de
+// LockService, que en el simulador no existe. Eso confirma que la
+// regla de negocio dejó pasar la fila.
+check('Cerrado con 4 cargas supera la validación',
+  guardarFalla({ id: 'MAP-0001', estado: 'Cerrado', cargas: 4 })
+    .indexOf('cargas') === -1);
+
+check('un estado de no-cierre no pide cargas',
+  guardarFalla({ id: 'MAP-0001', estado: 'Sin stock' })
+    .indexOf('cargas') === -1);
+
+check('el estado inicial es "Por visitar"',
+  K.ESTADO_INICIAL === 'Por visitar');
+
+check('solo "Cerrado" cierra',
+  K.ESTADOS_MAPEO.filter(function(e) { return e.cierra; })
+    .map(function(e) { return e.nombre; }).join() === 'Cerrado');
+
+check('los 7 estados tienen color propio',
+  new Set(K.ESTADOS_MAPEO.map(function(e) { return e.color; }))
+    .size === 7);
 
 console.log(
   '\n' + (fallos ? fallos + ' comprobaciones fallaron' : 'Todo OK')

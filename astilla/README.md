@@ -23,6 +23,7 @@ desaparece solo.
 | `Ingresos` | Descarga de SAP. Cantidad real por *Fecha Contab.* | Sí |
 | `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
 | `PlanAstilla` | Una fila por sub-producto, una columna por mes | No |
+| `Mapeos` | Un aserradero por fila: nombre, dirección y estado | Para el mapa |
 
 Las columnas de `Ingresos` se detectan por nombre de encabezado
 (*Fecha Contab.*, *Descripción Material*, *Cantidad*, *Proveedor*…). Si
@@ -64,6 +65,53 @@ Los encabezados se detectan por nombre exacto y, si eso falla, por
 prefijo. Eso es lo que permite reconocer títulos de SAP como
 `Proveedor Origen (RUT + NOMBRE )`, que ningún alias exacto cubre.
 
+## Mapeo de aserraderos
+
+Hoja `Mapeos`, una fila por aserradero. Tú pones **Nombre** y
+**Dirección**; el resto lo maneja el dashboard.
+
+**El estado es el motivo.** Todo nace en `Por visitar`. Solo `Cerrado`
+pide cuántas cargas se cerraron —y las exige mayores que cero, porque
+una gestión cerrada que no suma tonelaje no es un cierre—. Los demás
+estados son, cada uno, la razón por la que no se cerró:
+
+| Estado | Qué significa |
+|---|---|
+| `Por visitar` | Todavía no se gestiona. Es el estado inicial de todos. |
+| `En negociación` | Hay conversación abierta, sin cerrar |
+| `Cerrado` | Se cerró carga. **Pide el número de cargas.** |
+| `Sin stock` | No tenía astilla disponible |
+| `Precio fuera de mercado` | No se llegó a precio |
+| `Comprometido con otro` | Su producción ya está tomada |
+| `No hubo contacto` | No se logró hablar con nadie |
+
+Para agregar o cambiar estados, edita `ESTADOS_MAPEO` en `Codigo.gs`:
+cada uno lleva nombre, color en el mapa y si cierra o no. Después
+vuelve a correr **Preparar hoja de mapeos** para actualizar la
+validación de la columna.
+
+### Puesta en marcha
+
+1. **Astilla Dashboard › Preparar hoja de mapeos.** Crea la hoja,
+   pone la validación de Estado, asigna un `ID` correlativo a cada
+   fila y rellena en `Por visitar` todo lo que esté en blanco. Se
+   puede correr las veces que sea.
+2. Agrega tus aserraderos con nombre y dirección (la **comuna** ayuda
+   mucho: hay «Camino a Nacimiento» en varias).
+3. **Geocodificar direcciones.** Convierte las direcciones en
+   coordenadas con el servicio Maps de Apps Script y las escribe en la
+   hoja, para no volver a geocodificar lo mismo en cada carga. Solo
+   toca las filas sin latitud, y avisa cuáles no pudo ubicar.
+
+Los que no se puedan geocodificar siguen apareciendo en el listado
+—marcados «sin ubicar»— y el dashboard dice cuántos son. Nunca se
+pierden por no estar en el mapa. Si una dirección se resiste, escribe
+latitud y longitud a mano en la hoja.
+
+El mapa usa Leaflet sobre OpenStreetMap, sin API key. Si la red
+corporativa bloquea el CDN, el mapa avisa y el listado y la gestión
+siguen funcionando.
+
 ---
 
 ## Instalación
@@ -90,6 +138,8 @@ pegadas en el cuerpo del correo, no hace falta.
 | Reconstruir planillas desde Gmail | Respalda `InformeAstilla` y reimporta todo |
 | Probar último correo | Muestra lo que extraería, **sin escribir** |
 | Diagnosticar cruce SAP vs planilla | Materiales fuera del filtro y proveedores sin par |
+| Preparar hoja de mapeos | Crea/repara `Mapeos`: IDs, validación y estado inicial |
+| Geocodificar direcciones | Ubica en el mapa las direcciones que aún no tienen coordenadas |
 
 Antes de una carga masiva, corre siempre **Probar último correo**.
 
