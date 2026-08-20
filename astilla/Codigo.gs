@@ -36,6 +36,7 @@ const CONFIG = Object.freeze({
   SHEET_INFORME: 'InformeAstilla',
   SHEET_PLAN: 'Plan',
   SHEET_MAPEOS: 'Mapeos',
+  SHEET_PROVEEDORES: 'Proveedores',
   SHEET_RUTAS: 'Rutas',
   HTML_FILE: 'Index',
   TIMEZONE: 'America/Santiago',
@@ -175,6 +176,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Validar hoja Plan (no modifica)', 'prepararHojaPlan')
     .addSeparator()
+    .addItem('Preparar hoja de proveedores', 'instalarProveedores')
     .addItem('Preparar hoja de mapeos', 'instalarMapeos')
     .addItem('Ubicar en el mapa', 'ubicarMapeos')
     .addItem('Preparar hoja de rutas', 'instalarRutas')
@@ -298,17 +300,23 @@ function getDashboardData() {
   const month = getCurrentMonthWindow_(timezone);
   const historyStart = buildHistoryStart_(month);
 
+  // Se lee una sola vez y viaja a los tres cruces: unificar los
+  // nombres de SAP, cruzar la planilla y cruzar el precio del Plan.
+  const homologacion = leerProveedores_(spreadsheet);
+
   const ingresos = readIngresos_(
     spreadsheet,
     timezone,
-    historyStart
+    historyStart,
+    homologacion
   );
 
   const informe = readInformeRows_(
     spreadsheet,
     timezone,
     historyStart,
-    ingresos.proveedores
+    ingresos.proveedores,
+    homologacion
   );
 
   const supplement = buildSupplementRows_(
@@ -328,7 +336,8 @@ function getDashboardData() {
   const plan = readPlan_(spreadsheet, month);
   const pricing = applyPlanPricing_(
     baseRows,
-    plan.details
+    plan.details,
+    homologacion
   );
   const rows = pricing.rows;
 
@@ -384,7 +393,16 @@ function getDashboardData() {
       priceUnmatchedTs: pricing.stats.unpricedTs,
       planSheetName: plan.sheetName || CONFIG.SHEET_PLAN,
       planMonthLabel: plan.monthLabel || '',
-      materialesSinReconocer: ingresos.materialesSinReconocer
+      materialesSinReconocer: ingresos.materialesSinReconocer,
+      homologacion: {
+        hoja: CONFIG.SHEET_PROVEEDORES,
+        existe: !homologacion.missingSheet,
+        alias: homologacion.alias,
+        proveedores: homologacion.canonicos.length,
+        unificadosSap: ingresos.unificados || 0,
+        pendientes: homologacion.pendientes,
+        conflictos: homologacion.conflictos
+      }
     },
     filters: {
       subproductos: uniqueSorted_(
@@ -431,7 +449,12 @@ function buildHistoryStart_(month) {
  * LECTURA DE INGRESOS REALES
  * ===================================================================== */
 
-function readIngresos_(spreadsheet, timezone, historyStart) {
+function readIngresos_(
+  spreadsheet,
+  timezone,
+  historyStart,
+  homologacion
+) {
   const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_INGRESOS);
 
   if (!sheet || sheet.getLastRow() < 2) {
@@ -439,6 +462,7 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       rows: [],
       proveedores: [],
       ignored: 0,
+      unificados: 0,
       materialesSinReconocer: [],
       missingSheet: !sheet
     };
@@ -452,6 +476,7 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
   const rows = [];
   const noMatch = {};
   let ignored = 0;
+  let unificados = 0;
 
   for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
     const row = values[rowIndex];
@@ -494,12 +519,24 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       continue;
     }
 
-    const proveedor =
+    const proveedorSap =
       text_(row[columns.DESCRIPCION_PROVEEDOR]) ||
       (columns.PROVEEDOR >= 0
         ? text_(row[columns.PROVEEDOR])
         : '') ||
       'SIN PROVEEDOR';
+
+    // SAP también se repite a sí mismo: la misma empresa con y sin
+    // "S.A.", o dada de alta dos veces. Si la hoja Proveedores dice
+    // que son la misma, aquí se juntan y el resto del dashboard las
+    // ve como un solo proveedor.
+    const unificado = homologarProveedor_(proveedorSap, homologacion);
+
+    const proveedor = unificado || proveedorSap;
+
+    if (unificado && normalizeKey_(unificado) !== normalizeKey_(proveedorSap)) {
+      unificados++;
+    }
 
     const cantidad = toNumber_(
       row[columns.CANTIDAD],
@@ -519,7 +556,7 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       subproductoRaw: descripcion || text_(material),
       material: normalizeSapMaterialCode_(material) || text_(material),
       proveedor: proveedor,
-      proveedorRaw: proveedor,
+      proveedorRaw: proveedorSap,
       matchMethod: resolved.method,
       matchScore: 1,
       destino: columns.DESTINO >= 0
@@ -547,6 +584,7 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       })
     ),
     ignored: ignored,
+    unificados: unificados,
     materialesSinReconocer: Object.keys(noMatch).sort(),
     missingSheet: false
   };
@@ -712,7 +750,8 @@ function readInformeRows_(
   spreadsheet,
   timezone,
   historyStart,
-  proveedoresSap
+  proveedoresSap,
+  homologacion
 ) {
   const sheet = spreadsheet.getSheetByName(
     CONFIG.SHEET_INFORME
@@ -840,7 +879,8 @@ function readInformeRows_(
 
     const match = resolveProveedor_(
       proveedorRaw,
-      proveedoresSap
+      proveedoresSap,
+      homologacion
     );
 
     byDate[dateKey].rows.push({
@@ -960,7 +1000,442 @@ function buildSupplementRows_(ingresosRows, informeRows) {
  * sin razón social ni palabras vacías; si nada supera el umbral, se
  * conserva el nombre de la planilla.
  */
-function resolveProveedor_(rawName, candidates) {
+/* =====================================================================
+ * HOMOLOGACIÓN DE PROVEEDORES
+ *
+ * El mismo aserradero llega escrito de tres formas distintas: en SAP
+ * "LAMINADORA LOS ANGELES S.A.", en la planilla "Laminadora Los
+ * Angeles" y en el Plan "LLASA". Las dos primeras las junta el
+ * parecido; la tercera no se parece en nada y ningún algoritmo la va a
+ * adivinar.
+ *
+ * Para eso está la hoja Proveedores: una tabla de equivalencias escrita
+ * a mano donde el nombre bueno es SIEMPRE el de SAP. Lo que se escribe
+ * ahí manda sobre el parecido, sin umbrales de por medio.
+ * ===================================================================== */
+
+const PROVEEDORES_HEADERS = Object.freeze([
+  'Proveedor SAP',
+  'Alias',
+  'Origen',
+  'Notas',
+  'Actualizado',
+  'Actualizado por'
+]);
+
+// Etiqueta informativa: dice dónde se vio ese alias. No filtra el
+// cruce a propósito. Si el alias está escrito, vale en todas partes;
+// lo contrario sería un alias que "está pero no toma" y esa clase de
+// silencio es justamente lo que esta hoja viene a eliminar.
+const ORIGENES_ALIAS = Object.freeze([
+  'Todos', 'SAP', 'Planilla', 'Plan'
+]);
+
+const HOMOLOGACION_VACIA = Object.freeze({
+  porAlias: {},
+  canonicos: [],
+  alias: 0,
+  pendientes: [],
+  conflictos: [],
+  missingSheet: true
+});
+
+function columnasProveedores_(sheet) {
+  const ancho = sheet.getLastColumn();
+
+  const encabezados = ancho
+    ? sheet.getRange(1, 1, 1, ancho).getValues()[0].map(normalizeHeader_)
+    : [];
+
+  function col(nombre, obligatoria) {
+    const indice = encabezados.indexOf(normalizeHeader_(nombre));
+
+    if (indice === -1) {
+      if (obligatoria) {
+        throw new Error(
+          'A la hoja "' + CONFIG.SHEET_PROVEEDORES + '" le falta la ' +
+          'columna "' + nombre + '". Corre "Preparar hoja de ' +
+          'proveedores" para repararla.'
+        );
+      }
+      return 0;
+    }
+
+    return indice + 1;
+  }
+
+  return {
+    sap: col('Proveedor SAP', true),
+    alias: col('Alias', true),
+    origen: col('Origen', false),
+    notas: col('Notas', false),
+    actualizado: col('Actualizado', false),
+    actualizadoPor: col('Actualizado por', false)
+  };
+}
+
+/**
+ * Lee la tabla de equivalencias y devuelve un índice alias → SAP.
+ *
+ * Reglas de la hoja:
+ *   - "Proveedor SAP" se arrastra hacia abajo dentro del grupo, igual
+ *     que "Suministro" en el Plan. Una fila totalmente en blanco corta
+ *     el arrastre.
+ *   - Un alias sin proveedor SAP queda "pendiente": no se cruza con
+ *     nada y se informa, en vez de colgarse del grupo anterior.
+ *   - Si el mismo alias apunta a dos proveedores distintos, gana el
+ *     primero y el choque se informa. Dejar que gane el último sería
+ *     un cambio de cifras según el orden de las filas.
+ */
+function leerProveedores_(spreadsheet) {
+  const sheet = spreadsheet.getSheetByName(
+    CONFIG.SHEET_PROVEEDORES
+  );
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return {
+      porAlias: {},
+      canonicos: [],
+      alias: 0,
+      pendientes: [],
+      conflictos: [],
+      missingSheet: !sheet
+    };
+  }
+
+  const columnas = columnasProveedores_(sheet);
+  const valores = sheet.getDataRange().getValues();
+
+  const crudo = {};
+  const canonicos = {};
+  const pendientes = [];
+  const conflictos = [];
+
+  let arrastre = '';
+
+  for (let i = 1; i < valores.length; i++) {
+    const fila = valores[i];
+
+    const sapCelda = text_(fila[columnas.sap - 1]);
+    const alias = text_(fila[columnas.alias - 1]);
+
+    if (!sapCelda && !alias) {
+      arrastre = '';
+      continue;
+    }
+
+    if (sapCelda) {
+      arrastre = sapCelda;
+    }
+
+    const canonico = sapCelda || arrastre;
+
+    if (!canonico) {
+      pendientes.push(alias);
+      continue;
+    }
+
+    canonicos[canonico] = true;
+
+    if (!alias) {
+      continue;
+    }
+
+    const clave = normalizeKey_(alias);
+
+    if (!clave) {
+      continue;
+    }
+
+    if (
+      crudo[clave] &&
+      normalizeKey_(crudo[clave]) !== normalizeKey_(canonico)
+    ) {
+      conflictos.push(
+        alias + ' → "' + crudo[clave] + '" y "' + canonico + '"'
+      );
+      continue;
+    }
+
+    crudo[clave] = canonico;
+  }
+
+  // Cada proveedor SAP es alias de sí mismo. Sin esto la hoja no
+  // sirve para el precio: la fila operativa llega con el nombre de SAP
+  // y, si ese nombre no está en el mapa, no hay con qué compararlo
+  // contra el "LLASA" del Plan. Los alias escritos a mano mandan sobre
+  // esta identidad, para que se pueda redirigir un nombre de SAP a
+  // otro cuando resultan ser la misma empresa.
+  const explicitos = Object.keys(crudo).length;
+
+  Object.keys(canonicos).forEach(function(canonico) {
+    const clave = normalizeKey_(canonico);
+
+    if (clave && !crudo[clave]) {
+      crudo[clave] = canonico;
+    }
+  });
+
+  // Un proveedor SAP puede aparecer a su vez como alias de otro
+  // (te das cuenta tarde de que dos filas eran la misma empresa).
+  // Se sigue la cadena hasta el final, con tope: si alguien escribe
+  // A→B y B→A el mapa se queda en el primero en vez de dar vueltas.
+  const porAlias = {};
+
+  Object.keys(crudo).forEach(function(clave) {
+    let destino = crudo[clave];
+    const vistos = {};
+    vistos[clave] = true;
+
+    for (let salto = 0; salto < 10; salto++) {
+      const siguiente = normalizeKey_(destino);
+
+      if (!crudo[siguiente] || vistos[siguiente]) {
+        break;
+      }
+
+      vistos[siguiente] = true;
+      destino = crudo[siguiente];
+    }
+
+    porAlias[clave] = destino;
+  });
+
+  return {
+    porAlias: porAlias,
+    canonicos: Object.keys(canonicos).sort(),
+    alias: explicitos,
+    pendientes: uniqueSorted_(pendientes),
+    conflictos: conflictos,
+    missingSheet: false
+  };
+}
+
+/**
+ * Devuelve el proveedor SAP de un nombre, o '' si no está homologado.
+ */
+function homologarProveedor_(nombre, homologacion) {
+  if (!homologacion || !homologacion.porAlias) {
+    return '';
+  }
+
+  const clave = normalizeKey_(nombre);
+
+  if (!clave) {
+    return '';
+  }
+
+  return homologacion.porAlias[clave] || '';
+}
+
+/**
+ * Crea o repara la hoja y la deja sembrada con lo que hoy no cruza:
+ * los proveedores de planilla sin par en SAP y los que se quedaron sin
+ * precio. Una hoja vacía obliga a adivinar qué falta homologar; esta
+ * llega con la lista de pendientes escrita.
+ */
+function instalarProveedores() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ui = SpreadsheetApp.getUi();
+
+  let sheet = spreadsheet.getSheetByName(CONFIG.SHEET_PROVEEDORES);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.SHEET_PROVEEDORES);
+  }
+
+  sheet
+    .getRange(1, 1, 1, PROVEEDORES_HEADERS.length)
+    .setValues([PROVEEDORES_HEADERS])
+    .setBackground('#121C17')
+    .setFontColor('#B5793F')
+    .setFontWeight('bold');
+
+  sheet.setFrozenRows(1);
+
+  [280, 280, 110, 320, 160, 200].forEach(function(ancho, indice) {
+    sheet.setColumnWidth(indice + 1, ancho);
+  });
+
+  const columnas = columnasProveedores_(sheet);
+
+  const datos = getDashboardData();
+
+  const proveedoresSap = uniqueSorted_(
+    (datos.rows || [])
+      .filter(function(row) {
+        return row.source === 'INGRESOS';
+      })
+      .map(function(row) {
+        return row.proveedor;
+      })
+  );
+
+  // Dropdown con los nombres reales de SAP para no escribir el
+  // canónico a mano. Se permite lo de fuera: un proveedor puede estar
+  // en el Plan y no haber despachado todavía.
+  if (proveedoresSap.length) {
+    sheet
+      .getRange(2, columnas.sap, Math.max(sheet.getMaxRows() - 1, 1), 1)
+      .setDataValidation(
+        SpreadsheetApp.newDataValidation()
+          .requireValueInList(proveedoresSap.slice(0, 500), true)
+          .setAllowInvalid(true)
+          .setHelpText(
+            'El nombre bueno es el de SAP. Si el proveedor aún no ' +
+            'despacha, escríbelo igual.'
+          )
+          .build()
+      );
+  }
+
+  if (columnas.origen) {
+    sheet
+      .getRange(2, columnas.origen, Math.max(sheet.getMaxRows() - 1, 1), 1)
+      .setDataValidation(
+        SpreadsheetApp.newDataValidation()
+          .requireValueInList(ORIGENES_ALIAS.slice(), true)
+          .setAllowInvalid(true)
+          .setHelpText('Solo una etiqueta: dónde viste ese alias.')
+          .build()
+      );
+  }
+
+  const homologacion = leerProveedores_(spreadsheet);
+
+  const yaEstan = {};
+
+  Object.keys(homologacion.porAlias).forEach(function(clave) {
+    yaEstan[clave] = true;
+  });
+
+  homologacion.pendientes.forEach(function(alias) {
+    yaEstan[normalizeKey_(alias)] = true;
+  });
+
+  const pendientes = [];
+
+  function proponer(alias, origen, nota) {
+    const clave = normalizeKey_(alias);
+
+    if (!clave || yaEstan[clave]) {
+      return;
+    }
+
+    yaEstan[clave] = true;
+    pendientes.push([alias, origen, nota]);
+  }
+
+  (datos.rows || []).forEach(function(row) {
+    if (
+      row.source === 'PLANILLA' &&
+      row.matchMethod === 'Solo en planilla'
+    ) {
+      proponer(
+        row.proveedorRaw,
+        'Planilla',
+        'Sin par en SAP: escribe a la izquierda el proveedor SAP.'
+      );
+    }
+  });
+
+  // La clave de "unmatched" viene armada como
+  // "subproducto | proveedor | motivo"; el nombre está en el medio.
+  ((datos.pricing && datos.pricing.unmatched) || []).forEach(function(item) {
+    const partes = text_(item.key).split('|');
+
+    if (partes.length < 2) {
+      return;
+    }
+
+    const alias = text_(partes[1]);
+
+    if (!alias || alias === 'SIN PROVEEDOR') {
+      return;
+    }
+
+    proponer(
+      alias,
+      'Plan',
+      'Se quedó sin precio: escribe a la izquierda el proveedor SAP.'
+    );
+  });
+
+  (datos.planDetails || []).forEach(function(item) {
+    const alias = text_(item.proveedorPlan);
+
+    if (!alias) {
+      return;
+    }
+
+    const cruza = proveedoresSap.some(function(sap) {
+      return normalizeKey_(sap) === normalizeKey_(alias);
+    });
+
+    if (!cruza) {
+      proponer(
+        alias,
+        'Plan',
+        'Nombre del Plan: confirma a qué proveedor SAP corresponde.'
+      );
+    }
+  });
+
+  if (!pendientes.length) {
+    ui.alert(
+      'Hoja "' + CONFIG.SHEET_PROVEEDORES + '" lista.\n\n' +
+      (homologacion.alias
+        ? homologacion.alias + ' alias homologados y nada nuevo por ' +
+          'agregar.'
+        : 'No quedó nada pendiente por homologar.') +
+      '\n\nEscribe el nombre de SAP en la primera columna y, debajo, ' +
+      'cada forma en que aparece escrito. La columna "Proveedor SAP" ' +
+      'se arrastra hacia abajo: basta ponerla en la primera fila del ' +
+      'grupo. Una fila en blanco separa un grupo del siguiente.'
+    );
+    return;
+  }
+
+  // Bloque nuevo al final, precedido de una fila en blanco: esa fila
+  // corta el arrastre y evita que el primer pendiente se cuelgue del
+  // último grupo escrito.
+  let fila = Math.max(sheet.getLastRow(), 1) + 1;
+
+  if (sheet.getLastRow() >= 2) {
+    fila++;
+  }
+
+  pendientes.forEach(function(item, indice) {
+    const destino = fila + indice;
+
+    sheet.getRange(destino, columnas.alias).setValue(item[0]);
+
+    if (columnas.origen) {
+      sheet.getRange(destino, columnas.origen).setValue(item[1]);
+    }
+
+    if (columnas.notas) {
+      sheet.getRange(destino, columnas.notas).setValue(item[2]);
+    }
+  });
+
+  sheet
+    .getRange(fila, 1, pendientes.length, PROVEEDORES_HEADERS.length)
+    .setBackground('#FAF0E1');
+
+  ui.alert(
+    'Hoja "' + CONFIG.SHEET_PROVEEDORES + '" lista.\n\n' +
+    'Se agregaron ' + pendientes.length + ' nombres que hoy no cruzan, ' +
+    'marcados en café al final de la hoja. Escribe a la izquierda de ' +
+    'cada uno el proveedor SAP que le corresponde y borra los que no ' +
+    'sean equivalencias reales.\n\n' +
+    'La columna "Proveedor SAP" se arrastra hacia abajo: basta ponerla ' +
+    'en la primera fila del grupo. Una fila en blanco separa un grupo ' +
+    'del siguiente.'
+  );
+}
+
+function resolveProveedor_(rawName, candidates, homologacion) {
   const cleaned = proveedorComparable_(rawName);
 
   if (!cleaned) {
@@ -968,6 +1443,20 @@ function resolveProveedor_(rawName, candidates) {
       proveedor: 'SIN PROVEEDOR',
       method: 'Sin nombre',
       score: 0
+    };
+  }
+
+  // La hoja Proveedores va primero y sin umbral. "LLASA" no se parece
+  // a "LAMINADORA LOS ANGELES" por ninguna medida, así que si el
+  // parecido decidiera aquí, escribir la equivalencia no serviría de
+  // nada.
+  const aMano = homologarProveedor_(rawName, homologacion);
+
+  if (aMano) {
+    return {
+      proveedor: aMano,
+      method: 'Homologado a mano',
+      score: 1
     };
   }
 
@@ -1005,6 +1494,10 @@ function proveedorComparable_(value) {
   const stopWords = {
     SA: true, SPA: true, LTDA: true, LIMITADA: true,
     EIRL: true, CIA: true, COMPANIA: true,
+    // "PROMASA S.A." queda como "PROMASA S A": sin descartar las
+    // letras sueltas, el parecido contra "PROMASA SPA" cae a 0,47 y
+    // dos escrituras del mismo nombre no cruzan.
+    S: true, A: true, I: true, R: true, L: true,
     SOCIEDAD: true, SOC: true, EMPRESA: true,
     EMPRESAS: true, SERV: true, SERVICIO: true,
     SERVICIOS: true, AGRICOLA: true, FORESTAL: true,
@@ -1522,7 +2015,12 @@ function priceProviderSimilarity_(a, b) {
   return Math.min(1, score);
 }
 
-function resolvePlanPrice_(proveedor, subproducto, planDetails) {
+function resolvePlanPrice_(
+  proveedor,
+  subproducto,
+  planDetails,
+  homologacion
+) {
   const raw = text_(proveedor);
 
   if (
@@ -1555,6 +2053,54 @@ function resolvePlanPrice_(proveedor, subproducto, planDetails) {
       score: 0,
       secondScore: 0
     };
+  }
+
+  // Antes del parecido: si la hoja Proveedores lleva el nombre
+  // operativo y el del Plan al mismo proveedor SAP, están cruzados y
+  // no hay nada que estimar. Es el caso que el parecido nunca iba a
+  // resolver: en SAP "LAMINADORA LOS ANGELES" y en el Plan "LLASA".
+  const canonicoFila = homologarProveedor_(raw, homologacion);
+
+  if (canonicoFila) {
+    const aMano = candidates.filter(function(item) {
+      const canonicoPlan = homologarProveedor_(
+        item.proveedorPlan,
+        homologacion
+      );
+
+      return (
+        canonicoPlan &&
+        normalizeKey_(canonicoPlan) === normalizeKey_(canonicoFila)
+      );
+    });
+
+    if (aMano.length) {
+      const precios = uniqueSorted_(
+        aMano.map(function(item) {
+          return String(item.precio);
+        })
+      );
+
+      // Dos filas del Plan homologadas al mismo proveedor y material
+      // pero con precios distintos: eso no lo arregla la hoja de
+      // equivalencias, hay que corregir el Plan. Mejor sin precio que
+      // con uno elegido al azar.
+      if (precios.length > 1) {
+        return {
+          detail: null,
+          method: 'Precio duplicado en el Plan',
+          score: 1,
+          secondScore: 1
+        };
+      }
+
+      return {
+        detail: aMano[0],
+        method: 'Precio homologado a mano',
+        score: 1,
+        secondScore: 0
+      };
+    }
   }
 
   const ranked = candidates.map(function(item) {
@@ -1608,7 +2154,7 @@ function resolvePlanPrice_(proveedor, subproducto, planDetails) {
   };
 }
 
-function applyPlanPricing_(rows, planDetails) {
+function applyPlanPricing_(rows, planDetails, homologacion) {
   const output = [];
   const unmatched = {};
   let pricedTs = 0;
@@ -1619,7 +2165,8 @@ function applyPlanPricing_(rows, planDetails) {
     const match = resolvePlanPrice_(
       row.proveedor,
       row.subproducto,
-      planDetails
+      planDetails,
+      homologacion
     );
 
     const detail = match.detail;
@@ -2140,6 +2687,40 @@ function diagnosticarCruce() {
     });
   } else {
     lines.push('Ninguno');
+  }
+
+  const homo = data.source.homologacion || {};
+
+  lines.push('');
+  lines.push(
+    'Homologación (hoja ' + (homo.hoja || CONFIG.SHEET_PROVEEDORES) + '): ' +
+    (homo.existe
+      ? homo.alias + ' alias sobre ' + homo.proveedores + ' proveedores'
+      : 'la hoja no existe')
+  );
+
+  if (homo.unificadosSap) {
+    lines.push(
+      'Filas de Ingresos unificadas a otro nombre SAP: ' +
+      homo.unificadosSap
+    );
+  }
+
+  if ((homo.pendientes || []).length) {
+    lines.push(
+      'Alias escritos sin proveedor SAP al lado: ' +
+      homo.pendientes.length
+    );
+    homo.pendientes.slice(0, 10).forEach(function(item) {
+      lines.push('- ' + item);
+    });
+  }
+
+  if ((homo.conflictos || []).length) {
+    lines.push('Alias que apuntan a dos proveedores (gana el primero):');
+    homo.conflictos.slice(0, 10).forEach(function(item) {
+      lines.push('- ' + item);
+    });
   }
 
   lines.push('');

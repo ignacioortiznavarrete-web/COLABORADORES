@@ -38,7 +38,8 @@ vm.runInContext(
   '\n;globalThis.K = {' +
   '  CONFIG, SUBPRODUCTOS_OBJETIVO, ESTADOS_MAPEO,' +
   '  ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS, LIMITES_CL,' +
-  '  RUTA_CONFIG, RUTAS_HEADERS' +
+  '  RUTA_CONFIG, RUTAS_HEADERS, PROVEEDORES_HEADERS,' +
+  '  ORIGENES_ALIAS' +
   '};',
   sandbox
 );
@@ -528,6 +529,290 @@ check('haversine: Cabrero a Coihueco ronda los 68 km',
 
 check('haversine de un punto consigo mismo es 0',
   sandbox.haversineKm_(BIOCHIPER, BIOCHIPER) < 0.001);
+
+/* =====================================================================
+ * 13. HOMOLOGACIÓN DE PROVEEDORES
+ * ===================================================================== */
+
+console.log('\n13. La hoja Proveedores');
+
+// Una hoja de mentira: solo necesita responder getLastRow,
+// getLastColumn, getRange().getValues() y getDataRange().getValues().
+function hojaFalsa(filas) {
+  const ancho = K.PROVEEDORES_HEADERS.length;
+
+  const grilla = [K.PROVEEDORES_HEADERS.slice()].concat(
+    filas.map(function(fila) {
+      const completa = fila.slice();
+      while (completa.length < ancho) { completa.push(''); }
+      return completa;
+    })
+  );
+
+  return {
+    getLastRow: function() { return grilla.length; },
+    getLastColumn: function() { return ancho; },
+    getDataRange: function() {
+      return { getValues: function() { return grilla; } };
+    },
+    getRange: function(fila, col, nFilas, nCols) {
+      return {
+        getValues: function() {
+          return grilla
+            .slice(fila - 1, fila - 1 + (nFilas || 1))
+            .map(function(f) {
+              return f.slice(col - 1, col - 1 + (nCols || 1));
+            });
+        }
+      };
+    }
+  };
+}
+
+function libroFalso(filas) {
+  return {
+    getSheetByName: function(nombre) {
+      return nombre === K.CONFIG.SHEET_PROVEEDORES
+        ? hojaFalsa(filas)
+        : null;
+    }
+  };
+}
+
+const SIN_HOJA = sandbox.leerProveedores_({
+  getSheetByName: function() { return null; }
+});
+
+check('sin la hoja no rompe nada',
+  SIN_HOJA.alias === 0 && SIN_HOJA.missingSheet === true);
+
+check('sin la hoja el cruce a mano no encuentra nada',
+  sandbox.homologarProveedor_('LLASA', SIN_HOJA) === '');
+
+// El caso que motivó la hoja: en SAP "LAMINADORA LOS ANGELES S.A.",
+// en la planilla el mismo nombre sin sigla y en el Plan "LLASA".
+const LLASA = sandbox.leerProveedores_(libroFalso([
+  ['LAMINADORA LOS ANGELES S.A.', 'LAMINADORA LOS ANGELES', 'Planilla'],
+  ['', 'LLASA', 'Plan'],
+  ['', 'Laminadora  los  Ángeles', 'Planilla']
+]));
+
+// Son tres filas pero dos claves: "LAMINADORA LOS ANGELES" y
+// "Laminadora  los  Ángeles" son el mismo nombre una vez normalizado.
+check('junta las tres escrituras bajo un nombre',
+  LLASA.alias === 2, String(LLASA.alias));
+
+check('el proveedor SAP queda contado una sola vez',
+  LLASA.canonicos.length === 1, JSON.stringify(LLASA.canonicos));
+
+check('el propio nombre de SAP se resuelve a sí mismo',
+  sandbox.homologarProveedor_('LAMINADORA LOS ANGELES S.A.', LLASA) ===
+    'LAMINADORA LOS ANGELES S.A.');
+
+check('el nombre bueno es el de SAP',
+  sandbox.homologarProveedor_('LLASA', LLASA) ===
+    'LAMINADORA LOS ANGELES S.A.',
+  sandbox.homologarProveedor_('LLASA', LLASA));
+
+check('el proveedor SAP se arrastra hacia abajo',
+  sandbox.homologarProveedor_('Laminadora  los  Ángeles', LLASA) ===
+    'LAMINADORA LOS ANGELES S.A.');
+
+check('no le afectan tildes ni espacios de más',
+  sandbox.homologarProveedor_('  laminadora los angeles  ', LLASA) ===
+    'LAMINADORA LOS ANGELES S.A.');
+
+check('un nombre que no está en la hoja no se inventa',
+  sandbox.homologarProveedor_('PROMASA S.A.', LLASA) === '');
+
+console.log('\n   Filas a medio escribir');
+
+const CORTADA = sandbox.leerProveedores_(libroFalso([
+  ['LAMINADORA LOS ANGELES S.A.', 'LLASA', 'Plan'],
+  ['', '', ''],
+  ['', 'BIOCHIPER', 'Planilla']
+]));
+
+// Sin esto, "BIOCHIPER" se colgaría del grupo de arriba y quedaría
+// homologado a LLASA sin que nadie lo haya escrito.
+check('una fila en blanco corta el arrastre',
+  sandbox.homologarProveedor_('BIOCHIPER', CORTADA) === '',
+  sandbox.homologarProveedor_('BIOCHIPER', CORTADA));
+
+check('el alias sin proveedor SAP queda como pendiente',
+  CORTADA.pendientes.length === 1 &&
+  CORTADA.pendientes[0] === 'BIOCHIPER',
+  JSON.stringify(CORTADA.pendientes));
+
+check('el alias de antes de la fila en blanco sigue valiendo',
+  sandbox.homologarProveedor_('LLASA', CORTADA) ===
+    'LAMINADORA LOS ANGELES S.A.');
+
+console.log('\n   Alias repetido');
+
+const CHOQUE = sandbox.leerProveedores_(libroFalso([
+  ['LAMINADORA LOS ANGELES S.A.', 'LLASA', 'Plan'],
+  ['', '', ''],
+  ['PROMASA S.A.', 'LLASA', 'Plan']
+]));
+
+check('gana el primero, no el último',
+  sandbox.homologarProveedor_('LLASA', CHOQUE) ===
+    'LAMINADORA LOS ANGELES S.A.',
+  sandbox.homologarProveedor_('LLASA', CHOQUE));
+
+check('el choque se informa en vez de resolverse en silencio',
+  CHOQUE.conflictos.length === 1, JSON.stringify(CHOQUE.conflictos));
+
+check('el mismo alias repetido con el mismo destino no es choque',
+  sandbox.leerProveedores_(libroFalso([
+    ['LAMINADORA LOS ANGELES S.A.', 'LLASA', 'Plan'],
+    ['', '', ''],
+    ['LAMINADORA LOS ANGELES S.A.', 'LLASA', 'Planilla']
+  ])).conflictos.length === 0);
+
+console.log('\n   Cadenas');
+
+// Te das cuenta tarde de que dos nombres SAP eran la misma empresa.
+const CADENA = sandbox.leerProveedores_(libroFalso([
+  ['LAMINADORA LOS ANGELES S.A.', 'LLASA', 'Plan'],
+  ['', '', ''],
+  ['LAMINADORA LOS ANGELES', 'LAMINADORA LOS ANGELES S.A.', 'SAP']
+]));
+
+check('sigue la cadena hasta el nombre final',
+  sandbox.homologarProveedor_('LLASA', CADENA) ===
+    'LAMINADORA LOS ANGELES',
+  sandbox.homologarProveedor_('LLASA', CADENA));
+
+// A → B y B → A. Sin tope, resolver esto daría vueltas para siempre.
+const CICLO = sandbox.leerProveedores_(libroFalso([
+  ['EMPRESA A', 'EMPRESA B', 'SAP'],
+  ['', '', ''],
+  ['EMPRESA B', 'EMPRESA A', 'SAP']
+]));
+
+check('un ciclo no cuelga la lectura',
+  typeof sandbox.homologarProveedor_('EMPRESA A', CICLO) === 'string');
+
+console.log('\n   El cruce operativo');
+
+const SAP_LISTA = ['LAMINADORA LOS ANGELES S.A.', 'PROMASA S.A.'];
+
+check('sin la hoja, "LLASA" no cruza con nadie',
+  sandbox.resolveProveedor_('LLASA', SAP_LISTA).method ===
+    'Solo en planilla',
+  sandbox.resolveProveedor_('LLASA', SAP_LISTA).method);
+
+const cruzado = sandbox.resolveProveedor_('LLASA', SAP_LISTA, LLASA);
+
+check('con la hoja sí cruza',
+  cruzado.proveedor === 'LAMINADORA LOS ANGELES S.A.',
+  cruzado.proveedor);
+
+check('y lo dice: homologado a mano',
+  cruzado.method === 'Homologado a mano', cruzado.method);
+
+check('la hoja no depende del umbral de parecido',
+  cruzado.score === 1, String(cruzado.score));
+
+check('lo que ya cruzaba por parecido sigue cruzando',
+  sandbox.resolveProveedor_(
+    'PROMASA SPA', SAP_LISTA, LLASA
+  ).proveedor === 'PROMASA S.A.');
+
+check('un nombre vacío sigue siendo SIN PROVEEDOR',
+  sandbox.resolveProveedor_('', SAP_LISTA, LLASA).proveedor ===
+    'SIN PROVEEDOR');
+
+console.log('\n   El cruce de precio');
+
+const PLAN = [
+  {
+    subproducto: 'ASTILLA PINO VERDE',
+    proveedorPlan: 'LLASA',
+    precio: 42000
+  },
+  {
+    subproducto: 'ASTILLA PINO VERDE',
+    proveedorPlan: 'PROMASA S.A.',
+    precio: 38000
+  }
+];
+
+const sinHoja = sandbox.resolvePlanPrice_(
+  'LAMINADORA LOS ANGELES S.A.', 'ASTILLA PINO VERDE', PLAN
+);
+
+check('sin la hoja el precio de LLASA se pierde',
+  sinHoja.detail === null, sinHoja.method);
+
+const conHoja = sandbox.resolvePlanPrice_(
+  'LAMINADORA LOS ANGELES S.A.', 'ASTILLA PINO VERDE', PLAN, LLASA
+);
+
+check('con la hoja aparece el precio',
+  conHoja.detail && conHoja.detail.precio === 42000,
+  conHoja.method);
+
+check('y queda dicho que fue a mano',
+  conHoja.method === 'Precio homologado a mano', conHoja.method);
+
+check('no toma el precio del vecino',
+  conHoja.detail.proveedorPlan === 'LLASA');
+
+// El Plan trae dos veces al mismo proveedor y material con precios
+// distintos. La hoja de equivalencias no puede decidir eso.
+const DUPLICADO = [
+  {
+    subproducto: 'ASTILLA PINO VERDE',
+    proveedorPlan: 'LLASA',
+    precio: 42000
+  },
+  {
+    subproducto: 'ASTILLA PINO VERDE',
+    proveedorPlan: 'LAMINADORA LOS ANGELES',
+    precio: 45000
+  }
+];
+
+const choquePrecio = sandbox.resolvePlanPrice_(
+  'LAMINADORA LOS ANGELES S.A.', 'ASTILLA PINO VERDE', DUPLICADO, LLASA
+);
+
+check('dos precios para el mismo proveedor no se eligen al azar',
+  choquePrecio.detail === null, choquePrecio.method);
+
+check('y se explica por qué',
+  choquePrecio.method === 'Precio duplicado en el Plan',
+  choquePrecio.method);
+
+check('el mismo precio repetido sí se asigna',
+  sandbox.resolvePlanPrice_(
+    'LAMINADORA LOS ANGELES S.A.',
+    'ASTILLA PINO VERDE',
+    [
+      { subproducto: 'ASTILLA PINO VERDE', proveedorPlan: 'LLASA', precio: 42000 },
+      { subproducto: 'ASTILLA PINO VERDE', proveedorPlan: 'LAMINADORA LOS ANGELES', precio: 42000 }
+    ],
+    LLASA
+  ).detail !== null);
+
+check('un material sin filas en el Plan no cruza igual',
+  sandbox.resolvePlanPrice_(
+    'LAMINADORA LOS ANGELES S.A.',
+    'ASTILLA EUCALYPTUS NITENS',
+    PLAN,
+    LLASA
+  ).method === 'Sin precio para material');
+
+check('los encabezados de la hoja son seis',
+  K.PROVEEDORES_HEADERS.length === 6,
+  String(K.PROVEEDORES_HEADERS.length));
+
+check('el primero es el proveedor SAP',
+  K.PROVEEDORES_HEADERS[0] === 'Proveedor SAP');
+
 
 console.log(
   '\n' + (fallos ? fallos + ' comprobaciones fallaron' : 'Todo OK')

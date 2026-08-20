@@ -23,6 +23,7 @@ desaparece solo.
 | `Ingresos` | Registro real de recepción, por *Fecha Contab.* | Sí |
 | `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
 | `Plan` | `Suministro · Proveedor · Precio · <mes>` | Para plan y costo |
+| `Proveedores` | Equivalencias: cada forma de escribir un proveedor apunta a su nombre en SAP | Recomendada |
 | `Mapeos` | Un aserradero por fila: nombre, coordenada y estado | Para el mapa |
 | `Rutas` | Una ruta de visita por fila, con sus paradas y su evento | La crea sola |
 
@@ -113,6 +114,88 @@ ritmo actual.
 
 Los gráficos se dibujan en SVG propio, sin librería: el aspecto por
 defecto de una librería de charts se reconoce a un kilómetro.
+
+## Proveedores: un mismo aserradero, tres nombres
+
+El mismo proveedor llega escrito distinto en cada parte. En SAP
+`LAMINADORA LOS ANGELES S.A.`, en la planilla `Laminadora Los Angeles`
+y en el Plan, `LLASA`. Los dos primeros los junta el parecido. El
+tercero no se parece en nada y **ningún algoritmo lo va a adivinar**:
+sin ayuda, esas toneladas se quedan sin precio.
+
+Para eso está la hoja `Proveedores`. Es una tabla de equivalencias
+escrita a mano, y **lo que dice ahí manda sobre el parecido**, sin
+umbrales de por medio.
+
+**El nombre bueno es siempre el de SAP.** Es el único que viene del
+sistema de origen; los demás son formas de escribirlo.
+
+| Columna | |
+|---|---|
+| Proveedor SAP | El nombre que se conserva. Trae la lista de SAP en un desplegable |
+| Alias | Una forma de escribirlo. Una por fila |
+| Origen | Dónde viste ese alias: `SAP`, `Planilla`, `Plan`. Solo etiqueta |
+| Notas | Para ti |
+
+Así queda el ejemplo:
+
+| Proveedor SAP | Alias | Origen |
+|---|---|---|
+| LAMINADORA LOS ANGELES S.A. | LAMINADORA LOS ANGELES | Planilla |
+| | LLASA | Plan |
+| | Laminadora Los Ángeles | Planilla |
+| *(fila en blanco)* | | |
+| PROMASA S.A. | PROMASA SPA | Planilla |
+
+**Proveedor SAP** se arrastra hacia abajo, igual que `Suministro` en el
+Plan: basta escribirlo en la primera fila del grupo. **Una fila en
+blanco corta el arrastre** y separa un grupo del siguiente — sin eso,
+el primer alias del grupo siguiente se colgaría del anterior sin que
+nadie lo note.
+
+No importan mayúsculas, tildes ni espacios de más.
+
+### Cómo llenarla
+
+Corre **Astilla Dashboard › Preparar hoja de proveedores**. No te deja
+una hoja vacía: la siembra con **los nombres que hoy no cruzan** —los
+de planilla sin par en SAP, los que se quedaron sin precio y los del
+Plan que no calzan con ningún proveedor—, marcados en café al final.
+
+Al lado de cada uno escribes el proveedor SAP que le corresponde, y
+**borras los que no sean equivalencias reales**. Puedes correrlo las
+veces que quieras: nunca repite un alias que ya esté escrito.
+
+### Qué hace con eso
+
+En tres lugares a la vez:
+
+1. **Unifica SAP consigo mismo.** La misma empresa dada de alta dos
+   veces —con y sin `S.A.`— se suma como un solo proveedor en todo el
+   dashboard.
+2. **Cruza la planilla con SAP.** El nombre del correo pasa a ser el de
+   SAP, y la fila queda marcada `Homologado a mano`.
+3. **Encuentra el precio del Plan.** Si el nombre operativo y el del
+   Plan llevan al mismo proveedor SAP, el precio se asigna: en la tabla
+   de precios aparece como `Precio homologado a mano`.
+
+### Cuando la hoja no alcanza
+
+Dos casos que **no se resuelven solos**, y el script prefiere decirlo a
+inventar una cifra:
+
+- **Un alias apuntando a dos proveedores distintos.** Gana el primero y
+  el choque se informa. Dejar que ganara el último cambiaría las cifras
+  según cómo estén ordenadas las filas.
+- **Dos filas del Plan con el mismo proveedor y material pero distinto
+  precio.** Eso no lo arregla una tabla de equivalencias: hay que
+  corregir el Plan. Queda como `Precio duplicado en el Plan`, sin
+  precio asignado.
+
+Ambos salen en **Diagnosticar cruce SAP vs planilla**, junto con los
+alias que escribiste y todavía no tienen su proveedor SAP al lado.
+
+---
 
 ## Mapeo de aserraderos
 
@@ -316,6 +399,7 @@ pegadas en el cuerpo del correo, no hace falta.
 | Diagnosticar cruce SAP vs planilla | Materiales fuera del filtro y proveedores sin par |
 | Preparar hoja de mapeos | Crea/repara `Mapeos`: IDs, validación y estado inicial |
 | Ubicar en el mapa | Resuelve las filas sin ubicar: coordenada pegada primero, dirección después |
+| Preparar hoja de proveedores | Crea/repara `Proveedores` y siembra los nombres que hoy no cruzan |
 | Preparar hoja de rutas | Crea/repara `Rutas` con sus encabezados |
 
 Antes de una carga masiva, corre siempre **Probar último correo**.
@@ -363,5 +447,6 @@ Simula las globales de Apps Script y comprueba el rechazo de planillas
 sin fecha, las variantes del asunto, los feriados en el prorrateo, el
 inicio del complemento, la clasificación de sub-productos, la lectura
 de coordenadas —decimales, DMS, pares invertidos y puntos fuera de
-Chile—, la estimación de tiempo de las rutas y las validaciones que
-corren antes de escribir. No toca Gmail ni el spreadsheet.
+Chile—, la homologación de proveedores —arrastre, alias repetidos,
+cadenas y el cruce de precio—, la estimación de tiempo de las rutas y
+las validaciones que corren antes de escribir. No toca Gmail ni el spreadsheet.
