@@ -36,6 +36,7 @@ const CONFIG = Object.freeze({
   SHEET_INFORME: 'InformeAstilla',
   SHEET_PLAN: 'Plan',
   SHEET_MAPEOS: 'Mapeos',
+  SHEET_RUTAS: 'Rutas',
   HTML_FILE: 'Index',
   TIMEZONE: 'America/Santiago',
 
@@ -176,6 +177,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Preparar hoja de mapeos', 'instalarMapeos')
     .addItem('Ubicar en el mapa', 'ubicarMapeos')
+    .addItem('Preparar hoja de rutas', 'instalarRutas')
     .addSeparator()
     .addItem('Instalar automatización', 'instalarDisparador')
     .addItem('Eliminar automatización', 'eliminarDisparadores')
@@ -4224,6 +4226,715 @@ function agregarMapeo(payload) {
     sheet.appendRow(nueva);
 
     return getMapeos();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* =====================================================================
+ * RUTAS DE VISITA (HOJA "Rutas")
+ *
+ * Una ruta es un día de terreno: varios aserraderos en orden, con una
+ * fecha y una hora de partida. Al guardarla con fecha, queda agendada
+ * en el calendario del usuario como un solo bloque.
+ *
+ * SOBRE LA ESTIMACIÓN DE TIEMPO
+ * Apps Script no trae un servicio de ruteo sin API key, así que el
+ * tiempo se calcula con distancia en línea recta (haversine) corregida
+ * por un factor de camino. Es un APROXIMADO y la pantalla lo dice: en
+ * caminos forestales el factor real varía harto. Sirve para saber si el
+ * día alcanza, no para prometer una hora de llegada.
+ * ===================================================================== */
+
+const RUTAS_HEADERS = Object.freeze([
+  'ID',
+  'Nombre',
+  'Fecha',
+  'Hora inicio',
+  'Paradas',
+  'N° paradas',
+  'Kilómetros',
+  'Minutos viaje',
+  'Minutos visita',
+  'Duración total',
+  'Hora término',
+  'Evento calendario',
+  'Estado',
+  'Creado por',
+  'Actualizado',
+  'Notas'
+]);
+
+const RUTA_CONFIG = Object.freeze({
+  // Desde dónde parte y a dónde vuelve el recorrido.
+  ORIGEN: Object.freeze({
+    nombre: 'Planta Cabrero',
+    lat: -37.0333,
+    lng: -72.4000
+  }),
+
+  // Velocidad promedio de camino rural, en km/h.
+  VELOCIDAD_KMH: 55,
+
+  // La línea recta subestima: los caminos forestales dan vueltas.
+  // 1.35 es un factor conservador para la zona.
+  FACTOR_CAMINO: 1.35,
+
+  // Cuánto dura estar en cada aserradero.
+  MINUTOS_VISITA: 45,
+
+  HORA_INICIO: '08:30',
+
+  // Sobre este total, la ruta no cabe en una jornada.
+  MINUTOS_JORNADA: 9 * 60
+});
+
+function columnasRutas_(sheet) {
+  const encabezados = sheet
+    .getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1))
+    .getValues()[0];
+
+  const mapa = buildHeaderMap_(encabezados);
+
+  function col(nombre, obligatoria) {
+    const indice = mapa[normalizeHeader_(nombre)];
+
+    if (indice === undefined) {
+      if (obligatoria) {
+        throw new Error(
+          'A la hoja "' + CONFIG.SHEET_RUTAS + '" le falta la columna "' +
+          nombre + '". Corre "Preparar hoja de rutas".'
+        );
+      }
+
+      return 0;
+    }
+
+    return indice + 1;
+  }
+
+  return {
+    id: col('ID', true),
+    nombre: col('Nombre', true),
+    fecha: col('Fecha', true),
+    hora: col('Hora inicio', true),
+    paradas: col('Paradas', true),
+    cuantas: col('N° paradas', false),
+    km: col('Kilómetros', false),
+    minutosViaje: col('Minutos viaje', false),
+    minutosVisita: col('Minutos visita', false),
+    duracion: col('Duración total', false),
+    termino: col('Hora término', false),
+    evento: col('Evento calendario', true),
+    estado: col('Estado', false),
+    autor: col('Creado por', false),
+    actualizado: col('Actualizado', false),
+    notas: col('Notas', false)
+  };
+}
+
+function instalarRutas() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+  let sheet = spreadsheet.getSheetByName(CONFIG.SHEET_RUTAS);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.SHEET_RUTAS);
+  }
+
+  sheet
+    .getRange(1, 1, 1, RUTAS_HEADERS.length)
+    .setValues([RUTAS_HEADERS])
+    .setBackground('#175239')
+    .setFontColor('#C9903F')
+    .setFontWeight('bold');
+
+  sheet.setFrozenRows(1);
+
+  const anchos = [
+    90, 220, 105, 95, 280, 90, 100, 110, 110, 110, 105, 260, 110, 200, 150, 260
+  ];
+
+  anchos.forEach(function(ancho, indice) {
+    sheet.setColumnWidth(indice + 1, ancho);
+  });
+
+  if (sheet.getLastRow() > 1) {
+    const filas = sheet.getLastRow() - 1;
+    const columnas = columnasRutas_(sheet);
+
+    sheet.getRange(2, columnas.fecha, filas, 1)
+      .setNumberFormat('dd/MM/yyyy');
+
+    if (columnas.actualizado) {
+      sheet.getRange(2, columnas.actualizado, filas, 1)
+        .setNumberFormat('dd/MM/yyyy HH:mm');
+    }
+  }
+
+  SpreadsheetApp.getUi().alert(
+    'Hoja "' + CONFIG.SHEET_RUTAS + '" lista.\n\n' +
+    'Las rutas se arman desde el dashboard: pestaña Mapeos › ' +
+    '"Armar ruta". Esta hoja es el registro; no hace falta editarla ' +
+    'a mano.'
+  );
+}
+
+/* --- Estimación de tiempo ------------------------------------------ */
+
+function haversineKm_(a, b) {
+  const R = 6371;
+  const rad = Math.PI / 180;
+
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+
+  const s =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+/**
+ * Devuelve el itinerario completo: cuánto se viaja hasta cada parada,
+ * a qué hora se llega y cuándo se vuelve al origen.
+ *
+ * Es un aproximado por línea recta corregida. No es ruteo.
+ */
+function estimarRuta_(paradas, horaInicio) {
+  // Ojo: Number(null) es 0 y isFinite(0) es true, así que un filtro
+  // ingenuo deja pasar las paradas sin coordenada como si estuvieran
+  // en el golfo de Guinea, y mete un tramo de 10.000 km en la ruta.
+  function tieneCoordenada(valor) {
+    return valor !== null && valor !== undefined && valor !== '' &&
+      isFinite(Number(valor));
+  }
+
+  const conPunto = (paradas || []).filter(function(p) {
+    return tieneCoordenada(p.lat) && tieneCoordenada(p.lng);
+  });
+
+  const base = {
+    km: 0,
+    minutosViaje: 0,
+    minutosVisita: 0,
+    minutosTotal: 0,
+    tramos: [],
+    sinUbicar: (paradas || []).length - conPunto.length,
+    excedeJornada: false
+  };
+
+  if (!conPunto.length) {
+    return base;
+  }
+
+  const minutosInicio = horaAMinutos_(horaInicio) ;
+  let reloj = minutosInicio;
+  let anterior = RUTA_CONFIG.ORIGEN;
+
+  conPunto.forEach(function(parada) {
+    const km = haversineKm_(anterior, parada) * RUTA_CONFIG.FACTOR_CAMINO;
+    const viaje = Math.round(km / RUTA_CONFIG.VELOCIDAD_KMH * 60);
+
+    reloj += viaje;
+
+    base.tramos.push({
+      id: parada.id,
+      nombre: parada.nombre,
+      desde: anterior.nombre,
+      km: round_(km, 1),
+      minutosViaje: viaje,
+      llegada: minutosAHora_(reloj),
+      salida: minutosAHora_(reloj + RUTA_CONFIG.MINUTOS_VISITA)
+    });
+
+    reloj += RUTA_CONFIG.MINUTOS_VISITA;
+
+    base.km += km;
+    base.minutosViaje += viaje;
+    base.minutosVisita += RUTA_CONFIG.MINUTOS_VISITA;
+
+    anterior = parada;
+  });
+
+  // El regreso también es parte del día.
+  const kmVuelta =
+    haversineKm_(anterior, RUTA_CONFIG.ORIGEN) * RUTA_CONFIG.FACTOR_CAMINO;
+  const viajeVuelta = Math.round(
+    kmVuelta / RUTA_CONFIG.VELOCIDAD_KMH * 60
+  );
+
+  reloj += viajeVuelta;
+
+  base.tramos.push({
+    id: '',
+    nombre: 'Regreso a ' + RUTA_CONFIG.ORIGEN.nombre,
+    desde: anterior.nombre,
+    km: round_(kmVuelta, 1),
+    minutosViaje: viajeVuelta,
+    llegada: minutosAHora_(reloj),
+    salida: ''
+  });
+
+  base.km = round_(base.km + kmVuelta, 1);
+  base.minutosViaje += viajeVuelta;
+  base.minutosTotal = base.minutosViaje + base.minutosVisita;
+  base.horaTermino = minutosAHora_(reloj);
+  base.excedeJornada = base.minutosTotal > RUTA_CONFIG.MINUTOS_JORNADA;
+
+  return base;
+}
+
+function horaAMinutos_(texto) {
+  const m = String(texto || RUTA_CONFIG.HORA_INICIO).match(
+    /^(\d{1,2}):(\d{2})$/
+  );
+
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 8 * 60 + 30;
+}
+
+function minutosAHora_(minutos) {
+  const total = Math.max(0, Math.round(minutos));
+  const h = Math.floor(total / 60) % 24;
+
+  return String(h).padStart(2, '0') + ':' +
+    String(total % 60).padStart(2, '0');
+}
+
+function duracionLegible_(minutos) {
+  const total = Math.max(0, Math.round(minutos));
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+
+  if (!h) { return m + ' min'; }
+
+  return h + ' h' + (m ? ' ' + m + ' min' : '');
+}
+
+/* --- Lectura -------------------------------------------------------- */
+
+function getRutas() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_RUTAS);
+
+  const base = {
+    rows: [],
+    missingSheet: !sheet,
+    origen: RUTA_CONFIG.ORIGEN.nombre,
+    minutosVisita: RUTA_CONFIG.MINUTOS_VISITA,
+    velocidad: RUTA_CONFIG.VELOCIDAD_KMH,
+    factorCamino: RUTA_CONFIG.FACTOR_CAMINO,
+    horaInicio: RUTA_CONFIG.HORA_INICIO,
+    minutosJornada: RUTA_CONFIG.MINUTOS_JORNADA
+  };
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return base;
+  }
+
+  const columnas = columnasRutas_(sheet);
+  const timezone =
+    spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
+
+  const valores = sheet
+    .getRange(2, 1, sheet.getLastRow() - 1, RUTAS_HEADERS.length)
+    .getValues();
+
+  valores.forEach(function(fila) {
+    const id = text_(valorEn_(fila, columnas.id));
+
+    if (!id) {
+      return;
+    }
+
+    const fecha = valorEn_(fila, columnas.fecha);
+    const actualizado = valorEn_(fila, columnas.actualizado);
+
+    base.rows.push({
+      id: id,
+      nombre: text_(valorEn_(fila, columnas.nombre)),
+      fecha: fecha instanceof Date
+        ? Utilities.formatDate(fecha, timezone, 'yyyy-MM-dd')
+        : text_(fecha),
+      hora: text_(valorEn_(fila, columnas.hora)) ||
+        RUTA_CONFIG.HORA_INICIO,
+      paradas: text_(valorEn_(fila, columnas.paradas))
+        .split(/\s*,\s*/)
+        .filter(Boolean),
+      km: toNumber_(valorEn_(fila, columnas.km), ''),
+      minutosViaje: toNumber_(valorEn_(fila, columnas.minutosViaje), ''),
+      minutosVisita: toNumber_(valorEn_(fila, columnas.minutosVisita), ''),
+      minutosTotal: toNumber_(valorEn_(fila, columnas.duracion), ''),
+      horaTermino: text_(valorEn_(fila, columnas.termino)),
+      eventoId: text_(valorEn_(fila, columnas.evento)),
+      estado: text_(valorEn_(fila, columnas.estado)),
+      autor: text_(valorEn_(fila, columnas.autor)),
+      actualizado: actualizado instanceof Date
+        ? Utilities.formatDate(actualizado, timezone, 'dd/MM/yyyy HH:mm')
+        : '',
+      notas: text_(valorEn_(fila, columnas.notas))
+    });
+  });
+
+  return base;
+}
+
+/* --- Guardar y agendar ---------------------------------------------- */
+
+/**
+ * Guarda la ruta y, si tiene fecha, la deja en el calendario.
+ *
+ * Si la ruta ya tenía evento, se actualiza el mismo en vez de crear
+ * otro: agendar dos veces la misma ruta llenaría el día de duplicados.
+ */
+function guardarRuta(payload) {
+  payload = payload || {};
+
+  const nombre = text_(payload.nombre);
+  const paradas = (payload.paradas || [])
+    .map(text_)
+    .filter(Boolean);
+
+  if (!nombre) {
+    throw new Error('La ruta necesita un nombre.');
+  }
+
+  if (!paradas.length) {
+    throw new Error('La ruta necesita al menos un aserradero.');
+  }
+
+  const fecha = text_(payload.fecha);
+
+  if (fecha && !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    throw new Error('La fecha no es válida.');
+  }
+
+  const hora = text_(payload.hora) || RUTA_CONFIG.HORA_INICIO;
+
+  if (!/^\d{1,2}:\d{2}$/.test(hora)) {
+    throw new Error('La hora de inicio no es válida.');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_RUTAS);
+
+    if (!sheet) {
+      throw new Error(
+        'No existe la hoja "' + CONFIG.SHEET_RUTAS +
+        '". Corre "Preparar hoja de rutas".'
+      );
+    }
+
+    const columnas = columnasRutas_(sheet);
+
+    // Las paradas se resuelven contra Mapeos para tener coordenadas y
+    // nombres frescos, no los que se guardaron alguna vez.
+    const mapeos = getMapeos();
+    const porId = {};
+
+    (mapeos.rows || []).forEach(function(m) { porId[m.id] = m; });
+
+    const detalle = paradas
+      .map(function(id) { return porId[id]; })
+      .filter(Boolean);
+
+    if (!detalle.length) {
+      throw new Error(
+        'Ninguna de las paradas existe en la hoja de mapeos.'
+      );
+    }
+
+    const estimacion = estimarRuta_(detalle, hora);
+
+    let objetivo = -1;
+    let id = text_(payload.id);
+
+    if (sheet.getLastRow() > 1) {
+      const ids = sheet
+        .getRange(2, columnas.id, sheet.getLastRow() - 1, 1)
+        .getValues();
+
+      let maximo = 0;
+
+      ids.forEach(function(f, indice) {
+        const actual = text_(f[0]);
+
+        if (id && actual === id) {
+          objetivo = indice + 2;
+        }
+
+        const numero = Number(String(actual).replace(/\D/g, ''));
+
+        if (numero > maximo) { maximo = numero; }
+      });
+
+      if (!id) {
+        id = 'RUT-' + String(maximo + 1).padStart(3, '0');
+      }
+    } else if (!id) {
+      id = 'RUT-001';
+    }
+
+    if (objetivo === -1) {
+      objetivo = Math.max(2, sheet.getLastRow() + 1);
+    }
+
+    // Evento previo, para actualizar en vez de duplicar.
+    const eventoPrevio = columnas.evento && objetivo <= sheet.getLastRow()
+      ? text_(sheet.getRange(objetivo, columnas.evento).getValue())
+      : '';
+
+    const agenda = fecha
+      ? sincronizarEvento_(
+          eventoPrevio, id, nombre, fecha, hora, detalle, estimacion,
+          text_(payload.notas)
+        )
+      : { eventoId: '', estado: 'Sin fecha', mensaje: '' };
+
+    let autor = '';
+
+    try {
+      autor = Session.getActiveUser().getEmail() || '';
+    } catch (ignored) {}
+
+    const fila = [];
+
+    fila[columnas.id - 1] = id;
+    fila[columnas.nombre - 1] = nombre;
+    fila[columnas.fecha - 1] = fecha ? dateKeyToLocalDate_(fecha) : '';
+    fila[columnas.hora - 1] = hora;
+    fila[columnas.paradas - 1] = detalle.map(function(d) {
+      return d.id;
+    }).join(', ');
+    fila[columnas.evento - 1] = agenda.eventoId;
+
+    if (columnas.cuantas) { fila[columnas.cuantas - 1] = detalle.length; }
+    if (columnas.km) { fila[columnas.km - 1] = estimacion.km; }
+    if (columnas.minutosViaje) {
+      fila[columnas.minutosViaje - 1] = estimacion.minutosViaje;
+    }
+    if (columnas.minutosVisita) {
+      fila[columnas.minutosVisita - 1] = estimacion.minutosVisita;
+    }
+    if (columnas.duracion) {
+      fila[columnas.duracion - 1] = estimacion.minutosTotal;
+    }
+    if (columnas.termino) {
+      fila[columnas.termino - 1] = estimacion.horaTermino || '';
+    }
+    if (columnas.estado) { fila[columnas.estado - 1] = agenda.estado; }
+    if (columnas.autor) { fila[columnas.autor - 1] = autor; }
+    if (columnas.actualizado) {
+      fila[columnas.actualizado - 1] = new Date();
+    }
+    if (columnas.notas) {
+      fila[columnas.notas - 1] = text_(payload.notas);
+    }
+
+    for (let i = 0; i < RUTAS_HEADERS.length; i++) {
+      if (fila[i] === undefined) { fila[i] = ''; }
+    }
+
+    sheet
+      .getRange(objetivo, 1, 1, RUTAS_HEADERS.length)
+      .setValues([fila]);
+
+    const salida = getRutas();
+    salida.ultimoId = id;
+    salida.mensajeAgenda = agenda.mensaje;
+
+    return salida;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Crea o actualiza el bloque en el calendario del usuario.
+ * Un solo evento por ruta: el itinerario va en la descripción, así el
+ * día no queda partido en cinco eventos de media hora.
+ */
+function sincronizarEvento_(
+  eventoPrevio, id, nombre, fecha, hora, detalle, estimacion, notas
+) {
+  const partes = fecha.split('-');
+  const minutos = horaAMinutos_(hora);
+
+  const inicio = new Date(
+    Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]),
+    Math.floor(minutos / 60), minutos % 60
+  );
+
+  const fin = new Date(
+    inicio.getTime() + Math.max(30, estimacion.minutosTotal) * 60000
+  );
+
+  const titulo =
+    nombre + ' · ' + detalle.length +
+    (detalle.length === 1 ? ' aserradero' : ' aserraderos');
+
+  const lineas = [
+    'Ruta de visita a aserraderos · ' + id,
+    '',
+    'Salida de ' + RUTA_CONFIG.ORIGEN.nombre + ' a las ' + hora + '.',
+    'Duración estimada: ' + duracionLegible_(estimacion.minutosTotal) +
+      ' (' + estimacion.km + ' km aprox.).',
+    '',
+    'Itinerario estimado:'
+  ];
+
+  estimacion.tramos.forEach(function(t, indice) {
+    if (!t.id) {
+      lineas.push('  · ' + t.llegada + '  ' + t.nombre +
+        '  (' + t.km + ' km)');
+      return;
+    }
+
+    const parada = detalle.filter(function(d) {
+      return d.id === t.id;
+    })[0] || {};
+
+    lineas.push(
+      '  ' + (indice + 1) + '. ' + t.llegada + '–' + t.salida + '  ' +
+      t.nombre + '  (' + t.km + ' km)'
+    );
+
+    if (parada.direccion) {
+      lineas.push('      ' + parada.direccion +
+        (parada.comuna ? ', ' + parada.comuna : ''));
+    }
+
+    if (parada.contacto || parada.telefono) {
+      lineas.push('      ' +
+        [parada.contacto, parada.telefono].filter(Boolean).join(' · '));
+    }
+  });
+
+  if (notas) {
+    lineas.push('');
+    lineas.push('Notas: ' + notas);
+  }
+
+  lineas.push('');
+  lineas.push(
+    'Tiempos aproximados: distancia en línea recta × ' +
+    RUTA_CONFIG.FACTOR_CAMINO + ' a ' + RUTA_CONFIG.VELOCIDAD_KMH +
+    ' km/h, con ' + RUTA_CONFIG.MINUTOS_VISITA +
+    ' min por visita. No es ruteo real.'
+  );
+
+  const descripcion = lineas.join('\n');
+  const primera = detalle[0] || {};
+
+  const lugar = [primera.direccion, primera.comuna]
+    .filter(Boolean)
+    .join(', ');
+
+  try {
+    const calendario = CalendarApp.getDefaultCalendar();
+
+    if (eventoPrevio) {
+      try {
+        const existente = calendario.getEventById(eventoPrevio);
+
+        if (existente) {
+          existente.setTitle(titulo);
+          existente.setTime(inicio, fin);
+          existente.setDescription(descripcion);
+
+          if (lugar) { existente.setLocation(lugar); }
+
+          return {
+            eventoId: eventoPrevio,
+            estado: 'Agendada',
+            mensaje: 'Se actualizó el evento del calendario.'
+          };
+        }
+      } catch (ignorado) {
+        // El evento pudo borrarse a mano: se crea uno nuevo.
+      }
+    }
+
+    const nuevo = calendario.createEvent(titulo, inicio, fin, {
+      description: descripcion,
+      location: lugar
+    });
+
+    return {
+      eventoId: nuevo.getId(),
+      estado: 'Agendada',
+      mensaje: 'Agendada en tu calendario.'
+    };
+  } catch (error) {
+    // Guardar la ruta no puede fallar porque el calendario no responda.
+    return {
+      eventoId: eventoPrevio,
+      estado: 'Sin agendar',
+      mensaje:
+        'La ruta se guardó, pero no se pudo escribir en el calendario: ' +
+        String(error.message || error)
+    };
+  }
+}
+
+/** Borra la ruta y su evento. */
+function eliminarRuta(id) {
+  const objetivoId = text_(id);
+
+  if (!objetivoId) {
+    throw new Error('Falta el identificador de la ruta.');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_RUTAS);
+
+    if (!sheet || sheet.getLastRow() < 2) {
+      throw new Error('No hay rutas guardadas.');
+    }
+
+    const columnas = columnasRutas_(sheet);
+    const filas = sheet.getLastRow() - 1;
+    const ids = sheet.getRange(2, columnas.id, filas, 1).getValues();
+
+    let objetivo = -1;
+
+    for (let i = 0; i < ids.length; i++) {
+      if (text_(ids[i][0]) === objetivoId) {
+        objetivo = i + 2;
+        break;
+      }
+    }
+
+    if (objetivo === -1) {
+      throw new Error('No se encontró la ruta ' + objetivoId + '.');
+    }
+
+    const eventoId = text_(
+      sheet.getRange(objetivo, columnas.evento).getValue()
+    );
+
+    if (eventoId) {
+      try {
+        const evento = CalendarApp.getDefaultCalendar()
+          .getEventById(eventoId);
+
+        if (evento) { evento.deleteEvent(); }
+      } catch (ignorado) {}
+    }
+
+    sheet.deleteRow(objetivo);
+
+    return getRutas();
   } finally {
     lock.releaseLock();
   }

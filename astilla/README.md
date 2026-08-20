@@ -24,6 +24,7 @@ desaparece solo.
 | `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
 | `Plan` | `Suministro · Proveedor · Precio · <mes>` | Para plan y costo |
 | `Mapeos` | Un aserradero por fila: nombre, coordenada y estado | Para el mapa |
+| `Rutas` | Una ruta de visita por fila, con sus paradas y su evento | La crea sola |
 
 Las columnas de `Ingresos` se detectan por nombre de encabezado
 (*Fecha Contab.*, *Descripción Material*, *Cantidad*, *Proveedor*…). Si
@@ -231,6 +232,60 @@ siguen funcionando.
 
 ---
 
+## Rutas de visita
+
+Un aserradero suelto en el mapa no sirve de mucho: la pregunta real es
+si los cuatro que quieres ver caben en un día. Eso es lo que arma esta
+parte.
+
+En la pestaña *Mapeos*, botón **Armar ruta**. Vas haciendo clic en los
+aserraderos —en el mapa o en el listado— y se van sumando como paradas
+numeradas; los que quedan fuera se apagan para que se lea la ruta de
+un vistazo. Cada parada se puede subir, bajar o sacar, y
+**Ordenar por cercanía** propone un orden partiendo del más próximo a
+la planta.
+
+Mientras editas, el panel muestra el recorrido en kilómetros, la
+duración estimada y la hora de término. Al guardar, la ruta queda en la
+hoja `Rutas` y **se agenda sola en tu calendario**.
+
+### De dónde sale el tiempo
+
+| | |
+|---|---|
+| Origen | Planta Cabrero, ida y vuelta |
+| Velocidad | 55 km/h |
+| Factor de camino | 1,35 sobre la línea recta |
+| Visita | 45 min por aserradero |
+| Salida | 08:30 por defecto |
+| Jornada | 9 h; si se pasa, el panel avisa |
+
+**Es un aproximado y hay que leerlo como tal.** La distancia es en
+línea recta corregida por un factor, no ruteo real: no sabe de curvas,
+de la cuesta ni de un camino de tierra. Sirve para decidir si una ruta
+cabe en el día, no para prometerle una hora exacta a nadie. El evento
+del calendario lo dice en su propia descripción.
+
+Las paradas sin coordenada no entran en el cálculo —no se las inventa
+ubicadas en el mar— y el panel avisa cuántas quedaron fuera.
+
+### El evento del calendario
+
+Es **uno solo por ruta**: un bloque desde la salida hasta el término,
+en tu calendario principal, con el itinerario completo en la
+descripción —cada parada con su hora de llegada, su hora de salida y
+los kilómetros del tramo—. No un evento por aserradero.
+
+Si editas la ruta y la vuelves a guardar, **se actualiza el mismo
+evento** en vez de crear otro; el `ID` del evento queda guardado en la
+hoja. Borrar la ruta borra también su evento.
+
+Si el calendario falla o faltan permisos, la ruta **igual se guarda**:
+queda como `Sin agendar` y te dice por qué. Nunca se pierde el trabajo
+de armarla por un problema de calendario.
+
+---
+
 ## Instalación
 
 1. En el spreadsheet: **Extensiones › Apps Script**.
@@ -241,6 +296,10 @@ siguen funcionando.
    cada 15 minutos).
 5. Para publicarlo como página: **Implementar › Nueva implementación ›
    Aplicación web**.
+
+La primera vez que guardes una ruta, Apps Script pedirá permiso de
+**Calendario**: es para crear el bloque de la visita. Si lo rechazas,
+las rutas se siguen guardando como `Sin agendar`.
 
 Si las planillas llegan como **Excel adjunto**, agrega además el
 servicio avanzado **Drive API (v3)** en *Servicios › +*. Si llegan
@@ -257,6 +316,7 @@ pegadas en el cuerpo del correo, no hace falta.
 | Diagnosticar cruce SAP vs planilla | Materiales fuera del filtro y proveedores sin par |
 | Preparar hoja de mapeos | Crea/repara `Mapeos`: IDs, validación y estado inicial |
 | Ubicar en el mapa | Resuelve las filas sin ubicar: coordenada pegada primero, dirección después |
+| Preparar hoja de rutas | Crea/repara `Rutas` con sus encabezados |
 
 Antes de una carga masiva, corre siempre **Probar último correo**.
 
@@ -301,5 +361,7 @@ cd astilla/pruebas && node prueba.js
 
 Simula las globales de Apps Script y comprueba el rechazo de planillas
 sin fecha, las variantes del asunto, los feriados en el prorrateo, el
-inicio del complemento y la clasificación de sub-productos. No toca
-Gmail ni el spreadsheet.
+inicio del complemento, la clasificación de sub-productos, la lectura
+de coordenadas —decimales, DMS, pares invertidos y puntos fuera de
+Chile—, la estimación de tiempo de las rutas y las validaciones que
+corren antes de escribir. No toca Gmail ni el spreadsheet.

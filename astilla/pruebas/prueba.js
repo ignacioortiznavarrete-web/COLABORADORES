@@ -37,7 +37,8 @@ vm.runInContext(
   codigo +
   '\n;globalThis.K = {' +
   '  CONFIG, SUBPRODUCTOS_OBJETIVO, ESTADOS_MAPEO,' +
-  '  ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS, LIMITES_CL' +
+  '  ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS, LIMITES_CL,' +
+  '  RUTA_CONFIG, RUTAS_HEADERS' +
   '};',
   sandbox
 );
@@ -375,6 +376,158 @@ check('rechaza un punto fuera de Chile',
 check('un punto válido supera la validación',
   ubicaFalla({ id: 'MAP-0001', lat: -37.03, lng: -72.40 })
     .indexOf('Chile') === -1);
+
+/* =====================================================================
+ * 10. RUTAS: ESTIMACIÓN DE TIEMPO
+ * ===================================================================== */
+
+console.log('\n10. estimarRuta_');
+
+// Aserraderos reales de la zona, con sus coordenadas.
+const BIOCHIPER = { id: 'MAP-0001', nombre: 'BIOCHIPER', lat: -37.033, lng: -72.401 };
+const PROMASA   = { id: 'MAP-0002', nombre: 'PROMASA',   lat: -37.279, lng: -72.712 };
+const GEOMAR    = { id: 'MAP-0003', nombre: 'GEOMAR',    lat: -36.626, lng: -71.831 };
+const CARFU     = { id: 'MAP-0005', nombre: 'WOOD CARFU', lat: -37.719, lng: -72.241 };
+const AITUE     = { id: 'MAP-0008', nombre: 'AITUE',      lat: -36.740, lng: -72.995 };
+const SIN_PUNTO = { id: 'MAP-0009', nombre: 'SIN UBICAR', lat: null, lng: null };
+
+const unaParada = sandbox.estimarRuta_([BIOCHIPER], '08:30');
+
+check('una parada da ida y vuelta (2 tramos)',
+  unaParada.tramos.length === 2, String(unaParada.tramos.length));
+
+check('el último tramo es el regreso',
+  unaParada.tramos[1].nombre.indexOf('Regreso') === 0);
+
+check('la visita suma 45 min',
+  unaParada.minutosVisita === 45, String(unaParada.minutosVisita));
+
+check('el total es viaje + visita',
+  unaParada.minutosTotal === unaParada.minutosViaje + unaParada.minutosVisita);
+
+const tres = sandbox.estimarRuta_([BIOCHIPER, PROMASA, GEOMAR], '08:30');
+
+check('tres paradas dan cuatro tramos',
+  tres.tramos.length === 4, String(tres.tramos.length));
+
+check('tres visitas son 135 min',
+  tres.minutosVisita === 135, String(tres.minutosVisita));
+
+check('la llegada a un destino lejano es más tarde que la salida',
+  sandbox.estimarRuta_([GEOMAR], '08:30').tramos[0].llegada > '08:30',
+  sandbox.estimarRuta_([GEOMAR], '08:30').tramos[0].llegada);
+
+// Biochiper está en Cabrero, prácticamente sobre el origen: llegar no
+// toma tiempo y eso es correcto, no un error.
+check('una parada pegada al origen llega a la hora de salida',
+  tres.tramos[0].llegada === '08:30', tres.tramos[0].llegada);
+
+check('cada parada llega después de la anterior',
+  tres.tramos[0].llegada < tres.tramos[1].llegada &&
+  tres.tramos[1].llegada < tres.tramos[2].llegada);
+
+check('la salida es 45 min después de la llegada',
+  sandbox.horaAMinutos_(tres.tramos[0].salida) -
+  sandbox.horaAMinutos_(tres.tramos[0].llegada) === 45);
+
+check('acumula kilómetros', tres.km > unaParada.km,
+  tres.km + ' vs ' + unaParada.km);
+
+// Biochiper está en Cabrero, prácticamente en el origen; Geomar en
+// Coihueco, a ~85 km en línea recta. El factor de camino los infla.
+check('la distancia es del orden correcto',
+  tres.km > 150 && tres.km < 400, String(tres.km));
+
+check('marca cuando no cabe en la jornada',
+  sandbox.estimarRuta_(
+    [BIOCHIPER, PROMASA, GEOMAR, PROMASA, GEOMAR, BIOCHIPER], '08:30'
+  ).excedeJornada === true);
+
+check('una ruta corta no excede la jornada',
+  unaParada.excedeJornada === false);
+
+// El orden de las paradas tiene que cambiar el recorrido de verdad.
+// Elegir bien el caso cuesta más de lo que parece: invertir un circuito
+// cerrado da exactamente los mismos kilómetros, y estas tres —Promasa,
+// Cabrero y Geomar— están casi en línea recta, así que ahí cualquier
+// orden empata por geometría y un empate no probaría nada. Carfu al
+// sur, Aitue en la costa y Geomar al norte sí forman un triángulo
+// abierto, y ahí el orden pesa.
+const ordenMalo  = sandbox.estimarRuta_([AITUE, CARFU, GEOMAR], '08:30');
+const ordenBueno = sandbox.estimarRuta_([CARFU, GEOMAR, AITUE], '08:30');
+
+check('el orden de las paradas cambia el recorrido',
+  ordenMalo.km > ordenBueno.km + 10,
+  ordenMalo.km + ' vs ' + ordenBueno.km);
+
+check('el desvío también alarga la duración',
+  ordenMalo.minutosViaje > ordenBueno.minutosViaje,
+  ordenMalo.minutosViaje + ' vs ' + ordenBueno.minutosViaje);
+
+check('la visita no depende del orden',
+  ordenBueno.minutosVisita === ordenMalo.minutosVisita);
+
+console.log('\n   Paradas sin coordenada');
+
+const conSinUbicar = sandbox.estimarRuta_([BIOCHIPER, SIN_PUNTO], '08:30');
+
+check('las cuenta aparte en vez de romper',
+  conSinUbicar.sinUbicar === 1, String(conSinUbicar.sinUbicar));
+
+check('no las mete en el itinerario',
+  conSinUbicar.tramos.length === 2, String(conSinUbicar.tramos.length));
+
+check('sin ninguna coordenada devuelve vacío',
+  sandbox.estimarRuta_([SIN_PUNTO], '08:30').tramos.length === 0);
+
+console.log('\n11. Horas y duraciones');
+
+check('08:30 son 510 min', sandbox.horaAMinutos_('08:30') === 510);
+check('510 min son 08:30', sandbox.minutosAHora_(510) === '08:30');
+check('una hora vacía cae en el default',
+  sandbox.horaAMinutos_('') === 510);
+check('no se pasa de las 24 h',
+  sandbox.minutosAHora_(25 * 60) === '01:00',
+  sandbox.minutosAHora_(25 * 60));
+check('320 min se leen 5 h 20 min',
+  sandbox.duracionLegible_(320) === '5 h 20 min',
+  sandbox.duracionLegible_(320));
+check('45 min sin horas', sandbox.duracionLegible_(45) === '45 min');
+check('180 min son 3 h', sandbox.duracionLegible_(180) === '3 h');
+
+console.log('\n12. guardarRuta valida antes de escribir');
+
+function rutaFalla(payload) {
+  try { sandbox.guardarRuta(payload); return ''; }
+  catch (e) { return e.message; }
+}
+
+check('rechaza sin nombre',
+  rutaFalla({ paradas: ['MAP-0001'] }).indexOf('nombre') !== -1);
+check('rechaza sin paradas',
+  rutaFalla({ nombre: 'Ruta 1', paradas: [] })
+    .indexOf('al menos un aserradero') !== -1);
+check('rechaza una fecha mal escrita',
+  rutaFalla({ nombre: 'Ruta 1', paradas: ['MAP-0001'], fecha: '20/08/2026' })
+    .indexOf('fecha no es válida') !== -1);
+check('rechaza una hora mal escrita',
+  rutaFalla({ nombre: 'Ruta 1', paradas: ['MAP-0001'], hora: '8am' })
+    .indexOf('hora de inicio no es válida') !== -1);
+check('una ruta válida supera la validación',
+  rutaFalla({
+    nombre: 'Ruta 1', paradas: ['MAP-0001'],
+    fecha: '2026-08-20', hora: '08:30'
+  }).indexOf('válida') === -1);
+
+// Cabrero → Coihueco: 0,41° de latitud y 0,57° de longitud, o sea
+// unos 68 km en línea recta.
+check('haversine: Cabrero a Coihueco ronda los 68 km',
+  Math.round(sandbox.haversineKm_(BIOCHIPER, GEOMAR)) >= 65 &&
+  Math.round(sandbox.haversineKm_(BIOCHIPER, GEOMAR)) <= 72,
+  String(Math.round(sandbox.haversineKm_(BIOCHIPER, GEOMAR))));
+
+check('haversine de un punto consigo mismo es 0',
+  sandbox.haversineKm_(BIOCHIPER, BIOCHIPER) < 0.001);
 
 console.log(
   '\n' + (fallos ? fallos + ' comprobaciones fallaron' : 'Todo OK')

@@ -998,6 +998,121 @@
       to { opacity: 1; transform: none; }
     }
 
+    /* --- Armado de ruta ------------------------------------------- */
+
+    .resumen-ruta {
+      display: grid;
+      gap: 7px;
+      padding: 11px 13px;
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--verde);
+      border-radius: 9px;
+      background: var(--verde-soft);
+    }
+
+    .resumen-ruta.se-pasa {
+      border-left-color: var(--ladrillo);
+      background: var(--ladrillo-soft);
+    }
+
+    .resumen-ruta > div {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 12px;
+    }
+
+    .resumen-ruta span { color: var(--ink-2); }
+    .resumen-ruta b { font-family: var(--mono); font-weight: 600; }
+
+    .resumen-alerta {
+      display: block !important;
+      font-size: 11.5px;
+      line-height: 1.4;
+      color: var(--ladrillo);
+    }
+
+    .paradas {
+      display: grid;
+      gap: 5px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .parada {
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      gap: 9px;
+      align-items: center;
+      padding: 7px 9px;
+      border-radius: 8px;
+      background: var(--surface);
+      font-size: 12px;
+    }
+
+    .parada-n {
+      display: inline-grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--verde-banda);
+      border-radius: 50%;
+    }
+
+    .parada-nombre { min-width: 0; line-height: 1.3; }
+
+    .parada-nombre b {
+      display: block;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 400;
+      color: var(--ink-3);
+    }
+
+    .parada-acciones { display: flex; gap: 2px; }
+
+    .parada-acciones button {
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      color: var(--ink-2);
+      border: 1px solid var(--rule);
+      border-radius: 5px;
+      background: var(--paper);
+      transition: border-color .15s, color .15s;
+    }
+
+    .parada-acciones button:hover {
+      border-color: var(--verde-2);
+      color: var(--verde);
+    }
+
+    .parada-vacia {
+      padding: 14px 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--ink-3);
+      border: 1px dashed var(--rule);
+      border-radius: 8px;
+    }
+
+    /* En modo ruta, lo que no está elegido se apaga. */
+    .chincheta.fuera-de-ruta { opacity: .45; }
+
+    .chincheta.en-ruta {
+      box-shadow: 0 0 0 3px rgba(23, 82, 57, .25),
+                  0 1px 5px rgba(27, 36, 30, .35);
+    }
+
     .gestion-pie { display: flex; gap: 8px; }
     .gestion-pie .boton { flex: 1; }
 
@@ -1487,7 +1602,17 @@
           </p>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;align-items:center">
+        <div style="display:flex;justify-content:flex-end;
+                    align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="boton" type="button" onclick="abrirRuta()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round"
+                 stroke-linejoin="round">
+              <circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/>
+              <path d="M8.5 18h5a4 4 0 0 0 0-8h-3a4 4 0 0 1 0-8h5"/>
+            </svg>
+            Armar ruta
+          </button>
           <button class="boton boton-firme" type="button"
                   onclick="abrirAlta()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1538,6 +1663,37 @@
             </table>
           </div>
         </article>
+
+        <article class="panel">
+          <div class="panel-cab">
+            <div>
+              <h2>Rutas de visita</h2>
+              <p class="panel-nota">
+                Cada ruta con fecha queda agendada en tu calendario como
+                un bloque, con el itinerario en la descripción. Los
+                tiempos son un aproximado: distancia en línea recta
+                corregida, no ruteo real.
+              </p>
+            </div>
+            <div class="conteo" id="conteoRutas">—</div>
+          </div>
+          <div class="tabla-marco">
+            <table>
+              <thead><tr>
+                <th>Ruta</th>
+                <th>Fecha</th>
+                <th>Salida</th>
+                <th class="number">Paradas</th>
+                <th class="number">Km aprox.</th>
+                <th class="number">Duración</th>
+                <th>Término</th>
+                <th>Calendario</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="rutasBody"></tbody>
+            </table>
+          </div>
+        </article>
       </div>
     </section>
   </main>
@@ -1581,6 +1737,10 @@
     var MAPEOS_PEDIDOS = false;
     var FIJANDO = false;
     var MODO_ALTA = false;
+    var MODO_RUTA = false;
+    var RUTAS = null;
+    var RUTA = { id: '', nombre: '', fecha: '', hora: '', paradas: [] };
+    var TRAZO = null;
     var CONTEXTO = { suministro: '', mapeos: '' };
 
     var SUAVE = !window.matchMedia(
@@ -3581,6 +3741,459 @@
     }
 
 /* =====================================================================
+ * RUTAS DE VISITA
+ *
+ * Armar una ruta es elegir aserraderos en el mapa, en el orden en que
+ * se van a visitar. El tiempo se estima en el cliente para que la
+ * cifra reaccione a cada clic; el servidor la vuelve a calcular al
+ * guardar, y esa es la que queda escrita.
+ * ===================================================================== */
+
+    function cargarRutas() {
+      google.script.run
+        .withSuccessHandler(function(res) {
+          RUTAS = res;
+          dibujarTablaRutas();
+        })
+        .withFailureHandler(function() {
+          RUTAS = { rows: [], missingSheet: true };
+          dibujarTablaRutas();
+        })
+        .getRutas();
+    }
+
+    function cfgRuta() {
+      return {
+        origen: (RUTAS && RUTAS.origen) || 'Planta Cabrero',
+        visita: (RUTAS && RUTAS.minutosVisita) || 45,
+        velocidad: (RUTAS && RUTAS.velocidad) || 55,
+        factor: (RUTAS && RUTAS.factorCamino) || 1.35,
+        hora: (RUTAS && RUTAS.horaInicio) || '08:30',
+        jornada: (RUTAS && RUTAS.minutosJornada) || 540,
+        lat: -37.0333,
+        lng: -72.4000
+      };
+    }
+
+    function haversineKm(a, b) {
+      var R = 6371;
+      var rad = Math.PI / 180;
+      var dLat = (b.lat - a.lat) * rad;
+      var dLng = (b.lng - a.lng) * rad;
+
+      var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(a.lat * rad) * Math.cos(b.lat * rad) *
+        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+      return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+    }
+
+    function tieneCoordenada(v) {
+      return v !== null && v !== undefined && v !== '' && isFinite(Number(v));
+    }
+
+    /** Espejo de estimarRuta_ del servidor, para responder al instante. */
+    function estimarRutaCliente(ids, hora) {
+      var c = cfgRuta();
+
+      var paradas = (ids || [])
+        .map(buscarMapeo)
+        .filter(function(p) {
+          return p && tieneCoordenada(p.lat) && tieneCoordenada(p.lng);
+        });
+
+      var out = {
+        km: 0, minutosViaje: 0, minutosVisita: 0, minutosTotal: 0,
+        tramos: [], sinUbicar: (ids || []).length - paradas.length,
+        excedeJornada: false, horaTermino: hora
+      };
+
+      if (!paradas.length) { return out; }
+
+      var reloj = horaAMinutos(hora);
+      var anterior = { nombre: c.origen, lat: c.lat, lng: c.lng };
+
+      paradas.forEach(function(p) {
+        var km = haversineKm(anterior, p) * c.factor;
+        var viaje = Math.round(km / c.velocidad * 60);
+
+        reloj += viaje;
+
+        out.tramos.push({
+          id: p.id, nombre: p.nombre, km: Math.round(km * 10) / 10,
+          minutosViaje: viaje, llegada: minutosAHora(reloj),
+          salida: minutosAHora(reloj + c.visita)
+        });
+
+        reloj += c.visita;
+        out.km += km;
+        out.minutosViaje += viaje;
+        out.minutosVisita += c.visita;
+        anterior = p;
+      });
+
+      var kmVuelta = haversineKm(anterior, { lat: c.lat, lng: c.lng }) * c.factor;
+      var viajeVuelta = Math.round(kmVuelta / c.velocidad * 60);
+
+      reloj += viajeVuelta;
+
+      out.tramos.push({
+        id: '', nombre: 'Regreso a ' + c.origen,
+        km: Math.round(kmVuelta * 10) / 10,
+        minutosViaje: viajeVuelta, llegada: minutosAHora(reloj), salida: ''
+      });
+
+      out.km = Math.round((out.km + kmVuelta) * 10) / 10;
+      out.minutosViaje += viajeVuelta;
+      out.minutosTotal = out.minutosViaje + out.minutosVisita;
+      out.horaTermino = minutosAHora(reloj);
+      out.excedeJornada = out.minutosTotal > c.jornada;
+
+      return out;
+    }
+
+    function horaAMinutos(t) {
+      var m = String(t || '').match(/^(\d{1,2}):(\d{2})$/);
+      return m ? Number(m[1]) * 60 + Number(m[2]) : 510;
+    }
+
+    function minutosAHora(min) {
+      var total = Math.max(0, Math.round(min));
+      return String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' +
+        String(total % 60).padStart(2, '0');
+    }
+
+    function duracionLegible(min) {
+      var total = Math.max(0, Math.round(min));
+      var h = Math.floor(total / 60);
+      var m = total % 60;
+      if (!h) { return m + ' min'; }
+      return h + ' h' + (m ? ' ' + m + ' min' : '');
+    }
+
+    function abrirRuta(id) {
+      MODO_RUTA = true;
+      MODO_ALTA = false;
+      SELECCION = null;
+      cancelarFijado();
+
+      var previa = id && RUTAS
+        ? (RUTAS.rows || []).filter(function(r) { return r.id === id; })[0]
+        : null;
+
+      RUTA = previa
+        ? {
+            id: previa.id, nombre: previa.nombre, fecha: previa.fecha,
+            hora: previa.hora, paradas: previa.paradas.slice()
+          }
+        : {
+            id: '', nombre: siguienteNombreRuta(), fecha: '',
+            hora: cfgRuta().hora, paradas: []
+          };
+
+      dibujarGestion();
+      dibujarTablaMapeos();
+      dibujarMapa();
+
+      document.getElementById('gestion')
+        .scrollIntoView({ behavior: SUAVE ? 'smooth' : 'auto',
+                          block: 'nearest' });
+    }
+
+    function siguienteNombreRuta() {
+      var n = RUTAS && RUTAS.rows ? RUTAS.rows.length + 1 : 1;
+      return 'Ruta ' + n;
+    }
+
+    function cerrarRuta() {
+      MODO_RUTA = false;
+      RUTA = { id: '', nombre: '', fecha: '', hora: '', paradas: [] };
+      dibujarGestion();
+      dibujarTablaMapeos();
+      dibujarMapa();
+    }
+
+    /** Un clic agrega la parada al final; otro la saca. */
+    function alternarParada(id) {
+      var i = RUTA.paradas.indexOf(id);
+
+      if (i === -1) {
+        var m = buscarMapeo(id);
+
+        if (!m || !tieneCoordenada(m.lat)) {
+          recadoGestion('mal',
+            'Ese aserradero no está ubicado en el mapa, así que no se ' +
+            'puede calcular el viaje. Fíjalo primero.');
+          return;
+        }
+
+        RUTA.paradas.push(id);
+      } else {
+        RUTA.paradas.splice(i, 1);
+      }
+
+      leerFormularioRuta();
+      dibujarGestion();
+      dibujarTablaMapeos();
+      dibujarMapa();
+    }
+
+    function moverParada(id, paso) {
+      var i = RUTA.paradas.indexOf(id);
+      var j = i + paso;
+
+      if (i === -1 || j < 0 || j >= RUTA.paradas.length) { return; }
+
+      RUTA.paradas.splice(j, 0, RUTA.paradas.splice(i, 1)[0]);
+      leerFormularioRuta();
+      dibujarGestion();
+      dibujarMapa();
+    }
+
+    /**
+     * Vecino más cercano desde el origen. No es el óptimo, pero para
+     * cuatro o cinco paradas acorta el día de forma notoria y es
+     * instantáneo.
+     */
+    function ordenarPorCercania() {
+      var c = cfgRuta();
+      var pendientes = RUTA.paradas.slice();
+      var orden = [];
+      var actual = { lat: c.lat, lng: c.lng };
+
+      while (pendientes.length) {
+        var mejor = 0;
+        var mejorKm = Infinity;
+
+        pendientes.forEach(function(id, i) {
+          var m = buscarMapeo(id);
+          if (!m || !tieneCoordenada(m.lat)) { return; }
+
+          var km = haversineKm(actual, m);
+          if (km < mejorKm) { mejorKm = km; mejor = i; }
+        });
+
+        var elegido = pendientes.splice(mejor, 1)[0];
+        orden.push(elegido);
+
+        var m2 = buscarMapeo(elegido);
+        if (m2 && tieneCoordenada(m2.lat)) { actual = m2; }
+      }
+
+      RUTA.paradas = orden;
+      leerFormularioRuta();
+      dibujarGestion();
+      dibujarMapa();
+    }
+
+    function leerFormularioRuta() {
+      var n = document.getElementById('rNombre');
+      var f = document.getElementById('rFecha');
+      var h = document.getElementById('rHora');
+
+      if (n) { RUTA.nombre = n.value; }
+      if (f) { RUTA.fecha = f.value; }
+      if (h) { RUTA.hora = h.value; }
+    }
+
+    function refrescarRuta() {
+      leerFormularioRuta();
+      dibujarGestion();
+    }
+
+    function formularioRuta() {
+      var est = estimarRutaCliente(RUTA.paradas, RUTA.hora);
+      var c = cfgRuta();
+
+      var lista = RUTA.paradas.length
+        ? RUTA.paradas.map(function(id, i) {
+            var m = buscarMapeo(id) || { nombre: id };
+            var t = est.tramos[i] || {};
+
+            return '<li class="parada">' +
+              '<span class="parada-n">' + (i + 1) + '</span>' +
+              '<span class="parada-nombre">' + esc(m.nombre) +
+                '<b>' + (t.llegada ? t.llegada + '–' + t.salida : '') +
+                (t.km ? ' · ' + t.km + ' km' : '') + '</b></span>' +
+              '<span class="parada-acciones">' +
+                '<button title="Subir" onclick="moverParada(' +
+                  JSON.stringify(id).replace(/"/g, '&quot;') + ',-1)">↑</button>' +
+                '<button title="Bajar" onclick="moverParada(' +
+                  JSON.stringify(id).replace(/"/g, '&quot;') + ',1)">↓</button>' +
+                '<button title="Quitar" onclick="alternarParada(' +
+                  JSON.stringify(id).replace(/"/g, '&quot;') + ')">×</button>' +
+              '</span></li>';
+          }).join('')
+        : '<li class="parada-vacia">Haz clic en los aserraderos del mapa ' +
+          'o del listado, en el orden en que los vas a visitar.</li>';
+
+      return '' +
+        '<div><div class="gestion-nombre">' +
+          (RUTA.id ? 'Editar ruta' : 'Nueva ruta') + '</div>' +
+        '<div class="gestion-dir">Sale de ' + esc(c.origen) +
+        ' y vuelve. ' + c.visita + ' min por visita.</div></div>' +
+
+        '<div class="campo"><label for="rNombre">Nombre</label>' +
+        '<input id="rNombre" type="text" value="' + esc(RUTA.nombre) +
+        '" oninput="leerFormularioRuta()" placeholder="Ruta 1"></div>' +
+
+        '<div style="display:grid;grid-template-columns:1fr 96px;gap:9px">' +
+          '<div class="campo"><label for="rFecha">Fecha</label>' +
+          '<input id="rFecha" type="date" value="' + esc(RUTA.fecha) +
+          '" onchange="refrescarRuta()"></div>' +
+          '<div class="campo"><label for="rHora">Salida</label>' +
+          '<input id="rHora" type="time" value="' + esc(RUTA.hora) +
+          '" onchange="refrescarRuta()"></div>' +
+        '</div>' +
+
+        '<div class="resumen-ruta' +
+          (est.excedeJornada ? ' se-pasa' : '') + '">' +
+          '<div><span>Duración estimada</span><b>' +
+            (est.minutosTotal ? duracionLegible(est.minutosTotal) : '—') +
+          '</b></div>' +
+          '<div><span>Recorrido</span><b>' +
+            (est.km ? est.km + ' km' : '—') + '</b></div>' +
+          '<div><span>Término</span><b>' +
+            (est.minutosTotal ? est.horaTermino : '—') + '</b></div>' +
+          (est.excedeJornada
+            ? '<div class="resumen-alerta">No cabe en una jornada de ' +
+              Math.round(c.jornada / 60) + ' h.</div>'
+            : '') +
+          (est.sinUbicar
+            ? '<div class="resumen-alerta">' + est.sinUbicar +
+              ' parada(s) sin coordenada quedan fuera del cálculo.</div>'
+            : '') +
+        '</div>' +
+
+        '<ol class="paradas">' + lista + '</ol>' +
+
+        (RUTA.paradas.length > 2
+          ? '<button class="boton boton-fino" style="width:100%" ' +
+            'onclick="ordenarPorCercania()">Ordenar por cercanía</button>'
+          : '') +
+
+        '<div class="recado" id="gRecado"></div>' +
+
+        '<div class="gestion-pie">' +
+          '<button class="boton" onclick="cerrarRuta()">Cancelar</button>' +
+          '<button class="boton boton-firme" onclick="guardarRutaUI()">' +
+            (RUTA.fecha ? 'Guardar y agendar' : 'Guardar') + '</button>' +
+        '</div>' +
+
+        (RUTA.fecha
+          ? '<div class="gestion-meta">Se creará un bloque en tu ' +
+            'calendario con el itinerario en la descripción. Si la ruta ' +
+            'ya estaba agendada, se actualiza el mismo evento.</div>'
+          : '<div class="gestion-meta">Sin fecha no se agenda nada.</div>');
+    }
+
+    function guardarRutaUI() {
+      leerFormularioRuta();
+
+      if (!RUTA.nombre.trim()) {
+        recadoGestion('mal', 'La ruta necesita un nombre.');
+        return;
+      }
+
+      if (!RUTA.paradas.length) {
+        recadoGestion('mal', 'Elige al menos un aserradero.');
+        return;
+      }
+
+      setLoading(true, RUTA.fecha ? 'Guardando y agendando' : 'Guardando');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          RUTAS = res;
+          MODO_RUTA = false;
+          RUTA = { id: '', nombre: '', fecha: '', hora: '', paradas: [] };
+          dibujarGestion();
+          dibujarTablaMapeos();
+          dibujarTablaRutas();
+          dibujarMapa();
+          setLoading(false);
+
+          if (res.mensajeAgenda) {
+            avisarMapeosOjo(res.mensajeAgenda);
+          }
+        })
+        .withFailureHandler(function(err) {
+          setLoading(false);
+          recadoGestion('mal', mensaje(err));
+        })
+        .guardarRuta({
+          id: RUTA.id, nombre: RUTA.nombre.trim(), fecha: RUTA.fecha,
+          hora: RUTA.hora, paradas: RUTA.paradas
+        });
+    }
+
+    function avisarMapeosOjo(texto) {
+      var caja = document.getElementById('mapeosOjo');
+      caja.innerHTML = esc(texto);
+      caja.classList.add('se-ve');
+    }
+
+    function borrarRuta(id) {
+      setLoading(true, 'Eliminando ruta');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          RUTAS = res;
+          dibujarTablaRutas();
+          setLoading(false);
+        })
+        .withFailureHandler(function(err) {
+          setLoading(false);
+          avisarMapeos(mensaje(err));
+        })
+        .eliminarRuta(id);
+    }
+
+    function dibujarTablaRutas() {
+      var cuerpo = document.getElementById('rutasBody');
+
+      if (!RUTAS) { return; }
+
+      var filas = RUTAS.rows || [];
+
+      setText('conteoRutas',
+        filas.length + (filas.length === 1 ? ' ruta' : ' rutas'));
+
+      if (!filas.length) {
+        cuerpo.innerHTML = '<tr class="fila-vacia"><td colspan="9">' +
+          (RUTAS.missingSheet
+            ? 'Corre «Astilla Dashboard › Preparar hoja de rutas».'
+            : 'Sin rutas guardadas. Pulsa «Armar ruta» para crear una.') +
+          '</td></tr>';
+        return;
+      }
+
+      cuerpo.innerHTML = filas.map(function(r) {
+        var agendada = Boolean(r.eventoId);
+
+        return '<tr>' +
+          '<td><strong>' + esc(r.nombre) + '</strong></td>' +
+          '<td class="num">' + esc(formatDateKey(r.fecha) || '—') + '</td>' +
+          '<td class="num">' + esc(r.hora) + '</td>' +
+          '<td class="number">' + r.paradas.length + '</td>' +
+          '<td class="number">' + formatQuantity(r.km) + '</td>' +
+          '<td class="number">' + duracionLegible(r.minutosTotal) + '</td>' +
+          '<td class="num">' + esc(r.horaTermino || '—') + '</td>' +
+          '<td><span class="sello-fuente ' +
+            (agendada ? 'es-real' : 'es-flojo') + '">' +
+            (agendada ? 'Agendada' : 'Sin agendar') + '</span></td>' +
+          '<td style="text-align:right;white-space:nowrap">' +
+            '<button class="boton boton-fino" onclick="abrirRuta(' +
+              JSON.stringify(r.id).replace(/"/g, '&quot;') +
+              ')">Editar</button> ' +
+            '<button class="boton boton-fino" onclick="borrarRuta(' +
+              JSON.stringify(r.id).replace(/"/g, '&quot;') +
+              ')">Borrar</button>' +
+          '</td></tr>';
+      }).join('');
+    }
+
+/* =====================================================================
  * MAPEOS
  * ===================================================================== */
 
@@ -3595,6 +4208,7 @@
 
           try {
             pintarMapeos();
+            cargarRutas();
           } catch (err) {
             avisarMapeos(
               'Los datos llegaron, pero no se pudieron dibujar.\n\n' +
@@ -3772,6 +4386,7 @@
 
       conPunto.forEach(function(f, i) {
         var esCerrado = f.estado === MAPEOS.estadoCerrado;
+        var enRuta = MODO_RUTA ? RUTA.paradas.indexOf(f.id) : -1;
 
         var marca = L.marker([f.lat, f.lng], {
           title: f.nombre,
@@ -3779,10 +4394,15 @@
             className: '',
             iconSize: [22, 22],
             iconAnchor: [11, 11],
-            html: '<div class="chincheta" style="background:' +
-              colorEstado(f.estado) + ';animation-delay:' +
-              (SUAVE ? i * 26 : 0) + 'ms">' +
-              (esCerrado && f.cargas ? formatInteger(f.cargas) : '') +
+            html: '<div class="chincheta' +
+              (enRuta !== -1 ? ' en-ruta' : '') +
+              (MODO_RUTA && enRuta === -1 ? ' fuera-de-ruta' : '') +
+              '" style="background:' +
+              (enRuta !== -1 ? 'var(--verde-banda)' : colorEstado(f.estado)) +
+              ';animation-delay:' + (SUAVE ? i * 26 : 0) + 'ms">' +
+              (enRuta !== -1
+                ? (enRuta + 1)
+                : (esCerrado && f.cargas ? formatInteger(f.cargas) : '')) +
               '</div>'
           })
         }).addTo(MAPA);
@@ -3790,6 +4410,26 @@
         marca.on('click', function() { seleccionar(f.id); });
         CHINCHETAS[f.id] = marca;
       });
+
+      if (TRAZO) { MAPA.removeLayer(TRAZO); TRAZO = null; }
+
+      // El trazo cierra en el origen: el regreso también es parte del
+      // día y conviene verlo.
+      if (MODO_RUTA && RUTA.paradas.length && L.polyline) {
+        var c = cfgRuta();
+        var puntos = [[c.lat, c.lng]];
+
+        RUTA.paradas.forEach(function(id) {
+          var m = buscarMapeo(id);
+          if (m && tieneCoordenada(m.lat)) { puntos.push([m.lat, m.lng]); }
+        });
+
+        puntos.push([c.lat, c.lng]);
+
+        TRAZO = L.polyline(puntos, {
+          color: '#175239', weight: 2.5, opacity: .75, dashArray: '7 5'
+        }).addTo(MAPA);
+      }
 
       if (conPunto.length) {
         MAPA.fitBounds(
@@ -3809,6 +4449,13 @@
     }
 
     function seleccionar(id) {
+      // Armando una ruta, un clic significa "agrega esta parada", no
+      // "abre su ficha".
+      if (MODO_RUTA && id) {
+        alternarParada(id);
+        return;
+      }
+
       SELECCION = id;
       MODO_ALTA = false;
       dibujarGestion();
@@ -4018,6 +4665,11 @@
     function dibujarGestion() {
       var caja = document.getElementById('gestion');
 
+      if (MODO_RUTA) {
+        caja.innerHTML = formularioRuta();
+        return;
+      }
+
       if (MODO_ALTA) {
         caja.innerHTML = formularioAlta();
         return;
@@ -4164,7 +4816,12 @@
           JSON.stringify(f.id).replace(/"/g, '&quot;') +
           ')" style="cursor:pointer' +
           (f.id === SELECCION ? ';background:var(--surface-2)' : '') + '">' +
-          '<td><strong>' + esc(f.nombre) + '</strong>' +
+          '<td>' +
+            (MODO_RUTA && RUTA.paradas.indexOf(f.id) !== -1
+              ? '<span class="parada-n">' +
+                (RUTA.paradas.indexOf(f.id) + 1) + '</span> '
+              : '') +
+            '<strong>' + esc(f.nombre) + '</strong>' +
             (f.lat === null
               ? ' <span class="sello-fuente es-flojo">sin ubicar</span>'
               : '') + '</td>' +
