@@ -87,8 +87,15 @@ sumas y duplicarían los camiones.
 
 ## El diseño
 
-Fondo blanco y paleta institucional del rubro. Cada color del dato
-significa una sola cosa y nada decorativo los usa:
+**Encabezado verde semioscuro** con el título fijo *Ingresos de astilla
+verde* y un filete de madera al pie, como el de un membrete impreso: es
+lo que ata los dos colores institucionales sin adornar. La línea bajo el
+título cambia según la vista —el mes y los días hábiles en Suministro,
+el conteo de aserraderos en Mapeos—, así que el encabezado siempre dice
+dónde estás parado.
+
+Debajo, área de trabajo blanca. Cada color del dato significa una sola
+cosa y nada decorativo los usa:
 
 | Color | Significa |
 |---|---|

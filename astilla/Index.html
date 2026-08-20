@@ -43,6 +43,9 @@
       --verde: #14563A;
       --verde-2: #1E7A50;
       --verde-soft: #E7F1EB;
+      /* Verde semioscuro del encabezado: institucional, no negro. */
+      --verde-banda: #175239;
+      --verde-banda-2: #1C6444;
       --madera: #A96C2A;
       --madera-2: #C9903F;
       --madera-soft: #FAF0E1;
@@ -100,25 +103,28 @@
       position: sticky;
       top: 0;
       z-index: 90;
-      background: rgba(255, 255, 255, .93);
-      border-bottom: 1px solid var(--rule);
-      backdrop-filter: saturate(180%) blur(10px);
+      color: #fff;
+      background: var(--verde-banda);
+      /* Filete de madera al pie, como el de un membrete impreso: ata
+         los dos colores institucionales sin adornar. */
+      border-bottom: 3px solid var(--madera);
     }
 
     .barra-fila {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 22px;
       width: min(1760px, 100%);
       margin: 0 auto;
-      padding: 11px 22px;
+      padding: 13px 22px;
     }
 
     .marca {
       display: flex;
       align-items: center;
-      gap: 11px;
-      flex: 0 0 auto;
+      gap: 13px;
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
     /* Anillos de crecimiento: la madera se lee en anillos, y cada
@@ -126,30 +132,36 @@
        otro lado. */
     .marca-anillos { flex: 0 0 auto; }
 
-    .marca-texto {
+    .marca-texto { min-width: 0; }
+
+    .marca-titulo {
       font-family: var(--display);
-      font-size: 14.5px;
-      font-weight: 700;
-      letter-spacing: -.02em;
-      line-height: 1.15;
+      font-size: clamp(16px, 1.7vw, 21px);
+      font-weight: 800;
+      letter-spacing: -.025em;
+      line-height: 1.1;
+      color: #fff;
     }
 
-    .marca-texto span {
-      display: block;
+    .marca-contexto {
+      margin-top: 3px;
       font-family: var(--mono);
-      font-size: 9.5px;
-      font-weight: 400;
-      letter-spacing: .1em;
-      color: var(--ink-3);
+      font-size: 10.5px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, .62);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .pestanas {
       display: flex;
       gap: 2px;
       padding: 3px;
-      margin-left: 8px;
+      flex: 0 0 auto;
       border-radius: 9px;
-      background: var(--surface);
+      background: rgba(0, 0, 0, .18);
     }
 
     .pestana {
@@ -164,39 +176,40 @@
       border: 0;
       border-radius: 7px;
       background: transparent;
-      color: var(--ink-2);
+      color: rgba(255, 255, 255, .72);
       transition: background .18s var(--ease), color .18s var(--ease);
     }
 
     .pestana svg { width: 15px; height: 15px; }
-    .pestana:hover { color: var(--ink); }
+    .pestana:hover { color: #fff; background: rgba(255, 255, 255, .1); }
 
     .pestana[aria-selected="true"] {
-      color: var(--verde);
-      background: var(--paper);
-      box-shadow: 0 1px 2px rgba(27, 36, 30, .07);
+      color: var(--verde-banda);
+      background: #fff;
     }
+
+    .pestana[aria-selected="true"]:hover { background: #fff; }
 
     .barra-fin { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
     .sello {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 5px 9px;
+      gap: 7px;
+      padding: 5px 10px;
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing: .02em;
-      color: var(--ink-2);
-      border: 1px solid var(--rule);
+      color: rgba(255, 255, 255, .8);
+      border: 1px solid rgba(255, 255, 255, .18);
       border-radius: 7px;
-      background: var(--surface);
+      background: rgba(0, 0, 0, .14);
       white-space: nowrap;
     }
 
     .sello i {
       width: 6px; height: 6px; border-radius: 50%;
-      background: var(--verde-2); flex: 0 0 auto;
+      background: var(--madera-2); flex: 0 0 auto;
     }
 
     .boton {
@@ -229,6 +242,26 @@
     .boton-firme:hover { background: var(--verde-2); border-color: var(--verde-2); }
     .boton:disabled { opacity: .5; cursor: wait; }
 
+    .barra .boton {
+      border-color: rgba(255, 255, 255, .24);
+      background: rgba(255, 255, 255, .08);
+      color: #fff;
+    }
+
+    .barra .boton:hover {
+      border-color: rgba(255, 255, 255, .45);
+      background: rgba(255, 255, 255, .15);
+    }
+
+    .barra .boton-firme {
+      border-color: #fff;
+      background: #fff;
+      color: var(--verde-banda);
+      font-weight: 700;
+    }
+
+    .barra .boton-firme:hover { background: #F2F7F4; border-color: #F2F7F4; }
+
     .boton-fino { min-height: 30px; padding: 0 10px; font-size: 11.5px; }
 
     main {
@@ -243,34 +276,27 @@
 
     .portada {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-      gap: 34px;
+      grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);
+      gap: 26px;
       align-items: end;
-      padding: 30px 0 24px;
+      padding: 24px 0 20px;
     }
 
-    .ceja {
-      font-family: var(--mono);
-      font-size: 10.5px;
-      letter-spacing: .13em;
-      text-transform: uppercase;
-      color: var(--ink-3);
-    }
+    .portada-mapeos { align-items: center; }
 
-    h1 {
-      margin: 9px 0 0;
+    .titulo-vista {
+      margin: 0;
       font-family: var(--display);
-      font-size: clamp(26px, 3vw, 38px);
+      font-size: clamp(21px, 2.2vw, 27px);
       font-weight: 800;
-      letter-spacing: -.035em;
-      line-height: 1;
+      letter-spacing: -.03em;
+      line-height: 1.05;
+      color: var(--verde-banda);
     }
-
-    h1 em { font-style: normal; color: var(--verde); }
 
     .portada-nota {
-      max-width: 56ch;
-      margin-top: 11px;
+      max-width: 62ch;
+      margin-top: 9px;
       font-size: 13px;
       line-height: 1.55;
       color: var(--ink-2);
@@ -317,7 +343,7 @@
        deberíamos ir y dónde vamos a terminar.
        --------------------------------------------------------------- */
 
-    .regla { margin: 4px 0 26px; }
+    .regla { min-width: 0; }
 
     .regla-cab {
       display: flex;
@@ -550,7 +576,7 @@
 
     .lectura {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
       gap: 1px;
       margin-bottom: 14px;
       background: var(--paper);
@@ -1049,11 +1075,17 @@
       #mapa { height: 400px; }
     }
 
-    @media (max-width: 820px) {
-      .barra-fila { flex-wrap: wrap; gap: 12px; padding: 10px 14px; }
-      .barra-fin { width: 100%; margin-left: 0; }
-      .pestanas { margin-left: 0; }
+    @media (max-width: 1000px) {
+      .portada { grid-template-columns: 1fr; align-items: start; }
       .sello { display: none; }
+    }
+
+    @media (max-width: 820px) {
+      .barra-fila { flex-wrap: wrap; gap: 12px; padding: 11px 14px; }
+      .marca { flex: 1 1 100%; }
+      .barra-fin { width: 100%; margin-left: 0; }
+      .pestanas { flex: 1 1 auto; }
+      .pestana { flex: 1; justify-content: center; }
       main { padding: 0 14px 48px; }
       .portada-cifras { grid-template-columns: 1fr; }
     }
@@ -1076,16 +1108,16 @@
   <header class="barra">
     <div class="barra-fila">
       <div class="marca">
-        <svg class="marca-anillos" width="26" height="26" viewBox="0 0 26 26"
+        <svg class="marca-anillos" width="34" height="34" viewBox="0 0 26 26"
              fill="none" aria-hidden="true">
-          <circle cx="13" cy="13" r="12" stroke="#E2DCD2"/>
+          <circle cx="13" cy="13" r="12" stroke="rgba(255,255,255,.28)"/>
           <circle cx="13" cy="13" r="9" stroke="#C9903F"/>
-          <circle cx="13" cy="13" r="6" stroke="#A96C2A"/>
-          <circle cx="13" cy="13" r="3" fill="#14563A"/>
+          <circle cx="13" cy="13" r="6" stroke="rgba(255,255,255,.5)"/>
+          <circle cx="13" cy="13" r="3" fill="#C9903F"/>
         </svg>
         <div class="marca-texto">
-          Astilla de proceso
-          <span>CONTROL DE SUMINISTRO</span>
+          <div class="marca-titulo">Ingresos de astilla verde</div>
+          <div class="marca-contexto" id="contexto">Cargando…</div>
         </div>
       </div>
 
@@ -1138,36 +1170,26 @@
     <!-- ======================= SUMINISTRO ======================= -->
     <section id="vistaSuministro" role="tabpanel" aria-labelledby="pesSuministro">
       <div class="portada">
-        <div>
-          <div class="ceja" id="cejaMes">Cargando…</div>
-          <h1>¿Llegamos al plan<br>del mes, y <em>a qué costo</em>?</h1>
-          <p class="portada-nota">
-            Los ingresos de la hoja <b>Ingresos</b> mandan. Mientras se
-            ponen al día, la planilla del reservador cubre los días
-            abiertos con camiones × factor.
-          </p>
+        <div class="regla">
+          <div class="regla-cab">
+            <div class="regla-titulo">La regla del mes</div>
+            <div class="regla-leyenda">
+              <span><i style="background:var(--verde)"></i>Ingreso real</span>
+              <span><i style="background:var(--madera)"></i>Complemento estimado</span>
+              <span><i style="background:var(--pizarra)"></i>Plan a la fecha</span>
+              <span><i style="background:var(--ink)"></i>Proyección de cierre</span>
+            </div>
+          </div>
+          <div class="regla-cuerpo" id="reglaCuerpo">
+            <div class="regla-tramo regla-real" id="reglaReal"></div>
+            <div class="regla-tramo regla-est" id="reglaEst"></div>
+            <div class="regla-marca" id="reglaMarca" data-rotulo=""></div>
+            <div class="regla-proy" id="reglaProy" data-rotulo=""></div>
+          </div>
+          <div class="regla-escala" id="reglaEscala"></div>
         </div>
 
         <div class="portada-cifras" id="portadaCifras"></div>
-      </div>
-
-      <div class="regla">
-        <div class="regla-cab">
-          <div class="regla-titulo">La regla del mes</div>
-          <div class="regla-leyenda">
-            <span><i style="background:var(--verde)"></i>Ingreso real</span>
-            <span><i style="background:var(--madera)"></i>Complemento estimado</span>
-            <span><i style="background:var(--pizarra)"></i>Plan a la fecha</span>
-            <span><i style="background:var(--ink)"></i>Proyección de cierre</span>
-          </div>
-        </div>
-        <div class="regla-cuerpo" id="reglaCuerpo">
-          <div class="regla-tramo regla-real" id="reglaReal"></div>
-          <div class="regla-tramo regla-est" id="reglaEst"></div>
-          <div class="regla-marca" id="reglaMarca" data-rotulo=""></div>
-          <div class="regla-proy" id="reglaProy" data-rotulo=""></div>
-        </div>
-        <div class="regla-escala" id="reglaEscala"></div>
       </div>
 
       <div class="pila">
@@ -1456,17 +1478,16 @@
 
     <!-- ========================= MAPEOS ========================= -->
     <section id="vistaMapeos" role="tabpanel" aria-labelledby="pesMapeos" hidden>
-      <div class="portada">
+      <div class="portada portada-mapeos">
         <div>
-          <div class="ceja" id="cejaMapeos">Cargando…</div>
-          <h1>Aserraderos:<br><em>a quién le toca</em></h1>
+          <h2 class="titulo-vista">Mapeo de aserraderos</h2>
           <p class="portada-nota">
             Todo parte en «Por visitar». Cerrar pide cuántas cargas;
             cualquier otro estado es la razón por la que no se cerró.
           </p>
         </div>
 
-        <div style="display:flex;justify-content:flex-end">
+        <div style="display:flex;justify-content:flex-end;align-items:center">
           <button class="boton boton-firme" type="button"
                   onclick="abrirAlta()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -1560,6 +1581,7 @@
     var MAPEOS_PEDIDOS = false;
     var FIJANDO = false;
     var MODO_ALTA = false;
+    var CONTEXTO = { suministro: '', mapeos: '' };
 
     var SUAVE = !window.matchMedia(
       '(prefers-reduced-motion: reduce)'
@@ -1588,6 +1610,9 @@
         .setAttribute('aria-selected', String(esSum));
       document.getElementById('pesMapeos')
         .setAttribute('aria-selected', String(!esSum));
+
+      setText('contexto',
+        CONTEXTO[cual] || 'Control de suministro');
 
       window.scrollTo({ top: 0, behavior: SUAVE ? 'smooth' : 'auto' });
 
@@ -1662,11 +1687,13 @@
       var source = DATA.source || {};
       var workdays = DATA.workdays || {};
 
-      setText(
-        'cejaMes',
-        (month.label || '—').toUpperCase() + ' · ' +
-        workdays.elapsed + ' DE ' + workdays.total + ' DÍAS HÁBILES'
-      );
+      CONTEXTO.suministro =
+        'Control de suministro · ' + (month.label || '—') + ' · ' +
+        workdays.elapsed + ' de ' + workdays.total + ' días hábiles';
+
+      if (VISTA === 'suministro') {
+        setText('contexto', CONTEXTO.suministro);
+      }
 
       var sello = document.getElementById('selloFuente');
       sello.innerHTML =
@@ -2758,28 +2785,19 @@
         {
           tag: 'Precio prom. operativo',
           val: m.avgPrice === null ? '—' : formatPrice(m.avgPrice), uni: '',
+          clase: m.priceDelta !== null && m.priceDelta > 0 ? 'val-riesgo' : '',
           pie: m.planAvgPrice === null
             ? 'Sin precio de plan para comparar'
-            : 'Plan: ' + formatPrice(m.planAvgPrice)
-        },
-        {
-          tag: 'Diferencia vs precio plan',
-          val: m.priceDelta === null ? '—' : formatSignedPrice(m.priceDelta),
-          uni: '',
-          clase: m.priceDelta !== null && m.priceDelta > 0 ? 'val-riesgo' : '',
-          pie: m.priceDeltaPct === null
-            ? '—'
-            : formatPercent(m.priceDeltaPct) + ' vs plan'
+            : 'Plan ' + formatPrice(m.planAvgPrice) +
+              (m.priceDelta === null
+                ? ''
+                : ' · ' + formatSignedPrice(m.priceDelta))
         },
         {
           tag: 'Cobertura de precio',
           val: formatPercent(m.priceCoverage), uni: '',
           clase: m.priceCoverage < 0.95 ? 'val-riesgo' : '',
           pie: formatQuantity(m.unpricedTs) + ' ' + unidad() + ' sin valorizar'
-        },
-        {
-          tag: 'Cobertura real', val: formatPercent(m.realCoverage), uni: '',
-          pie: formatPercent(m.estimateShare) + ' todavía es estimado'
         }
       ];
 
@@ -3604,11 +3622,18 @@
 
       var filas = MAPEOS.rows || [];
 
-      setText('cejaMapeos',
-        filas.length + ' ASERRADEROS · ' +
+      CONTEXTO.mapeos =
+        filas.length + ' aserraderos · ' +
         filas.filter(function(f) {
           return f.estado === MAPEOS.estadoCerrado;
-        }).length + ' CERRADOS');
+        }).length + ' cerrados · ' +
+        filas.reduce(function(t, f) {
+          return t + (Number(f.cargas) || 0);
+        }, 0) + ' cargas';
+
+      if (VISTA === 'mapeos') {
+        setText('contexto', CONTEXTO.mapeos);
+      }
 
       var ojo = [];
 
