@@ -1,47 +1,40 @@
 /**
- * ASTILLA · SAP + COMPLEMENTO PLANILLA SUB-PRODUCTOS
+ * ASTILLA PROCESO · INGRESOS REALES + COMPLEMENTO PLANILLA
  *
  * Unidad de trabajo: TONELADA SECA (TS).
  *
  * Fuentes:
- * - Ingresos: descarga de SAP con la cantidad real por Fecha Contab.
- *   Es la fuente válida; manda siempre.
+ * - Ingresos: hoja con el registro real de recepción. Es la fuente válida
+ *   y siempre tiene prioridad.
  * - InformeAstilla: detalle diario importado desde los correos
- *   "PLANILLA CUMPLIMIENTO SUB-PRODUCTOS ...". Solo sirve para tapar
- *   el hueco mientras SAP va desfasado.
+ *   "PLANILLA CUMPLIMIENTO SUB-PRODUCTOS ...". Solo completa el desfase
+ *   temporal mientras la hoja Ingresos aún no contiene esos días.
+ * - Plan: precio unitario y plan mensual en TS por proveedor/material.
  *
- * Regla de complemento (idéntica a MetroRuma):
- * - Hasta la última Fecha Contab. se usan únicamente los datos de SAP.
- * - Desde el día siguiente y hasta la última planilla recibida se usa
+ * Regla de complemento:
+ * - Hasta la última Fecha Contab. existente en Ingresos se usan únicamente
+ *   datos reales.
+ * - Desde el día siguiente y hasta la última planilla recibida se utiliza
  *   CAMIONES × FACTOR_CAMION.
- * - Un día que ya existe en SAP nunca se complementa: cuando SAP
- *   avanza, el estimado de ese día desaparece solo.
+ * - Cuando una fecha aparece en Ingresos, el estimado de esa fecha deja de
+ *   entrar automáticamente al dashboard.
  *
- * Sub-productos que entran a proceso (el resto de la planilla se
- * ignora: aserrín, álamo, pino combustible, etc.):
+ * Subproductos de proceso:
  *   ASTILLA EUCALYPTUS NITENS
  *   AST. PINO VERDE C/ CORTEZA
  *   ASTILLA PINO VERDE
  *
- * Plan diario en días hábiles:
- * - El plan mensual se prorratea linealmente entre los días hábiles
- *   del mes (WORKDAYS y FERIADOS).
- * - "Plan a la fecha" = Plan × días hábiles transcurridos / días
- *   hábiles del mes, tomando como referencia la mayor entre la última
- *   Fecha Contab. y la última planilla.
- *
- * Limitación conocida (pendiente):
- * - readPlan_ lee solo la columna del mes calendario vigente. Si en el
- *   dashboard se filtra un rango de otro mes, el plan mostrado sigue
- *   siendo el del mes actual y el desvío queda mal. Mientras no se
- *   resuelva, usar el filtro de fechas por defecto (mes vigente).
+ * Homologación primaria de la hoja Ingresos:
+ *   3000039 -> ASTILLA PINO VERDE
+ *   3009002 -> AST. PINO VERDE C/ CORTEZA
+ *   3009003 -> ASTILLA EUCALYPTUS NITENS
  */
 
 const CONFIG = Object.freeze({
   SPREADSHEET_ID: '1PNQToRtF7g-obmmOHuoonNGN5-VhhTYnW6SEhK36EOk',
   SHEET_INGRESOS: 'Ingresos',
   SHEET_INFORME: 'InformeAstilla',
-  SHEET_PLAN: 'PlanAstilla',
+  SHEET_PLAN: 'Plan',
   SHEET_MAPEOS: 'Mapeos',
   HTML_FILE: 'Index',
   TIMEZONE: 'America/Santiago',
@@ -50,18 +43,16 @@ const CONFIG = Object.freeze({
   FACTOR_CAMION: 11,
   UNIDAD: 'TS',
 
-  // Códigos de material de SAP que cuentan como astilla a proceso.
-  // OJO: SAP no desglosa sub-productos. Todo el ingreso llega como
-  // "ASTILLA VERDE (TS)" bajo el material 3000039; el desglose en
-  // NITENS / PINO VERDE C/CORTEZA / PINO VERDE solo existe en la
-  // planilla que llega por Gmail.
-  SAP_MATERIALES: Object.freeze(['3000039']),
-
   // Meses de historia que viajan al dashboard (el mes vigente
   // siempre entra). Súbelo si quieres más estadística.
   HISTORY_MONTHS: 6,
 
   FUZZY_THRESHOLD: 0.72,
+
+  // Cruce de precio Plan ↔ proveedor operativo. Si dos candidatos
+  // quedan demasiado cerca, el precio NO se asigna automáticamente.
+  PRICE_MATCH_THRESHOLD: 0.72,
+  PRICE_MATCH_MARGIN: 0.08,
 
   // 0=domingo ... 6=sábado. Agrega el 6 si trabajan sábados.
   WORKDAYS: Object.freeze([1, 2, 3, 4, 5]),
@@ -88,24 +79,43 @@ const CONFIG = Object.freeze({
   ]),
 
   GMAIL_LABEL: '',
-  GMAIL_SUBJECT: 'CUMPLIMIENTO SUB-PRODUCTOS',
+  // ÚNICA fuente de correo válida.
+  // Se procesa solo el mensaje ORIGINAL enviado por esta casilla y cuyo
+  // asunto tenga el formato:
+  // PLANILLA CUMPLIMIENTO SUB-PRODUCTOS <DÍA> DD DE <MES> DE YYYY
+  GMAIL_SUBJECT: 'PLANILLA CUMPLIMIENTO SUB-PRODUCTOS',
+  GMAIL_SUBJECT_PREFIX: 'PLANILLA CUMPLIMIENTO SUB-PRODUCTOS',
+  GMAIL_ALLOWED_SENDERS: Object.freeze([
+    'reservador.horario@masisa.com'
+  ]),
   GMAIL_PROCESSED_LABEL: 'Astilla/Planilla procesada',
   GMAIL_SEARCH_DAYS: 120,
   GMAIL_MAX_THREADS: 300,
   TRIGGER_MINUTES: 15,
 
   // Posición de respaldo de las columnas de Ingresos (base cero),
-  // con el mismo layout de la descarga de SAP de MetroRuma.
+  // con el layout habitual de la hoja Ingresos.
   // Si la hoja trae encabezados, se detectan por nombre y esto no
   // se usa.
+  MATERIAL_MAP: Object.freeze({
+    '3000039': 'ASTILLA PINO VERDE',
+    '3009002': 'AST. PINO VERDE C/ CORTEZA',
+    '3009003': 'ASTILLA EUCALYPTUS NITENS'
+  }),
+
+  // Posiciones de respaldo (base cero) de la hoja Ingresos.
+  // Si los encabezados están presentes, se detectan por nombre.
   INGRESOS_COLUMNS: Object.freeze({
     MATERIAL: 2,
     DESCRIPCION_MATERIAL: 3,
     FECHA_CONTABLE: 4,
+    TEXTO_POSICION: 7,
     CANTIDAD: 8,
     UM: 10,
+    PROVEEDOR: 11,
     DESCRIPCION_PROVEEDOR: 12,
-    ROL: 15,
+    DESTINO: 13,
+    ROL: 14,
     PREDIO: 16
   })
 });
@@ -115,12 +125,6 @@ const SUBPRODUCTOS_OBJETIVO = Object.freeze([
   'AST. PINO VERDE C/ CORTEZA',
   'ASTILLA PINO VERDE'
 ]);
-
-/**
- * Lo que SAP entrega sin desglosar. No se puede repartir entre los
- * tres sub-productos de arriba, así que vive en su propio bucket.
- */
-const SUBPRODUCTO_SAP = 'ASTILLA VERDE (TOTAL SAP)';
 
 const INFORME_HEADERS = Object.freeze([
   'Fecha Informe',
@@ -164,13 +168,11 @@ function onOpen() {
       'probarUltimoCorreo'
     )
     .addItem(
-      'Diagnosticar hoja de SAP',
-      'diagnosticarIngresos'
-    )
-    .addItem(
-      'Diagnosticar cruce SAP vs planilla',
+      'Diagnosticar cruce Ingresos vs planilla',
       'diagnosticarCruce'
     )
+    .addSeparator()
+    .addItem('Validar hoja Plan (no modifica)', 'prepararHojaPlan')
     .addSeparator()
     .addItem('Preparar hoja de mapeos', 'instalarMapeos')
     .addItem('Ubicar en el mapa', 'ubicarMapeos')
@@ -184,7 +186,7 @@ function doGet() {
   return HtmlService
     .createTemplateFromFile(CONFIG.HTML_FILE)
     .evaluate()
-    .setTitle('Astilla · SAP vs planilla')
+    .setTitle('Astilla Proceso · Control de suministro')
     .setXFrameOptionsMode(
       HtmlService.XFrameOptionsMode.ALLOWALL
     );
@@ -199,8 +201,83 @@ function abrirDashboard() {
 
   SpreadsheetApp.getUi().showModalDialog(
     output,
-    'Astilla · SAP vs planilla'
+    'Astilla Proceso · Control de suministro'
   );
+}
+
+
+/**
+ * Compatibilidad con el menú anterior.
+ * IMPORTANTE: esta función NO crea columnas, NO limpia celdas y NO cambia
+ * formatos de la hoja Plan. Solo lee y valida la estructura existente.
+ */
+function prepararHojaPlan() {
+  return validarHojaPlan();
+}
+
+function validarHojaPlan() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const timezone =
+    spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
+  const month = getCurrentMonthWindow_(timezone);
+  const plan = readPlan_(spreadsheet, month);
+
+  const lines = [
+    'Validación de hoja Plan',
+    '',
+    'Hoja: ' + (plan.sheetName || CONFIG.SHEET_PLAN),
+    'Mes: ' + (plan.monthLabel || month.label),
+    'Filas proveedor/material: ' + plan.details.length,
+    'Plan mensual total: ' + round_(plan.totalPlan || 0, 1) + ' TS',
+    'Precio promedio ponderado plan: ' +
+      (
+        plan.weightedPrice !== null
+          ? round_(plan.weightedPrice, 2) + ' por TS'
+          : 'Sin volumen planificado con precio'
+      ),
+    'Costo plan valorizado: ' + round_(plan.plannedCost || 0, 2),
+    ''
+  ];
+
+  SUBPRODUCTOS_OBJETIVO.forEach(function(name) {
+    const row = plan.rows.filter(function(item) {
+      return item.subproducto === name;
+    })[0];
+
+    if (!row) {
+      lines.push('- ' + name + ': sin filas en Plan');
+      return;
+    }
+
+    lines.push(
+      '- ' +
+      name +
+      ': ' +
+      round_(row.plan || 0, 1) +
+      ' TS · precio pond. ' +
+      (
+        row.weightedPrice !== null
+          ? round_(row.weightedPrice, 2)
+          : '—'
+      )
+    );
+  });
+
+  if (plan.invalidRows.length) {
+    lines.push('');
+    lines.push(
+      'Filas no reconocidas: ' + plan.invalidRows.length
+    );
+    plan.invalidRows.slice(0, 15).forEach(function(item) {
+      lines.push('- Fila ' + item.row + ': ' + item.reason);
+    });
+  }
+
+  try {
+    SpreadsheetApp.getUi().alert(lines.join('\n'));
+  } catch (ignoredUi) {}
+
+  return plan;
 }
 
 /* =====================================================================
@@ -219,7 +296,7 @@ function getDashboardData() {
   const month = getCurrentMonthWindow_(timezone);
   const historyStart = buildHistoryStart_(month);
 
-  const sap = readIngresos_(
+  const ingresos = readIngresos_(
     spreadsheet,
     timezone,
     historyStart
@@ -229,15 +306,15 @@ function getDashboardData() {
     spreadsheet,
     timezone,
     historyStart,
-    sap.proveedores
+    ingresos.proveedores
   );
 
   const supplement = buildSupplementRows_(
-    sap.rows,
+    ingresos.rows,
     informe.rows
   );
 
-  const rows = sap.rows.concat(supplement.rows);
+  const baseRows = ingresos.rows.concat(supplement.rows);
 
   const workdays = buildWorkdaysInfo_(
     timezone,
@@ -247,6 +324,11 @@ function getDashboardData() {
   );
 
   const plan = readPlan_(spreadsheet, month);
+  const pricing = applyPlanPricing_(
+    baseRows,
+    plan.details
+  );
+  const rows = pricing.rows;
 
   return {
     generatedAt: Utilities.formatDate(
@@ -259,14 +341,16 @@ function getDashboardData() {
     factor: CONFIG.FACTOR_CAMION,
     month: month,
     workdays: workdays,
+    holidays: CONFIG.FERIADOS.slice(),
     subproductos: SUBPRODUCTOS_OBJETIVO.slice(),
+    materialMap: CONFIG.MATERIAL_MAP,
     source: {
       spreadsheetName: spreadsheet.getName(),
       spreadsheetUrl: spreadsheet.getUrl(),
-      missingIngresos: sap.missingSheet,
+      missingIngresos: ingresos.missingSheet,
       missingInforme: informe.missingSheet,
-      sapRows: sap.rows.length,
-      sapIgnored: sap.ignored,
+      ingresosRows: ingresos.rows.length,
+      ingresosIgnored: ingresos.ignored,
       informeRows: informe.rows.length,
       supplementRows: supplement.rows.length,
       supplementCamiones: supplement.camiones,
@@ -275,7 +359,7 @@ function getDashboardData() {
       lastActualDate: supplement.lastActualDate,
       lastActualDateLabel: supplement.lastActualDate
         ? formatDateKey_(supplement.lastActualDate)
-        : 'Sin datos SAP',
+        : 'Sin datos reales',
       supplementStart: supplement.supplementStart,
       supplementStartLabel: supplement.supplementStart
         ? formatDateKey_(supplement.supplementStart)
@@ -285,8 +369,20 @@ function getDashboardData() {
         ? formatDateKey_(supplement.latestReportDate)
         : 'Sin planilla',
       staleReports: supplement.staleReports,
-      hasPlan: plan.rows.length > 0,
-      materialesSinReconocer: sap.materialesSinReconocer
+      hasPlan: plan.details.length > 0,
+      planInvalidRows: plan.invalidRows.length,
+      planMissingProducts: SUBPRODUCTOS_OBJETIVO.filter(function(name) {
+        return !plan.rows.some(function(item) {
+          return item.subproducto === name;
+        });
+      }),
+      planWeightedPrice: plan.weightedPrice,
+      planCost: plan.plannedCost,
+      priceCoverage: pricing.stats.coverage,
+      priceUnmatchedTs: pricing.stats.unpricedTs,
+      planSheetName: plan.sheetName || CONFIG.SHEET_PLAN,
+      planMonthLabel: plan.monthLabel || '',
+      materialesSinReconocer: ingresos.materialesSinReconocer
     },
     filters: {
       subproductos: uniqueSorted_(
@@ -298,9 +394,16 @@ function getDashboardData() {
         rows.map(function(item) {
           return item.proveedor;
         })
+      ),
+      destinos: uniqueSorted_(
+        rows.map(function(item) {
+          return item.destino;
+        })
       )
     },
     plan: plan.rows,
+    planDetails: plan.details,
+    pricing: pricing.stats,
     rows: rows
   };
 }
@@ -323,27 +426,17 @@ function buildHistoryStart_(month) {
 }
 
 /* =====================================================================
- * LECTURA DE SAP (HOJA INGRESOS)
+ * LECTURA DE INGRESOS REALES
  * ===================================================================== */
 
 function readIngresos_(spreadsheet, timezone, historyStart) {
-  const sheet = spreadsheet.getSheetByName(
-    CONFIG.SHEET_INGRESOS
-  );
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_INGRESOS);
 
   if (!sheet || sheet.getLastRow() < 2) {
     return {
       rows: [],
       proveedores: [],
       ignored: 0,
-      skipped: {
-        sinFecha: 0,
-        fueraDeHistoria: 0,
-        materialNoReconocido: 0
-      },
-      columns: null,
-      headers: [],
-      totalRows: 0,
       materialesSinReconocer: [],
       missingSheet: !sheet
     };
@@ -356,20 +449,9 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
 
   const rows = [];
   const noMatch = {};
-
-  const skipped = {
-    sinFecha: 0,
-    fueraDeHistoria: 0,
-    materialNoReconocido: 0
-  };
-
   let ignored = 0;
 
-  for (
-    let rowIndex = 1;
-    rowIndex < values.length;
-    rowIndex++
-  ) {
+  for (let rowIndex = 1; rowIndex < values.length; rowIndex++) {
     const row = values[rowIndex];
     const displayRow = displayed[rowIndex] || [];
 
@@ -379,31 +461,32 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       timezone
     );
 
-    if (!dateKey) {
-      skipped.sinFecha++;
+    if (!dateKey || dateKey < historyStart) {
       continue;
     }
 
-    if (dateKey < historyStart) {
-      skipped.fueraDeHistoria++;
-      continue;
-    }
+    const material = row[columns.MATERIAL];
+    const descripcion = text_(row[columns.DESCRIPCION_MATERIAL]);
+    const textoPosicion = columns.TEXTO_POSICION >= 0
+      ? text_(row[columns.TEXTO_POSICION])
+      : '';
 
-    const descripcion = text_(
-      row[columns.DESCRIPCION_MATERIAL]
+    const resolved = resolveIngresosSubproducto_(
+      material,
+      descripcion,
+      textoPosicion
     );
 
-    const subproducto =
-      canonicalSubproducto_(descripcion) ||
-      canonicalSubproducto_(row[columns.MATERIAL]) ||
-      subproductoPorMaterial_(row[columns.MATERIAL]);
-
-    if (!subproducto) {
+    if (!resolved.subproducto) {
       ignored++;
-      skipped.materialNoReconocido++;
 
-      if (descripcion) {
-        noMatch[descripcion] = true;
+      const rawKey = [
+        normalizeSapMaterialCode_(material) || text_(material),
+        descripcion
+      ].filter(Boolean).join(' | ');
+
+      if (rawKey) {
+        noMatch[rawKey] = true;
       }
 
       continue;
@@ -411,29 +494,45 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
 
     const proveedor =
       text_(row[columns.DESCRIPCION_PROVEEDOR]) ||
+      (columns.PROVEEDOR >= 0
+        ? text_(row[columns.PROVEEDOR])
+        : '') ||
       'SIN PROVEEDOR';
+
+    const cantidad = toNumber_(
+      row[columns.CANTIDAD],
+      displayRow[columns.CANTIDAD]
+    );
+
+    if (!isFinite(cantidad) || cantidad === 0) {
+      continue;
+    }
 
     rows.push({
       fecha: dateKey,
       fechaNumero: Number(dateKey.replace(/-/g, '')),
       fechaLabel: formatDateKey_(dateKey),
-      source: 'SAP',
-      subproducto: subproducto,
-      subproductoRaw: descripcion,
+      source: 'INGRESOS',
+      subproducto: resolved.subproducto,
+      subproductoRaw: descripcion || text_(material),
+      material: normalizeSapMaterialCode_(material) || text_(material),
       proveedor: proveedor,
       proveedorRaw: proveedor,
-      matchMethod: 'SAP',
+      matchMethod: resolved.method,
       matchScore: 1,
-      destino: '',
+      destino: columns.DESTINO >= 0
+        ? text_(row[columns.DESTINO])
+        : '',
       camiones: null,
       factor: null,
-      ts: toNumber_(
-        row[columns.CANTIDAD],
-        displayRow[columns.CANTIDAD]
-      ),
+      ts: cantidad,
       um: text_(row[columns.UM]) || CONFIG.UNIDAD,
-      predio: text_(row[columns.PREDIO]),
-      rol: text_(row[columns.ROL]),
+      predio: columns.PREDIO >= 0
+        ? text_(row[columns.PREDIO])
+        : '',
+      rol: columns.ROL >= 0
+        ? text_(row[columns.ROL])
+        : '',
       messageId: ''
     });
   }
@@ -446,13 +545,82 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
       })
     ),
     ignored: ignored,
-    skipped: skipped,
-    columns: columns,
-    headers: values[0].map(text_),
-    totalRows: values.length - 1,
     materialesSinReconocer: Object.keys(noMatch).sort(),
     missingSheet: false
   };
+}
+
+function normalizeSapMaterialCode_(value) {
+  if (typeof value === 'number' && isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+
+  const text = String(value || '').trim();
+
+  if (!text) {
+    return '';
+  }
+
+  const match = text.match(/\b(3000039|3009002|3009003)\b/);
+
+  if (match) {
+    return match[1];
+  }
+
+  if (/^\d+(?:[.,]0+)?$/.test(text)) {
+    return String(Math.trunc(Number(text.replace(',', '.'))));
+  }
+
+  return text.replace(/\s+/g, '');
+}
+
+function resolveIngresosSubproducto_(material, descripcion, textoPosicion) {
+  const code = normalizeSapMaterialCode_(material);
+
+  if (CONFIG.MATERIAL_MAP[code]) {
+    return {
+      subproducto: CONFIG.MATERIAL_MAP[code],
+      method: 'Código material ' + code
+    };
+  }
+
+  const key = normalizeKey_(
+    [descripcion, textoPosicion].join(' ')
+  );
+
+  if (
+    key.indexOf('OTRA ESPECIE') !== -1 ||
+    key.indexOf('EUCA') !== -1 ||
+    key.indexOf('EUCALYPTUS') !== -1 ||
+    key.indexOf('NITENS') !== -1
+  ) {
+    return {
+      subproducto: 'ASTILLA EUCALYPTUS NITENS',
+      method: 'Descripción material'
+    };
+  }
+
+  if (
+    key.indexOf('ASTILLA VERDE CON CORTEZA') !== -1 ||
+    (
+      key.indexOf('ASTILLA VERDE') !== -1 &&
+      key.indexOf('CORTEZA') !== -1
+    )
+  ) {
+    return {
+      subproducto: 'AST. PINO VERDE C/ CORTEZA',
+      method: 'Descripción material'
+    };
+  }
+
+  if (key.indexOf('ASTILLA VERDE') !== -1) {
+    return {
+      subproducto: 'ASTILLA PINO VERDE',
+      method: 'Descripción material'
+    };
+  }
+
+  return { subproducto: '', method: '' };
 }
 
 /**
@@ -461,26 +629,11 @@ function readIngresos_(spreadsheet, timezone, historyStart) {
  */
 function resolveIngresosColumns_(headerRow) {
   const map = buildHeaderMap_(headerRow);
-  const keys = Object.keys(map);
 
   function pick(names, fallback) {
-    // 1) Coincidencia exacta. Va primero para que una hoja con
-    //    "Proveedor" (código) y "Des. Proveedor" (nombre) elija el
-    //    nombre y no el código.
     for (let index = 0; index < names.length; index++) {
       if (map[names[index]] !== undefined) {
         return map[names[index]];
-      }
-    }
-
-    // 2) El encabezado empieza por el alias. Necesario porque SAP
-    //    exporta títulos como "Proveedor Origen (RUT + NOMBRE )",
-    //    que ningún alias exacto puede cubrir.
-    for (let index = 0; index < names.length; index++) {
-      for (let k = 0; k < keys.length; k++) {
-        if (keys[k].indexOf(names[index]) === 0) {
-          return map[keys[k]];
-        }
       }
     }
 
@@ -512,39 +665,37 @@ function resolveIngresosColumns_(headerRow) {
       ],
       defaults.FECHA_CONTABLE
     ),
+    TEXTO_POSICION: pick(
+      ['texto posicion', 'texto de posicion'],
+      defaults.TEXTO_POSICION
+    ),
     CANTIDAD: pick(
-      [
-        'cantidad',
-        'cantidad ts',
-        'recepcion',
-        'volumen',
-        'ts'
-      ],
+      ['cantidad', 'cantidad ts', 'ts', 'volumen'],
       defaults.CANTIDAD
     ),
     UM: pick(
-      [
-        'um',
-        'unidad medida pedido',
-        'unidad medida',
-        'unidad'
-      ],
+      ['um', 'unidad', 'unidad medida'],
       defaults.UM
+    ),
+    PROVEEDOR: pick(
+      ['proveedor', 'codigo proveedor'],
+      defaults.PROVEEDOR
     ),
     DESCRIPCION_PROVEEDOR: pick(
       [
         'descripcion proveedor',
         'des proveedor',
-        'proveedor origen',
-        'nombre proveedor',
-        'proveedor'
+        'desc proveedor',
+        'nombre proveedor'
       ],
       defaults.DESCRIPCION_PROVEEDOR
     ),
+    DESTINO: pick(['destino'], defaults.DESTINO),
     ROL: pick(['rol'], defaults.ROL),
     PREDIO: pick(['predio'], defaults.PREDIO)
   };
 }
+
 
 /* =====================================================================
  * LECTURA DE LA PLANILLA IMPORTADA
@@ -553,7 +704,7 @@ function resolveIngresosColumns_(headerRow) {
 /**
  * Se queda con el correo más reciente de cada fecha, de modo que una
  * planilla corregida reemplace a la original sin duplicar camiones.
- * Los nombres de proveedor se homologan contra los de SAP.
+ * Los nombres de proveedor se homologan contra los de la hoja Ingresos.
  */
 function readInformeRows_(
   spreadsheet,
@@ -663,9 +814,27 @@ function readInformeRows_(
         displayRow[map['factor']]
       ) || CONFIG.FACTOR_CAMION;
 
+    const subproducto =
+      canonicalSubproducto_(row[map['subproducto']]) ||
+      canonicalSubproducto_(row[map['subproducto planilla']]);
+
+    if (!subproducto) {
+      continue;
+    }
+
     const proveedorRaw =
-      text_(row[map['proveedor planilla']]) ||
-      'SIN PROVEEDOR';
+      text_(row[map['proveedor planilla']]);
+
+    // Regla defensiva: InformeAstilla puede contener filas antiguas de una
+    // reconstrucción previa. Nunca se aceptan totales ni filas sin proveedor,
+    // porque esas filas representan sumas y duplicarían los camiones.
+    if (
+      !proveedorRaw ||
+      proveedorRaw === 'SIN PROVEEDOR' ||
+      isTotalText_(proveedorRaw)
+    ) {
+      continue;
+    }
 
     const match = resolveProveedor_(
       proveedorRaw,
@@ -677,7 +846,7 @@ function readInformeRows_(
       fechaNumero: Number(dateKey.replace(/-/g, '')),
       fechaLabel: formatDateKey_(dateKey),
       source: 'PLANILLA',
-      subproducto: text_(row[map['subproducto']]),
+      subproducto: subproducto,
       subproductoRaw: text_(
         row[map['subproducto planilla']]
       ),
@@ -715,11 +884,11 @@ function readInformeRows_(
 }
 
 /* =====================================================================
- * COMPLEMENTO: SAP MANDA, LA PLANILLA TAPA EL HUECO
+ * COMPLEMENTO: INGRESOS MANDA, LA PLANILLA TAPA EL HUECO
  * ===================================================================== */
 
-function buildSupplementRows_(sapRows, informeRows) {
-  const lastActualDate = sapRows.reduce(
+function buildSupplementRows_(ingresosRows, informeRows) {
+  const lastActualDate = ingresosRows.reduce(
     function(maxDate, item) {
       return !maxDate || item.fecha > maxDate
         ? item.fecha
@@ -740,7 +909,7 @@ function buildSupplementRows_(sapRows, informeRows) {
   let staleReports = 0;
 
   const rows = informeRows.filter(function(item) {
-    // Día ya cerrado en SAP: el estimado se descarta.
+    // Día ya presente en Ingresos: el estimado se descarta.
     if (lastActualDate && item.fecha <= lastActualDate) {
       staleReports++;
       return false;
@@ -757,7 +926,7 @@ function buildSupplementRows_(sapRows, informeRows) {
     return total + (Number(item.camiones) || 0);
   }, 0);
 
-  // La primera fecha realmente complementada. Sin datos de SAP el
+  // La primera fecha realmente complementada. Sin datos de Ingresos el
   // complemento arranca en la planilla más antigua, no en la última.
   const firstSupplementDate = rows.reduce(
     function(minDate, item) {
@@ -785,7 +954,7 @@ function buildSupplementRows_(sapRows, informeRows) {
  * ===================================================================== */
 
 /**
- * El reservador escribe "PROMASA S.A." y SAP "PROMASA SA". Se comparan
+ * El reservador escribe "PROMASA S.A." y en Ingresos puede figurar "PROMASA SA". Se comparan
  * sin razón social ni palabras vacías; si nada supera el umbral, se
  * conserva el nombre de la planilla.
  */
@@ -914,17 +1083,27 @@ function levenshtein_(a, b) {
  * ===================================================================== */
 
 /**
- * Hoja PlanAstilla: una columna con el sub-producto y una columna por
- * mes ('AGO-2026', '2026-08' o una fecha). El valor es el plan del mes
- * en TS. Sin la hoja, el dashboard funciona igual y omite el plan.
+ * Hoja Plan con estructura:
+ *   Suministro | Proveedor | Precio | <mes>
+ *
+ * "Suministro" puede aparecer solo en la primera fila del grupo y se
+ * arrastra hacia abajo. El precio es unitario por TS para la combinación
+ * proveedor/material y la columna del mes contiene el volumen planificado.
  */
 function readPlan_(spreadsheet, month) {
-  const sheet = spreadsheet.getSheetByName(
-    CONFIG.SHEET_PLAN
-  );
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_PLAN);
 
   if (!sheet || sheet.getLastRow() < 2) {
-    return { rows: [] };
+    return {
+      rows: [],
+      details: [],
+      invalidRows: [],
+      sheetName: sheet ? sheet.getName() : CONFIG.SHEET_PLAN,
+      monthLabel: '',
+      totalPlan: 0,
+      plannedCost: 0,
+      weightedPrice: null
+    };
   }
 
   const range = sheet.getDataRange();
@@ -932,41 +1111,45 @@ function readPlan_(spreadsheet, month) {
   const displayed = range.getDisplayValues();
 
   let headerRowIndex = -1;
-  let subproductoColumn = -1;
+  let suministroColumn = -1;
+  let proveedorColumn = -1;
+  let precioColumn = -1;
 
   for (
     let rowIndex = 0;
     rowIndex < Math.min(values.length, 20);
     rowIndex++
   ) {
-    for (
-      let columnIndex = 0;
-      columnIndex < values[rowIndex].length;
-      columnIndex++
+    const map = buildHeaderMap_(values[rowIndex]);
+
+    if (
+      map['suministro'] !== undefined &&
+      map['proveedor'] !== undefined &&
+      map['precio'] !== undefined
     ) {
-      const key = normalizeHeader_(
-        values[rowIndex][columnIndex]
-      );
-
-      if (
-        key === 'subproducto' ||
-        key === 'subproductos' ||
-        key === 'material' ||
-        key === 'producto'
-      ) {
-        headerRowIndex = rowIndex;
-        subproductoColumn = columnIndex;
-        break;
-      }
-    }
-
-    if (headerRowIndex !== -1) {
+      headerRowIndex = rowIndex;
+      suministroColumn = map['suministro'];
+      proveedorColumn = map['proveedor'];
+      precioColumn = map['precio'];
       break;
     }
   }
 
   if (headerRowIndex === -1) {
-    return { rows: [] };
+    return {
+      rows: [],
+      details: [],
+      invalidRows: [{
+        row: 1,
+        reason:
+          'Se esperaban las columnas Suministro, Proveedor y Precio.'
+      }],
+      sheetName: sheet.getName(),
+      monthLabel: '',
+      totalPlan: 0,
+      plannedCost: 0,
+      weightedPrice: null
+    };
   }
 
   const monthColumn = findPlanMonthColumn_(
@@ -976,40 +1159,198 @@ function readPlan_(spreadsheet, month) {
   );
 
   if (monthColumn === -1) {
-    return { rows: [] };
+    return {
+      rows: [],
+      details: [],
+      invalidRows: [{
+        row: headerRowIndex + 1,
+        reason: 'No existe una columna para el mes ' + month.prefix + '.'
+      }],
+      sheetName: sheet.getName(),
+      monthLabel: '',
+      totalPlan: 0,
+      plannedCost: 0,
+      weightedPrice: null
+    };
   }
 
-  const aggregate = {};
+  const monthLabel =
+    text_(displayed[headerRowIndex][monthColumn]) ||
+    text_(values[headerRowIndex][monthColumn]);
+
+  const details = [];
+  const invalidRows = [];
+  let currentSupplyRaw = '';
+  let currentSubproducto = '';
 
   for (
     let rowIndex = headerRowIndex + 1;
     rowIndex < values.length;
     rowIndex++
   ) {
-    const subproducto = canonicalSubproducto_(
-      values[rowIndex][subproductoColumn]
+    const supplyCell = text_(
+      displayed[rowIndex][suministroColumn] !== ''
+        ? displayed[rowIndex][suministroColumn]
+        : values[rowIndex][suministroColumn]
     );
 
-    if (!subproducto) {
+    if (supplyCell) {
+      currentSupplyRaw = supplyCell;
+      currentSubproducto = resolvePlanSubproducto_(supplyCell);
+    }
+
+    const proveedorPlan = text_(
+      displayed[rowIndex][proveedorColumn] !== ''
+        ? displayed[rowIndex][proveedorColumn]
+        : values[rowIndex][proveedorColumn]
+    );
+
+    const rawPrice =
+      displayed[rowIndex][precioColumn] !== ''
+        ? displayed[rowIndex][precioColumn]
+        : values[rowIndex][precioColumn];
+
+    const rawPlan =
+      displayed[rowIndex][monthColumn] !== ''
+        ? displayed[rowIndex][monthColumn]
+        : values[rowIndex][monthColumn];
+
+    const hasContent =
+      supplyCell ||
+      proveedorPlan ||
+      text_(rawPrice) ||
+      text_(rawPlan);
+
+    if (!hasContent) {
       continue;
     }
 
-    aggregate[subproducto] =
-      (aggregate[subproducto] || 0) +
-      toNumber_(
-        values[rowIndex][monthColumn],
-        displayed[rowIndex][monthColumn]
-      );
+    if (!currentSubproducto) {
+      invalidRows.push({
+        row: rowIndex + 1,
+        reason:
+          'Suministro no reconocido: ' +
+          (currentSupplyRaw || '(vacío)')
+      });
+      continue;
+    }
+
+    if (!proveedorPlan) {
+      invalidRows.push({
+        row: rowIndex + 1,
+        reason:
+          'Fila de ' + currentSubproducto + ' sin proveedor.'
+      });
+      continue;
+    }
+
+    const precio = parseOptionalNumber_(rawPrice);
+    const planValue = parseOptionalNumber_(rawPlan);
+    const planTs = planValue === null ? 0 : planValue;
+
+    const planKey =
+      currentSubproducto +
+      '||' +
+      priceProviderComparable_(proveedorPlan);
+
+    details.push({
+      row: rowIndex + 1,
+      planKey: planKey,
+      subproducto: currentSubproducto,
+      suministroRaw: currentSupplyRaw,
+      proveedorPlan: proveedorPlan,
+      proveedorPlanKey: priceProviderComparable_(proveedorPlan),
+      precio: precio,
+      plan: planTs,
+      planCost:
+        precio !== null
+          ? precio * planTs
+          : null
+    });
   }
 
-  return {
-    rows: Object.keys(aggregate).map(function(key) {
-      return {
-        subproducto: key,
-        plan: aggregate[key]
+  const aggregate = {};
+
+  details.forEach(function(item) {
+    if (!aggregate[item.subproducto]) {
+      aggregate[item.subproducto] = {
+        subproducto: item.subproducto,
+        plan: 0,
+        pricedPlanTs: 0,
+        planCost: 0,
+        suppliers: 0
       };
-    })
+    }
+
+    const target = aggregate[item.subproducto];
+    target.plan += Number(item.plan) || 0;
+    target.suppliers++;
+
+    if (item.precio !== null && item.plan > 0) {
+      target.pricedPlanTs += item.plan;
+      target.planCost += item.precio * item.plan;
+    }
+  });
+
+  const rows = Object.keys(aggregate).map(function(key) {
+    const item = aggregate[key];
+
+    return {
+      subproducto: item.subproducto,
+      plan: item.plan,
+      pricedPlanTs: item.pricedPlanTs,
+      planCost: item.planCost,
+      suppliers: item.suppliers,
+      weightedPrice:
+        item.pricedPlanTs > 0
+          ? item.planCost / item.pricedPlanTs
+          : null
+    };
+  });
+
+  const totalPlan = rows.reduce(function(total, item) {
+    return total + (Number(item.plan) || 0);
+  }, 0);
+
+  const pricedPlanTs = rows.reduce(function(total, item) {
+    return total + (Number(item.pricedPlanTs) || 0);
+  }, 0);
+
+  const plannedCost = rows.reduce(function(total, item) {
+    return total + (Number(item.planCost) || 0);
+  }, 0);
+
+  return {
+    rows: rows,
+    details: details,
+    invalidRows: invalidRows,
+    sheetName: sheet.getName(),
+    monthLabel: monthLabel,
+    totalPlan: totalPlan,
+    pricedPlanTs: pricedPlanTs,
+    plannedCost: plannedCost,
+    weightedPrice:
+      pricedPlanTs > 0
+        ? plannedCost / pricedPlanTs
+        : null
   };
+}
+
+function resolvePlanSubproducto_(value) {
+  const raw = text_(value);
+  const key = normalizeKey_(raw);
+
+  const codes = Object.keys(CONFIG.MATERIAL_MAP);
+
+  for (let index = 0; index < codes.length; index++) {
+    const code = codes[index];
+
+    if (key.indexOf(code) !== -1) {
+      return CONFIG.MATERIAL_MAP[code];
+    }
+  }
+
+  return canonicalSubproducto_(raw);
 }
 
 function findPlanMonthColumn_(
@@ -1079,6 +1420,274 @@ function parseMonthHeader_(value) {
     String(months[match[1]]).padStart(2, '0')
   );
 }
+
+
+/* =====================================================================
+ * PRECIOS Y VALORIZACIÓN · PLAN ↔ INGRESOS/PLANILLA
+ * ===================================================================== */
+
+/**
+ * Normalización específica de proveedores para precios.
+ * A diferencia del cruce operativo, conserva palabras como FORESTAL,
+ * ASERRADERO, INDUSTRIA y MADERERA porque ayudan a distinguir empresas
+ * con nombres parecidos. Solo elimina formas jurídicas y unifica algunas
+ * abreviaturas frecuentes.
+ */
+function priceProviderComparable_(value) {
+  const legalWords = {
+    SA: true,
+    SPA: true,
+    LTDA: true,
+    LIMITADA: true,
+    EIRL: true,
+    S: true,
+    A: true,
+    E: true,
+    I: true,
+    R: true,
+    L: true,
+    SOC: true,
+    SOCIEDAD: true
+  };
+
+  return normalizeKey_(value)
+    .replace(/\bBIOBIO\b/g, 'BIO BIO')
+    .replace(/\bASERRADEROS\b/g, 'ASERRADERO')
+    .replace(/\bFOR\b/g, 'FORESTAL')
+    .replace(/\bIND\b/g, 'INDUSTRIA')
+    .replace(/\bINDUST\b/g, 'INDUSTRIA')
+    .replace(/\bINMOB\b/g, 'INMOBILIARIA')
+    .replace(/\bSERV\b/g, 'SERVICIOS')
+    .split(' ')
+    .filter(function(token) {
+      return token && !legalWords[token];
+    })
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function priceProviderSimilarity_(a, b) {
+  if (!a || !b) {
+    return 0;
+  }
+
+  if (a === b) {
+    return 1;
+  }
+
+  const tokensA = uniqueTokens_(a);
+  const tokensB = uniqueTokens_(b);
+
+  if (!tokensA.length || !tokensB.length) {
+    return 0;
+  }
+
+  const intersection = tokensA.filter(function(token) {
+    return tokensB.indexOf(token) !== -1;
+  }).length;
+
+  const shorter = Math.min(tokensA.length, tokensB.length);
+  const longer = Math.max(tokensA.length, tokensB.length);
+
+  const shortCoverage = shorter
+    ? intersection / shorter
+    : 0;
+
+  const longCoverage = longer
+    ? intersection / longer
+    : 0;
+
+  const edit =
+    1 - levenshtein_(a, b) / Math.max(a.length, b.length);
+
+  let score =
+    0.62 * shortCoverage +
+    0.23 * longCoverage +
+    0.15 * Math.max(0, edit);
+
+  if (
+    intersection >= 2 &&
+    shortCoverage === 1
+  ) {
+    const extraTokens = longer - shorter;
+    score = Math.max(
+      score,
+      Math.max(0.78, 0.94 - extraTokens * 0.04)
+    );
+  }
+
+  return Math.min(1, score);
+}
+
+function resolvePlanPrice_(proveedor, subproducto, planDetails) {
+  const raw = text_(proveedor);
+
+  if (
+    !raw ||
+    normalizeKey_(raw) === 'SIN PROVEEDOR'
+  ) {
+    return {
+      detail: null,
+      method: 'Sin proveedor',
+      score: 0,
+      secondScore: 0
+    };
+  }
+
+  const comparable = priceProviderComparable_(raw);
+
+  const candidates = (planDetails || []).filter(function(item) {
+    return (
+      item.subproducto === subproducto &&
+      item.precio !== null &&
+      item.precio !== undefined &&
+      isFinite(Number(item.precio))
+    );
+  });
+
+  if (!candidates.length) {
+    return {
+      detail: null,
+      method: 'Sin precio para material',
+      score: 0,
+      secondScore: 0
+    };
+  }
+
+  const ranked = candidates.map(function(item) {
+    const candidateKey =
+      item.proveedorPlanKey ||
+      priceProviderComparable_(item.proveedorPlan);
+
+    return {
+      detail: item,
+      score: priceProviderSimilarity_(
+        comparable,
+        candidateKey
+      )
+    };
+  }).sort(function(a, b) {
+    return b.score - a.score;
+  });
+
+  const best = ranked[0];
+  const second = ranked[1] || { score: 0 };
+
+  if (!best || best.score < CONFIG.PRICE_MATCH_THRESHOLD) {
+    return {
+      detail: null,
+      method: 'Proveedor sin precio homologado',
+      score: best ? round_(best.score, 3) : 0,
+      secondScore: round_(second.score || 0, 3)
+    };
+  }
+
+  if (
+    second.score >= CONFIG.PRICE_MATCH_THRESHOLD &&
+    best.score - second.score < CONFIG.PRICE_MATCH_MARGIN
+  ) {
+    return {
+      detail: null,
+      method: 'Precio ambiguo',
+      score: round_(best.score, 3),
+      secondScore: round_(second.score, 3)
+    };
+  }
+
+  return {
+    detail: best.detail,
+    method:
+      best.score === 1
+        ? 'Precio exacto'
+        : 'Precio homologado',
+    score: round_(best.score, 3),
+    secondScore: round_(second.score || 0, 3)
+  };
+}
+
+function applyPlanPricing_(rows, planDetails) {
+  const output = [];
+  const unmatched = {};
+  let pricedTs = 0;
+  let unpricedTs = 0;
+  let estimatedCost = 0;
+
+  (rows || []).forEach(function(row) {
+    const match = resolvePlanPrice_(
+      row.proveedor,
+      row.subproducto,
+      planDetails
+    );
+
+    const detail = match.detail;
+    const precio = detail
+      ? Number(detail.precio)
+      : null;
+
+    const ts = Number(row.ts) || 0;
+    const hasPrice =
+      precio !== null &&
+      isFinite(precio);
+
+    if (hasPrice) {
+      pricedTs += ts;
+      estimatedCost += ts * precio;
+    } else {
+      unpricedTs += ts;
+
+      const unmatchedKey =
+        row.subproducto +
+        ' | ' +
+        (row.proveedor || 'SIN PROVEEDOR') +
+        ' | ' +
+        match.method;
+
+      unmatched[unmatchedKey] =
+        (unmatched[unmatchedKey] || 0) + ts;
+    }
+
+    const enriched = Object.assign({}, row, {
+      planKey: detail ? detail.planKey : '',
+      planProveedor: detail ? detail.proveedorPlan : '',
+      precioUnitario: hasPrice ? precio : null,
+      costoEstimado: hasPrice ? ts * precio : null,
+      precioMatchMethod: match.method,
+      precioMatchScore: match.score,
+      precioSecondScore: match.secondScore
+    });
+
+    output.push(enriched);
+  });
+
+  const totalTs = pricedTs + unpricedTs;
+
+  return {
+    rows: output,
+    stats: {
+      totalTs: totalTs,
+      pricedTs: pricedTs,
+      unpricedTs: unpricedTs,
+      coverage: totalTs > 0 ? pricedTs / totalTs : 0,
+      estimatedCost: estimatedCost,
+      weightedPrice:
+        pricedTs > 0
+          ? estimatedCost / pricedTs
+          : null,
+      unmatched: Object.keys(unmatched)
+        .map(function(key) {
+          return {
+            key: key,
+            ts: unmatched[key]
+          };
+        })
+        .sort(function(a, b) {
+          return b.ts - a.ts;
+        })
+    }
+  };
+}
+
 
 /* =====================================================================
  * IMPORTACIÓN DESDE GMAIL
@@ -1157,7 +1766,7 @@ function importarPlanillas_(rebuild) {
         const messageId = message.getId();
         const subject = text_(message.getSubject());
 
-        if (!matchesSubject_(subject)) {
+        if (!matchesPlanillaMessage_(message)) {
           ignored++;
           return;
         }
@@ -1269,7 +1878,17 @@ function buildGmailQuery_() {
     parts.push('label:"' + CONFIG.GMAIL_LABEL + '"');
   }
 
+  // La búsqueda ya se restringe al remitente oficial y a la frase
+  // inicial del asunto. Después matchesPlanillaMessage_ vuelve a validar
+  // mensaje por mensaje porque Gmail.search() devuelve hilos completos.
   parts.push('subject:"' + CONFIG.GMAIL_SUBJECT + '"');
+
+  if (
+    CONFIG.GMAIL_ALLOWED_SENDERS &&
+    CONFIG.GMAIL_ALLOWED_SENDERS.length === 1
+  ) {
+    parts.push('from:' + CONFIG.GMAIL_ALLOWED_SENDERS[0]);
+  }
 
   parts.push(
     'newer_than:' + CONFIG.GMAIL_SEARCH_DAYS + 'd'
@@ -1278,12 +1897,78 @@ function buildGmailQuery_() {
   return parts.join(' ');
 }
 
+function extractEmailAddress_(value) {
+  const text = String(value || '').trim().toLowerCase();
+  const bracket = text.match(/<([^>]+@[^>]+)>/);
+
+  if (bracket) {
+    return bracket[1].trim();
+  }
+
+  const direct = text.match(
+    /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
+  );
+
+  return direct ? direct[0].toLowerCase() : '';
+}
+
 /**
- * Compara el asunto tolerando "SUB-PRODUCTOS", "SUB PRODUCTOS" y
- * "SUBPRODUCTOS": el guion y los espacios se eliminan en ambos lados
- * antes de comparar. Sin esto, un cambio de tipeo en el remitente
- * deja la importación en cero sin explicar por qué.
+ * Acepta únicamente la planilla original del reservador.
+ * Respuestas "Re:", reenvíos y otros mensajes del hilo se excluyen para
+ * evitar que una conversación interna reemplace al informe oficial.
  */
+function matchesPlanillaMessage_(message) {
+  const subject = text_(message.getSubject());
+  const sender = extractEmailAddress_(message.getFrom());
+
+  const allowed = CONFIG.GMAIL_ALLOWED_SENDERS || [];
+
+  // 1) Remitente exacto. Las respuestas dentro del mismo hilo pueden ser
+  // de otras personas; se descartan aunque Gmail haya devuelto el hilo.
+  if (
+    allowed.length &&
+    allowed.map(function(item) {
+      return String(item).toLowerCase();
+    }).indexOf(sender) === -1
+  ) {
+    return false;
+  }
+
+  // 2) Asunto exacto en estructura. No se aceptan Re:, RV:, Fwd:, notas
+  // internas ni textos agregados. Solo cambia el día/fecha del informe.
+  const normalizedSubject = normalizeKey_(subject)
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const officialPattern = new RegExp(
+    '^PLANILLA CUMPLIMIENTO SUB PRODUCTOS ' +
+    '(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO) ' +
+    '\\d{1,2} DE ' +
+    '(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|' +
+    'SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE) ' +
+    'DE \\d{4}$'
+  );
+
+  if (!officialPattern.test(normalizedSubject)) {
+    return false;
+  }
+
+  // 3) La fecha debe poder extraerse del propio asunto.
+  return Boolean(extractSpanishDateKey_(subject));
+}
+
+function isTotalText_(value) {
+  const key = normalizeKey_(value);
+  return /^TOTAL\b/.test(key);
+}
+
+function isTotalGridRow_(row) {
+  return (row || []).some(function(cell) {
+    return isTotalText_(cell);
+  });
+}
+
 function matchesSubject_(subject) {
   function collapse(value) {
     return normalizeKey_(value).replace(/[\s-]/g, '');
@@ -1291,31 +1976,42 @@ function matchesSubject_(subject) {
 
   return (
     collapse(subject).indexOf(
-      collapse(CONFIG.GMAIL_SUBJECT)
-    ) !== -1
+      collapse(CONFIG.GMAIL_SUBJECT_PREFIX)
+    ) === 0
   );
 }
+
 
 /**
  * Lee la última planilla y muestra lo extraído sin escribir en la
  * hoja. Conviene correrlo antes de una carga masiva.
  */
 function probarUltimoCorreo() {
-  const threads = GmailApp.search(buildGmailQuery_(), 0, 5);
+  const threads = GmailApp.search(buildGmailQuery_(), 0, 10);
+  const candidates = [];
 
-  if (!threads.length) {
+  threads.forEach(function(thread) {
+    thread.getMessages().forEach(function(message) {
+      if (matchesPlanillaMessage_(message)) {
+        candidates.push(message);
+      }
+    });
+  });
+
+  candidates.sort(function(a, b) {
+    return b.getDate().getTime() - a.getDate().getTime();
+  });
+
+  if (!candidates.length) {
     SpreadsheetApp.getUi().alert(
-      'No se encontró ningún correo con el asunto "' +
-      CONFIG.GMAIL_SUBJECT +
-      '" en los últimos ' +
+      'No se encontró una planilla oficial del reservador en los últimos ' +
       CONFIG.GMAIL_SEARCH_DAYS +
       ' días.'
     );
     return;
   }
 
-  const messages = threads[0].getMessages();
-  const message = messages[messages.length - 1];
+  const message = candidates[0];
 
   try {
     const parsed = parsePlanillaEmail_(
@@ -1323,19 +2019,22 @@ function probarUltimoCorreo() {
       CONFIG.TIMEZONE
     );
 
-    const camiones = parsed.rows.reduce(
-      function(total, item) {
-        return total + item.camiones;
-      },
-      0
-    );
+    const byProduct = {};
+    let camiones = 0;
+
+    parsed.rows.forEach(function(item) {
+      camiones += item.camiones;
+      byProduct[item.subproducto] =
+        (byProduct[item.subproducto] || 0) + item.camiones;
+    });
 
     const lines = [
       'Asunto: ' + message.getSubject(),
+      'Remitente: ' + message.getFrom(),
       'Fecha detectada: ' + formatDateKey_(parsed.fecha),
       'Método: ' + parsed.method,
       'Filas útiles: ' + parsed.rows.length,
-      'Camiones: ' +
+      'Camiones proceso: ' +
         camiones +
         ' = ' +
         camiones * CONFIG.FACTOR_CAMION +
@@ -1343,6 +2042,19 @@ function probarUltimoCorreo() {
         CONFIG.UNIDAD,
       ''
     ];
+
+    SUBPRODUCTOS_OBJETIVO.forEach(function(name) {
+      const trucks = byProduct[name] || 0;
+      lines.push(
+        name + ': ' +
+        trucks + ' camiones = ' +
+        trucks * CONFIG.FACTOR_CAMION + ' ' +
+        CONFIG.UNIDAD
+      );
+    });
+
+    lines.push('');
+    lines.push('Detalle:');
 
     parsed.rows.forEach(function(item) {
       lines.push(
@@ -1358,7 +2070,7 @@ function probarUltimoCorreo() {
     });
 
     SpreadsheetApp.getUi().alert(
-      lines.slice(0, 60).join('\n')
+      lines.slice(0, 70).join('\n')
     );
   } catch (error) {
     SpreadsheetApp.getUi().alert(
@@ -1369,8 +2081,8 @@ function probarUltimoCorreo() {
 }
 
 /**
- * Muestra qué materiales de SAP quedaron fuera del filtro y qué
- * proveedores de la planilla no encontraron par en SAP. Es la forma
+ * Muestra qué materiales de Ingresos quedaron fuera del filtro y qué
+ * proveedores de la planilla no encontraron par en Ingresos. Es la forma
  * rápida de detectar que un nombre cambió y el cruce se rompió.
  */
 function diagnosticarCruce() {
@@ -1391,21 +2103,31 @@ function diagnosticarCruce() {
     'Diagnóstico de cruce',
     '',
     'Mes: ' + data.month.label,
-    'Última Fecha Contab. (SAP): ' +
+    'Última Fecha Contab. (Ingresos): ' +
       data.source.lastActualDateLabel,
     'Última planilla: ' +
       data.source.latestReportDateLabel,
-    'Filas SAP: ' + data.source.sapRows,
+    'Filas Ingresos: ' + data.source.ingresosRows,
     'Filas de complemento: ' +
       data.source.supplementRows +
       ' (' +
       data.source.supplementCamiones +
       ' camiones)',
-    'Planillas descartadas por estar ya en SAP: ' +
+    'Filas de planilla descartadas por estar ya en Ingresos: ' +
       data.source.staleReports,
     'Correos con error de lectura: ' + data.source.errors,
+    'Cobertura de precio: ' + round_((data.pricing.coverage || 0) * 100, 1) + '%',
+    'TS sin precio homologado: ' + round_(data.pricing.unpricedTs || 0, 1),
+    'Precio promedio ponderado operativo: ' +
+      (data.pricing.weightedPrice !== null
+        ? round_(data.pricing.weightedPrice, 2)
+        : '—'),
+    'Precio promedio ponderado plan: ' +
+      (data.source.planWeightedPrice !== null
+        ? round_(data.source.planWeightedPrice, 2)
+        : '—'),
     '',
-    'Materiales de SAP fuera del filtro:'
+    'Materiales de Ingresos fuera del filtro:'
   ];
 
   const materiales = data.source.materialesSinReconocer || [];
@@ -1419,7 +2141,7 @@ function diagnosticarCruce() {
   }
 
   lines.push('');
-  lines.push('Proveedores de planilla sin par en SAP:');
+  lines.push('Proveedores de planilla sin par en Ingresos:');
 
   const unicos = uniqueSorted_(sinPar);
 
@@ -1431,100 +2153,26 @@ function diagnosticarCruce() {
     lines.push('Ninguno');
   }
 
-  SpreadsheetApp.getUi().alert(lines.join('\n'));
-}
-
-/**
- * Responde la pregunta "¿por qué no me toma la hoja Ingresos?".
- * Muestra qué hojas existen, qué encabezados encontró, a qué columna
- * mapeó cada campo y cuántas filas descartó por cada motivo.
- */
-function diagnosticarIngresos() {
-  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-
-  const timezone =
-    spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
-
-  const nombres = spreadsheet.getSheets().map(function(hoja) {
-    return hoja.getName();
-  });
-
-  const lines = [
-    'Diagnóstico de la hoja de SAP',
-    '',
-    'Planilla: ' + spreadsheet.getName(),
-    'Hojas que existen: ' + nombres.join(' · '),
-    'Hoja buscada (CONFIG.SHEET_INGRESOS): ' + CONFIG.SHEET_INGRESOS
-  ];
-
-  if (nombres.indexOf(CONFIG.SHEET_INGRESOS) === -1) {
-    lines.push('');
-    lines.push('>>> Esa hoja NO existe en esta planilla.');
-    lines.push(
-      'Corrige CONFIG.SHEET_INGRESOS con uno de los nombres de arriba, ' +
-      'o revisa que CONFIG.SPREADSHEET_ID apunte al archivo correcto.'
-    );
-
-    SpreadsheetApp.getUi().alert(lines.join('\n'));
-    return;
-  }
-
-  const month = getCurrentMonthWindow_(timezone);
-  const historyStart = buildHistoryStart_(month);
-  const sap = readIngresos_(spreadsheet, timezone, historyStart);
-
-  lines.push('Ventana de historia: desde ' + formatDateKey_(historyStart));
   lines.push('');
-  lines.push('Encabezados de la fila 1:');
-  lines.push(sap.headers.join(' | '));
-  lines.push('');
-  lines.push('Columnas que se van a usar (base cero):');
+  lines.push('Mayores volúmenes sin precio homologado:');
 
-  if (sap.columns) {
-    Object.keys(sap.columns).forEach(function(campo) {
-      const indice = sap.columns[campo];
+  const sinPrecio =
+    data.pricing && data.pricing.unmatched
+      ? data.pricing.unmatched
+      : [];
 
+  if (sinPrecio.length) {
+    sinPrecio.slice(0, 20).forEach(function(item) {
       lines.push(
-        '  ' + campo + ' -> col ' + indice +
-        ' (' + (sap.headers[indice] || 'FUERA DE RANGO') + ')'
+        '- ' +
+        item.key +
+        ': ' +
+        round_(item.ts || 0, 1) +
+        ' TS'
       );
     });
-  }
-
-  lines.push('');
-  lines.push('Filas de datos: ' + sap.totalRows);
-  lines.push('  Aceptadas: ' + sap.rows.length);
-  lines.push('  Sin fecha legible: ' + sap.skipped.sinFecha);
-  lines.push('  Fuera de la ventana: ' + sap.skipped.fueraDeHistoria);
-  lines.push('  Material no reconocido: ' + sap.skipped.materialNoReconocido);
-
-  if (sap.materialesSinReconocer.length) {
-    lines.push('');
-    lines.push('Descripciones que quedaron fuera:');
-
-    sap.materialesSinReconocer.slice(0, 15).forEach(function(item) {
-      lines.push('  - ' + item);
-    });
-
-    lines.push('');
-    lines.push(
-      'Si alguna de esas SÍ es astilla a proceso, agrégala en ' +
-      'canonicalSubproducto_ o suma su código a CONFIG.SAP_MATERIALES.'
-    );
-  }
-
-  if (sap.rows.length) {
-    lines.push('');
-    lines.push('Primeras filas aceptadas:');
-
-    sap.rows.slice(0, 5).forEach(function(item) {
-      lines.push(
-        '  ' + item.fechaLabel +
-        ' | ' + item.subproducto +
-        ' | ' + item.proveedor +
-        ' | ' + item.ts + ' ' + item.um
-      );
-    });
+  } else {
+    lines.push('Ninguno');
   }
 
   SpreadsheetApp.getUi().alert(lines.join('\n'));
@@ -1761,10 +2409,13 @@ function parseGridRows_(grid) {
     }
 
     const label = text_(row[subproductoColumn]);
-    const labelKey = normalizeKey_(label);
 
-    // Los "Total ..." son subtotales: ni arrastran grupo ni suman.
-    if (labelKey.indexOf('TOTAL') === 0) {
+    // Nunca tomar subtotales/totales. Se revisa toda la fila porque según
+    // la versión del correo "Total Astilla Verde" puede aparecer en la
+    // columna de subproducto, en PROVEEDORES o en otra celda combinada.
+    if (isTotalGridRow_(row)) {
+      currentRaw = '';
+      currentCanonical = '';
       continue;
     }
 
@@ -1777,18 +2428,24 @@ function parseGridRows_(grid) {
       continue;
     }
 
-    const proveedor =
-      text_(row[proveedorColumn]) || 'SIN PROVEEDOR';
+    // Una fila de detalle válida SIEMPRE debe tener proveedor. Los totales
+    // suelen venir con proveedor vacío; por eso no se convierte a
+    // "SIN PROVEEDOR".
+    const proveedor = text_(row[proveedorColumn]);
+
+    if (!proveedor || isTotalText_(proveedor)) {
+      continue;
+    }
 
     const camiones = parseOptionalNumber_(
       row[cantidadColumn]
     );
 
-    if (camiones === null || !isFinite(camiones)) {
-      continue;
-    }
-
-    if (camiones === 0 && proveedor === 'SIN PROVEEDOR') {
+    if (
+      camiones === null ||
+      !isFinite(camiones) ||
+      camiones <= 0
+    ) {
       continue;
     }
 
@@ -1933,7 +2590,9 @@ function parsePlanillaText_(body) {
       fecha = extractSpanishDateKey_(line) || '';
     }
 
-    if (normalizeKey_(line).indexOf('TOTAL') === 0) {
+    if (isTotalText_(line)) {
+      currentRaw = '';
+      currentCanonical = '';
       return;
     }
 
@@ -1975,12 +2634,24 @@ function parsePlanillaText_(body) {
       return;
     }
 
+    const proveedor = text_(tail[1]);
+    const camiones = Number(tail[3]);
+
+    if (
+      !proveedor ||
+      isTotalText_(proveedor) ||
+      !isFinite(camiones) ||
+      camiones <= 0
+    ) {
+      return;
+    }
+
     rows.push({
       subproducto: currentCanonical,
       subproductoRaw: currentRaw,
-      proveedor: text_(tail[1]) || 'SIN PROVEEDOR',
+      proveedor: proveedor,
       destino: normalizeKey_(tail[2]),
-      camiones: Number(tail[3])
+      camiones: camiones
     });
   });
 
@@ -1990,9 +2661,9 @@ function parsePlanillaText_(body) {
 /**
  * Devuelve el nombre canónico si el sub-producto va a proceso, o ''
  * si hay que ignorarlo. Sirve tanto para la planilla como para la
- * descripción de material de SAP: tolera "AST." vs "ASTILLA",
+ * descripción de la planilla: tolera "AST." vs "ASTILLA",
  * plural, "C/ CORTEZA" vs "CON CORTEZA", tildes y espacios dobles.
- * Si SAP usa un nombre muy distinto, agrégalo aquí.
+ * Si el correo usa un nombre muy distinto, agrégalo aquí.
  */
 function canonicalSubproducto_(value) {
   const key = normalizeKey_(value)
@@ -2032,24 +2703,7 @@ function canonicalSubproducto_(value) {
     return 'ASTILLA PINO VERDE';
   }
 
-  // "ASTILLA VERDE (TS)": el nombre que usa SAP para todo el ingreso.
-  // Se acepta al final, después de los tres específicos, para no
-  // robarle filas al desglose de la planilla.
-  if (/^ASTILLA VERDE\b/.test(key)) {
-    return SUBPRODUCTO_SAP;
-  }
-
   return '';
-}
-
-/**
- * Respaldo por código de material, para cuando la descripción viene
- * abreviada o en blanco pero el código sí identifica la astilla.
- */
-function subproductoPorMaterial_(value) {
-  return CONFIG.SAP_MATERIALES.indexOf(text_(value)) !== -1
-    ? SUBPRODUCTO_SAP
-    : '';
 }
 
 /* =====================================================================
@@ -2119,8 +2773,8 @@ function formatInformeSheet_(sheet) {
 
   sheet
     .getRange(1, 1, 1, INFORME_HEADERS.length)
-    .setBackground('#121C17')
-    .setFontColor('#C2D2C6')
+    .setBackground('#4a2f21')
+    .setFontColor('#ffffff')
     .setFontWeight('bold');
 
   sheet
@@ -2703,7 +3357,6 @@ function decodeHtmlEntities_(text) {
     }
   );
 }
-
 /* =====================================================================
  * MAPEO DE ASERRADEROS (HOJA "Mapeos")
  *

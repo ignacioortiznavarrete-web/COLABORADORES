@@ -20,9 +20,9 @@ desaparece solo.
 
 | Hoja | Qué contiene | ¿Obligatoria? |
 |---|---|---|
-| `Ingresos` | Descarga de SAP. Cantidad real por *Fecha Contab.* | Sí |
+| `Ingresos` | Registro real de recepción, por *Fecha Contab.* | Sí |
 | `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
-| `PlanAstilla` | Una fila por sub-producto, una columna por mes | No |
+| `Plan` | `Suministro · Proveedor · Precio · <mes>` | Para plan y costo |
 | `Mapeos` | Un aserradero por fila: nombre, coordenada y estado | Para el mapa |
 
 Las columnas de `Ingresos` se detectan por nombre de encabezado
@@ -30,7 +30,11 @@ Las columnas de `Ingresos` se detectan por nombre de encabezado
 la descarga viene sin encabezados, se usan las posiciones fijas de
 `CONFIG.INGRESOS_COLUMNS`.
 
-`PlanAstilla` admite el mes como `AGO-2026`, `2026-08` o una fecha real.
+En `Plan`, la celda **Suministro** puede aparecer solo en la primera
+fila del grupo y se arrastra hacia abajo. El **Precio** es unitario por
+TS para esa combinación proveedor/material, y la columna del mes lleva
+el volumen planificado. El mes se admite como `AGO-2026`, `2026-08` o
+una fecha real.
 
 ## Sub-productos: SAP y la planilla no hablan igual
 
@@ -41,29 +45,66 @@ la descarga viene sin encabezados, se usan las posiciones fijas de
 - `AST. PINO VERDE C/ CORTEZA`
 - `ASTILLA PINO VERDE`
 
-**SAP no desglosa nada.** Todo el ingreso de astilla llega con una sola
-descripción, `ASTILLA VERDE (TS)`, bajo el material `3000039`. Por eso
-existe un cuarto bucket, `ASTILLA VERDE (TOTAL SAP)`, y por eso el
-cruce por sub-producto solo se puede comparar a nivel de total: SAP no
-tiene con qué repartir su cifra entre los tres.
+**La hoja `Ingresos` los distingue por código de material**, que es la
+homologación primaria y no admite ambigüedad:
 
-El reconocimiento tolera `AST.` vs `ASTILLA`, plural, `C/ CORTEZA` vs
-`CON CORTEZA`, tildes y espacios dobles. Si aparece otro nombre, se
-agrega en `canonicalSubproducto_`; si es un código nuevo de SAP, en
-`CONFIG.SAP_MATERIALES`.
+| Código | Subproducto |
+|---|---|
+| `3000039` | `ASTILLA PINO VERDE` |
+| `3009002` | `AST. PINO VERDE C/ CORTEZA` |
+| `3009003` | `ASTILLA EUCALYPTUS NITENS` |
 
-## Si el dashboard no toma la hoja de SAP
+Si el código no está en `CONFIG.MATERIAL_MAP`, cae a la descripción del
+material y el texto de posición. El reconocimiento tolera `AST.` vs
+`ASTILLA`, plural, `C/ CORTEZA` vs `CON CORTEZA`, tildes y espacios
+dobles.
 
-Menú **Astilla Dashboard › Diagnosticar hoja de SAP**. Dice, en una
-sola pantalla: qué hojas existen realmente y si `SHEET_INGRESOS`
-coincide con alguna; los encabezados de la fila 1 y a qué columna quedó
-mapeado cada campo; cuántas filas se descartaron y **por qué motivo**
-(sin fecha, fuera de la ventana, material no reconocido); y las
-descripciones que quedaron fuera del filtro.
+## Precio y valorización
 
-Los encabezados se detectan por nombre exacto y, si eso falla, por
-prefijo. Eso es lo que permite reconocer títulos de SAP como
-`Proveedor Origen (RUT + NOMBRE )`, que ningún alias exacto cubre.
+El cruce de precio es aparte del cruce operativo y a propósito más
+conservador: conserva palabras como FORESTAL, ASERRADERO e INDUSTRIA
+porque distinguen empresas de nombre parecido. **Si dos candidatos
+quedan demasiado cerca, el precio no se asigna**: la fila queda visible
+como «Precio ambiguo» y sus TS no se valorizan. Es preferible una
+cobertura de precio menor a un costo con el precio equivocado.
+
+El dashboard muestra siempre la **cobertura de precio**: qué porcentaje
+de las TS tiene proveedor/material valorizado. Bajo 95% avisa.
+
+## Qué correos entran
+
+Solo el mensaje **original** de `reservador.horario@masisa.com` cuyo
+asunto calce exactamente con:
+
+```
+PLANILLA CUMPLIMIENTO SUB-PRODUCTOS <DÍA> DD DE <MES> DE YYYY
+```
+
+Se excluyen respuestas (`Re:`), reenvíos (`RV:`, `Fwd:`), notas
+internas y cualquier texto agregado al asunto. Dentro de la planilla se
+descartan las filas «Total…» y las filas sin proveedor, porque son
+sumas y duplicarían los camiones.
+
+## El diseño
+
+Fondo blanco y paleta institucional del rubro. Cada color del dato
+significa una sola cosa y nada decorativo los usa:
+
+| Color | Significa |
+|---|---|
+| Verde forestal | Ingreso real, confirmado en `Ingresos` |
+| Madera (rayado) | Complemento estimado del reservador |
+| Pizarra | Plan — una referencia, no un material |
+| Ladrillo | Riesgo: bajo plan, o precio sin homologar |
+
+El elemento central es **la regla del mes**: en el rubro todo se mide
+—forcípula, romana, cinta diamétrica—, así que el mes se dibuja como un
+instrumento. La escala es el plan, lo llenado es lo que entró, y las
+dos marcas dicen dónde deberíamos ir hoy y dónde vamos a terminar al
+ritmo actual.
+
+Los gráficos se dibujan en SVG propio, sin librería: el aspecto por
+defecto de una librería de charts se reconoce a un kilómetro.
 
 ## Mapeo de aserraderos
 
