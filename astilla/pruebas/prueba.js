@@ -39,7 +39,7 @@ vm.runInContext(
   '  CONFIG, SUBPRODUCTOS_OBJETIVO, ESTADOS_MAPEO,' +
   '  ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS, LIMITES_CL,' +
   '  RUTA_CONFIG, RUTAS_HEADERS, PROVEEDORES_HEADERS,' +
-  '  ORIGENES_ALIAS' +
+  '  ORIGENES_ALIAS, SUGERENCIAS_PROVEEDORES' +
   '};',
   sandbox
 );
@@ -812,6 +812,154 @@ check('los encabezados de la hoja son seis',
 
 check('el primero es el proveedor SAP',
   K.PROVEEDORES_HEADERS[0] === 'Proveedor SAP');
+
+
+/* =====================================================================
+ * 14. LA PROPUESTA DE EQUIVALENCIAS
+ *
+ * Sobre la hoja tal como quedó sembrada en el libro real, que es donde
+ * salieron los dos errores que esta sección cuida.
+ * ===================================================================== */
+
+console.log('\n14. Rellenar proveedores sugeridos');
+
+const SEMBRADA = 'Sin par en SAP: escribe a la izquierda el proveedor SAP.';
+
+function hojaViva(filas) {
+  const ancho = K.PROVEEDORES_HEADERS.length;
+
+  const grilla = [K.PROVEEDORES_HEADERS.slice()].concat(
+    filas.map(function(fila) {
+      const completa = fila.slice();
+      while (completa.length < ancho) { completa.push(''); }
+      return completa;
+    })
+  );
+
+  return {
+    grilla: grilla,
+    getLastRow: function() { return grilla.length; },
+    getLastColumn: function() { return ancho; },
+    getDataRange: function() {
+      return { getValues: function() { return grilla; } };
+    },
+    getRange: function(fila, col, nFilas, nCols) {
+      return {
+        getValues: function() {
+          return grilla
+            .slice(fila - 1, fila - 1 + (nFilas || 1))
+            .map(function(f) {
+              return f.slice(col - 1, col - 1 + (nCols || 1));
+            });
+        },
+        setValue: function(valor) {
+          while (grilla.length < fila) {
+            grilla.push(new Array(ancho).fill(''));
+          }
+          grilla[fila - 1][col - 1] = valor;
+        }
+      };
+    },
+    insertRowBefore: function(fila) {
+      grilla.splice(fila - 1, 0, new Array(ancho).fill(''));
+    }
+  };
+}
+
+const hoja = hojaViva([
+  ['LAMINADORA LOS ANGELES S.A.', 'LAMINADORA LOS ANGELES', 'Llasa'],
+  ['INDUSTRIA MADERERA LOS CASTAÑO',
+    'INDUSTRIA MADERERA LOS CASTAÑOS SPA', 'SAP'],
+  ['', '', ''],
+  ['INMOB FORESTAL E INVER SAVI LT', 'INV. SAVI LTDA.', 'Planilla', SEMBRADA],
+  ['', 'JAVIER PEZOA', 'Planilla', SEMBRADA],
+  ['', 'ASERRADEROS SAN DIEGO', 'Planilla', SEMBRADA],
+  ['', 'ASERRADEROS B y C S.A.', 'Planilla', SEMBRADA]
+]);
+
+const avisos = [];
+
+const libroVivo = {
+  getSheetByName: function(nombre) {
+    return nombre === K.CONFIG.SHEET_PROVEEDORES ? hoja : null;
+  }
+};
+
+sandbox.SpreadsheetApp = {
+  openById: function() { return libroVivo; },
+  getUi: function() {
+    return { alert: function(m) { avisos.push(m); } };
+  }
+};
+
+sandbox.rellenarProveedores();
+
+const leida = sandbox.leerProveedores_(libroVivo);
+
+// El error que solo aparece con la hoja real: las filas sembradas
+// heredan por arrastre el proveedor de la fila de arriba. Si eso
+// contara como resuelto, la propuesta no rellenaría ninguna y además
+// dejaría a Javier Pezoa homologado a Savi.
+check('rellena las filas sembradas en vez de darlas por resueltas',
+  sandbox.homologarProveedor_('JAVIER PEZOA', leida) ===
+    'FOR.JAVIER PEZOA GUTIERREZ E.I.R.L',
+  sandbox.homologarProveedor_('JAVIER PEZOA', leida));
+
+check('no arrastra el proveedor de la fila de arriba',
+  sandbox.homologarProveedor_('ASERRADEROS SAN DIEGO', leida) ===
+    'ASERRADERO Y SERV SAN DIEGO SPA',
+  sandbox.homologarProveedor_('ASERRADEROS SAN DIEGO', leida));
+
+check('respeta lo que ya estaba escrito a mano',
+  sandbox.homologarProveedor_('INV. SAVI LTDA.', leida) ===
+    'INMOB FORESTAL E INVER SAVI LT');
+
+check('el alias que no supe asociar queda pendiente, no colgado',
+  leida.pendientes.indexOf('ASERRADEROS B y C S.A.') !== -1 &&
+  sandbox.homologarProveedor_('ASERRADEROS B y C S.A.', leida) === '',
+  JSON.stringify(leida.pendientes));
+
+check('agrega los alias que faltaban',
+  sandbox.homologarProveedor_('Llasa', leida) ===
+    'LAMINADORA LOS ANGELES S.A.',
+  sandbox.homologarProveedor_('Llasa', leida));
+
+check('sigue la cadena hasta el nombre SAP escrito a mano',
+  sandbox.homologarProveedor_('IND. MADERERA LOS CASTAÑOS', leida) ===
+    'INDUSTRIA MADERERA LOS CASTAÑO',
+  sandbox.homologarProveedor_('IND. MADERERA LOS CASTAÑOS', leida));
+
+check('la hoja resultante no tiene choques',
+  leida.conflictos.length === 0, JSON.stringify(leida.conflictos));
+
+check('correrla dos veces no duplica nada', (function() {
+  const antes = hoja.grilla.length;
+  avisos.length = 0;
+  sandbox.rellenarProveedores();
+  return hoja.grilla.length === antes;
+})(), 'filas=' + hoja.grilla.length);
+
+check('el aviso dice qué quedó sin asociar',
+  avisos.length === 1 && avisos[0].indexOf('ASERRADEROS B y C S.A.') !== -1);
+
+// Cada grupo de la propuesta tiene que apuntar a un solo proveedor:
+// dos grupos con el mismo alias serían un choque servido.
+check('la propuesta no se contradice a sí misma', (function() {
+  const visto = {};
+
+  return K.SUGERENCIAS_PROVEEDORES.every(function(grupo) {
+    return grupo.alias.every(function(alias) {
+      const clave = sandbox.normalizeKey_(alias);
+
+      if (visto[clave] && visto[clave] !== grupo.sap) {
+        return false;
+      }
+
+      visto[clave] = grupo.sap;
+      return true;
+    });
+  });
+})());
 
 
 console.log(

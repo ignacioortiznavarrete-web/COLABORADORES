@@ -177,6 +177,7 @@ function onOpen() {
     .addItem('Validar hoja Plan (no modifica)', 'prepararHojaPlan')
     .addSeparator()
     .addItem('Preparar hoja de proveedores', 'instalarProveedores')
+    .addItem('Rellenar proveedores sugeridos', 'rellenarProveedores')
     .addItem('Preparar hoja de mapeos', 'instalarMapeos')
     .addItem('Ubicar en el mapa', 'ubicarMapeos')
     .addItem('Preparar hoja de rutas', 'instalarRutas')
@@ -1209,6 +1210,383 @@ function leerProveedores_(spreadsheet) {
     conflictos: conflictos,
     missingSheet: false
   };
+}
+
+/**
+ * Propuesta de equivalencias, sacada de los nombres que hoy están en
+ * el Plan y en InformeAstilla de este mismo libro.
+ *
+ * El canónico es el nombre del Plan cuando existe: es el que viene con
+ * forma de maestro SAP ("FOR.", "INMOB", campos cortados a 30
+ * caracteres). Donde el Plan no tiene al proveedor, el canónico es
+ * provisional —el nombre más completo que aparece en la planilla— y
+ * queda dicho en la nota.
+ *
+ * Esto es una propuesta, no una verdad: revísala y borra lo que no
+ * corresponda.
+ */
+const SUGERENCIAS_PROVEEDORES = Object.freeze([
+  {
+    sap: 'LAMINADORA LOS ANGELES S.A.',
+    alias: ['LAMINADORA LOS ANGELES', 'Llasa'],
+    nota: 'El Plan la llama "Llasa" y la planilla "Laminadora Los Angeles".'
+  },
+  {
+    sap: 'INMOB FORESTAL E INVER SAVI LT',
+    alias: ['INV. SAVI LTDA.'],
+    nota: ''
+  },
+  {
+    sap: 'IND. MADERERA WOOD S.A.',
+    alias: ['INDUSTRIAS MADERAS WOOD S.A.'],
+    nota: ''
+  },
+  {
+    sap: 'BIOMASAS SUR SPA',
+    alias: ['BIOMASA SUR'],
+    nota: 'La planilla la escribe en singular.'
+  },
+  {
+    sap: 'FORESTAL CHIP LUMBER SPA',
+    alias: ['FORESTAL CHIPLUMBER SPA'],
+    nota: ''
+  },
+  {
+    sap: 'FOR.JAVIER PEZOA GUTIERREZ E.I.R.L',
+    alias: ['JAVIER PEZOA'],
+    nota: ''
+  },
+  {
+    sap: 'SOCIEDAD MADERERA ALTO LONQUEN LTDA',
+    alias: ['ALTO LONQUEN', 'ALTO LONQUÉN'],
+    nota: ''
+  },
+  {
+    sap: 'ASERRADERO Y SERV SAN DIEGO SPA',
+    alias: ['ASERRADEROS SAN DIEGO'],
+    nota: ''
+  },
+  {
+    sap: 'ASERRADERO LIKE WOOD',
+    alias: ['ASERRADERO LIKE WOOD LTDA.'],
+    nota: ''
+  },
+  {
+    sap: 'FORESTAL TAM',
+    alias: ['FORESTAL TAM SPA'],
+    nota: ''
+  },
+  {
+    sap: 'COMPAÑIA MADERERA DEL BIO BIO SPA',
+    alias: ['COMPAÑÍA MADERERA DEL BIOBIO SPA'],
+    nota: 'El Plan la escribe de dos formas, una por material.'
+  },
+  {
+    sap: 'PROMASA SPA.',
+    alias: ['PROMASA S.A.'],
+    nota: ''
+  },
+  {
+    sap: 'ASERRADERO LOS CASTAÑOS LTDA.',
+    alias: ['ASERRADEROS LOS CASTAÑOS LTDA.'],
+    nota: 'Ojo: en el Plan solo tiene precio en pino con corteza.'
+  },
+  {
+    sap: 'INDUSTRIA MADERERA LOS CASTAÑOS SPA',
+    alias: [
+      'INDUSTRIA MADERERA LOS CASTAÑOS',
+      'INDUSTRIA MADERAS LOS CASTAÑOS',
+      'IND. MADERERA LOS CASTAÑOS'
+    ],
+    nota: 'Revisar: el Plan también trae "LOS CASTAÑOS" a otro precio.'
+  },
+  {
+    sap: 'INDUSTRIAL AGRIFOR LTDA.',
+    alias: ['AGRIFOR'],
+    nota: 'Provisional: no está en el Plan, no tiene nombre SAP todavía.'
+  },
+  {
+    sap: 'SOC. FORESTAL E INDUSTRIAL FATIMA LTDA.',
+    alias: ['FORESTAL FATIMA', 'FORESTAL FATIMA LTDA.'],
+    nota: 'Provisional: no está en el Plan, no tiene nombre SAP todavía.'
+  },
+  {
+    sap: 'ASERMAIN SAN IGNACIO LTDA',
+    alias: ['ASERMAIN SAN IGNACIO'],
+    nota: 'Provisional: no está en el Plan, no tiene nombre SAP todavía.'
+  },
+
+  // Estos dos no son problema de nombre y por eso no llevan alias: el
+  // nombre ya cruza solo. Van aquí para sacarlos de la lista de
+  // pendientes con el motivo real escrito al lado.
+  {
+    sap: 'FORESTAL AITUE LTDA.',
+    alias: [],
+    nota: 'El nombre cruza bien. Lo que falta es la fila de nitens en el Plan.'
+  },
+  {
+    sap: 'COMERCIAL RIO CRUCES LTDA',
+    alias: [],
+    nota: 'El nombre cruza bien. No está en el Plan, por eso no tiene precio.'
+  }
+]);
+
+/**
+ * Escribe la propuesta en la hoja Proveedores.
+ *
+ * No pisa nada: si un alias ya está escrito con su proveedor al lado,
+ * se respeta lo que decidiste. Solo rellena los que quedaron en blanco
+ * y agrega al final los que faltan.
+ */
+function rellenarProveedores() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ui = SpreadsheetApp.getUi();
+
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_PROVEEDORES);
+
+  if (!sheet) {
+    ui.alert(
+      'Primero corre "Preparar hoja de proveedores": todavía no ' +
+      'existe la hoja "' + CONFIG.SHEET_PROVEEDORES + '".'
+    );
+    return;
+  }
+
+  const columnas = columnasProveedores_(sheet);
+  const valores = sheet.getLastRow() > 1
+    ? sheet.getDataRange().getValues()
+    : [];
+
+  // Índice del estado actual, respetando el arrastre hacia abajo para
+  // saber si un alias ya tiene proveedor o está esperando uno.
+  const filaDeAlias = {};
+  let arrastre = '';
+
+  for (let i = 1; i < valores.length; i++) {
+    const sapCelda = text_(valores[i][columnas.sap - 1]);
+    const alias = text_(valores[i][columnas.alias - 1]);
+
+    if (!sapCelda && !alias) {
+      arrastre = '';
+      continue;
+    }
+
+    if (sapCelda) {
+      arrastre = sapCelda;
+    }
+
+    const clave = normalizeKey_(alias);
+
+    // Una fila sembrada por el script hereda por arrastre el proveedor
+    // de la fila de arriba, que no tiene nada que ver con ella. Si eso
+    // contara como "ya resuelto", la propuesta no rellenaría ninguna.
+    const canonico = sapCelda ||
+      (esAliasDelGrupo_(valores, i, columnas, arrastre) ? arrastre : '');
+
+    if (clave && !filaDeAlias[clave]) {
+      filaDeAlias[clave] = {
+        fila: i + 1,
+        canonico: canonico,
+        propio: !!sapCelda
+      };
+    }
+  }
+
+  const rellenados = [];
+  const respetados = [];
+  const nuevos = [];
+
+  SUGERENCIAS_PROVEEDORES.forEach(function(grupo) {
+    const pendientes = [];
+
+    // El sembrado a veces deja escrito el propio nombre canónico como
+    // si fuera un alias huérfano. Se resuelve consigo mismo, en su
+    // sitio, en vez de quedar como pendiente y repetido más abajo.
+    const propio = filaDeAlias[normalizeKey_(grupo.sap)];
+
+    if (propio && !propio.canonico) {
+      sheet.getRange(propio.fila, columnas.sap).setValue(grupo.sap);
+
+      if (columnas.notas && grupo.nota) {
+        sheet.getRange(propio.fila, columnas.notas).setValue(grupo.nota);
+      }
+
+      propio.canonico = grupo.sap;
+      propio.propio = true;
+      rellenados.push(grupo.sap);
+    }
+
+    grupo.alias.forEach(function(alias) {
+      const encontrado = filaDeAlias[normalizeKey_(alias)];
+
+      if (!encontrado) {
+        pendientes.push(alias);
+        return;
+      }
+
+      if (encontrado.canonico) {
+        if (
+          normalizeKey_(encontrado.canonico) !== normalizeKey_(grupo.sap)
+        ) {
+          respetados.push(
+            alias + ': ya dice "' + encontrado.canonico + '"'
+          );
+        }
+        return;
+      }
+
+      // Fila sembrada esperando su proveedor: se rellena en su sitio.
+      sheet.getRange(encontrado.fila, columnas.sap).setValue(grupo.sap);
+
+      if (columnas.notas && grupo.nota) {
+        sheet.getRange(encontrado.fila, columnas.notas).setValue(grupo.nota);
+      }
+
+      encontrado.canonico = grupo.sap;
+      encontrado.propio = true;
+      rellenados.push(alias);
+    });
+
+    if (pendientes.length) {
+      nuevos.push({ sap: grupo.sap, alias: pendientes, nota: grupo.nota });
+    }
+  });
+
+  let agregados = 0;
+
+  nuevos.forEach(function(grupo) {
+    // Fila en blanco entre grupo y grupo: es lo que corta el arrastre.
+    let fila = sheet.getLastRow() + 2;
+
+    grupo.alias.forEach(function(alias, indice) {
+      const destino = fila + indice;
+
+      if (indice === 0) {
+        sheet.getRange(destino, columnas.sap).setValue(grupo.sap);
+
+        if (columnas.notas && grupo.nota) {
+          sheet.getRange(destino, columnas.notas).setValue(grupo.nota);
+        }
+      }
+
+      sheet.getRange(destino, columnas.alias).setValue(alias);
+
+      if (columnas.origen) {
+        sheet.getRange(destino, columnas.origen).setValue('Todos');
+      }
+
+      agregados++;
+    });
+  });
+
+  const sueltos = aislarPendientes_(sheet, columnas);
+
+  const lineas = [
+    'Propuesta aplicada sobre "' + CONFIG.SHEET_PROVEEDORES + '".',
+    '',
+    'Filas que estaban esperando proveedor y quedaron resueltas: ' +
+      rellenados.length,
+    'Alias nuevos agregados al final: ' + agregados
+  ];
+
+  if (respetados.length) {
+    lineas.push('');
+    lineas.push('No toqué estos, ya tenían proveedor escrito:');
+    respetados.slice(0, 10).forEach(function(item) {
+      lineas.push('- ' + item);
+    });
+  }
+
+  if (sueltos.length) {
+    lineas.push('');
+    lineas.push(
+      'Siguen sin proveedor SAP (no me atreví a asociarlos):'
+    );
+    sueltos.slice(0, 15).forEach(function(item) {
+      lineas.push('- ' + item);
+    });
+  }
+
+  lineas.push('');
+  lineas.push(
+    'Revisa la propuesta antes de darla por buena y borra lo que no ' +
+    'corresponda.'
+  );
+
+  ui.alert(lineas.join('\n'));
+}
+
+/**
+ * Deja cada alias sin proveedor en su propio bloque.
+ *
+ * Rellenar un proveedor a media lista tiene un efecto que no se ve:
+ * las filas de abajo que quedaron en blanco pasan a colgarse de él por
+ * el arrastre. Poniendo una fila en blanco encima de cada pendiente,
+ * ese arrastre se corta y el alias queda esperando, que es lo que
+ * corresponde.
+ */
+function aislarPendientes_(sheet, columnas) {
+  const valores = sheet.getLastRow() > 1
+    ? sheet.getDataRange().getValues()
+    : [];
+
+  const sueltos = [];
+  const insertar = [];
+
+  let arrastre = '';
+
+  for (let i = 1; i < valores.length; i++) {
+    const sapCelda = text_(valores[i][columnas.sap - 1]);
+    const alias = text_(valores[i][columnas.alias - 1]);
+
+    if (!sapCelda && !alias) {
+      arrastre = '';
+      continue;
+    }
+
+    if (sapCelda) {
+      arrastre = sapCelda;
+      continue;
+    }
+
+    if (!arrastre) {
+      if (alias) {
+        sueltos.push(alias);
+      }
+      continue;
+    }
+
+    // Alias en blanco colgado de un grupo anterior: se separa.
+    if (alias && !esAliasDelGrupo_(valores, i, columnas, arrastre)) {
+      insertar.push(i + 1);
+      sueltos.push(alias);
+      arrastre = '';
+    }
+  }
+
+  // De abajo hacia arriba, para que insertar no corra las filas que
+  // todavía faltan por revisar.
+  insertar.reverse().forEach(function(fila) {
+    sheet.insertRowBefore(fila);
+  });
+
+  return uniqueSorted_(sueltos);
+}
+
+/**
+ * Un alias pertenece al grupo de arriba si alguien lo escribió ahí a
+ * propósito. Las filas sembradas por el script llevan su motivo en
+ * "Notas" y son justamente las que no hay que dar por asociadas.
+ */
+function esAliasDelGrupo_(valores, indice, columnas, canonico) {
+  if (!columnas.notas) {
+    return true;
+  }
+
+  const nota = text_(valores[indice][columnas.notas - 1]);
+
+  return nota.indexOf('escribe a la izquierda') === -1 &&
+    nota.indexOf('confirma a qué proveedor') === -1;
 }
 
 /**

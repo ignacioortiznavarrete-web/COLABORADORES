@@ -166,6 +166,25 @@ Al lado de cada uno escribes el proveedor SAP que le corresponde, y
 **borras los que no sean equivalencias reales**. Puedes correrlo las
 veces que quieras: nunca repite un alias que ya esté escrito.
 
+### La propuesta ya escrita
+
+**Astilla Dashboard › Rellenar proveedores sugeridos** escribe una
+propuesta de asociaciones sacada de los nombres que hoy están en el
+Plan y en `InformeAstilla`: Llasa con Laminadora Los Ángeles, Javier
+Pezoa con `FOR.JAVIER PEZOA GUTIERREZ E.I.R.L`, Biomasa Sur con
+Biomasas Sur, Chiplumber con Chip Lumber, y así.
+
+**No pisa nada.** Si un alias ya tiene su proveedor escrito, se
+respeta. Solo rellena las filas que quedaron esperando y agrega al
+final las que faltaban. Correrla dos veces no duplica nada.
+
+El canónico que propone es **el nombre del Plan** cuando existe: es el
+que viene con forma de maestro SAP (`FOR.`, `INMOB`, campos cortados a
+30 caracteres). Donde el Plan no tiene al proveedor, el canónico es
+provisional y lo dice en la nota.
+
+Es una propuesta, no una verdad. Revísala.
+
 ### Qué hace con eso
 
 En tres lugares a la vez:
@@ -179,6 +198,17 @@ En tres lugares a la vez:
    Plan llevan al mismo proveedor SAP, el precio se asigna: en la tabla
    de precios aparece como `Precio homologado a mano`.
 
+### El arrastre tiene un filo
+
+Rellenar un proveedor a media lista tiene un efecto que no se ve: las
+filas de abajo que quedaron en blanco pasan a colgarse de él. Por eso
+el sembrado deja una fila en blanco antes del bloque de pendientes, y
+por eso **Rellenar proveedores sugeridos** separa con una fila en
+blanco cada alias que quedó sin resolver.
+
+Si escribes a mano, la regla es la misma: **fila en blanco entre grupo
+y grupo**.
+
 ### Cuando la hoja no alcanza
 
 Dos casos que **no se resuelven solos**, y el script prefiere decirlo a
@@ -191,6 +221,11 @@ inventar una cifra:
   precio.** Eso no lo arregla una tabla de equivalencias: hay que
   corregir el Plan. Queda como `Precio duplicado en el Plan`, sin
   precio asignado.
+
+Y un tercero, que ni siquiera es de nombres: **un proveedor que no
+está en el Plan** —o que está pero no para ese material— no va a tener
+precio por mucho que lo homologues. Hoy es el caso de Agrifor, Fátima,
+Río Cruces, Asermain San Ignacio, y de Aitue en nitens.
 
 Ambos salen en **Diagnosticar cruce SAP vs planilla**, junto con los
 alias que escribiste y todavía no tienen su proveedor SAP al lado.
@@ -400,6 +435,7 @@ pegadas en el cuerpo del correo, no hace falta.
 | Preparar hoja de mapeos | Crea/repara `Mapeos`: IDs, validación y estado inicial |
 | Ubicar en el mapa | Resuelve las filas sin ubicar: coordenada pegada primero, dirección después |
 | Preparar hoja de proveedores | Crea/repara `Proveedores` y siembra los nombres que hoy no cruzan |
+| Rellenar proveedores sugeridos | Escribe la propuesta de equivalencias sin pisar lo que ya decidiste |
 | Preparar hoja de rutas | Crea/repara `Rutas` con sus encabezados |
 
 Antes de una carga masiva, corre siempre **Probar último correo**.
