@@ -23,7 +23,7 @@ desaparece solo.
 | `Ingresos` | Descarga de SAP. Cantidad real por *Fecha Contab.* | Sí |
 | `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
 | `PlanAstilla` | Una fila por sub-producto, una columna por mes | No |
-| `Mapeos` | Un aserradero por fila: nombre, dirección y estado | Para el mapa |
+| `Mapeos` | Un aserradero por fila: nombre, coordenada y estado | Para el mapa |
 
 Las columnas de `Ingresos` se detectan por nombre de encabezado
 (*Fecha Contab.*, *Descripción Material*, *Cantidad*, *Proveedor*…). Si
@@ -67,8 +67,46 @@ prefijo. Eso es lo que permite reconocer títulos de SAP como
 
 ## Mapeo de aserraderos
 
-Hoja `Mapeos`, una fila por aserradero. Tú pones **Nombre** y
-**Dirección**; el resto lo maneja el dashboard.
+Hoja `Mapeos`, una fila por aserradero. Tú pones **Nombre** y, para
+ubicarlo, o bien la **Coordenada** o bien la **Dirección**. El resto lo
+maneja el dashboard.
+
+### La coordenada manda
+
+Un aserradero rural rara vez tiene una dirección que un geocodificador
+resuelva bien: «Camino a Nacimiento s/n» termina en el centro de la
+comuna, o derechamente en otra. Pegar el par que entrega Google Maps es
+exacto, instantáneo y no depende de ningún servicio.
+
+En Google Maps: **clic derecho sobre el punto → copiar coordenadas**, y
+pegar en la columna `Coordenadas`. Se aceptan los formatos que la gente
+pega de verdad:
+
+```
+-37.0331, -72.4015          decimal, el más común
+-37.0331 -72.4015           separado por espacio
+(-37.0331, -72.4015)        entre paréntesis
+-37,0331 -72,4015           con coma decimal
+37°01'59.2"S 72°24'05.4"W   grados, minutos y segundos
+```
+
+**Si pegas latitud y longitud al revés, se detecta y se corrige.** Es
+el error más común y el más difícil de notar: no falla, solo deja el
+pin en medio del Atlántico. Una coordenada que no cae en Chile en
+ningún orden se rechaza y se informa, en vez de dibujarse mal.
+
+No hace falta acordarse de correr nada: si pegas la coordenada, el
+dashboard ya la dibuja. **Ubicar en el mapa** solo sirve para dejarla
+escrita en `Latitud`/`Longitud` y para geocodificar las que solo tienen
+dirección.
+
+### Fijar con un clic
+
+Para el aserradero que no tiene dirección en ningún callejero pero que
+sabes exactamente dónde está: elígelo en el listado o en el mapa, y en
+el panel de la derecha pulsa **Fijar en el mapa**. El siguiente clic
+sobre el mapa guarda la coordenada (Esc cancela). Si ya está ubicado,
+el botón dice **Mover**.
 
 **El estado es el motivo.** Todo nace en `Por visitar`. Solo `Cerrado`
 pide cuántas cargas se cerraron —y las exige mayores que cero, porque
@@ -92,21 +130,26 @@ validación de la columna.
 
 ### Puesta en marcha
 
-1. **Astilla Dashboard › Preparar hoja de mapeos.** Crea la hoja,
-   pone la validación de Estado, asigna un `ID` correlativo a cada
-   fila y rellena en `Por visitar` todo lo que esté en blanco. Se
-   puede correr las veces que sea.
-2. Agrega tus aserraderos con nombre y dirección (la **comuna** ayuda
-   mucho: hay «Camino a Nacimiento» en varias).
-3. **Geocodificar direcciones.** Convierte las direcciones en
-   coordenadas con el servicio Maps de Apps Script y las escribe en la
-   hoja, para no volver a geocodificar lo mismo en cada carga. Solo
-   toca las filas sin latitud, y avisa cuáles no pudo ubicar.
+1. **Astilla Dashboard › Preparar hoja de mapeos.** Crea la hoja, pone
+   la validación de Estado, asigna un `ID` correlativo a cada fila y
+   rellena en `Por visitar` todo lo que esté en blanco. Si la hoja
+   venía sin la columna `Coordenadas`, la agrega sin tocar lo escrito.
+   Se puede correr las veces que sea.
+2. Agrega tus aserraderos: nombre y coordenada. Si no tienes la
+   coordenada, dirección y **comuna** (la comuna importa: hay «Camino a
+   Nacimiento» en varias).
+3. **Ubicar en el mapa.** Por cada fila sin latitud: primero usa la
+   coordenada pegada, y solo si no hay, geocodifica la dirección.
+   Nunca pisa una fila ya ubicada, y al terminar dice cuántas salieron
+   por cada vía y cuáles quedaron pendientes.
 
-Los que no se puedan geocodificar siguen apareciendo en el listado
-—marcados «sin ubicar»— y el dashboard dice cuántos son. Nunca se
-pierden por no estar en el mapa. Si una dirección se resiste, escribe
-latitud y longitud a mano en la hoja.
+Los que no se puedan ubicar siguen apareciendo en el listado —marcados
+«sin ubicar»— y el dashboard dice cuántos son. Nunca se pierden por no
+estar en el mapa.
+
+Las columnas se resuelven **por nombre de encabezado**, no por
+posición: puedes reordenar o agregar columnas en la hoja sin romper
+nada.
 
 El mapa usa Leaflet sobre OpenStreetMap, sin API key. Si la red
 corporativa bloquea el CDN, el mapa avisa y el listado y la gestión
@@ -139,7 +182,7 @@ pegadas en el cuerpo del correo, no hace falta.
 | Probar último correo | Muestra lo que extraería, **sin escribir** |
 | Diagnosticar cruce SAP vs planilla | Materiales fuera del filtro y proveedores sin par |
 | Preparar hoja de mapeos | Crea/repara `Mapeos`: IDs, validación y estado inicial |
-| Geocodificar direcciones | Ubica en el mapa las direcciones que aún no tienen coordenadas |
+| Ubicar en el mapa | Resuelve las filas sin ubicar: coordenada pegada primero, dirección después |
 
 Antes de una carga masiva, corre siempre **Probar último correo**.
 

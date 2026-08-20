@@ -36,7 +36,8 @@ vm.runInContext(
   codigo +
   '\n;globalThis.K = {' +
   '  CONFIG, SUBPRODUCTOS_OBJETIVO, SUBPRODUCTO_SAP,' +
-  '  ESTADOS_MAPEO, ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS' +
+  '  ESTADOS_MAPEO, ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS,' +
+  '  LIMITES_CL' +
   '};',
   sandbox
 );
@@ -395,6 +396,88 @@ check('solo "Cerrado" cierra',
 check('los 7 estados tienen color propio',
   new Set(K.ESTADOS_MAPEO.map(function(e) { return e.color; }))
     .size === 7);
+
+/* =====================================================================
+ * 10. COORDENADAS PEGADAS
+ * ===================================================================== */
+
+console.log('\n10. parseCoordenadas_');
+
+function coord(texto) {
+  var r = sandbox.parseCoordenadas_(texto);
+  if (!r) { return 'null'; }
+  if (r.fuera) { return 'fuera'; }
+  return r.lat.toFixed(4) + ',' + r.lng.toFixed(4) + (r.invertida ? ' (inv)' : '');
+}
+
+// Lo que entrega Google Maps al copiar un punto.
+check('par decimal con coma y espacio',
+  coord('-37.0331, -72.4015') === '-37.0331,-72.4015', coord('-37.0331, -72.4015'));
+
+check('par decimal sin espacio',
+  coord('-37.0331,-72.4015') === '-37.0331,-72.4015', coord('-37.0331,-72.4015'));
+
+check('par separado por espacio',
+  coord('-37.0331 -72.4015') === '-37.0331,-72.4015', coord('-37.0331 -72.4015'));
+
+check('entre paréntesis',
+  coord('(-37.0331, -72.4015)') === '-37.0331,-72.4015', coord('(-37.0331, -72.4015)'));
+
+check('con espacios de sobra',
+  coord('  -37.0331 ,  -72.4015  ') === '-37.0331,-72.4015');
+
+// Coma decimal, como la escribe Excel en español.
+check('coma decimal separada por espacio',
+  coord('-37,0331 -72,4015') === '-37.0331,-72.4015', coord('-37,0331 -72,4015'));
+
+// Grados, minutos y segundos: el formato de "compartir" de Google Maps.
+check('grados minutos segundos',
+  coord('37°01\'59.2"S 72°24\'05.4"W') === '-37.0331,-72.4015',
+  coord('37°01\'59.2"S 72°24\'05.4"W'));
+
+// El error clásico: pegar longitud primero. No falla, solo deja el
+// pin en el Atlántico. Hay que detectarlo.
+check('detecta y corrige lat/lng invertidas',
+  coord('-72.4015, -37.0331') === '-37.0331,-72.4015 (inv)',
+  coord('-72.4015, -37.0331'));
+
+// Fuera de Chile en cualquier orden: no se inventa nada.
+check('rechaza un punto fuera de Chile',
+  coord('40.7128, -74.0060') === 'fuera', coord('40.7128, -74.0060'));
+
+check('rechaza texto que no es coordenada',
+  coord('Camino a Nacimiento s/n') === 'null', coord('Camino a Nacimiento s/n'));
+
+check('rechaza vacío', coord('') === 'null');
+check('rechaza un solo número', coord('-37.0331') === 'null', coord('-37.0331'));
+
+// Extremos del país, para que los límites no dejen fuera lo válido.
+check('acepta Arica', coord('-18.4783, -70.3126') === '-18.4783,-70.3126');
+check('acepta Punta Arenas', coord('-53.1638, -70.9171') === '-53.1638,-70.9171');
+check('acepta la zona forestal',
+  coord('-37.4690, -72.3530') === '-37.4690,-72.3530');
+
+console.log('\n11. guardarUbicacion valida el punto');
+
+function ubicaFalla(payload) {
+  try { sandbox.guardarUbicacion(payload); return ''; }
+  catch (e) { return e.message; }
+}
+
+check('rechaza sin id',
+  ubicaFalla({ lat: -37, lng: -72 }).indexOf('identificador') !== -1);
+
+check('rechaza coordenada no numérica',
+  ubicaFalla({ id: 'MAP-0001', lat: 'x', lng: -72 })
+    .indexOf('no es válida') !== -1);
+
+check('rechaza un punto fuera de Chile',
+  ubicaFalla({ id: 'MAP-0001', lat: 40.7, lng: -74 })
+    .indexOf('fuera de Chile') !== -1);
+
+check('un punto válido supera la validación',
+  ubicaFalla({ id: 'MAP-0001', lat: -37.03, lng: -72.40 })
+    .indexOf('Chile') === -1);
 
 console.log(
   '\n' + (fallos ? fallos + ' comprobaciones fallaron' : 'Todo OK')

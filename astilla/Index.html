@@ -880,6 +880,35 @@
       to { opacity: 1; transform: none; }
     }
 
+    .sitio {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 9px 11px;
+      border: 1px solid var(--bosque-800);
+      border-radius: 9px;
+      background: var(--bosque-850);
+    }
+
+    .sitio-dato {
+      min-width: 0;
+      font-size: 11.5px;
+      color: var(--savia);
+      overflow-wrap: anywhere;
+    }
+
+    .sitio-falta { color: var(--alerta); }
+
+    .act-fino {
+      min-height: 30px;
+      padding: 0 10px;
+      font-size: 11px;
+      flex: 0 0 auto;
+    }
+
+    .recado-guia { color: var(--brote); background: var(--brote-soft); }
+
     .gestion-pie { display: flex; gap: 9px; }
     .gestion-pie .act { flex: 1; justify-content: center; }
 
@@ -1384,6 +1413,7 @@
     var SELECCION = null;
     var FILTRO_ESTADO = '';
     var MAPEOS_PEDIDOS = false;
+    var FIJANDO = false;   // esperando un clic en el mapa
 
     var SUAVE = !window.matchMedia(
       '(prefers-reduced-motion: reduce)'
@@ -2330,8 +2360,10 @@
         ojo.push(
           '<b>' + MAPEOS.sinUbicar + '</b> aserrader' +
           (uno ? 'o no está' : 'os no están') +
-          ' en el mapa porque su dirección no se pudo ubicar. ' +
-          'Corre <b>Geocodificar direcciones</b>.'
+          ' en el mapa. Lo más rápido: en Google Maps, clic derecho ' +
+          'sobre el punto, copiar el par y pegarlo en la columna ' +
+          '<b>Coordenadas</b>. También puedes elegirlo en el listado ' +
+          'y fijarlo con un clic sobre el mapa.'
         );
       }
 
@@ -2438,8 +2470,17 @@
           }
         ).addTo(MAPA);
 
-        // Rueda solo con Ctrl: si no, la página deja de poder scrollear.
-        MAPA.on('click', function() { MAPA.scrollWheelZoom.enable(); });
+        MAPA.on('click', function(evento) {
+          if (FIJANDO) {
+            fijarAqui(evento.latlng);
+            return;
+          }
+
+          // Rueda solo tras hacer clic: si no, la página deja de
+          // poder scrollear al pasar por encima.
+          MAPA.scrollWheelZoom.enable();
+        });
+
         MAPA.on('mouseout', function() { MAPA.scrollWheelZoom.disable(); });
       }
 
@@ -2517,6 +2558,75 @@
       }
     }
 
+    function activarFijado() {
+      if (!MAPA) {
+        return;
+      }
+
+      FIJANDO = true;
+      document.getElementById('mapa').style.cursor = 'crosshair';
+
+      var recado = document.getElementById('gRecado');
+
+      if (recado) {
+        recado.className = 'recado recado-guia se-ve';
+        recado.textContent =
+          'Haz clic en el mapa donde está el aserradero. ' +
+          'Esc para cancelar.';
+      }
+    }
+
+    function cancelarFijado() {
+      FIJANDO = false;
+
+      var caja = document.getElementById('mapa');
+
+      if (caja) { caja.style.cursor = ''; }
+    }
+
+    function fijarAqui(latlng) {
+      cancelarFijado();
+
+      if (!SELECCION) { return; }
+
+      velo(true, 'Fijando la ubicación');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          MAPEOS = res;
+          pintarMapeos();
+          velo(false);
+
+          var recado = document.getElementById('gRecado');
+
+          if (recado) {
+            recado.className = 'recado recado-bien se-ve';
+            recado.textContent = 'Ubicación guardada.';
+          }
+        })
+        .withFailureHandler(function(err) {
+          velo(false);
+          var recado = document.getElementById('gRecado');
+
+          if (recado) {
+            recado.className = 'recado recado-mal se-ve';
+            recado.textContent = mensaje(err);
+          }
+        })
+        .guardarUbicacion({
+          id: SELECCION,
+          lat: latlng.lat,
+          lng: latlng.lng
+        });
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && FIJANDO) {
+        cancelarFijado();
+        dibujarGestion();
+      }
+    });
+
     function buscarMapeo(id) {
       return (MAPEOS.rows || []).filter(function(f) {
         return f.id === id;
@@ -2559,6 +2669,18 @@
             esc([f.contacto, f.telefono].filter(Boolean).join(' · ')) +
             '</div>'
           : '') +
+
+        '<div class="sitio">' +
+          '<div class="sitio-dato">' +
+            (f.lat === null
+              ? '<span class="sitio-falta">Sin ubicar en el mapa</span>'
+              : '<span class="num">' + f.lat.toFixed(5) + ', ' +
+                f.lng.toFixed(5) + '</span>') +
+          '</div>' +
+          '<button class="act act-fino" onclick="activarFijado()">' +
+            (f.lat === null ? 'Fijar en el mapa' : 'Mover') +
+          '</button>' +
+        '</div>' +
 
         '<div class="campo">' +
           '<label for="gEstado">Cómo salió</label>' +

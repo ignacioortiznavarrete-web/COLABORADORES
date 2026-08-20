@@ -173,7 +173,7 @@ function onOpen() {
     )
     .addSeparator()
     .addItem('Preparar hoja de mapeos', 'instalarMapeos')
-    .addItem('Geocodificar direcciones', 'geocodificarMapeos')
+    .addItem('Ubicar en el mapa', 'ubicarMapeos')
     .addSeparator()
     .addItem('Instalar automatización', 'instalarDisparador')
     .addItem('Eliminar automatización', 'eliminarDisparadores')
@@ -2707,8 +2707,13 @@ function decodeHtmlEntities_(text) {
 /* =====================================================================
  * MAPEO DE ASERRADEROS (HOJA "Mapeos")
  *
- * Una fila por aserradero. Tú pones nombre y dirección; el resto lo
- * maneja el dashboard.
+ * Una fila por aserradero. Tú pones nombre y, para ubicarlo, o bien la
+ * coordenada o bien la dirección.
+ *
+ * La coordenada manda. Un aserradero rural rara vez tiene dirección
+ * que un geocodificador resuelva bien ("Camino a Nacimiento s/n"
+ * termina en el centro de la comuna, o en otra), así que pegar el par
+ * que entrega Google Maps es más exacto y no depende de un servicio.
  *
  * El estado ES el motivo: "Cerrado" cuando se cerró carga, y
  * cualquiera de los otros cuando no. Todo nace en "Por visitar".
@@ -2720,6 +2725,7 @@ const MAPEOS_HEADERS = Object.freeze([
   'Nombre',
   'Dirección',
   'Comuna',
+  'Coordenadas',
   'Estado',
   'Cargas',
   'Contacto',
@@ -2748,10 +2754,166 @@ const ESTADOS_MAPEO = Object.freeze([
   { nombre: 'No hubo contacto', color: '#4E5D57', cierra: false }
 ]);
 
+/**
+ * Chile continental, con holgura. Sirve para dos cosas: rechazar una
+ * coordenada que quedó mal pegada, y detectar el error clásico de
+ * invertir latitud y longitud —que no da error, solo pone el pin en
+ * medio del Atlántico—.
+ */
+const LIMITES_CL = Object.freeze({
+  latMin: -56.5, latMax: -17.0,
+  lngMin: -76.0, lngMax: -66.0
+});
+
 function nombresEstados_() {
   return ESTADOS_MAPEO.map(function(item) {
     return item.nombre;
   });
+}
+
+/**
+ * Resuelve las columnas por nombre de encabezado, en base 1.
+ *
+ * Antes estaban fijas por posición, así que agregar o mover una
+ * columna en la hoja rompía la escritura en silencio. Ahora la hoja se
+ * puede reordenar sin tocar el código.
+ */
+function columnasMapeos_(sheet) {
+  const encabezados = sheet
+    .getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1))
+    .getValues()[0];
+
+  const mapa = buildHeaderMap_(encabezados);
+
+  function col(nombre, obligatoria) {
+    const indice = mapa[normalizeHeader_(nombre)];
+
+    if (indice === undefined) {
+      if (obligatoria) {
+        throw new Error(
+          'A la hoja "' + CONFIG.SHEET_MAPEOS + '" le falta la columna "' +
+          nombre + '". Corre "Preparar hoja de mapeos".'
+        );
+      }
+
+      return 0;
+    }
+
+    return indice + 1;
+  }
+
+  return {
+    id: col('ID', true),
+    nombre: col('Nombre', true),
+    direccion: col('Dirección', true),
+    comuna: col('Comuna', false),
+    coordenadas: col('Coordenadas', false),
+    estado: col('Estado', true),
+    cargas: col('Cargas', true),
+    contacto: col('Contacto', false),
+    telefono: col('Teléfono', false),
+    lat: col('Latitud', true),
+    lng: col('Longitud', true),
+    actualizado: col('Última actualización', false),
+    autor: col('Actualizado por', false),
+    notas: col('Notas', false)
+  };
+}
+
+function valorEn_(fila, columna) {
+  return columna ? fila[columna - 1] : '';
+}
+
+/**
+ * Entiende lo que la gente pega de verdad:
+ *   -37.0331, -72.4015
+ *   -37.0331 -72.4015
+ *   37°02'00.0"S 72°24'05.0"W
+ *
+ * Si el par no cae en Chile pero el par invertido sí, lo corrige y lo
+ * dice. Es el error más común y el más difícil de notar: no falla,
+ * solo deja el pin en el mar.
+ */
+function parseCoordenadas_(texto) {
+  const crudo = text_(texto);
+
+  if (!crudo) {
+    return null;
+  }
+
+  let lat = null;
+  let lng = null;
+  let metodo = '';
+
+  // Grados, minutos y segundos, como los comparte Google Maps.
+  const gms = crudo.match(
+    /(\d{1,3})\s*°\s*(\d{1,2})\s*['′]\s*([\d.,]+)\s*["″]?\s*([NSns])[,\s]+(\d{1,3})\s*°\s*(\d{1,2})\s*['′]\s*([\d.,]+)\s*["″]?\s*([EWOewo])/
+  );
+
+  if (gms) {
+    function aDecimal(g, m, s, hemisferio) {
+      const valor =
+        Number(g) +
+        Number(m) / 60 +
+        Number(String(s).replace(',', '.')) / 3600;
+
+      return /[SsWwOo]/.test(hemisferio) ? -valor : valor;
+    }
+
+    lat = aDecimal(gms[1], gms[2], gms[3], gms[4]);
+    lng = aDecimal(gms[5], gms[6], gms[7], gms[8]);
+    metodo = 'Coordenada pegada (GMS)';
+  } else {
+    // Par decimal. Se admite coma decimal, pero solo si el separador
+    // entre ambos números es otra cosa: "-37,03 -72,40".
+    let limpio = crudo.replace(/[()\[\]]/g, ' ').trim();
+
+    if (/^-?\d{1,3},\d+\s+-?\d{1,3},\d+$/.test(limpio)) {
+      limpio = limpio.replace(/,/g, '.');
+    }
+
+    const par = limpio.match(
+      /^\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/
+    );
+
+    if (!par) {
+      return null;
+    }
+
+    lat = Number(par[1]);
+    lng = Number(par[2]);
+    metodo = 'Coordenada pegada';
+  }
+
+  if (!isFinite(lat) || !isFinite(lng)) {
+    return null;
+  }
+
+  function dentro(la, lo) {
+    return la >= LIMITES_CL.latMin && la <= LIMITES_CL.latMax &&
+           lo >= LIMITES_CL.lngMin && lo <= LIMITES_CL.lngMax;
+  }
+
+  if (dentro(lat, lng)) {
+    return { lat: lat, lng: lng, metodo: metodo, invertida: false };
+  }
+
+  if (dentro(lng, lat)) {
+    return {
+      lat: lng,
+      lng: lat,
+      metodo: metodo + ', invertida',
+      invertida: true
+    };
+  }
+
+  return {
+    lat: null,
+    lng: null,
+    metodo: metodo,
+    fuera: true,
+    crudo: crudo
+  };
 }
 
 /**
@@ -2767,6 +2929,25 @@ function instalarMapeos() {
     sheet = spreadsheet.insertSheet(CONFIG.SHEET_MAPEOS);
   }
 
+  // Si la hoja viene del esquema anterior (sin "Coordenadas"), se
+  // conserva lo escrito y solo se agrega la columna que falta.
+  const anchoActual = sheet.getLastColumn();
+
+  const encabezadosActuales = anchoActual
+    ? sheet.getRange(1, 1, 1, anchoActual).getValues()[0].map(text_)
+    : [];
+
+  const faltaCoordenadas =
+    encabezadosActuales.length &&
+    encabezadosActuales.indexOf('Coordenadas') === -1 &&
+    encabezadosActuales.indexOf('Comuna') !== -1;
+
+  if (faltaCoordenadas) {
+    const trasComuna = encabezadosActuales.indexOf('Comuna') + 1;
+    sheet.insertColumnAfter(trasComuna);
+    sheet.getRange(1, trasComuna + 1).setValue('Coordenadas');
+  }
+
   sheet
     .getRange(1, 1, 1, MAPEOS_HEADERS.length)
     .setValues([MAPEOS_HEADERS])
@@ -2777,19 +2958,23 @@ function instalarMapeos() {
   sheet.setFrozenRows(1);
 
   const anchos = [
-    90, 260, 320, 140, 190, 90, 180, 130, 110, 110, 165, 210, 300
+    90, 250, 280, 130, 190, 180, 85, 165, 125, 105, 105, 160, 200, 280
   ];
 
   anchos.forEach(function(ancho, indice) {
     sheet.setColumnWidth(indice + 1, ancho);
   });
 
+  const columnas = columnasMapeos_(sheet);
   const ultima = sheet.getLastRow();
 
   if (ultima < 2) {
     SpreadsheetApp.getUi().alert(
       'Hoja "' + CONFIG.SHEET_MAPEOS + '" lista.\n\n' +
-      'Agrega una fila por aserradero con Nombre y Dirección. ' +
+      'Agrega una fila por aserradero. Para ubicarlo en el mapa basta ' +
+      'con pegar la coordenada en "Coordenadas" (en Google Maps: clic ' +
+      'derecho sobre el punto y copiar). Si no la tienes, escribe la ' +
+      'dirección y la comuna.\n\n' +
       'El estado se rellena solo en "' + ESTADO_INICIAL + '".'
     );
     return;
@@ -2798,7 +2983,7 @@ function instalarMapeos() {
   const filas = ultima - 1;
 
   sheet
-    .getRange(2, 5, filas, 1)
+    .getRange(2, columnas.estado, filas, 1)
     .setDataValidation(
       SpreadsheetApp.newDataValidation()
         .requireValueInList(nombresEstados_(), true)
@@ -2810,19 +2995,26 @@ function instalarMapeos() {
         .build()
     );
 
-  sheet.getRange(2, 6, filas, 1).setNumberFormat('#,##0');
-  sheet.getRange(2, 9, filas, 2).setNumberFormat('0.000000');
-  sheet.getRange(2, 11, filas, 1).setNumberFormat('dd/MM/yyyy HH:mm');
+  sheet.getRange(2, columnas.cargas, filas, 1).setNumberFormat('#,##0');
+  sheet.getRange(2, columnas.lat, filas, 1).setNumberFormat('0.000000');
+  sheet.getRange(2, columnas.lng, filas, 1).setNumberFormat('0.000000');
+  sheet.getRange(2, columnas.coordenadas, filas, 1).setNumberFormat('@');
 
-  // Todo lo que no tenga estado arranca en "Por visitar", y todo lo que
-  // no tenga ID recibe uno correlativo.
+  if (columnas.actualizado) {
+    sheet
+      .getRange(2, columnas.actualizado, filas, 1)
+      .setNumberFormat('dd/MM/yyyy HH:mm');
+  }
+
   const rango = sheet.getRange(2, 1, filas, MAPEOS_HEADERS.length);
   const valores = rango.getValues();
 
   let maximo = 0;
 
   valores.forEach(function(fila) {
-    const numero = Number(String(fila[0] || '').replace(/\D/g, ''));
+    const numero = Number(
+      String(valorEn_(fila, columnas.id) || '').replace(/\D/g, '')
+    );
 
     if (numero > maximo) {
       maximo = numero;
@@ -2833,18 +3025,21 @@ function instalarMapeos() {
   let sinId = 0;
 
   valores.forEach(function(fila) {
-    if (!text_(fila[1]) && !text_(fila[2])) {
+    if (
+      !text_(valorEn_(fila, columnas.nombre)) &&
+      !text_(valorEn_(fila, columnas.direccion))
+    ) {
       return;
     }
 
-    if (!text_(fila[0])) {
+    if (!text_(valorEn_(fila, columnas.id))) {
       maximo++;
-      fila[0] = 'MAP-' + String(maximo).padStart(4, '0');
+      fila[columnas.id - 1] = 'MAP-' + String(maximo).padStart(4, '0');
       sinId++;
     }
 
-    if (!text_(fila[4])) {
-      fila[4] = ESTADO_INICIAL;
+    if (!text_(valorEn_(fila, columnas.estado))) {
+      fila[columnas.estado - 1] = ESTADO_INICIAL;
       sinEstado++;
     }
   });
@@ -2855,53 +3050,95 @@ function instalarMapeos() {
     'Hoja "' + CONFIG.SHEET_MAPEOS + '" lista.\n\n' +
     'Aserraderos: ' + filas + '\n' +
     'IDs asignados: ' + sinId + '\n' +
-    'Estados puestos en "' + ESTADO_INICIAL + '": ' + sinEstado + '\n\n' +
-    'Ahora corre "Geocodificar direcciones" para ubicarlos en el mapa.'
+    'Estados puestos en "' + ESTADO_INICIAL + '": ' + sinEstado +
+    (faltaCoordenadas ? '\nSe agregó la columna "Coordenadas".' : '') +
+    '\n\nAhora corre "Ubicar en el mapa".'
   );
 }
 
 /**
- * Convierte direcciones en coordenadas y las escribe en la hoja, para
- * no volver a geocodificar lo mismo en cada carga del dashboard.
- * Solo toca las filas que aún no tienen latitud.
+ * Deja a cada aserradero con latitud y longitud, en este orden:
+ *   1. La coordenada pegada, si la hay. Es exacta y no cuesta nada.
+ *   2. La dirección, geocodificada. Solo si no hay coordenada.
+ *
+ * Nunca pisa una fila que ya tiene latitud.
  */
-function geocodificarMapeos() {
+function ubicarMapeos() {
   const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
 
   if (!sheet || sheet.getLastRow() < 2) {
     SpreadsheetApp.getUi().alert(
-      'No hay nada que geocodificar. Corre primero ' +
+      'No hay nada que ubicar. Corre primero ' +
       '"Preparar hoja de mapeos".'
     );
     return;
   }
 
+  const columnas = columnasMapeos_(sheet);
   const filas = sheet.getLastRow() - 1;
   const rango = sheet.getRange(2, 1, filas, MAPEOS_HEADERS.length);
   const valores = rango.getValues();
 
-  const geocoder = Maps.newGeocoder().setRegion('cl');
+  let porCoordenada = 0;
+  let porDireccion = 0;
+  let invertidas = 0;
+  const problemas = [];
 
-  let ubicados = 0;
-  let sinResultado = 0;
-  const fallidas = [];
+  let geocoder = null;
 
   valores.forEach(function(fila) {
-    const direccion = text_(fila[2]);
-    const comuna = text_(fila[3]);
+    const nombre =
+      text_(valorEn_(fila, columnas.nombre)) ||
+      text_(valorEn_(fila, columnas.direccion));
 
-    if (!direccion || Number(fila[8])) {
+    if (!nombre || Number(valorEn_(fila, columnas.lat))) {
       return;
     }
 
-    // La comuna desambigua: hay "Camino a Nacimiento" en varias.
-    const consulta = [direccion, comuna, 'Chile']
-      .filter(Boolean)
-      .join(', ');
+    // 1) Coordenada pegada.
+    const pegada = parseCoordenadas_(
+      valorEn_(fila, columnas.coordenadas)
+    );
+
+    if (pegada) {
+      if (pegada.fuera) {
+        problemas.push(
+          nombre + ': la coordenada "' + pegada.crudo +
+          '" no cae en Chile'
+        );
+        return;
+      }
+
+      fila[columnas.lat - 1] = pegada.lat;
+      fila[columnas.lng - 1] = pegada.lng;
+      porCoordenada++;
+
+      if (pegada.invertida) {
+        invertidas++;
+      }
+
+      return;
+    }
+
+    // 2) Dirección.
+    const direccion = text_(valorEn_(fila, columnas.direccion));
+
+    if (!direccion) {
+      problemas.push(nombre + ': sin coordenada ni dirección');
+      return;
+    }
+
+    if (!geocoder) {
+      geocoder = Maps.newGeocoder().setRegion('cl');
+    }
+
+    const comuna = text_(valorEn_(fila, columnas.comuna));
 
     try {
-      const respuesta = geocoder.geocode(consulta);
+      const respuesta = geocoder.geocode(
+        [direccion, comuna, 'Chile'].filter(Boolean).join(', ')
+      );
 
       if (
         respuesta.status === 'OK' &&
@@ -2909,18 +3146,15 @@ function geocodificarMapeos() {
         respuesta.results.length
       ) {
         const punto = respuesta.results[0].geometry.location;
-        fila[8] = punto.lat;
-        fila[9] = punto.lng;
-        ubicados++;
+        fila[columnas.lat - 1] = punto.lat;
+        fila[columnas.lng - 1] = punto.lng;
+        porDireccion++;
       } else {
-        sinResultado++;
-        fallidas.push(text_(fila[1]) || direccion);
+        problemas.push(nombre + ': la dirección no se pudo ubicar');
       }
     } catch (error) {
-      sinResultado++;
-      fallidas.push(
-        (text_(fila[1]) || direccion) +
-        ' (' + String(error.message || error) + ')'
+      problemas.push(
+        nombre + ': ' + String(error.message || error)
       );
     }
 
@@ -2930,23 +3164,31 @@ function geocodificarMapeos() {
   rango.setValues(valores);
 
   const lineas = [
-    'Geocodificación terminada.',
+    'Ubicación terminada.',
     '',
-    'Ubicados ahora: ' + ubicados,
-    'Sin resultado: ' + sinResultado
+    'Por coordenada pegada: ' + porCoordenada,
+    'Por dirección (geocodificadas): ' + porDireccion
   ];
 
-  if (fallidas.length) {
-    lineas.push('');
-    lineas.push('No se pudieron ubicar:');
+  if (invertidas) {
+    lineas.push(
+      'Coordenadas invertidas y corregidas: ' + invertidas
+    );
+  }
 
-    fallidas.slice(0, 15).forEach(function(item) {
+  if (problemas.length) {
+    lineas.push('');
+    lineas.push('Quedaron sin ubicar:');
+
+    problemas.slice(0, 15).forEach(function(item) {
       lineas.push('  - ' + item);
     });
 
     lineas.push('');
     lineas.push(
-      'Agrega la comuna, o escribe latitud y longitud a mano en la hoja.'
+      'Lo más rápido: en Google Maps, clic derecho sobre el punto, ' +
+      'copiar el par y pegarlo en la columna "Coordenadas". ' +
+      'También puedes fijarlo con un clic desde el mapa del dashboard.'
     );
   }
 
@@ -2980,6 +3222,8 @@ function getMapeos() {
     return base;
   }
 
+  const columnas = columnasMapeos_(sheet);
+
   const valores = sheet
     .getRange(2, 1, sheet.getLastRow() - 1, MAPEOS_HEADERS.length)
     .getValues();
@@ -2988,41 +3232,84 @@ function getMapeos() {
     spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
 
   valores.forEach(function(fila) {
-    const nombre = text_(fila[1]);
-    const direccion = text_(fila[2]);
+    const nombre = text_(valorEn_(fila, columnas.nombre));
+    const direccion = text_(valorEn_(fila, columnas.direccion));
 
     if (!nombre && !direccion) {
       return;
     }
 
-    const lat = Number(fila[8]);
-    const lng = Number(fila[9]);
-    const ubicado = isFinite(lat) && isFinite(lng) && lat !== 0;
+    let lat = Number(valorEn_(fila, columnas.lat));
+    let lng = Number(valorEn_(fila, columnas.lng));
+    let ubicado = isFinite(lat) && isFinite(lng) && lat !== 0;
+
+    // Si alguien pegó la coordenada y no corrió "Ubicar en el mapa",
+    // igual se dibuja: no tiene por qué acordarse de un paso extra.
+    if (!ubicado) {
+      const pegada = parseCoordenadas_(
+        valorEn_(fila, columnas.coordenadas)
+      );
+
+      if (pegada && !pegada.fuera) {
+        lat = pegada.lat;
+        lng = pegada.lng;
+        ubicado = true;
+      }
+    }
 
     if (!ubicado) {
       base.sinUbicar++;
     }
 
+    const fecha = valorEn_(fila, columnas.actualizado);
+
     base.rows.push({
-      id: text_(fila[0]),
+      id: text_(valorEn_(fila, columnas.id)),
       nombre: nombre || direccion,
       direccion: direccion,
-      comuna: text_(fila[3]),
-      estado: text_(fila[4]) || ESTADO_INICIAL,
-      cargas: toNumber_(fila[5], ''),
-      contacto: text_(fila[6]),
-      telefono: text_(fila[7]),
+      comuna: text_(valorEn_(fila, columnas.comuna)),
+      estado: text_(valorEn_(fila, columnas.estado)) || ESTADO_INICIAL,
+      cargas: toNumber_(valorEn_(fila, columnas.cargas), ''),
+      contacto: text_(valorEn_(fila, columnas.contacto)),
+      telefono: text_(valorEn_(fila, columnas.telefono)),
       lat: ubicado ? lat : null,
       lng: ubicado ? lng : null,
-      actualizado: fila[10] instanceof Date
-        ? Utilities.formatDate(fila[10], timezone, 'dd/MM/yyyy HH:mm')
+      actualizado: fecha instanceof Date
+        ? Utilities.formatDate(fecha, timezone, 'dd/MM/yyyy HH:mm')
         : '',
-      actualizadoPor: text_(fila[11]),
-      notas: text_(fila[12])
+      actualizadoPor: text_(valorEn_(fila, columnas.autor)),
+      notas: text_(valorEn_(fila, columnas.notas))
     });
   });
 
   return base;
+}
+
+/** Ubica la fila de un aserradero por ID. Devuelve -1 si no está. */
+function filaDeMapeo_(sheet, columnas, id) {
+  const filas = sheet.getLastRow() - 1;
+
+  if (filas < 1) {
+    return -1;
+  }
+
+  const ids = sheet.getRange(2, columnas.id, filas, 1).getValues();
+
+  for (let indice = 0; indice < ids.length; indice++) {
+    if (text_(ids[indice][0]) === id) {
+      return indice + 2;
+    }
+  }
+
+  return -1;
+}
+
+function autorActual_() {
+  try {
+    return Session.getActiveUser().getEmail() || '';
+  } catch (ignored) {
+    return '';
+  }
 }
 
 /**
@@ -3068,33 +3355,103 @@ function guardarMapeo(payload) {
       );
     }
 
-    const filas = sheet.getLastRow() - 1;
-    const ids = sheet.getRange(2, 1, filas, 1).getValues();
-
-    let objetivo = -1;
-
-    for (let indice = 0; indice < ids.length; indice++) {
-      if (text_(ids[indice][0]) === id) {
-        objetivo = indice + 2;
-        break;
-      }
-    }
+    const columnas = columnasMapeos_(sheet);
+    const objetivo = filaDeMapeo_(sheet, columnas, id);
 
     if (objetivo === -1) {
       throw new Error('No se encontró el aserradero ' + id + '.');
     }
 
-    let autor = '';
+    sheet.getRange(objetivo, columnas.estado).setValue(estado);
+    sheet.getRange(objetivo, columnas.cargas).setValue(cargas);
 
-    try {
-      autor = Session.getActiveUser().getEmail() || '';
-    } catch (ignored) {}
+    if (columnas.actualizado) {
+      sheet.getRange(objetivo, columnas.actualizado).setValue(new Date());
+    }
 
-    sheet.getRange(objetivo, 5).setValue(estado);
-    sheet.getRange(objetivo, 6).setValue(cargas);
-    sheet.getRange(objetivo, 11).setValue(new Date());
-    sheet.getRange(objetivo, 12).setValue(autor);
-    sheet.getRange(objetivo, 13).setValue(text_(payload.notas));
+    if (columnas.autor) {
+      sheet.getRange(objetivo, columnas.autor).setValue(autorActual_());
+    }
+
+    if (columnas.notas) {
+      sheet
+        .getRange(objetivo, columnas.notas)
+        .setValue(text_(payload.notas));
+    }
+
+    return getMapeos();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Fija la posición desde el mapa del dashboard, con un clic.
+ * Es la salida para el aserradero cuya dirección no existe en ningún
+ * callejero pero que sabes exactamente dónde está.
+ */
+function guardarUbicacion(payload) {
+  payload = payload || {};
+
+  const id = text_(payload.id);
+  const lat = Number(payload.lat);
+  const lng = Number(payload.lng);
+
+  if (!id) {
+    throw new Error('Falta el identificador del aserradero.');
+  }
+
+  if (!isFinite(lat) || !isFinite(lng)) {
+    throw new Error('La coordenada no es válida.');
+  }
+
+  if (
+    lat < LIMITES_CL.latMin || lat > LIMITES_CL.latMax ||
+    lng < LIMITES_CL.lngMin || lng > LIMITES_CL.lngMax
+  ) {
+    throw new Error('Ese punto queda fuera de Chile.');
+  }
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+
+  try {
+    const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+    const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_MAPEOS);
+
+    if (!sheet) {
+      throw new Error(
+        'No existe la hoja "' + CONFIG.SHEET_MAPEOS + '".'
+      );
+    }
+
+    const columnas = columnasMapeos_(sheet);
+    const objetivo = filaDeMapeo_(sheet, columnas, id);
+
+    if (objetivo === -1) {
+      throw new Error('No se encontró el aserradero ' + id + '.');
+    }
+
+    const redondear = function(valor) {
+      return Math.round(valor * 1000000) / 1000000;
+    };
+
+    sheet.getRange(objetivo, columnas.lat).setValue(redondear(lat));
+    sheet.getRange(objetivo, columnas.lng).setValue(redondear(lng));
+
+    if (columnas.coordenadas) {
+      sheet
+        .getRange(objetivo, columnas.coordenadas)
+        .setValue(redondear(lat) + ', ' + redondear(lng));
+    }
+
+    if (columnas.actualizado) {
+      sheet.getRange(objetivo, columnas.actualizado).setValue(new Date());
+    }
+
+    if (columnas.autor) {
+      sheet.getRange(objetivo, columnas.autor).setValue(autorActual_());
+    }
 
     return getMapeos();
   } finally {
@@ -3108,9 +3465,16 @@ function agregarMapeo(payload) {
 
   const nombre = text_(payload.nombre);
   const direccion = text_(payload.direccion);
+  const coordenadas = text_(payload.coordenadas);
 
-  if (!nombre || !direccion) {
-    throw new Error('Nombre y dirección son obligatorios.');
+  if (!nombre) {
+    throw new Error('El nombre es obligatorio.');
+  }
+
+  if (!direccion && !coordenadas) {
+    throw new Error(
+      'Hace falta la coordenada o la dirección para poder ubicarlo.'
+    );
   }
 
   const lock = LockService.getScriptLock();
@@ -3127,11 +3491,13 @@ function agregarMapeo(payload) {
       );
     }
 
+    const columnas = columnasMapeos_(sheet);
+
     let maximo = 0;
 
     if (sheet.getLastRow() > 1) {
       sheet
-        .getRange(2, 1, sheet.getLastRow() - 1, 1)
+        .getRange(2, columnas.id, sheet.getLastRow() - 1, 1)
         .getValues()
         .forEach(function(fila) {
           const numero = Number(
@@ -3144,50 +3510,65 @@ function agregarMapeo(payload) {
         });
     }
 
-    const id = 'MAP-' + String(maximo + 1).padStart(4, '0');
     const comuna = text_(payload.comuna);
 
     let lat = '';
     let lng = '';
 
-    try {
-      const respuesta = Maps.newGeocoder()
-        .setRegion('cl')
-        .geocode(
-          [direccion, comuna, 'Chile'].filter(Boolean).join(', ')
-        );
+    const pegada = parseCoordenadas_(coordenadas);
 
-      if (
-        respuesta.status === 'OK' &&
-        respuesta.results &&
-        respuesta.results.length
-      ) {
-        lat = respuesta.results[0].geometry.location.lat;
-        lng = respuesta.results[0].geometry.location.lng;
-      }
-    } catch (ignored) {}
+    if (pegada && !pegada.fuera) {
+      lat = pegada.lat;
+      lng = pegada.lng;
+    } else if (direccion) {
+      try {
+        const respuesta = Maps.newGeocoder()
+          .setRegion('cl')
+          .geocode(
+            [direccion, comuna, 'Chile'].filter(Boolean).join(', ')
+          );
 
-    let autor = '';
+        if (
+          respuesta.status === 'OK' &&
+          respuesta.results &&
+          respuesta.results.length
+        ) {
+          lat = respuesta.results[0].geometry.location.lat;
+          lng = respuesta.results[0].geometry.location.lng;
+        }
+      } catch (ignored) {}
+    }
 
-    try {
-      autor = Session.getActiveUser().getEmail() || '';
-    } catch (ignored) {}
+    const nueva = [];
 
-    sheet.appendRow([
-      id,
-      nombre,
-      direccion,
-      comuna,
-      ESTADO_INICIAL,
-      '',
-      text_(payload.contacto),
-      text_(payload.telefono),
-      lat,
-      lng,
-      new Date(),
-      autor,
-      ''
-    ]);
+    nueva[columnas.id - 1] = 'MAP-' + String(maximo + 1).padStart(4, '0');
+    nueva[columnas.nombre - 1] = nombre;
+    nueva[columnas.direccion - 1] = direccion;
+    nueva[columnas.estado - 1] = ESTADO_INICIAL;
+    nueva[columnas.cargas - 1] = '';
+    nueva[columnas.lat - 1] = lat;
+    nueva[columnas.lng - 1] = lng;
+
+    if (columnas.comuna) { nueva[columnas.comuna - 1] = comuna; }
+    if (columnas.coordenadas) {
+      nueva[columnas.coordenadas - 1] = coordenadas;
+    }
+    if (columnas.contacto) {
+      nueva[columnas.contacto - 1] = text_(payload.contacto);
+    }
+    if (columnas.telefono) {
+      nueva[columnas.telefono - 1] = text_(payload.telefono);
+    }
+    if (columnas.actualizado) {
+      nueva[columnas.actualizado - 1] = new Date();
+    }
+    if (columnas.autor) { nueva[columnas.autor - 1] = autorActual_(); }
+
+    for (let i = 0; i < MAPEOS_HEADERS.length; i++) {
+      if (nueva[i] === undefined) { nueva[i] = ''; }
+    }
+
+    sheet.appendRow(nueva);
 
     return getMapeos();
   } finally {
