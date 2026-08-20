@@ -1465,6 +1465,17 @@
             cualquier otro estado es la razón por la que no se cerró.
           </p>
         </div>
+
+        <div style="display:flex;justify-content:flex-end">
+          <button class="boton boton-firme" type="button"
+                  onclick="abrirAlta()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Agregar aserradero
+          </button>
+        </div>
       </div>
 
       <div class="pila">
@@ -1548,6 +1559,7 @@
     var FILTRO_ESTADO = '';
     var MAPEOS_PEDIDOS = false;
     var FIJANDO = false;
+    var MODO_ALTA = false;
 
     var SUAVE = !window.matchMedia(
       '(prefers-reduced-motion: reduce)'
@@ -3773,6 +3785,7 @@
 
     function seleccionar(id) {
       SELECCION = id;
+      MODO_ALTA = false;
       dibujarGestion();
       dibujarTablaMapeos();
 
@@ -3859,8 +3872,132 @@
       }
     }
 
+    function abrirAlta() {
+      MODO_ALTA = true;
+      SELECCION = null;
+      cancelarFijado();
+      dibujarGestion();
+      dibujarTablaMapeos();
+
+      var caja = document.getElementById('gestion');
+      caja.scrollIntoView({ behavior: SUAVE ? 'smooth' : 'auto',
+                            block: 'nearest' });
+
+      var campo = document.getElementById('aNombre');
+      if (campo) { campo.focus(); }
+    }
+
+    function cerrarAlta() {
+      MODO_ALTA = false;
+      dibujarGestion();
+    }
+
+    /**
+     * El servidor exige nombre y, para poder ubicarlo, coordenada o
+     * dirección. Se avisa acá para no gastar un viaje de ida y vuelta.
+     */
+    function guardarAlta() {
+      var nombre = document.getElementById('aNombre').value.trim();
+      var coord = document.getElementById('aCoord').value.trim();
+      var direccion = document.getElementById('aDireccion').value.trim();
+
+      if (!nombre) {
+        recadoGestion('mal', 'El nombre es obligatorio.');
+        document.getElementById('aNombre').focus();
+        return;
+      }
+
+      if (!coord && !direccion) {
+        recadoGestion('mal',
+          'Hace falta la coordenada o la dirección para poder ubicarlo. ' +
+          'Si no tienes ninguna, guárdalo con dirección vacía y fíjalo ' +
+          'después con un clic en el mapa.');
+        document.getElementById('aCoord').focus();
+        return;
+      }
+
+      setLoading(true, 'Agregando aserradero');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          MAPEOS = res;
+          MODO_ALTA = false;
+
+          // Deja seleccionado el recién creado: es el que se va a
+          // gestionar a continuación.
+          var nuevo = (res.rows || []).filter(function(r) {
+            return r.nombre === nombre;
+          }).pop();
+
+          SELECCION = nuevo ? nuevo.id : null;
+
+          pintarMapeos();
+          setLoading(false);
+
+          if (nuevo && nuevo.lat === null) {
+            recadoGestion('guia',
+              'Guardado, pero no se pudo ubicar. Pulsa «Fijar en el ' +
+              'mapa» y haz clic donde está.');
+          } else {
+            recadoGestion('bien', 'Aserradero agregado.');
+          }
+        })
+        .withFailureHandler(function(err) {
+          setLoading(false);
+          recadoGestion('mal', mensaje(err));
+        })
+        .agregarMapeo({
+          nombre: nombre,
+          coordenadas: coord,
+          direccion: direccion,
+          comuna: document.getElementById('aComuna').value.trim(),
+          contacto: document.getElementById('aContacto').value.trim(),
+          telefono: document.getElementById('aTelefono').value.trim()
+        });
+    }
+
+    function formularioAlta() {
+      return '' +
+        '<div><div class="gestion-nombre">Nuevo aserradero</div>' +
+        '<div class="gestion-dir">Basta el nombre y la coordenada. ' +
+        'En Google Maps: clic derecho sobre el punto y copiar.</div></div>' +
+
+        '<div class="campo"><label for="aNombre">Nombre</label>' +
+        '<input id="aNombre" type="text" placeholder="ASERRADERO ..."></div>' +
+
+        '<div class="campo"><label for="aCoord">Coordenadas</label>' +
+        '<input id="aCoord" type="text" placeholder="-37.0331, -72.4015"></div>' +
+
+        '<div class="campo"><label for="aDireccion">Dirección ' +
+        '(si no tienes coordenada)</label>' +
+        '<input id="aDireccion" type="text" placeholder="Camino a ..."></div>' +
+
+        '<div class="campo"><label for="aComuna">Comuna</label>' +
+        '<input id="aComuna" type="text" placeholder="Cabrero"></div>' +
+
+        '<div class="campo"><label for="aContacto">Contacto</label>' +
+        '<input id="aContacto" type="text" placeholder="Nombre"></div>' +
+
+        '<div class="campo"><label for="aTelefono">Teléfono</label>' +
+        '<input id="aTelefono" type="text" placeholder="+56 9 ..."></div>' +
+
+        '<div class="recado" id="gRecado"></div>' +
+
+        '<div class="gestion-pie">' +
+          '<button class="boton" onclick="cerrarAlta()">Cancelar</button>' +
+          '<button class="boton boton-firme" onclick="guardarAlta()">' +
+            'Agregar</button>' +
+        '</div>';
+    }
+
     function dibujarGestion() {
       var caja = document.getElementById('gestion');
+
+      if (MODO_ALTA) {
+        caja.innerHTML = formularioAlta();
+        return;
+      }
+
       var f = SELECCION ? buscarMapeo(SELECCION) : null;
 
       if (!f) {

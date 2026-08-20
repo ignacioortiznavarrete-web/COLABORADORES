@@ -169,20 +169,46 @@ cada uno lleva nombre, color en el mapa y si cierra o no. Después
 vuelve a correr **Preparar hoja de mapeos** para actualizar la
 validación de la columna.
 
-### Puesta en marcha
+### Cómo registrar un aserradero
 
-1. **Astilla Dashboard › Preparar hoja de mapeos.** Crea la hoja, pone
-   la validación de Estado, asigna un `ID` correlativo a cada fila y
-   rellena en `Por visitar` todo lo que esté en blanco. Si la hoja
-   venía sin la columna `Coordenadas`, la agrega sin tocar lo escrito.
-   Se puede correr las veces que sea.
-2. Agrega tus aserraderos: nombre y coordenada. Si no tienes la
-   coordenada, dirección y **comuna** (la comuna importa: hay «Camino a
-   Nacimiento» en varias).
-3. **Ubicar en el mapa.** Por cada fila sin latitud: primero usa la
-   coordenada pegada, y solo si no hay, geocodifica la dirección.
+Primero, una sola vez: **Astilla Dashboard › Preparar hoja de mapeos**.
+Crea la hoja, pone la validación de Estado, asigna un `ID` correlativo
+y rellena en `Por visitar` lo que esté en blanco. Se puede correr las
+veces que sea.
+
+Después hay dos caminos, y sirven para cosas distintas.
+
+**Desde el dashboard, de a uno.** Pestaña *Mapeos* → botón
+**Agregar aserradero**. Se abre el panel de la derecha:
+
+| Campo | |
+|---|---|
+| Nombre | Obligatorio |
+| Coordenadas | Pega lo de Google Maps. Es el camino corto |
+| Dirección | Solo si no tienes la coordenada |
+| Comuna | Ayuda a geocodificar la dirección |
+| Contacto / Teléfono | Opcionales |
+
+El `ID` y el estado inicial los pone el script. Si guardas sin
+coordenada y la dirección no se puede ubicar, queda igual en el listado
+marcado «sin ubicar» y el propio panel te ofrece **Fijar en el mapa**
+para resolverlo con un clic. Es lo que conviene para el aserradero que
+te acaban de mencionar por teléfono.
+
+**Desde la hoja, en lote.** Abre `Mapeos` y pega las filas: basta
+**Nombre** y **Coordenadas** (o **Dirección** + **Comuna**). Deja
+`ID`, `Estado`, `Latitud` y `Longitud` en blanco. Luego:
+
+1. **Preparar hoja de mapeos** — asigna los `ID` que falten y pone
+   todo en `Por visitar`.
+2. **Ubicar en el mapa** — por cada fila sin latitud usa primero la
+   coordenada pegada y, solo si no hay, geocodifica la dirección.
    Nunca pisa una fila ya ubicada, y al terminar dice cuántas salieron
    por cada vía y cuáles quedaron pendientes.
+
+Si pegaste la coordenada, el mapa **ya la dibuja** sin que corras el
+paso 2; ese paso solo la deja escrita en `Latitud`/`Longitud` y
+resuelve las que vienen solo con dirección.
 
 Los que no se puedan ubicar siguen apareciendo en el listado —marcados
 «sin ubicar»— y el dashboard dice cuántos son. Nunca se pierden por no
