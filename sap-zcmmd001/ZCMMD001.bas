@@ -5,6 +5,8 @@ Private Const TX_INGRESO As String = "ZCMMD001"
 Private Const HOJA_DATOS As String = "Hoja1"
 Private Const FILA_INICIO As Long = 2
 Private Const SEG_ESPERA As Long = 60
+Private Const PANE_ANCHO As Long = 139
+Private Const PANE_ALTO As Long = 37
 
 Private Const ID_TIPO_RECEP As String = "wnd[0]/usr/txtTIPO_RECEP"
 Private Const ID_GUIA As String = "wnd[0]/usr/txtXGUIA"
@@ -327,6 +329,11 @@ Private Function AbrirTransaccion(ByVal session As Object) As Boolean
     EsperarSAP session
 
     CerrarVentanasSAP session, 20, False
+
+    On Error Resume Next
+    session.findById("wnd[0]").resizeWorkingPane PANE_ANCHO, PANE_ALTO, False
+    Err.Clear
+    On Error GoTo ErrorTX
 
     session.findById(ID_OKCD).Text = "/n" & TX_INGRESO
     session.findById("wnd[0]").sendVKey 0
