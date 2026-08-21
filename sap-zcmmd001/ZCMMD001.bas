@@ -1,53 +1,59 @@
+Attribute VB_Name = "ZCMMD001"
 Option Explicit
 
 '==============================================================================
 '  ZCMMD001 - Carga de recepciones de trozos desde Excel (SAP GUI Scripting)
 '------------------------------------------------------------------------------
-'  Que hace:
-'    1. Se conecta a la sesion SAP ya abierta y muestra sistema / mandante /
-'       usuario para que confirmes que estas en el ambiente correcto (R3 PRD).
-'    2. Lee el Excel con el formato de recepciones. Cada guia es un bloque:
-'       la primera fila trae la cabecera + el primer trozo, las siguientes solo
-'       traen trozos, y el bloque termina con una linea completamente en blanco.
-'    3. Por cada guia: abre ZCMMD001 con /n, carga la cabecera, marca la opcion
-'       del check list segun la columna "Tipo Material", llena la grilla,
-'       PREGUNTA si estas seguro de grabar, graba y captura el N. de documento.
-'    4. Escribe el documento (5000XXXXXX) en la columna "Doc." de la fila de
-'       cabecera, guarda el Excel y salta a la guia siguiente.
+'  Macros de este modulo (Alt+F8 para ejecutarlas):
 '
-'  Importante: el archivo esta escrito SIN tildes a proposito, para que funcione
-'  igual sin importar como lo guarde el editor de texto. Los acentos de los
-'  datos que vienen del Excel si se respetan.
+'    CargarRecepcionesZCMMD001   La carga. Recorre el Excel guia por guia, entra
+'                                a ZCMMD001, llena la cabecera y la grilla,
+'                                PREGUNTA si estas seguro de grabar, graba,
+'                                captura el N. de documento (5000XXXXXX), lo
+'                                escribe en la columna Doc. y pasa a la siguiente.
 '
-'  Uso:  doble clic sobre el archivo
-'        o bien:  cscript ZCMMD001_Recepciones.vbs "C:\ruta\OCTam.xlsx"
+'    DiagnosticoZCMMD001         Utilitario. Deja SAP en la pantalla que quieras
+'                                revisar y genera un TXT en el Escritorio con
+'                                todos los IDs: las 3 opciones del check list,
+'                                los botones y las columnas de la grilla.
+'
+'  El formato del Excel: una fila con los titulos (Tipo.MP, Guia, OC, Fecha,
+'  Patente, Rol, Cal.Trz, Calidad, Largo, Diametro, Cantidad, Doc.,
+'  Tipo Material). La fila con Guia abre una guia nueva, las siguientes sin Guia
+'  son mas diametros de la misma, y una LINEA COMPLETAMENTE EN BLANCO la cierra.
+'
+'  El codigo esta escrito SIN tildes a proposito, para que se vea igual sin
+'  importar la configuracion regional. Los acentos de los datos del Excel si se
+'  respetan.
+'
+'  Requisitos: SAP GUI abierto con sesion iniciada y scripting habilitado
+'  (SAP Logon > Opciones > Accesibilidad y scripting > Scripting).
 '==============================================================================
-
 
 '============================== CONFIGURACION =================================
 
 ' --- Transaccion --------------------------------------------------------------
-Const TRANSACCION   = "/nzcmmd001"
+Private Const TRANSACCION   = "/nzcmmd001"
 
 ' --- Campos de la cabecera ----------------------------------------------------
-Const ID_TIPO_RECEP = "wnd[0]/usr/txtTIPO_RECEP"
-Const ID_GUIA       = "wnd[0]/usr/txtXGUIA"
-Const ID_OC         = "wnd[0]/usr/ctxtEKKO-EBELN"
-Const ID_FECHA      = "wnd[0]/usr/ctxt*EKPO-AEDAT"
-Const ID_PATENTE    = "wnd[0]/usr/txtXPATEN"
-Const ID_ROL        = "wnd[0]/usr/txt*ZTMMMD001-ROL_PRE"
+Private Const ID_TIPO_RECEP = "wnd[0]/usr/txtTIPO_RECEP"
+Private Const ID_GUIA       = "wnd[0]/usr/txtXGUIA"
+Private Const ID_OC         = "wnd[0]/usr/ctxtEKKO-EBELN"
+Private Const ID_FECHA      = "wnd[0]/usr/ctxt*EKPO-AEDAT"
+Private Const ID_PATENTE    = "wnd[0]/usr/txtXPATEN"
+Private Const ID_ROL        = "wnd[0]/usr/txt*ZTMMMD001-ROL_PRE"
 
 ' --- Grilla de trozos ---------------------------------------------------------
-Const ID_GRID       = "wnd[0]/usr/cntlBCALV_GRID_DEMO_0100_CONT1/shellcont/shell"
-Const GC_CALIDAD    = "CALIDAD"
-Const GC_CATEGORIA  = "CATEGORIA"
-Const GC_LARGO      = "LARGO"
-Const GC_DIAMETRO   = "DIAMETRO"
-Const GC_TROZO      = "TROZO"
+Private Const ID_GRID       = "wnd[0]/usr/cntlBCALV_GRID_DEMO_0100_CONT1/shellcont/shell"
+Private Const GC_CALIDAD    = "CALIDAD"
+Private Const GC_CATEGORIA  = "CATEGORIA"
+Private Const GC_LARGO      = "LARGO"
+Private Const GC_DIAMETRO   = "DIAMETRO"
+Private Const GC_TROZO      = "TROZO"
 
 ' --- Botones de grabacion (los mismos de tu grabacion) ------------------------
-Const BTN_GRABAR_1  = "wnd[0]/tbar[1]/btn[6]"
-Const BTN_GRABAR_2  = "wnd[0]/tbar[1]/btn[7]"
+Private Const BTN_GRABAR_1  = "wnd[0]/tbar[1]/btn[6]"
+Private Const BTN_GRABAR_2  = "wnd[0]/tbar[1]/btn[7]"
 
 ' --- Check list: las 3 opciones ----------------------------------------------
 '  ID_OPCION_3 es la que quedo en tu grabacion (radMCON = la 3ra opcion).
@@ -57,24 +63,21 @@ Const BTN_GRABAR_2  = "wnd[0]/tbar[1]/btn[7]"
 '
 '  Si dejas un ID en blanco el script igual funciona: selecciona la opcion por
 '  POSICION en pantalla (1 = la de mas arriba, 2 = la del medio, 3 = la ultima).
-Const ID_OPCION_1    = ""
-Const ID_OPCION_2    = ""
-Const ID_OPCION_3    = "wnd[0]/usr/radMCON"
+Private Const ID_OPCION_1    = ""
+Private Const ID_OPCION_2    = ""
+Private Const ID_OPCION_3    = "wnd[0]/usr/radMCON"
 
 ' Opcion que se usa cuando la columna "Tipo Material" viene vacia.
-Const OPCION_DEFECTO = 3
+Private Const OPCION_DEFECTO = 3
 
 ' --- Varios -------------------------------------------------------------------
-Const MAX_POPUPS     = 300   ' tope de ventanas emergentes por guia
-Const PANE_ANCHO     = 139   ' resizeWorkingPane (igual que tu grabacion)
-Const PANE_ALTO      = 37
+Private Const MAX_POPUPS     = 300   ' tope de ventanas emergentes por guia
+Private Const PANE_ANCHO     = 139   ' resizeWorkingPane (igual que tu grabacion)
+Private Const PANE_ALTO      = 37
 
 '========================== FIN DE LA CONFIGURACION ===========================
 
-
-'--- Mapeo "Tipo Material" -> numero de opcion (1, 2 o 3). EDITABLE ------------
-'    La comparacion no distingue mayusculas, tildes, puntos ni espacios.
-Sub CargarMapeoTipoMaterial()
+Private Sub CargarMapeoTipoMaterial()
    Set gMapTipo = CreateObject("Scripting.Dictionary")
    AgregarMapeo "1", 1
    AgregarMapeo "2", 2
@@ -87,52 +90,49 @@ Sub CargarMapeoTipoMaterial()
    AgregarMapeo "CONTRACHAPADO", 3
 End Sub
 
-
 '============================ VARIABLES GLOBALES ==============================
-Dim SapApp, SapConn, SapSession
-Dim Xl, Wb, Ws
-Dim gLog, gRutaLog
-Dim gMapTipo
-Dim gEtapa, gUltError
-Dim gCol           ' diccionario nombre normalizado de columna -> numero
-Dim gFilaEnc       ' fila del encabezado en la hoja
-Dim gPreguntar, gModoPrueba
-Dim gRadios, gRadiosLogueados, gTxtBuf
-Dim gDocumento, gMsgSbar, gSinBloque
-Dim gOkCount, gOmitCount, gErrCount
-
-' Los objetos parten en Nothing para poder preguntar "Is Nothing" sin error.
-Set SapApp = Nothing
-Set SapConn = Nothing
-Set SapSession = Nothing
-Set Xl = Nothing
-Set Wb = Nothing
-Set Ws = Nothing
-Set gLog = Nothing
-Set gCol = Nothing
-Set gMapTipo = Nothing
-Set gRadios = Nothing
-Set gSinBloque = Nothing
-gOkCount   = 0
-gOmitCount = 0
-gErrCount  = 0
-gRadiosLogueados = False
-gEtapa = ""
-gUltError = ""
-
-Principal
+Private SapApp As Object, SapConn As Object, SapSession As Object
+Private Wb As Object, Ws As Object
+Private gLogNum, gRutaLog
+Private gMapTipo As Object
+Private gEtapa, gUltError
+Private gCol As Object          ' titulo normalizado de columna -> numero de columna
+Private gFilaEnc                ' fila del encabezado en la hoja
+Private gPreguntar, gModoPrueba
+Private gRadios As Object, gRadiosLogueados, gTxtBuf
+Private gDocumento, gMsgSbar, gSinBloque As Object
+Private gOkCount, gOmitCount, gErrCount
+Private gDiagNum, gDiagRadios
 
 
 '==============================================================================
-'                                  PRINCIPAL
+'                    MACRO PRINCIPAL: carga de las recepciones
 '==============================================================================
-Sub Principal()
+Public Sub CargarRecepcionesZCMMD001()
    Dim bloques, i, b, resp, total, resumen
+
+   ' --- estado inicial --------------------------------------------------------
+   Set SapApp = Nothing
+   Set SapConn = Nothing
+   Set SapSession = Nothing
+   Set Wb = Nothing
+   Set Ws = Nothing
+   Set gCol = Nothing
+   Set gMapTipo = Nothing
+   Set gRadios = Nothing
+   Set gSinBloque = Nothing
+   gLogNum = 0
+   gOkCount = 0
+   gOmitCount = 0
+   gErrCount = 0
+   gRadiosLogueados = False
+   gEtapa = ""
+   gUltError = ""
 
    CargarMapeoTipoMaterial
 
    If Not ConectarSap() Then Exit Sub
-   If Not AbrirLibro() Then Exit Sub
+   If Not BuscarLibroYHoja() Then Exit Sub
 
    AbrirLog
 
@@ -160,7 +160,7 @@ Sub Principal()
                  "NO  = grabar de verdad en " & SapSession.Info.SystemName & " mandante " & SapSession.Info.Client & "." & vbCrLf & _
                  "CANCELAR = salir.", _
                  vbYesNoCancel + vbQuestion + vbSystemModal, "ZCMMD001 - Modo")
-   If resp = vbCancel Then CerrarLog : Exit Sub
+   If resp = vbCancel Then CerrarLog: Exit Sub
    gModoPrueba = (resp = vbYes)
 
    If gModoPrueba Then
@@ -171,7 +171,7 @@ Sub Principal()
                     "NO  = grabar todas sin preguntar." & vbCrLf & _
                     "CANCELAR = salir.", _
                     vbYesNoCancel + vbQuestion + vbSystemModal, "ZCMMD001 - Confirmacion")
-      If resp = vbCancel Then CerrarLog : Exit Sub
+      If resp = vbCancel Then CerrarLog: Exit Sub
       gPreguntar = (resp = vbYes)
    End If
 
@@ -217,18 +217,20 @@ End Sub
 
 
 '==============================================================================
-'                        CONEXION CON SAP Y CON EXCEL
+'                        CONEXION CON SAP Y CON EL LIBRO
 '==============================================================================
-Function ConectarSap()
-   Dim SapGuiAuto, resp
-   ConectarSap = False
+
+' Toma la sesion SAP abierta. True si quedo lista en SapSession.
+Private Function TomarSesionSap()
+   Dim SapGuiAuto As Object
+   TomarSesionSap = False
    Set SapGuiAuto = Nothing
 
    On Error Resume Next
    Set SapGuiAuto = GetObject("SAPGUI")
    If Err.Number <> 0 Or SapGuiAuto Is Nothing Then
       MsgBox "No pude tomar la sesion de SAP." & vbCrLf & vbCrLf & _
-             "Abre SAP Logon, entra al sistema y deja la ventana abierta antes de ejecutar el script.", _
+             "Abre SAP Logon, entra al sistema y deja la ventana abierta antes de ejecutar la macro.", _
              vbCritical + vbSystemModal, "ZCMMD001"
       Exit Function
    End If
@@ -247,6 +249,18 @@ Function ConectarSap()
       Exit Function
    End If
    Err.Clear
+   On Error GoTo 0
+   TomarSesionSap = True
+End Function
+
+
+' Toma la sesion y ademas hace confirmar el ambiente.
+Private Function ConectarSap()
+   Dim resp
+   ConectarSap = False
+   If Not TomarSesionSap() Then Exit Function
+
+   On Error Resume Next
    SapSession.findById("wnd[0]").resizeWorkingPane PANE_ANCHO, PANE_ALTO, False
    Err.Clear
    On Error GoTo 0
@@ -262,65 +276,60 @@ Function ConectarSap()
 End Function
 
 
-Function AbrirLibro()
-   Dim ruta, i, hoja, nom
-   AbrirLibro = False
+' Busca la hoja con el encabezado del formato: primero en el libro que tiene la
+' macro, despues en los demas libros abiertos, y si no, pide el archivo.
+Private Function BuscarLibroYHoja()
+   Dim libro As Object, hoja As Object, ruta, nom
+   BuscarLibroYHoja = False
+   Set Wb = Nothing
+   Set Ws = Nothing
 
-   On Error Resume Next
-   Set Xl = GetObject(, "Excel.Application")
-   Err.Clear
-   On Error GoTo 0
-   If Xl Is Nothing Then
-      Set Xl = CreateObject("Excel.Application")
-      Xl.Visible = True
-   End If
-
-   ruta = ""
-   If WScript.Arguments.Count > 0 Then ruta = WScript.Arguments(0)
-
-   If ruta = "" Then
-      ruta = Xl.GetOpenFilename("Libros de Excel,*.xls;*.xlsx;*.xlsm", 1, "Elige el Excel con las recepciones")
-      If VarType(ruta) = vbBoolean Then Exit Function
-   End If
-
-   ' Si ya esta abierto, se usa el libro abierto (para no perder cambios).
-   For i = 1 To Xl.Workbooks.Count
-      If LCase(Xl.Workbooks(i).FullName) = LCase(ruta) Or LCase(Xl.Workbooks(i).Name) = LCase(NombreArchivo(ruta)) Then
-         Set Wb = Xl.Workbooks(i)
+   For Each hoja In ThisWorkbook.Worksheets
+      If FilaEncabezado(hoja) > 0 Then
+         Set Wb = ThisWorkbook
+         Set Ws = hoja
          Exit For
       End If
    Next
-   If Wb Is Nothing Then
+
+   If Ws Is Nothing Then
+      For Each libro In Application.Workbooks
+         For Each hoja In libro.Worksheets
+            If FilaEncabezado(hoja) > 0 Then
+               Set Wb = libro
+               Set Ws = hoja
+               Exit For
+            End If
+         Next
+         If Not Ws Is Nothing Then Exit For
+      Next
+   End If
+
+   If Ws Is Nothing Then
+      ruta = Application.GetOpenFilename("Libros de Excel,*.xls;*.xlsx;*.xlsm", 1, "Elige el Excel con las recepciones")
+      If VarType(ruta) = vbBoolean Then Exit Function
       On Error Resume Next
-      Set Wb = Xl.Workbooks.Open(ruta)
+      Set libro = Application.Workbooks.Open(ruta)
       If Err.Number <> 0 Then
          MsgBox "No pude abrir el archivo:" & vbCrLf & ruta & vbCrLf & vbCrLf & Err.Description, _
                 vbCritical + vbSystemModal, "ZCMMD001"
          Exit Function
       End If
       On Error GoTo 0
+      For Each hoja In libro.Worksheets
+         If FilaEncabezado(hoja) > 0 Then
+            Set Wb = libro
+            Set Ws = hoja
+            Exit For
+         End If
+      Next
    End If
-   Xl.Visible = True
 
-   ' Hoja: se busca la que tenga el encabezado del formato.
-   Set Ws = Nothing
-   For Each hoja In Wb.Worksheets
-      If FilaEncabezado(hoja) > 0 Then
-         Set Ws = hoja
-         Exit For
-      End If
-   Next
    If Ws Is Nothing Then
-      nom = InputBox("No reconoci el encabezado en ninguna hoja." & vbCrLf & _
-                     "Escribe el nombre de la hoja con los datos:", "ZCMMD001", Wb.Worksheets(1).Name)
-      If Trim(nom) = "" Then Exit Function
-      On Error Resume Next
-      Set Ws = Wb.Worksheets(nom)
-      On Error GoTo 0
-      If Ws Is Nothing Then
-         MsgBox "No existe la hoja '" & nom & "'.", vbCritical + vbSystemModal, "ZCMMD001"
-         Exit Function
-      End If
+      MsgBox "No encontre ninguna hoja con el encabezado del formato." & vbCrLf & vbCrLf & _
+             "Tiene que haber una fila con los titulos Guia y Diametro (y las demas columnas).", _
+             vbCritical + vbSystemModal, "ZCMMD001"
+      Exit Function
    End If
 
    If MsgBox("Archivo: " & Wb.Name & vbCrLf & "Hoja   : " & Ws.Name & vbCrLf & vbCrLf & _
@@ -332,22 +341,30 @@ Function AbrirLibro()
       Set hoja = Wb.Worksheets(nom)
       On Error GoTo 0
       If hoja Is Nothing Then
-         MsgBox "No existe la hoja '" & nom & "'.", vbCritical + vbSystemModal, "ZCMMD001"
+         MsgBox "No existe la hoja '" & nom & "' en " & Wb.Name & ".", vbCritical + vbSystemModal, "ZCMMD001"
          Exit Function
       End If
       Set Ws = hoja
    End If
 
-   AbrirLibro = True
+   ' Un .xlsx no puede guardar macros: si la macro esta en este mismo libro,
+   ' Excel no lo va a poder guardar y se perderian los numeros de documento.
+   If Wb Is ThisWorkbook And LCase(Right(Wb.Name, 5)) = ".xlsx" Then
+      MsgBox "Este libro tiene la macro pero esta guardado como .xlsx, y Excel no " & _
+             "guarda macros en ese formato." & vbCrLf & vbCrLf & _
+             "Guardalo primero como 'Libro de Excel habilitado para macros (*.xlsm)', " & _
+             "si no los numeros de documento no van a quedar grabados en el archivo.", _
+             vbExclamation + vbSystemModal, "ZCMMD001"
+   End If
+
+   BuscarLibroYHoja = True
 End Function
 
 
 '==============================================================================
 '                        LECTURA DEL FORMATO DE EXCEL
 '==============================================================================
-
-' Devuelve la fila donde esta el encabezado de la hoja, o 0 si no lo encuentra.
-Function FilaEncabezado(hoja)
+Private Function FilaEncabezado(hoja)
    Dim r, c, t, hayGuia, hayDiam
    FilaEncabezado = 0
    On Error Resume Next
@@ -365,8 +382,7 @@ Function FilaEncabezado(hoja)
    Next
 End Function
 
-
-Function MapearColumnas()
+Private Function MapearColumnas()
    Dim c, t
    MapearColumnas = False
    gFilaEnc = FilaEncabezado(Ws)
@@ -393,19 +409,13 @@ Function MapearColumnas()
    MapearColumnas = (Col("GUIA") > 0 And Col("DIAMETRO") > 0 And Col("CANTIDAD") > 0)
 End Function
 
-
-Function Col(nombre)
+Private Function Col(nombre)
    Col = 0
    If gCol Is Nothing Then Exit Function
    If gCol.Exists(nombre) Then Col = gCol(nombre)
 End Function
 
-
-' Lee la hoja y devuelve un arreglo de bloques (uno por guia).
-' Regla del formato: la fila con "Guia" abre un bloque nuevo, las filas
-' siguientes sin "Guia" son mas trozos de la misma guia, y una fila
-' completamente en blanco cierra el bloque.
-Function LeerBloques()
+Private Function LeerBloques()
    Dim r, ultima, lista, b, det, vacia, guia
    Set lista = CreateObject("Scripting.Dictionary")
    Set b = Nothing
@@ -447,8 +457,7 @@ Function LeerBloques()
    End If
 End Function
 
-
-Sub AgregarDetalle(b, det, r)
+Private Sub AgregarDetalle(b, det, r)
    Dim diam, cant
    diam = EnteroSap(TextoCelda(r, Col("DIAMETRO")))
    cant = EnteroSap(TextoCelda(r, Col("CANTIDAD")))
@@ -462,8 +471,7 @@ Sub AgregarDetalle(b, det, r)
    If IsNumeric(cant) Then b("trozos") = b("trozos") + CLng(cant)
 End Sub
 
-
-Sub CerrarBloque(b, det, lista)
+Private Sub CerrarBloque(b, det, lista)
    If b Is Nothing Then Exit Sub
    If det.Count > 0 Then
       b.Add "det", det.Items
@@ -473,8 +481,7 @@ Sub CerrarBloque(b, det, lista)
    Set det = Nothing
 End Sub
 
-
-Function FilaVacia(r)
+Private Function FilaVacia(r)
    Dim c
    FilaVacia = True
    For Each c In Array("TIPOMP", "GUIA", "OC", "FECHA", "PATENTE", "ROL", "CALTRZ", "CALIDAD", "LARGO", "DIAMETRO", "CANTIDAD")
@@ -485,8 +492,7 @@ Function FilaVacia(r)
    Next
 End Function
 
-
-Function EsProcesada(b)
+Private Function EsProcesada(b)
    Dim d
    d = Trim(b("doc"))
    EsProcesada = (d <> "" And IsNumeric(Left(d, 1)))
@@ -496,7 +502,7 @@ End Function
 '==============================================================================
 '                        PROCESO DE UNA GUIA EN SAP
 '==============================================================================
-Function ProcesarBloque(b, idx, total)
+Private Function ProcesarBloque(b, idx, total)
    Dim det, resp, salida, doc, i, f, grid
 
    ProcesarBloque = vbYes
@@ -678,8 +684,7 @@ Function ProcesarBloque(b, idx, total)
    End Select
 End Function
 
-
-Function PreguntarGrabar(b, nLineas)
+Private Function PreguntarGrabar(b, nLineas)
    Dim m
    If gModoPrueba Then
       m = "MODO DE PRUEBA - no se va a grabar nada." & vbCrLf & vbCrLf & _
@@ -705,8 +710,7 @@ Function PreguntarGrabar(b, nLineas)
    PreguntarGrabar = MsgBox(m, vbYesNoCancel + vbQuestion + vbSystemModal, "ZCMMD001 - Confirmar grabacion")
 End Function
 
-
-Function TextoResumen(b, nLineas)
+Private Function TextoResumen(b, nLineas)
    TextoResumen = "Guia    : " & b("guia") & vbCrLf & _
                   "OC      : " & b("oc") & vbCrLf & _
                   "Fecha   : " & b("fecha") & vbCrLf & _
@@ -722,17 +726,14 @@ End Function
 '==============================================================================
 '                          AYUDANTES DE SAP GUI
 '==============================================================================
-
-' Deja la sesion en la pantalla inicial de ZCMMD001, venga de donde venga.
-Sub AbrirTransaccion()
+Private Sub AbrirTransaccion()
    CerrarPopupsSap 20, gSinBloque
    SapSession.findById("wnd[0]/tbar[0]/okcd").Text = TRANSACCION
    SapSession.findById("wnd[0]").sendVKey 0
    CerrarPopupsSap 20, gSinBloque
 End Sub
 
-
-Sub Escribir(id, valor)
+Private Sub Escribir(id, valor)
    If Trim(valor) = "" Then
       Anotar "   (aviso) " & id & " sin valor en el Excel: no se escribe."
       Exit Sub
@@ -743,8 +744,7 @@ Sub Escribir(id, valor)
    SapSession.findById(id).Text = valor
 End Sub
 
-
-Function Existe(id)
+Private Function Existe(id)
    Dim o
    Existe = False
    Set o = Nothing
@@ -756,10 +756,7 @@ Function Existe(id)
    Err.Clear
 End Function
 
-
-' Cierra con Enter todas las ventanas emergentes y devuelve el N. de documento
-' si alguna de ellas lo trae. b puede ser Nothing.
-Function CerrarPopupsSap(maxIter, b)
+Private Function CerrarPopupsSap(maxIter, b)
    Dim i, w, t, doc, prev, repes, ultima
    doc = ""
    i = 0
@@ -787,8 +784,7 @@ Function CerrarPopupsSap(maxIter, b)
    CerrarPopupsSap = doc
 End Function
 
-
-Sub PulsarEnPopup(w)
+Private Sub PulsarEnPopup(w)
    On Error Resume Next
    w.sendVKey 0
    If Err.Number <> 0 Then
@@ -798,9 +794,7 @@ Sub PulsarEnPopup(w)
    End If
 End Sub
 
-
-' Marca la opcion nOpcion (1, 2 o 3) del check list.
-Sub SeleccionarOpcion(nOpcion)
+Private Sub SeleccionarOpcion(nOpcion)
    Dim id, radios, obj
    id = IdOpcion(nOpcion)
    If id <> "" Then
@@ -834,17 +828,14 @@ Sub SeleccionarOpcion(nOpcion)
    Anotar "   Opcion " & nOpcion & " -> " & obj.Id & "  (" & obj.Text & ")"
 End Sub
 
-
-Function IdOpcion(n)
+Private Function IdOpcion(n)
    IdOpcion = ""
    If n = 1 Then IdOpcion = ID_OPCION_1
    If n = 2 Then IdOpcion = ID_OPCION_2
    If n = 3 Then IdOpcion = ID_OPCION_3
 End Function
 
-
-' Devuelve los radio buttons de la pantalla ordenados de arriba hacia abajo.
-Function ListarRadios()
+Private Function ListarRadios()
    Set gRadios = CreateObject("Scripting.Dictionary")
    If Existe("wnd[0]/usr") Then RecolectarRadios SapSession.findById("wnd[0]/usr"), 0
    If gRadios.Count = 0 Then
@@ -854,8 +845,7 @@ Function ListarRadios()
    End If
 End Function
 
-
-Sub RecolectarRadios(cont, nivel)
+Private Sub RecolectarRadios(cont, nivel)
    Dim i, hijo, tipo
    If nivel > 6 Then Exit Sub
    On Error Resume Next
@@ -878,8 +868,7 @@ Sub RecolectarRadios(cont, nivel)
    Err.Clear
 End Sub
 
-
-Function OrdenarRadios(arr)
+Private Function OrdenarRadios(arr)
    Dim i, j, tmp
    On Error Resume Next
    For i = 0 To UBound(arr) - 1
@@ -895,8 +884,7 @@ Function OrdenarRadios(arr)
    OrdenarRadios = arr
 End Function
 
-
-Function PosRadio(o)
+Private Function PosRadio(o)
    Dim t, l
    PosRadio = 0
    On Error Resume Next
@@ -907,8 +895,7 @@ Function PosRadio(o)
    PosRadio = CDbl(t) * 100000 + CDbl(l)
 End Function
 
-
-Sub AsegurarVisible(grid, fila)
+Private Sub AsegurarVisible(grid, fila)
    Dim primera, visibles
    On Error Resume Next
    primera = 0
@@ -921,9 +908,7 @@ Sub AsegurarVisible(grid, fila)
    Err.Clear
 End Sub
 
-
-' Graba y devuelve el N. de documento (5000XXXXXX) que informa SAP.
-Function Grabar(b)
+Private Function Grabar(b)
    Dim doc, t
    doc = ""
 
@@ -963,49 +948,42 @@ Function Grabar(b)
    Grabar = doc
 End Function
 
-
-Function SbarTexto()
+Private Function SbarTexto()
    SbarTexto = ""
    On Error Resume Next
    SbarTexto = SapSession.findById("wnd[0]/sbar").Text
    Err.Clear
 End Function
 
-
-Function SbarTipo()
+Private Function SbarTipo()
    SbarTipo = ""
    On Error Resume Next
    SbarTipo = UCase(SapSession.findById("wnd[0]/sbar").MessageType)
    Err.Clear
 End Function
 
-
-Function InfoTx()
+Private Function InfoTx()
    InfoTx = "?"
    On Error Resume Next
    InfoTx = SapSession.Info.Transaction
    Err.Clear
 End Function
 
-
-Function InfoPrograma()
+Private Function InfoPrograma()
    InfoPrograma = "?"
    On Error Resume Next
    InfoPrograma = SapSession.Info.Program
    Err.Clear
 End Function
 
-
-Function InfoDynpro()
+Private Function InfoDynpro()
    InfoDynpro = "?"
    On Error Resume Next
    InfoDynpro = SapSession.Info.ScreenNumber
    Err.Clear
 End Function
 
-
-' Junta el titulo y los textos de una ventana emergente.
-Function TextoVentana(w)
+Private Function TextoVentana(w)
    Dim s
    s = ""
    On Error Resume Next
@@ -1017,8 +995,7 @@ Function TextoVentana(w)
    TextoVentana = Trim(s & " | " & Trim(gTxtBuf))
 End Function
 
-
-Sub RecolectarTexto(cont, nivel)
+Private Sub RecolectarTexto(cont, nivel)
    Dim i, hijo, t
    If nivel > 4 Then Exit Sub
    If Len(gTxtBuf) > 600 Then Exit Sub
@@ -1039,11 +1016,7 @@ Sub RecolectarTexto(cont, nivel)
    Err.Clear
 End Sub
 
-
-' Busca el numero de documento dentro de un texto de SAP.
-' Se prueban varios patrones, del mas especifico al mas general, y se descartan
-' la OC, la guia y el rol para no confundirlos con la recepcion.
-Function ExtraerDocumento(texto, b)
+Private Function ExtraerDocumento(texto, b)
    Dim re, patrones, p, coincidencias, i, v, excluir
    ExtraerDocumento = ""
    If Trim(texto & "") = "" Then Exit Function
@@ -1057,7 +1030,7 @@ Function ExtraerDocumento(texto, b)
    ' \b = principio/fin de numero, para no cortar la OC por la mitad.
    patrones = Array("\b5[0-9]{9}\b", "\b5[0-9]{6,11}\b", "\b[0-9]{8,12}\b", "\b[0-9]{6,7}\b")
 
-   Set re = New RegExp
+   Set re = CreateObject("VBScript.RegExp")
    re.Global = True
    re.IgnoreCase = True
    For Each p In patrones
@@ -1077,28 +1050,23 @@ End Function
 '==============================================================================
 '                               UTILIDADES
 '==============================================================================
-
-Sub Etapa(t)
+Private Sub Etapa(t)
    gEtapa = t
 End Sub
 
-
-Sub RegErr(n, d)
+Private Sub RegErr(n, d)
    gUltError = "ERROR - ETAPA: " & gEtapa & " - " & n & ": " & d
    Anotar "   " & gUltError
 End Sub
 
-
-Sub AgregarMapeo(clave, opcion)
+Private Sub AgregarMapeo(clave, opcion)
    Dim k
    k = Norm(clave)
    If k = "" Then Exit Sub
    If Not gMapTipo.Exists(k) Then gMapTipo.Add k, opcion
 End Sub
 
-
-' Devuelve 1, 2 o 3 segun la columna "Tipo Material". -1 = valor desconocido.
-Function OpcionDeTipoMaterial(texto)
+Private Function OpcionDeTipoMaterial(texto)
    Dim k
    k = Norm(texto)
    If k = "" Then
@@ -1110,8 +1078,7 @@ Function OpcionDeTipoMaterial(texto)
    End If
 End Function
 
-
-Sub EscribirEnExcel(b, valor)
+Private Sub EscribirEnExcel(b, valor)
    Dim c
    c = Col("DOC")
    On Error Resume Next
@@ -1130,9 +1097,7 @@ Sub EscribirEnExcel(b, valor)
    End If
 End Sub
 
-
-' Texto de una celda, ya normalizado a como lo espera SAP.
-Function TextoCelda(r, c)
+Private Function TextoCelda(r, c)
    Dim v
    TextoCelda = ""
    If c <= 0 Then Exit Function
@@ -1146,8 +1111,7 @@ Function TextoCelda(r, c)
    End If
 End Function
 
-
-Function ValorCelda(r, c)
+Private Function ValorCelda(r, c)
    ValorCelda = Empty
    If c <= 0 Then Exit Function
    On Error Resume Next
@@ -1155,9 +1119,7 @@ Function ValorCelda(r, c)
    Err.Clear
 End Function
 
-
-' "14.08.2026" / "19-08-2026" / 19-08-2026 (fecha de Excel) -> "14.08.2026"
-Function FechaSap(v)
+Private Function FechaSap(v)
    Dim s, partes, d, m, y
    FechaSap = ""
    If IsEmpty(v) Or IsNull(v) Then Exit Function
@@ -1187,9 +1149,7 @@ Function FechaSap(v)
    FechaSap = Pad2(d) & "." & Pad2(m) & "." & y
 End Function
 
-
-' 4 -> "4,00"   3.2 -> "3,20"   "4,5" -> "4,50"
-Function LargoSap(v)
+Private Function LargoSap(v)
    Dim s, p, ent, dec
    s = Trim(CStr(v & ""))
    If s = "" Then
@@ -1210,9 +1170,7 @@ Function LargoSap(v)
    LargoSap = ent & "," & dec
 End Function
 
-
-' 16 -> "16"   16.0 -> "16"
-Function EnteroSap(v)
+Private Function EnteroSap(v)
    Dim s, p
    s = Trim(CStr(v & ""))
    If s = "" Then
@@ -1225,17 +1183,14 @@ Function EnteroSap(v)
    EnteroSap = Trim(s)
 End Function
 
-
-Function Pad2(x)
+Private Function Pad2(x)
    Dim s
    s = Trim(CStr(x & ""))
    If Len(s) < 2 Then s = "0" & s
    Pad2 = s
 End Function
 
-
-' Mayusculas, sin tildes, sin espacios ni puntos: para comparar titulos y textos.
-Function Norm(v)
+Private Function Norm(v)
    Dim s
    If IsEmpty(v) Or IsNull(v) Then
       Norm = ""
@@ -1261,8 +1216,7 @@ Function Norm(v)
    Norm = s
 End Function
 
-
-Function Izq(s, n)
+Private Function Izq(ByVal s, ByVal n)
    s = s & ""
    If Len(s) > n Then
       Izq = Left(s, n)
@@ -1271,8 +1225,7 @@ Function Izq(s, n)
    End If
 End Function
 
-
-Function IIfTexto(cond, a, b)
+Private Function IIfTexto(cond, a, b)
    If cond Then
       IIfTexto = a
    Else
@@ -1280,65 +1233,265 @@ Function IIfTexto(cond, a, b)
    End If
 End Function
 
+Private Function Marca()
+   Dim d
+   d = Now
+   Marca = Year(d) & Pad2(Month(d)) & Pad2(Day(d)) & "_" & Pad2(Hour(d)) & Pad2(Minute(d)) & Pad2(Second(d))
+End Function
 
-Function NombreArchivo(ruta)
-   Dim p, s
-   s = ruta & ""
-   p = InStrRev(s, "\")
-   If p > 0 Then
-      NombreArchivo = Mid(s, p + 1)
-   Else
-      NombreArchivo = s
-   End If
+Private Function Hora()
+   Dim d
+   d = Now
+   Hora = Pad2(Hour(d)) & ":" & Pad2(Minute(d)) & ":" & Pad2(Second(d))
 End Function
 
 
 '==============================================================================
 '                                 BITACORA
 '==============================================================================
-Sub AbrirLog()
-   Dim fso, carpeta
-   Set fso = CreateObject("Scripting.FileSystemObject")
+Private Sub AbrirLog()
+   Dim carpeta
+   gLogNum = 0
    carpeta = ""
    On Error Resume Next
    carpeta = Wb.Path
    Err.Clear
-   If carpeta = "" Then carpeta = fso.GetSpecialFolder(2)
-   gRutaLog = fso.BuildPath(carpeta, "ZCMMD001_log_" & Marca() & ".txt")
-   Set gLog = fso.CreateTextFile(gRutaLog, True)
+   If carpeta = "" Then carpeta = Environ("TEMP")
+   gRutaLog = carpeta & "\ZCMMD001_log_" & Marca() & ".txt"
+   gLogNum = FreeFile
+   Open gRutaLog For Output As #gLogNum
    If Err.Number <> 0 Then
       Err.Clear
-      gRutaLog = fso.BuildPath(fso.GetSpecialFolder(2), "ZCMMD001_log_" & Marca() & ".txt")
-      Set gLog = fso.CreateTextFile(gRutaLog, True)
-      Err.Clear
+      gRutaLog = Environ("TEMP") & "\ZCMMD001_log_" & Marca() & ".txt"
+      gLogNum = FreeFile
+      Open gRutaLog For Output As #gLogNum
+      If Err.Number <> 0 Then
+         gLogNum = 0
+         Err.Clear
+      End If
    End If
 End Sub
 
 
-Sub Anotar(t)
+Private Sub Anotar(t)
    On Error Resume Next
-   gLog.WriteLine Hora() & "  " & t
+   If gLogNum <> 0 Then Print #gLogNum, Hora() & "  " & t
    Err.Clear
 End Sub
 
 
-Sub CerrarLog()
+Private Sub CerrarLog()
    On Error Resume Next
-   gLog.Close
-   Set gLog = Nothing
+   If gLogNum <> 0 Then Close #gLogNum
+   gLogNum = 0
    Err.Clear
 End Sub
 
 
-Function Marca()
-   Dim d
-   d = Now
-   Marca = Year(d) & Pad2(Month(d)) & Pad2(Day(d)) & "_" & Pad2(Hour(d)) & Pad2(Minute(d)) & Pad2(Second(d))
-End Function
+'==============================================================================
+'          MACRO UTILITARIA: volcado de los IDs de la pantalla de SAP
+'------------------------------------------------------------------------------
+'  Deja SAP en la pantalla que quieras revisar (por ejemplo la de las 3 opciones
+'  del check list) y ejecuta esta macro. Genera un TXT en el Escritorio con los
+'  IDs exactos para completar la configuracion de arriba.
+'==============================================================================
+Public Sub DiagnosticoZCMMD001()
+   Dim ruta, i
+
+   Set SapApp = Nothing
+   Set SapConn = Nothing
+   Set SapSession = Nothing
+   gDiagRadios = 0
+   If Not TomarSesionSap() Then Exit Sub
+
+   ruta = Environ("USERPROFILE") & "\Desktop\ZCMMD001_diagnostico.txt"
+   gDiagNum = FreeFile
+   On Error Resume Next
+   Open ruta For Output As #gDiagNum
+   If Err.Number <> 0 Then
+      Err.Clear
+      ruta = Environ("TEMP") & "\ZCMMD001_diagnostico.txt"
+      gDiagNum = FreeFile
+      Open ruta For Output As #gDiagNum
+      If Err.Number <> 0 Then
+         MsgBox "No pude crear el archivo de diagnostico.", vbCritical, "ZCMMD001"
+         Exit Sub
+      End If
+   End If
+   On Error GoTo 0
+
+   DiagEsc "=============================================================="
+   DiagEsc " DIAGNOSTICO ZCMMD001 - " & Now
+   DiagEsc "=============================================================="
+   DiagEsc "Sistema    : " & SapSession.Info.SystemName
+   DiagEsc "Mandante   : " & SapSession.Info.Client
+   DiagEsc "Usuario    : " & SapSession.Info.User
+   DiagEsc "Transaccion: " & InfoTx()
+   DiagEsc "Programa   : " & InfoPrograma()
+   DiagEsc "Dynpro     : " & InfoDynpro()
+   DiagEsc "Ventanas   : " & SapSession.Children.Count
+   DiagEsc ""
+
+   DiagEsc "=============================================================="
+   DiagEsc " OPCIONES (RADIO BUTTONS) - en el orden en que se ven"
+   DiagEsc " Copia estos IDs en ID_OPCION_1 / ID_OPCION_2 / ID_OPCION_3"
+   DiagEsc "=============================================================="
+   DiagRecorrer "wnd[0]/usr", 0, True
+   If gDiagRadios = 0 Then DiagEsc "  (no hay radio buttons en esta pantalla)"
+   DiagEsc ""
+
+   DiagEsc "=============================================================="
+   DiagEsc " TODOS LOS CAMPOS DE LA PANTALLA"
+   DiagEsc "=============================================================="
+   DiagRecorrer "wnd[0]/usr", 0, False
+   DiagEsc ""
+
+   DiagEsc "=============================================================="
+   DiagEsc " BOTONES DE LA BARRA ESTANDAR  (wnd[0]/tbar[0])"
+   DiagEsc "=============================================================="
+   DiagBotones "wnd[0]/tbar[0]"
+   DiagEsc ""
+   DiagEsc "=============================================================="
+   DiagEsc " BOTONES DE LA BARRA DE APLICACION  (wnd[0]/tbar[1])"
+   DiagEsc " Aqui salen los de Grabar: revisa BTN_GRABAR_1 y BTN_GRABAR_2"
+   DiagEsc "=============================================================="
+   DiagBotones "wnd[0]/tbar[1]"
+   DiagEsc ""
+
+   DiagEsc "=============================================================="
+   DiagEsc " GRILLA DE TROZOS"
+   DiagEsc "=============================================================="
+   DiagGrilla
+   DiagEsc ""
+
+   If SapSession.Children.Count > 1 Then
+      DiagEsc "=============================================================="
+      DiagEsc " VENTANAS EMERGENTES ABIERTAS"
+      DiagEsc "=============================================================="
+      For i = 1 To SapSession.Children.Count - 1
+         DiagEsc "  wnd[" & i & "]  " & TextoVentana(SapSession.findById("wnd[" & i & "]"))
+      Next
+   End If
+
+   Close #gDiagNum
+   gDiagNum = 0
+
+   MsgBox "Listo. El detalle quedo en:" & vbCrLf & vbCrLf & ruta, vbInformation, "Diagnostico ZCMMD001"
+   On Error Resume Next
+   Shell "notepad.exe " & Chr(34) & ruta & Chr(34), vbNormalFocus
+   Err.Clear
+End Sub
 
 
-Function Hora()
-   Dim d
-   d = Now
-   Hora = Pad2(Hour(d)) & ":" & Pad2(Minute(d)) & ":" & Pad2(Second(d))
-End Function
+Private Sub DiagEsc(t)
+   On Error Resume Next
+   If gDiagNum <> 0 Then Print #gDiagNum, t
+   Err.Clear
+End Sub
+
+
+' Recorre la pantalla. soloRadios = True imprime solo los radio buttons.
+Private Sub DiagRecorrer(id, nivel, soloRadios)
+   Dim cont As Object, i, hijo As Object, tipo, sangria
+   If nivel > 8 Then Exit Sub
+   Set cont = Nothing
+   On Error Resume Next
+   Set cont = SapSession.findById(id)
+   Err.Clear
+   If cont Is Nothing Then Exit Sub
+
+   sangria = Space(nivel * 2)
+   For i = 0 To cont.Children.Count - 1
+      Set hijo = Nothing
+      Set hijo = cont.Children(i)
+      Err.Clear
+      If Not (hijo Is Nothing) Then
+         tipo = ""
+         tipo = hijo.Type
+         Err.Clear
+         If soloRadios Then
+            If tipo = "GuiRadioButton" Then
+               gDiagRadios = gDiagRadios + 1
+               DiagEsc "  OPCION " & gDiagRadios & ":"
+               DiagEsc "     ID     : " & hijo.Id
+               DiagEsc "     Texto  : " & hijo.Text
+               DiagEsc "     Marcada: " & hijo.Selected
+               DiagEsc ""
+            End If
+         Else
+            DiagEsc sangria & tipo & "  |  " & hijo.Id
+            If Len(Trim(hijo.Text & "")) > 0 Then DiagEsc sangria & "      texto: " & hijo.Text
+         End If
+         If tipo <> "GuiShell" And tipo <> "GuiCustomControl" And tipo <> "GuiGridView" Then
+            If hijo.ContainerType Then DiagRecorrer hijo.Id, nivel + 1, soloRadios
+            Err.Clear
+         End If
+      End If
+   Next
+   Err.Clear
+End Sub
+
+
+Private Sub DiagBotones(id)
+   Dim cont As Object, i, hijo As Object
+   Set cont = Nothing
+   On Error Resume Next
+   Set cont = SapSession.findById(id)
+   Err.Clear
+   If cont Is Nothing Then
+      DiagEsc "  (no existe " & id & ")"
+      Exit Sub
+   End If
+   For i = 0 To cont.Children.Count - 1
+      Set hijo = Nothing
+      Set hijo = cont.Children(i)
+      Err.Clear
+      If Not (hijo Is Nothing) Then
+         DiagEsc "  " & hijo.Id
+         DiagEsc "      texto: " & hijo.Text & "   |   ayuda: " & hijo.Tooltip
+         Err.Clear
+      End If
+   Next
+   Err.Clear
+End Sub
+
+
+Private Sub DiagGrilla()
+   Dim grid As Object, cols As Object, i, nom, titulo, valor
+   Set grid = Nothing
+   On Error Resume Next
+   Set grid = SapSession.findById(ID_GRID)
+   Err.Clear
+   If grid Is Nothing Then
+      DiagEsc "  No encontre la grilla en " & ID_GRID
+      DiagEsc "  (busca en TODOS LOS CAMPOS un ID que termine en /shell)"
+      Exit Sub
+   End If
+   DiagEsc "  ID              : " & ID_GRID
+   DiagEsc "  Filas           : " & grid.rowCount
+   DiagEsc "  Filas a la vista: " & grid.visibleRowCount
+   DiagEsc "  Columnas        : " & grid.columnCount
+   DiagEsc ""
+   DiagEsc "  COLUMNAS (nombre tecnico -> titulo -> valor de la fila 0)"
+   Set cols = Nothing
+   Set cols = grid.columnOrder
+   Err.Clear
+   If cols Is Nothing Then Exit Sub
+   For i = 0 To cols.Count - 1
+      nom = ""
+      nom = cols.elementAt(i)
+      If Err.Number <> 0 Then
+         Err.Clear
+         nom = cols(i)
+         Err.Clear
+      End If
+      titulo = ""
+      titulo = grid.getDisplayedColumnTitle(nom)
+      Err.Clear
+      valor = ""
+      If grid.rowCount > 0 Then valor = grid.getCellValue(0, nom)
+      Err.Clear
+      DiagEsc "     " & nom & "   ->   " & titulo & "   ->   [" & valor & "]"
+   Next
+   Err.Clear
+End Sub

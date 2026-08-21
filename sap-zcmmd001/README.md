@@ -1,23 +1,72 @@
 # ZCMMD001 – Carga masiva de recepciones desde Excel
 
-Automatiza el registro de recepciones de trozos en la transacción **ZCMMD001** de R3,
-leyendo las guías desde un Excel. Por cada guía carga la cabecera, marca la opción del
-check list, llena la grilla de diámetros, **pregunta si estás seguro de grabar**, graba,
-captura el número de documento (`5000XXXXXX`), lo escribe en el Excel y salta a la
-guía siguiente.
+Macro de Excel que registra las recepciones de trozos en la transacción **ZCMMD001**
+de R3, leyendo las guías desde la misma planilla. Por cada guía carga la cabecera,
+marca la opción del check list, llena la grilla de diámetros, **pregunta si estás
+seguro de grabar**, graba, captura el número de documento (`5000XXXXXX`), lo escribe
+en la columna `Doc.` y salta a la guía siguiente.
 
-## Archivos
+## Qué trae `ZCMMD001.bas`
 
-| Archivo | Para qué sirve |
+Un módulo con dos macros:
+
+| Macro | Para qué sirve |
 |---|---|
-| `ZCMMD001_Recepciones.vbs` | El script de carga. Es el que se usa día a día. |
-| `ZCMMD001_Diagnostico.vbs` | Utilitario. Vuelca a un TXT todos los IDs de la pantalla que tengas abierta en SAP (opciones del check list, botones, columnas de la grilla). Se usa una sola vez, para completar la configuración. |
+| `CargarRecepcionesZCMMD001` | La carga. Es la que se usa día a día. |
+| `DiagnosticoZCMMD001` | Utilitario. Vuelca a un TXT todos los IDs de la pantalla que tengas abierta en SAP (las 3 opciones del check list, los botones, las columnas de la grilla). Se usa una vez, para completar la configuración. |
 
-Los dos son VBScript: se ejecutan con **doble clic**, no necesitan instalar nada.
+> El código está escrito **sin tildes a propósito**, para que se vea igual sin importar
+> la configuración regional del equipo. Los acentos de los datos del Excel sí se respetan.
 
-> Los `.vbs` están escritos **sin tildes a propósito**, para que funcionen igual sin importar
-> con qué codificación los guarde el editor de texto. Los acentos de los datos que vienen
-> del Excel sí se respetan.
+## Instalación (una sola vez)
+
+1. Abre tu planilla de recepciones y guárdala como **Libro de Excel habilitado para
+   macros (`.xlsm`)** — *Archivo → Guardar como → tipo `.xlsm`*. Un `.xlsx` no guarda
+   macros, y si no la macro no puede escribir los números de documento en el archivo.
+2. `Alt + F11` para abrir el editor de VBA.
+3. *Archivo → Importar archivo…* → elige `ZCMMD001.bas`.
+4. Cierra el editor y guarda.
+
+Al abrir el archivo, Excel va a pedir **Habilitar contenido**.
+
+### Botón para no usar `Alt + F8` (opcional)
+
+*Desarrollador → Insertar → Botón (control de formulario)* → dibújalo en la hoja →
+asignarle la macro `CargarRecepcionesZCMMD001`. Si no ves la pestaña Desarrollador:
+*Archivo → Opciones → Personalizar cinta → marca "Desarrollador"*.
+
+## Cómo se usa
+
+1. Deja **SAP abierto** y con sesión iniciada (en cualquier pantalla: la macro entra
+   sola a ZCMMD001 con `/n`).
+2. `Alt + F8` → `CargarRecepcionesZCMMD001` → Ejecutar (o el botón).
+3. Confirma el ambiente: muestra **sistema, mandante y usuario** para que verifiques
+   que estás en productivo y no en otro lado.
+4. Elige el modo:
+   - **Modo de prueba**: llena toda la pantalla pero **no graba**. Úsalo la primera vez.
+   - **Grabación real**, y dentro de eso: *preguntar en cada guía* (recomendado) o
+     *grabar todas seguidas*.
+5. En cada guía aparece el resumen (guía, OC, fecha, patente, rol, opción, líneas, trozos):
+   - **SÍ** = graba y pasa a la siguiente
+   - **NO** = omite esa guía (queda marcada `OMITIDA` y se puede reintentar después)
+   - **CANCELAR** = detiene todo
+
+Al terminar muestra el resumen y deja una bitácora `ZCMMD001_log_AAAAMMDD_HHMMSS.txt`
+en la misma carpeta del archivo, con cada paso, cada mensaje de SAP y el texto de cada
+ventana emergente.
+
+### Qué hoja usa
+
+La busca sola: es la que tenga una fila de títulos con `Guia` y `Diametro`. Primero
+mira en el libro que tiene la macro, después en los otros libros abiertos, y si no
+encuentra ninguna te pide el archivo. Antes de empezar te muestra cuál eligió para que
+confirmes.
+
+### Se puede volver a correr sin duplicar
+
+Las guías que ya tienen un número en `Doc.` se saltan automáticamente. Las que quedaron
+con `ERROR…`, `OMITIDA` o `REVISAR…` se reintentan. Si se corta a mitad de camino, basta
+con volver a ejecutar la macro sobre el mismo archivo.
 
 ## Requisitos
 
@@ -26,11 +75,9 @@ Los dos son VBScript: se ejecutan con **doble clic**, no necesitan instalar nada
    *SAP Logon → Opciones → Accesibilidad y scripting → Scripting → **Habilitar scripting***
    (conviene desmarcar las dos casillas de notificación, si no aparece un aviso por cada paso).
 3. Scripting habilitado en el servidor (`sapgui/user_scripting = TRUE`). Si no lo está, lo activa Basis.
-4. Excel instalado.
 
 ## Formato del Excel
 
-La hoja se detecta sola: es la que tenga una fila de títulos con `Guia` y `Diametro`.
 El orden de las columnas no importa, se buscan por el título:
 
 | Columna | Contenido | Va a |
@@ -46,7 +93,7 @@ El orden de las columnas no importa, se buscan por el título:
 | `Largo` | Largo (`4`, `3.2`, `4,5`) | columna `LARGO` — se envía como `4,00` / `3,20` / `4,50` |
 | `Diametro` | Diámetro | columna `DIAMETRO` |
 | `Cantidad` | N° de trozos | columna `TROZO` |
-| `Doc.` | **La escribe el script**: el N° de recepción o el error | — |
+| `Doc.` | **La escribe la macro**: el N° de recepción o el error | — |
 | `Tipo Material` | Define cuál de las 3 opciones del check list se marca | radio button |
 
 ### Cómo se separan las guías
@@ -65,32 +112,6 @@ Tipo.MP  Guia  OC          Fecha       Patente  Rol      Cal.Trz Calidad Largo D
                                                          2               4     20       18
 ```
 
-## Cómo se usa
-
-1. Deja SAP abierto (en cualquier pantalla; el script entra solo a ZCMMD001 con `/n`).
-2. Doble clic en `ZCMMD001_Recepciones.vbs`.
-3. Confirma el ambiente: muestra **sistema, mandante y usuario** para que verifiques que
-   estás en productivo y no en otro lado.
-4. Elige el Excel (si el archivo ya está abierto, usa ese mismo libro).
-5. Elige el modo:
-   - **Modo de prueba**: llena toda la pantalla pero **no graba**. Sirve para revisar la
-     primera guía antes de soltarlo en productivo.
-   - **Grabación real**, y dentro de esa opción, *preguntar en cada guía* (recomendado)
-     o *grabar todas seguidas*.
-6. En cada guía aparece el resumen (guía, OC, fecha, patente, rol, opción, líneas, trozos):
-   - **SÍ** = graba y pasa a la siguiente
-   - **NO** = omite esa guía (queda marcada `OMITIDA` y se puede reintentar después)
-   - **CANCELAR** = detiene todo
-
-Al terminar muestra el resumen y deja una bitácora `ZCMMD001_log_AAAAMMDD_HHMMSS.txt`
-en la misma carpeta del Excel, con cada paso, cada mensaje de SAP y cada ventana emergente.
-
-### Se puede volver a correr sin duplicar
-
-Las guías que ya tienen un número en `Doc.` se saltan automáticamente. Las que quedaron
-con `ERROR...`, `OMITIDA` o `REVISAR...` se reintentan. Así, si se cae a mitad de camino,
-basta con volver a ejecutarlo sobre el mismo archivo.
-
 ## Las 3 opciones del check list
 
 La grabación original marcaba siempre `radMCON` (la 3ª opción). Ahora la opción sale de la
@@ -102,10 +123,10 @@ columna **`Tipo Material`**:
 - Un texto que **no** esté en la tabla → esa guía se marca con error y **no se graba**
   (a propósito: es preferible que se detenga a que marque la opción equivocada en productivo).
 
-Para agregar valores, edita en el `.vbs`:
+Para agregar valores, edita arriba del módulo:
 
-```vbs
-Sub CargarMapeoTipoMaterial()
+```vb
+Private Sub CargarMapeoTipoMaterial()
    ...
    AgregarMapeo "ASERRABLE", 1
    AgregarMapeo "PULPABLE",  2
@@ -116,27 +137,28 @@ End Sub
 ### Completar los IDs de las opciones 1 y 2
 
 De la grabación solo se conoce el ID de la 3ª opción (`radMCON`). Mientras las otras dos
-estén en blanco, el script las selecciona **por posición** leyendo la pantalla
+estén en blanco, la macro las selecciona **por posición** leyendo la pantalla
 (1 = la de más arriba). Funciona, pero es más seguro fijar los IDs:
 
 1. Deja ZCMMD001 abierta justo en la pantalla donde se ven las 3 opciones.
-2. Doble clic en `ZCMMD001_Diagnostico.vbs` → genera `ZCMMD001_diagnostico.txt` en el Escritorio.
+2. `Alt + F8` → `DiagnosticoZCMMD001` → genera `ZCMMD001_diagnostico.txt` en el Escritorio
+   y lo abre en el Bloc de notas.
 3. Copia los IDs de la sección **OPCIONES (RADIO BUTTONS)** a la configuración:
 
-```vbs
-Const ID_OPCION_1    = "wnd[0]/usr/radXXXX"
-Const ID_OPCION_2    = "wnd[0]/usr/radYYYY"
-Const ID_OPCION_3    = "wnd[0]/usr/radMCON"
+```vb
+Private Const ID_OPCION_1    = "wnd[0]/usr/radXXXX"
+Private Const ID_OPCION_2    = "wnd[0]/usr/radYYYY"
+Private Const ID_OPCION_3    = "wnd[0]/usr/radMCON"
 ```
 
-## Qué se corrigió respecto del script anterior
+## Qué se corrigió respecto del script grabado
 
 **`ERROR 619: The control could not be found by id.` en la etapa "Cargando Tipo Recepción"**
 
 El script anterior partía escribiendo directamente en `wnd[0]/usr/txtTIPO_RECEP`. Eso funciona
 mientras se está *grabando* (la pantalla de ZCMMD001 ya está a la vista), pero al ejecutarlo
 después, SAP está en el menú principal o en la pantalla en que quedó la guía anterior: ese campo
-no existe ahí y SAP responde con el error 619. Ahora, **antes de cada guía**, el script:
+no existe ahí y SAP responde con el error 619. Ahora, **antes de cada guía**, la macro:
 
 1. cierra cualquier ventana emergente que haya quedado abierta,
 2. entra a la transacción con `/nzcmmd001`,
@@ -148,7 +170,7 @@ no existe ahí y SAP responde con el error 619. Ahora, **antes de cada guía**, 
 El script anterior terminaba en `btn[6]` / `btn[7]` y nunca leía la respuesta de SAP. Ahora,
 después de grabar, se lee la **barra de estado** (`wnd[0]/sbar`) y el texto de las ventanas
 emergentes, se extrae el número (primero el patrón `5` + 9 dígitos, descartando la OC, la guía
-y el rol) y se escribe en la columna `Doc.`, guardando el Excel guía por guía. Si SAP devuelve
+y el rol) y se escribe en la columna `Doc.`, guardando el archivo guía por guía. Si SAP devuelve
 un mensaje de error, ese mensaje queda en la misma celda. Si graba pero no se encuentra número,
 queda `REVISAR: <mensaje de SAP>` y avisa en pantalla.
 
@@ -156,8 +178,8 @@ queda `REVISAR: <mensaje de SAP>` y avisa en pantalla.
 
 La grabación tenía diez `sendVKey 0` fijos, uno por línea de la grilla. Con 14 diámetros
 faltaban cuatro y con 8 sobraban. Ahora se cierran en un ciclo mientras existan, se registra
-el texto de cada una en la bitácora, y si alguna no se cierra con Enter el script se detiene
-con un mensaje claro en vez de quedarse pegado.
+el texto de cada una en la bitácora, y si alguna no se cierra con Enter se detiene con un
+mensaje claro en vez de quedarse pegado.
 
 **Otros**
 
@@ -168,7 +190,7 @@ con un mensaje claro en vez de quedarse pegado.
 - El largo se manda siempre con coma y dos decimales (`4` → `4,00`), como en la grabación.
 - La fecha se acepta como texto o como fecha de Excel y se envía como `DD.MM.AAAA`.
 
-## Configuración (arriba del `.vbs`)
+## Configuración (arriba del módulo)
 
 | Constante | Qué es |
 |---|---|
@@ -187,8 +209,12 @@ Si en tu sistema algún ID es distinto, sale en el TXT del diagnóstico.
 | Síntoma | Causa / solución |
 |---|---|
 | *"No pude tomar la sesion de SAP"* | SAP no está abierto, o el scripting está deshabilitado en el cliente o en el servidor. |
+| *"Este libro tiene la macro pero esta guardado como .xlsx"* | Guarda como `.xlsm`, si no Excel no puede guardar los números de documento. |
 | *"No aparece el campo Tipo Recepcion"* | El usuario no tiene ZCMMD001, o la transacción abre primero otra pantalla. El mensaje indica qué transacción/dynpro está viendo. |
 | *"No aparece la grilla de trozos"* | La OC, el rol o el tipo de recepción no corresponden: SAP no llegó a la pantalla de la grilla. |
 | *"El Tipo Material '…' no esta en el mapeo"* | Agrega ese texto en `CargarMapeoTipoMaterial`. |
 | *"Hay una ventana emergente que no se cierra con Enter"* | Mira la bitácora: el texto de esa ventana queda registrado. Suele ser un mensaje de SAP que necesita otra acción. |
-| El script escribe `REVISAR: …` en `Doc.` | Grabó pero no se encontró el número en el mensaje. Revisa en SAP si la recepción quedó creada. |
+| La macro escribe `REVISAR: …` en `Doc.` | Grabó pero no se encontró el número en el mensaje. Revisa en SAP si la recepción quedó creada. |
+
+> La versión anterior, como scripts `.vbs` sueltos, quedó en el historial de git
+> (commit *"Cargar las recepciones de ZCMMD001 desde el Excel de guias"*).
