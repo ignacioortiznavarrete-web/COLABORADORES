@@ -58,6 +58,13 @@
       --body: "Public Sans", system-ui, -apple-system, sans-serif;
       --mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
+      /* Escala de apilamiento, en orden de quién tapa a quién.
+         Sin esto se llega a 999 por tanteo y nadie sabe por qué. */
+      --z-cabecera-tabla: 20;
+      --z-barra: 40;
+      --z-velo: 200;
+      --z-globo: 300;
+
       --ease: cubic-bezier(.22, .61, .36, 1);
       --lift: 0 1px 2px rgba(27, 36, 30, .04),
               0 8px 20px rgba(27, 36, 30, .05);
@@ -102,7 +109,7 @@
     .barra {
       position: sticky;
       top: 0;
-      z-index: 90;
+      z-index: var(--z-barra);
       color: #fff;
       background: var(--verde-banda);
       /* Filete de madera al pie, como el de un membrete impreso: ata
@@ -727,8 +734,119 @@
 
     @keyframes trazar { to { stroke-dashoffset: 0; } }
 
-    .barra-svg { transition: opacity .16s; cursor: default; }
-    .barra-svg:hover { opacity: .76; }
+    .barra-svg { transition: opacity .16s; }
+
+    /* Bandas invisibles de captura: una por dato, de alto completo.
+       Apuntarle a una barra de 1px es imposible; a su columna, no. */
+    .banda { fill: transparent; cursor: crosshair; }
+
+    .banda-fondo {
+      fill: var(--verde);
+      opacity: 0;
+      transition: opacity .12s var(--ease);
+      pointer-events: none;
+    }
+
+    .banda-viva .banda-fondo { opacity: .05; }
+
+    /* La transparencia va en stroke-opacity, no en opacity: una regla
+       CSS de opacity le gana al atributo del SVG, y entonces apagar la
+       guía al salir del gráfico no surtía ningún efecto. */
+    .guia {
+      stroke: var(--verde); stroke-width: 1;
+      stroke-dasharray: 3 3; stroke-opacity: .5;
+      pointer-events: none;
+    }
+
+    .foco {
+      pointer-events: none;
+      stroke: var(--paper); stroke-width: 2.5;
+    }
+
+    /* Lo no apuntado se apaga: el dato bajo el cursor queda solo. */
+    .grafico.enfocando .barra-svg { opacity: .28; }
+    .grafico.enfocando .barra-svg.viva { opacity: 1; }
+
+    .punta-serie {
+      font-family: var(--mono); font-size: 10.5px;
+      font-weight: 500; fill: var(--verde);
+    }
+
+    /* --- globo de detalle ------------------------------------------- */
+
+    #globo {
+      position: fixed;
+      z-index: var(--z-globo);
+      top: 0; left: 0;
+      pointer-events: none;
+      max-width: 280px;
+      padding: 11px 13px 12px;
+      border-radius: 9px;
+      background: #132A20;
+      color: #E9F1EC;
+      box-shadow: 0 10px 30px rgba(19, 42, 32, .28);
+      font-size: 12.5px;
+      line-height: 1.45;
+      opacity: 0;
+      visibility: hidden;
+      transform: translate3d(-9999px, -9999px, 0);
+    }
+
+    #globo.viendo { opacity: 1; visibility: visible; }
+
+    .globo-titulo {
+      font-family: var(--display);
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: -.005em;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(233, 241, 236, .16);
+      overflow-wrap: anywhere;
+    }
+
+    .globo-sub {
+      display: block;
+      font-family: var(--body);
+      font-weight: 400;
+      font-size: 11px;
+      color: #9DB8A9;
+      margin-top: 2px;
+    }
+
+    .globo-filas {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 5px 9px;
+      align-items: baseline;
+    }
+
+    .globo-filas i {
+      width: 9px; height: 9px;
+      border-radius: 2px;
+      align-self: center;
+    }
+
+    .globo-filas span { color: #B9CFC2; }
+
+    .globo-filas b {
+      font-family: var(--mono);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .globo-filas .tenue { color: #8FA89A; }
+    .globo-filas b.sube { color: #7FD3A3; }
+    .globo-filas b.baja { color: #F0A192; }
+
+    .globo-pie {
+      margin-top: 9px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(233, 241, 236, .16);
+      font-size: 11px;
+      color: #9DB8A9;
+    }
 
     .vacio {
       display: grid;
@@ -754,8 +872,12 @@
     .reparto div {
       display: grid; place-items: center;
       font-family: var(--mono); font-size: 10.5px; color: #fff;
-      transition: flex-grow .6s var(--ease);
+      transition: flex-grow .6s var(--ease), filter .14s var(--ease);
+      cursor: crosshair;
     }
+
+    .reparto:hover div { filter: saturate(.45) opacity(.55); }
+    .reparto div:hover { filter: none; }
 
     .reparto-leyenda { display: grid; gap: 8px; margin-top: 14px; }
 
@@ -830,7 +952,7 @@
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
 
     thead th {
-      position: sticky; top: 0; z-index: 3;
+      position: sticky; top: 0; z-index: var(--z-cabecera-tabla);
       padding: 9px 11px;
       text-align: left;
       font-size: 9.5px; font-weight: 600;
@@ -1159,7 +1281,7 @@
        --------------------------------------------------------------- */
 
     .velo {
-      position: fixed; inset: 0; z-index: 200;
+      position: fixed; inset: 0; z-index: var(--z-velo);
       display: grid; place-items: center;
       background: rgba(255, 255, 255, .82);
       backdrop-filter: blur(3px);
@@ -1215,6 +1337,9 @@
       }
       .panel { opacity: 1; transform: none; }
       .chincheta { opacity: 1; transform: none; }
+      /* El globo sigue apareciendo: es dato, no adorno. Lo que se
+         apaga es que se deslice detrás del cursor. */
+      #globo { transition: none; }
     }
   </style>
 </head>
@@ -1697,6 +1822,8 @@
       </div>
     </section>
   </main>
+
+  <div id="globo" role="tooltip" aria-hidden="true"></div>
 
   <div class="velo" id="velo">
     <div class="velo-caja">
@@ -2579,7 +2706,10 @@
 
       list.forEach(function(item, index) {
         cumulative += item.share;
-        item.cumulative = cumulative;
+        // El nombre importa: la tabla de proveedores y el globo leen
+        // "cumulativeShare". Con "cumulative" la columna de acumulado
+        // salía 0,0% en todas las filas sin que nadie lo notara.
+        item.cumulativeShare = cumulative;
         item.rank = index + 1;
       });
 
@@ -3086,8 +3216,255 @@
  * GRÁFICOS (SVG propio)
  * ===================================================================== */
 
+/* =====================================================================
+ * GLOBO DE DETALLE
+ *
+ * Reemplaza a los <title> de SVG, que tardan casi un segundo en salir,
+ * no se pueden dar formato y no sirven en una línea sin puntos que
+ * apuntar. Aquí el dato aparece al instante y trae el contexto: no
+ * solo cuánto entró, también cuánto tocaba y cuánto falta.
+ * ===================================================================== */
+
+    var GLOBO = null;
+
+    // Un apagador por gráfico montado. dibujarGraficos() lo vacía en
+    // cada redibujo: si no, cada cambio de filtro dejaría cinco
+    // closures más colgando para siempre.
+    var APAGADORES = [];
+
+    // Al desplazar la página el cursor deja de estar donde el globo
+    // dice que está. Un solo listener para todos los gráficos.
+    window.addEventListener('scroll', function() {
+      if (!GLOBO || !GLOBO.classList.contains('viendo')) { return; }
+
+      APAGADORES.forEach(function(fn) { fn(); });
+    }, { passive: true });
+
+    function globoNodo() {
+      if (!GLOBO) { GLOBO = document.getElementById('globo'); }
+      return GLOBO;
+    }
+
+    /**
+     * filas: [{ color, etiqueta, valor, clase, tenue }]
+     */
+    function globoHTML(cfg) {
+      var html = '';
+
+      if (cfg.titulo) {
+        html += '<div class="globo-titulo">' + esc(cfg.titulo) +
+          (cfg.subtitulo
+            ? '<span class="globo-sub">' + esc(cfg.subtitulo) + '</span>'
+            : '') +
+          '</div>';
+      }
+
+      var filas = (cfg.filas || []).filter(Boolean);
+
+      if (filas.length) {
+        html += '<div class="globo-filas">' + filas.map(function(f) {
+          return (f.color
+              ? '<i style="background:' + f.color + '"></i>'
+              : '<i></i>') +
+            '<span' + (f.tenue ? ' class="tenue"' : '') + '>' +
+            esc(f.etiqueta) + '</span>' +
+            '<b class="' + (f.clase || '') + '">' + esc(f.valor) + '</b>';
+        }).join('') + '</div>';
+      }
+
+      if (cfg.pie) {
+        html += '<div class="globo-pie">' + esc(cfg.pie) + '</div>';
+      }
+
+      return html;
+    }
+
+    function mostrarGlobo(html, ev) {
+      var nodo = globoNodo();
+
+      if (!nodo) { return; }
+
+      nodo.innerHTML = html;
+      nodo.classList.add('viendo');
+      nodo.setAttribute('aria-hidden', 'false');
+      moverGlobo(ev);
+    }
+
+    function moverGlobo(ev) {
+      var nodo = globoNodo();
+
+      if (!nodo || !nodo.classList.contains('viendo')) { return; }
+
+      var caja = nodo.getBoundingClientRect();
+      var margen = 14;
+
+      var x = ev.clientX + margen;
+      var y = ev.clientY + margen;
+
+      // Cerca del borde se pasa al otro lado del cursor en vez de
+      // salirse de la pantalla o empujar la página.
+      if (x + caja.width > window.innerWidth - 8) {
+        x = ev.clientX - caja.width - margen;
+      }
+
+      if (y + caja.height > window.innerHeight - 8) {
+        y = ev.clientY - caja.height - margen;
+      }
+
+      nodo.style.transform =
+        'translate3d(' + Math.max(8, Math.round(x)) + 'px,' +
+        Math.max(8, Math.round(y)) + 'px,0)';
+    }
+
+    function ocultarGlobo() {
+      var nodo = globoNodo();
+
+      if (!nodo) { return; }
+
+      nodo.classList.remove('viendo');
+      nodo.setAttribute('aria-hidden', 'true');
+    }
+
+    /**
+     * Conecta un contenedor de gráfico con sus bandas de captura.
+     *
+     *   cfg.contenido(i)  -> html del globo
+     *   cfg.destacar(i)   -> mueve guía y foco (opcional)
+     *   cfg.apagar()      -> deshace lo anterior (opcional)
+     */
+    function montarGlobo(caja, cfg) {
+      var activo = -1;
+
+      function entrar(ev) {
+        var banda = ev.target.closest
+          ? ev.target.closest('.banda')
+          : null;
+
+        if (!banda) {
+          if (activo !== -1) { salir(); }
+          return;
+        }
+
+        var i = Number(banda.getAttribute('data-i'));
+
+        if (i !== activo) {
+          activo = i;
+
+          var html = cfg.contenido(i);
+
+          if (!html) { salir(); return; }
+
+          mostrarGlobo(html, ev);
+
+          if (cfg.destacar) { cfg.destacar(i, banda); }
+        } else {
+          moverGlobo(ev);
+        }
+      }
+
+      function salir() {
+        if (activo === -1) { return; }
+
+        activo = -1;
+        ocultarGlobo();
+
+        if (cfg.apagar) { cfg.apagar(); }
+      }
+
+      caja.addEventListener('pointermove', entrar);
+      caja.addEventListener('pointerdown', entrar);
+      caja.addEventListener('pointerleave', salir);
+      caja.addEventListener('pointercancel', salir);
+
+      // Los gráficos se redibujan con cada cambio de filtro. Colgar el
+      // listener de scroll aquí sumaría cinco más en cada redibujo.
+      APAGADORES.push(salir);
+    }
+
+    /**
+     * Bandas de captura de alto completo, una por dato.
+     */
+    function bandas(n, M, w, h, ancho) {
+      var partes = [];
+      var paso = ancho || (w / n);
+
+      for (var i = 0; i < n; i++) {
+        var x = M.l + paso * i;
+
+        partes.push('<g class="banda-g" data-g="' + i + '">' +
+          '<rect class="banda-fondo" x="' + x + '" y="' + M.t +
+          '" width="' + paso + '" height="' + h + '"/>' +
+          '<rect class="banda" data-i="' + i + '" x="' + x + '" y="' + M.t +
+          '" width="' + paso + '" height="' + h + '"/></g>');
+      }
+
+      return partes.join('');
+    }
+
+    /**
+     * Enciende la banda i y apaga las demás, dentro de un contenedor.
+     */
+    function encender(caja, i, selectorViva) {
+      var svg = caja.querySelector('.grafico');
+
+      if (!svg) { return; }
+
+      svg.classList.add('enfocando');
+
+      Array.prototype.forEach.call(
+        caja.querySelectorAll('.banda-g'),
+        function(g) {
+          g.classList.toggle('banda-viva', Number(g.getAttribute('data-g')) === i);
+        }
+      );
+
+      if (selectorViva) {
+        Array.prototype.forEach.call(
+          caja.querySelectorAll('.barra-svg'),
+          function(b) {
+            b.classList.toggle('viva', Number(b.getAttribute('data-i')) === i);
+          }
+        );
+      }
+    }
+
+    function apagar(caja) {
+      var svg = caja.querySelector('.grafico');
+
+      if (svg) { svg.classList.remove('enfocando'); }
+
+      Array.prototype.forEach.call(
+        caja.querySelectorAll('.banda-viva'),
+        function(g) { g.classList.remove('banda-viva'); }
+      );
+
+      Array.prototype.forEach.call(
+        caja.querySelectorAll('.barra-svg.viva'),
+        function(b) { b.classList.remove('viva'); }
+      );
+
+      var guia = caja.querySelector('.guia');
+      var foco = caja.querySelector('.foco');
+
+      if (guia) { guia.setAttribute('opacity', '0'); }
+      if (foco) { foco.setAttribute('opacity', '0'); }
+    }
+
+    function signo(v) {
+      return (v > 0 ? '+' : '') + formatTs(v);
+    }
+
+    function claseDesvio(v) {
+      if (v > 0.5) { return 'sube'; }
+      if (v < -0.5) { return 'baja'; }
+      return '';
+    }
+
     function dibujarGraficos() {
       if (!CURRENT_METRICS) { return; }
+
+      ocultarGlobo();
+      APAGADORES.length = 0;
 
       grafAcumulado();
       grafDiario();
@@ -3197,6 +3574,15 @@
           '" r="4" fill="var(--verde)"/>');
       }
 
+      // El último valor rotulado: es el número que se busca al mirar
+      // un acumulado, y leerlo del eje es trabajo de más.
+      if (iRef >= 0) {
+        partes.push('<text class="punta-serie" x="' + (x(iRef) + 8) + '" y="' +
+          (y(enRef) - 8) + '" text-anchor="' +
+          (iRef > claves.length * 0.8 ? 'end' : 'start') + '">' +
+          formatCorto(enRef) + '</text>');
+      }
+
       var salto = Math.max(1, Math.ceil(claves.length / 12));
 
       claves.forEach(function(k, i) {
@@ -3208,9 +3594,117 @@
       partes.push('<line class="eje" x1="' + M.l + '" y1="' + (M.t + h) +
         '" x2="' + (M.l + w) + '" y2="' + (M.t + h) + '"/>');
 
+      partes.push('<line class="guia" opacity="0" y1="' + M.t + '" y2="' +
+        (M.t + h) + '" x1="0" x2="0"/>');
+      partes.push('<circle class="foco" opacity="0" r="5.5" cx="0" cy="0" ' +
+        'fill="var(--verde)"/>');
+
+      // Las bandas van al final para quedar sobre las trazas y recibir
+      // el puntero en cualquier punto de la columna.
+      var pasoB = claves.length < 2 ? w : w / (claves.length - 1);
+
+      var bandasHtml = claves.map(function(k, i) {
+        var bx = claves.length < 2 ? M.l : Math.max(M.l, x(i) - pasoB / 2);
+        var bw = claves.length < 2 ? w : pasoB;
+
+        return '<g class="banda-g" data-g="' + i + '">' +
+          '<rect class="banda-fondo" x="' + bx + '" y="' + M.t + '" width="' +
+          bw + '" height="' + h + '"/>' +
+          '<rect class="banda" data-i="' + i + '" x="' + bx + '" y="' + M.t +
+          '" width="' + bw + '" height="' + h + '"/></g>';
+      }).join('');
+
       caja.innerHTML = '<svg class="grafico" viewBox="0 0 ' + W + ' ' + H +
         '" height="' + H + '" role="img" aria-label="Avance acumulado">' +
-        partes.join('') + '</svg>';
+        partes.join('') + bandasHtml + '</svg>';
+
+      var planPorDia = m.planValid && m.planPeriod > 0
+        ? m.planPeriod / claves.length
+        : 0;
+
+      montarGlobo(caja, {
+        contenido: function(i) {
+          var k = claves[i];
+          var esFuturo = iRef >= 0 && i > iRef;
+
+          var acum = acumulado[i];
+          var delDia = porFecha[k] || 0;
+          var planAqui = planPorDia * (i + 1);
+          var proy = enRef + ritmo * (i - iRef);
+
+          var filas = [];
+
+          if (!esFuturo) {
+            filas.push({
+              color: 'var(--verde)',
+              etiqueta: 'Acumulado',
+              valor: formatTs(acum)
+            });
+            filas.push({
+              etiqueta: 'Entró ese día',
+              valor: delDia > 0 ? formatTs(delDia) : 'sin ingreso',
+              tenue: delDia === 0
+            });
+          } else {
+            filas.push({
+              color: 'var(--madera)',
+              etiqueta: 'Proyectado',
+              valor: formatTs(proy)
+            });
+          }
+
+          if (planAqui > 0) {
+            filas.push({
+              color: 'var(--pizarra)',
+              etiqueta: 'Plan a la fecha',
+              valor: formatTs(planAqui)
+            });
+
+            var brecha = (esFuturo ? proy : acum) - planAqui;
+
+            filas.push({
+              etiqueta: esFuturo ? 'Desvío proyectado' : 'Desvío',
+              valor: signo(brecha),
+              clase: claseDesvio(brecha)
+            });
+          }
+
+          return globoHTML({
+            titulo: formatDateKey(k),
+            subtitulo: 'Día hábil ' + (i + 1) + ' de ' + claves.length,
+            filas: filas,
+            pie: esFuturo
+              ? 'Proyección al ritmo de ' + formatCorto(ritmo) + ' por día hábil.'
+              : (planAqui > 0 && acum >= planAqui
+                  ? 'Al día con el plan.'
+                  : null)
+          });
+        },
+        destacar: function(i) {
+          var esFuturo = iRef >= 0 && i > iRef;
+          var vy = esFuturo ? y(enRef + ritmo * (i - iRef)) : y(acumulado[i]);
+
+          var guia = caja.querySelector('.guia');
+          var foco = caja.querySelector('.foco');
+
+          if (guia) {
+            guia.setAttribute('x1', x(i));
+            guia.setAttribute('x2', x(i));
+            guia.setAttribute('opacity', '1');
+          }
+
+          if (foco) {
+            foco.setAttribute('cx', x(i));
+            foco.setAttribute('cy', vy);
+            foco.setAttribute('fill',
+              esFuturo ? 'var(--madera)' : 'var(--verde)');
+            foco.setAttribute('opacity', '1');
+          }
+
+          encender(caja, i);
+        },
+        apagar: function() { apagar(caja); }
+      });
     }
 
     function grafDiario() {
@@ -3266,8 +3760,8 @@
       partes.push(
         '<pattern id="rayado" width="6" height="6" patternUnits="userSpaceOnUse"' +
         ' patternTransform="rotate(-45)">' +
-        '<rect width="6" height="6" fill="#C9903F"/>' +
-        '<rect width="3" height="6" fill="#A96C2A"/></pattern>'
+        '<rect width="6" height="6" fill="var(--madera-2)"/>' +
+        '<rect width="3" height="6" fill="var(--madera)"/></pattern>'
       );
 
       fechas.forEach(function(k, i) {
@@ -3277,19 +3771,17 @@
         var hEst = (d.est / tope) * h;
 
         if (d.real > 0) {
-          partes.push('<rect class="barra-svg" x="' + (cx - ancho / 2) +
-            '" y="' + y(d.real) + '" width="' + ancho + '" height="' +
-            Math.max(1, hReal) + '" fill="var(--verde)" rx="1.5">' +
-            '<title>' + esc(formatDateKey(k)) + ' · real ' +
-            formatTs(d.real) + '</title></rect>');
+          partes.push('<rect class="barra-svg" data-i="' + i + '" x="' +
+            (cx - ancho / 2) + '" y="' + y(d.real) + '" width="' + ancho +
+            '" height="' + Math.max(1, hReal) +
+            '" fill="var(--verde)" rx="1.5"/>');
         }
 
         if (d.est > 0) {
-          partes.push('<rect class="barra-svg" x="' + (cx - ancho / 2) +
-            '" y="' + (y(d.real) - hEst) + '" width="' + ancho +
-            '" height="' + Math.max(1, hEst) + '" fill="url(#rayado)" rx="1.5">' +
-            '<title>' + esc(formatDateKey(k)) + ' · estimado ' +
-            formatTs(d.est) + '</title></rect>');
+          partes.push('<rect class="barra-svg" data-i="' + i + '" x="' +
+            (cx - ancho / 2) + '" y="' + (y(d.real) - hEst) + '" width="' +
+            ancho + '" height="' + Math.max(1, hEst) +
+            '" fill="url(#rayado)" rx="1.5"/>');
         }
       });
 
@@ -3315,7 +3807,66 @@
 
       caja.innerHTML = '<svg class="grafico" viewBox="0 0 ' + W + ' ' + H +
         '" height="' + H + '" role="img" aria-label="Ingreso diario">' +
-        partes.join('') + '</svg>';
+        partes.join('') + bandas(fechas.length, M, w, h, paso) + '</svg>';
+
+      montarGlobo(caja, {
+        contenido: function(i) {
+          var k = fechas[i];
+          var d = agrupado[k];
+          var total = d.real + d.est;
+
+          var filas = [];
+
+          if (d.real > 0) {
+            filas.push({
+              color: 'var(--verde)',
+              etiqueta: 'Recibido (SAP)',
+              valor: formatTs(d.real)
+            });
+          }
+
+          if (d.est > 0) {
+            filas.push({
+              color: 'var(--madera)',
+              etiqueta: 'Estimado (planilla)',
+              valor: formatTs(d.est)
+            });
+          }
+
+          if (d.real > 0 && d.est > 0) {
+            filas.push({ etiqueta: 'Total del día', valor: formatTs(total) });
+          }
+
+          if (planDiario > 0) {
+            filas.push({
+              color: 'var(--pizarra)',
+              etiqueta: 'Plan diario',
+              valor: formatTs(planDiario)
+            });
+
+            filas.push({
+              etiqueta: 'Desvío',
+              valor: signo(total - planDiario),
+              clase: claseDesvio(total - planDiario)
+            });
+          }
+
+          var camiones = d.est > 0
+            ? Math.round(d.est / (DATA.factor || 11))
+            : 0;
+
+          return globoHTML({
+            titulo: formatDateKey(k),
+            filas: filas,
+            pie: d.est > 0
+              ? camiones + ' camiones de planilla · ' +
+                (DATA.factor || 11) + ' TS cada uno, aún sin confirmar en SAP'
+              : (d.real > 0 ? 'Cerrado en SAP.' : null)
+          });
+        },
+        destacar: function(i) { encender(caja, i, true); },
+        apagar: function() { apagar(caja); }
+      });
     }
 
     function grafMix() {
@@ -3331,20 +3882,77 @@
 
       caja.innerHTML =
         '<div class="reparto">' +
-        datos.map(function(x) {
+        datos.map(function(x, i) {
           var parte = x.total / total;
-          return '<div style="flex:' + parte + ';background:' +
-            (PRODUCT_COLORS[x.subproducto] || '#8B958D') + '">' +
-            (parte > 0.1 ? formatPercent(parte) : '') + '</div>';
+          return '<div class="banda" data-i="' + i + '" style="flex:' + parte +
+            ';background:' + (PRODUCT_COLORS[x.subproducto] || '#8B958D') +
+            '">' + (parte > 0.1 ? formatPercent(parte) : '') + '</div>';
         }).join('') +
         '</div><div class="reparto-leyenda">' +
-        datos.map(function(x) {
-          return '<div class="reparto-fila">' +
+        datos.map(function(x, i) {
+          return '<div class="reparto-fila banda" data-i="' + i + '">' +
             '<i style="background:' +
               (PRODUCT_COLORS[x.subproducto] || '#8B958D') + '"></i>' +
             '<span>' + esc(shortProduct(x.subproducto)) + '</span>' +
             '<b>' + formatTs(x.total) + '</b></div>';
         }).join('') + '</div>';
+
+      montarGlobo(caja, {
+        contenido: function(i) {
+          var x = datos[i];
+          var parte = x.total / total;
+
+          var filas = [
+            {
+              color: PRODUCT_COLORS[x.subproducto] || '#8B958D',
+              etiqueta: 'Volumen',
+              valor: formatTs(x.total)
+            },
+            { etiqueta: 'Del total', valor: formatPercent(parte) }
+          ];
+
+          if (x.real > 0 || x.estimate > 0) {
+            filas.push({
+              etiqueta: 'Recibido en SAP',
+              valor: formatTs(x.real),
+              tenue: true
+            });
+
+            if (x.estimate > 0) {
+              filas.push({
+                color: 'var(--madera)',
+                etiqueta: 'Estimado',
+                valor: formatTs(x.estimate)
+              });
+            }
+          }
+
+          if (x.planPeriod > 0) {
+            filas.push({
+              color: 'var(--pizarra)',
+              etiqueta: 'Plan del período',
+              valor: formatTs(x.planPeriod)
+            });
+
+            filas.push({
+              etiqueta: 'Desvío',
+              valor: signo(x.total - x.planPeriod),
+              clase: claseDesvio(x.total - x.planPeriod)
+            });
+          }
+
+          return globoHTML({
+            titulo: x.subproducto,
+            filas: filas,
+            pie: x.planValid && x.projection
+              ? 'Proyección al cierre: ' + formatTs(x.projection) +
+                (x.projectedCompliance
+                  ? ' · ' + formatPercent(x.projectedCompliance) + ' del plan'
+                  : '')
+              : (x.trucks ? formatInteger(x.trucks) + ' camiones de planilla.' : null)
+          });
+        }
+      });
     }
 
     function grafPareto() {
@@ -3378,11 +3986,10 @@
       datos.forEach(function(x, i) {
         var cx = M.l + paso * i + paso / 2;
 
-        partes.push('<rect class="barra-svg" x="' + (cx - ancho / 2) + '" y="' +
-          y(x.total) + '" width="' + ancho + '" height="' +
-          Math.max(1, (x.total / tope) * h) + '" fill="var(--verde)" rx="2">' +
-          '<title>' + esc(x.proveedor) + ' · ' + formatTs(x.total) +
-          '</title></rect>');
+        partes.push('<rect class="barra-svg" data-i="' + i + '" x="' +
+          (cx - ancho / 2) + '" y="' + y(x.total) + '" width="' + ancho +
+          '" height="' + Math.max(1, (x.total / tope) * h) +
+          '" fill="var(--verde)" rx="2"/>');
 
         acum += x.share;
         puntos.push([cx, M.t + h - Math.min(1, acum) * h]);
@@ -3413,7 +4020,69 @@
 
       caja.innerHTML = '<svg class="grafico" viewBox="0 0 ' + W + ' ' + H +
         '" height="' + H + '" role="img" aria-label="Pareto de proveedores">' +
-        partes.join('') + '</svg>';
+        partes.join('') + bandas(datos.length, M, w, h, paso) + '</svg>';
+
+      montarGlobo(caja, {
+        contenido: function(i) {
+          var x = datos[i];
+
+          var filas = [
+            {
+              color: 'var(--verde)',
+              etiqueta: 'Volumen',
+              valor: formatTs(x.total)
+            },
+            { etiqueta: 'Del total', valor: formatPercent(x.share) },
+            {
+              etiqueta: 'Acumulado hasta aquí',
+              valor: formatPercent(x.cumulativeShare),
+              tenue: true
+            }
+          ];
+
+          if (x.trucks) {
+            filas.push({
+              etiqueta: 'Camiones',
+              valor: formatQuantity(x.trucks),
+              tenue: true
+            });
+          }
+
+          if (x.days) {
+            filas.push({
+              etiqueta: 'Promedio por día',
+              valor: formatTs(x.average),
+              tenue: true
+            });
+          }
+
+          if (x.weightedPrice !== null && x.weightedPrice !== undefined) {
+            filas.push({
+              etiqueta: 'Precio medio',
+              valor: formatPrice(x.weightedPrice) + '/TS'
+            });
+          }
+
+          var pie = null;
+
+          if (x.daysSinceLast !== null && x.daysSinceLast !== undefined) {
+            pie = x.daysSinceLast === 0
+              ? 'Despachó el último día con movimiento.'
+              : 'Sin despachar hace ' + x.daysSinceLast + ' días.';
+          }
+
+          return globoHTML({
+            titulo: x.proveedor,
+            subtitulo: 'Proveedor ' + (i + 1) + ' de ' +
+              CURRENT_PROVIDERS.length + ' · ' +
+              (x.products || []).map(shortProduct).join(', '),
+            filas: filas,
+            pie: pie
+          });
+        },
+        destacar: function(i) { encender(caja, i, true); },
+        apagar: function() { apagar(caja); }
+      });
     }
 
     function grafPrecio() {
@@ -3466,20 +4135,15 @@
 
         // Un proveedor aparece una vez por subproducto, así que el
         // color de la barra es lo que distingue las repeticiones.
-        partes.push('<rect class="barra-svg" x="' + (cx - ancho / 2) + '" y="' +
-          y(x.total) + '" width="' + ancho + '" height="' +
-          Math.max(1, (x.total / topeTs) * h) + '" fill="' +
-          (PRODUCT_COLORS[x.subproducto] || '#8B958D') + '" rx="2">' +
-          '<title>' + esc(x.proveedor) + ' · ' +
-          esc(shortProduct(x.subproducto)) + ' · ' + formatTs(x.total) +
-          '</title></rect>');
+        partes.push('<rect class="barra-svg" data-i="' + i + '" x="' +
+          (cx - ancho / 2) + '" y="' + y(x.total) + '" width="' + ancho +
+          '" height="' + Math.max(1, (x.total / topeTs) * h) + '" fill="' +
+          (PRODUCT_COLORS[x.subproducto] || '#8B958D') + '" rx="2"/>');
 
         if (x.precio !== null && x.precio !== undefined) {
-          partes.push('<circle class="barra-svg" cx="' + cx + '" cy="' +
-            yP(Number(x.precio)) + '" r="4.5" fill="var(--ink)" ' +
-            'stroke="#fff" stroke-width="1.5">' +
-            '<title>' + esc(x.proveedor) + ' · ' + formatPrice(x.precio) +
-            '/TS</title></circle>');
+          partes.push('<circle class="barra-svg" data-i="' + i + '" cx="' + cx +
+            '" cy="' + yP(Number(x.precio)) + '" r="4.5" fill="var(--ink)" ' +
+            'stroke="var(--paper)" stroke-width="1.5"/>');
         }
 
         partes.push('<g transform="translate(' + cx + ',' + (M.t + h + 8) +
@@ -3501,7 +4165,77 @@
 
       caja.innerHTML = '<svg class="grafico" viewBox="0 0 ' + W + ' ' + H +
         '" height="' + H + '" role="img" aria-label="Precio vs volumen">' +
-        partes.join('') + '</svg>';
+        partes.join('') + bandas(datos.length, M, w, h, paso) + '</svg>';
+
+      var precioMedio = precios.length
+        ? precios.reduce(function(t, v) { return t + v; }, 0) / precios.length
+        : 0;
+
+      montarGlobo(caja, {
+        contenido: function(i) {
+          var x = datos[i];
+          var tienePrecio = x.precio !== null && x.precio !== undefined;
+
+          var filas = [
+            {
+              color: PRODUCT_COLORS[x.subproducto] || '#8B958D',
+              etiqueta: 'Volumen',
+              valor: formatTs(x.total)
+            }
+          ];
+
+          if (x.real > 0 && x.estimate > 0) {
+            filas.push({
+              etiqueta: 'Recibido / estimado',
+              valor: formatCorto(x.real) + ' / ' + formatCorto(x.estimate),
+              tenue: true
+            });
+          }
+
+          if (tienePrecio) {
+            filas.push({
+              etiqueta: 'Precio',
+              valor: formatPrice(x.precio) + '/TS'
+            });
+
+            filas.push({
+              etiqueta: 'Contra el promedio',
+              valor: formatSignedPrice(Number(x.precio) - precioMedio),
+              clase: claseDesvio(-(Number(x.precio) - precioMedio))
+            });
+
+            filas.push({ etiqueta: 'Costo del período', valor: formatCost(x.cost) });
+          }
+
+          if (x.gapToDate !== null && x.gapToDate !== undefined) {
+            filas.push({
+              color: 'var(--pizarra)',
+              etiqueta: 'Contra su plan',
+              valor: signo(x.gapToDate),
+              clase: claseDesvio(x.gapToDate)
+            });
+          }
+
+          // Cuando falta el precio, lo que hay que ver es POR QUÉ falta:
+          // sin eso no se sabe si arreglarlo en Proveedores o en el Plan.
+          var pie = tienePrecio
+            ? (x.matchMethod || null)
+            : 'Sin precio: ' + (x.matchMethod || 'no cruzó con el Plan') +
+              '. Revisa la hoja Proveedores.';
+
+          return globoHTML({
+            titulo: x.proveedor,
+            subtitulo: shortProduct(x.subproducto) +
+              (x.proveedorPlan && x.proveedorPlan !== x.proveedor
+                ? ' · en el Plan: ' + x.proveedorPlan
+                : ''),
+            filas: filas,
+            pie: pie
+          });
+        },
+        destacar: function(i) { encender(caja, i, true); },
+        apagar: function() { apagar(caja); }
+      });
     }
 
 /* =====================================================================

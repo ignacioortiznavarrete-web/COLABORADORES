@@ -115,6 +115,34 @@ ritmo actual.
 Los gráficos se dibujan en SVG propio, sin librería: el aspecto por
 defecto de una librería de charts se reconoce a un kilómetro.
 
+### El detalle al pasar el mouse
+
+Cada gráfico se lee de dos maneras: la forma de lejos, el número de
+cerca. Al poner el cursor encima aparece un panel con lo que hay detrás
+de ese punto, y **no solo el valor: también contra qué se compara**.
+
+| Gráfico | Qué sale al pasar por encima |
+|---|---|
+| Avance acumulado | Guía vertical y punto sobre la serie. Acumulado, lo que entró ese día, plan a la fecha y desvío. En los días futuros, el proyectado y a qué ritmo |
+| Ingreso diario | Recibido, estimado, total, plan del día, desvío, y a cuántos camiones equivale lo estimado |
+| Reparto por producto | Volumen, participación, recibido contra estimado, plan del período y desvío. Funciona sobre la barra y sobre la leyenda |
+| Precio vs volumen | Precio, cuánto se aleja del promedio, costo del período y, si no tiene precio, **por qué no lo tiene** |
+| Pareto | Nombre completo del proveedor —que en el eje va cortado—, participación, acumulado, camiones, precio medio y hace cuánto no despacha |
+
+Tres detalles que importan:
+
+- La zona sensible es **la columna completa**, no la barra. Apuntarle a
+  una barra de un pixel es imposible; a su columna, no.
+- Lo que no está bajo el cursor **se apaga**, para que el dato apuntado
+  quede solo.
+- El panel **se voltea** al acercarse al borde en vez de salirse de la
+  pantalla, y se apaga al desplazar la página.
+
+En el gráfico de precio, cuando falta el precio el panel dice el motivo
+—`Proveedor sin precio homologado`, `Precio ambiguo`, `Precio duplicado
+en el Plan`—, que es lo que decide si hay que arreglarlo en
+`Proveedores` o en el Plan.
+
 ## Proveedores: un mismo aserradero, tres nombres
 
 El mismo proveedor llega escrito distinto en cada parte. En SAP
