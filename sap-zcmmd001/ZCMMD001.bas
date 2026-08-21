@@ -54,6 +54,7 @@ Public Sub Cargar_Guias_SAP()
     Dim grabadas As Long
     Dim omitidas As Long
     Dim conError As Long
+    Dim detalleConexion As String
 
     On Error GoTo ErrorGeneral
 
@@ -75,11 +76,11 @@ Public Sub Cargar_Guias_SAP()
         Exit Sub
     End If
 
-    Set session = ConectarSAP()
+    Set session = ConectarSAP(detalleConexion)
 
     If session Is Nothing Then
-        MsgBox "No fue posible conectarse a SAP." & vbCrLf & vbCrLf & _
-               "Revise que SAP esté abierto y que el scripting esté habilitado.", vbCritical
+        MsgBox "No fue posible conectarse a SAP." & vbCrLf & vbCrLf & detalleConexion, _
+               vbCritical, "Conexión SAP"
         Exit Sub
     End If
 
@@ -209,12 +210,14 @@ Public Sub Probar_SAP()
     Dim session As Object
     Dim lista As Collection
     Dim detalle As String
+    Dim detalleConexion As String
     Dim i As Long
 
-    Set session = ConectarSAP()
+    Set session = ConectarSAP(detalleConexion)
 
     If session Is Nothing Then
-        MsgBox "No se pudo conectar a SAP.", vbCritical
+        MsgBox "No se pudo conectar a SAP." & vbCrLf & vbCrLf & detalleConexion, _
+               vbCritical, "Conexión SAP"
         Exit Sub
     End If
 
@@ -261,64 +264,125 @@ Public Sub Probar_SAP()
 
 End Sub
 
-Private Function ConectarSAP() As Object
+Private Function ConectarSAP(ByRef detalle As String) As Object
 
     Dim SapGuiAuto As Object
     Dim applicationSAP As Object
     Dim connection As Object
     Dim session As Object
+    Dim elegida As Object
+    Dim conexiones As Long
+    Dim sesiones As Long
     Dim i As Long
     Dim j As Long
     Dim txActual As String
 
-    On Error GoTo ErrorConexion
+    Set ConectarSAP = Nothing
+    Set elegida = Nothing
+    detalle = ""
 
+    Set SapGuiAuto = Nothing
+
+    On Error Resume Next
     Set SapGuiAuto = GetObject("SAPGUI")
+
+    If Err.Number <> 0 Or SapGuiAuto Is Nothing Then
+        detalle = _
+            "Paso 1: GetObject(""SAPGUI"") devolvió error " & Err.Number & _
+            " - " & Err.Description & vbCrLf & vbCrLf & _
+            "Revise en este orden:" & vbCrLf & _
+            "1) Que SAP Logon esté abierto y con la sesión iniciada." & vbCrLf & _
+            "2) Que Excel y SAP corran con los mismos permisos. Si uno se abrió como " & _
+            "administrador y el otro no, Windows no los deja verse entre ellos." & vbCrLf & _
+            "3) SAP Logon > Opciones > Accesibilidad y scripting > Scripting > " & _
+            "Habilitar scripting."
+        Err.Clear
+        Exit Function
+    End If
+
+    Err.Clear
+
+    Set applicationSAP = Nothing
     Set applicationSAP = SapGuiAuto.GetScriptingEngine
 
-    For i = 0 To applicationSAP.Children.Count - 1
+    If Err.Number <> 0 Or applicationSAP Is Nothing Then
+        detalle = _
+            "Paso 2: GetScriptingEngine devolvió error " & Err.Number & _
+            " - " & Err.Description & vbCrLf & vbCrLf & _
+            "SAP responde, pero no entrega el motor de scripting. Normalmente es el " & _
+            "scripting deshabilitado en el cliente:" & vbCrLf & _
+            "SAP Logon > Opciones > Accesibilidad y scripting > Scripting > " & _
+            "Habilitar scripting."
+        Err.Clear
+        Exit Function
+    End If
 
+    Err.Clear
+
+    conexiones = -1
+    conexiones = applicationSAP.Children.Count
+    Err.Clear
+
+    If conexiones < 1 Then
+        detalle = _
+            "Paso 3: SAP responde pero no hay ninguna conexión visible." & vbCrLf & vbCrLf & _
+            "Casi siempre es el scripting deshabilitado en el servidor " & _
+            "(parámetro sapgui/user_scripting = FALSE). Lo habilita Basis." & vbCrLf & _
+            "También pasa si SAP Logon está abierto pero sin sesión iniciada."
+        Exit Function
+    End If
+
+    For i = 0 To conexiones - 1
+
+        Set connection = Nothing
         Set connection = applicationSAP.Children(i)
+        Err.Clear
 
-        For j = 0 To connection.Children.Count - 1
+        If Not connection Is Nothing Then
 
-            Set session = connection.Children(j)
+            sesiones = -1
+            sesiones = connection.Children.Count
+            Err.Clear
 
-            txActual = ""
+            For j = 0 To sesiones - 1
 
-            On Error Resume Next
-            txActual = UCase(Trim(CStr(session.Info.Transaction)))
-            On Error GoTo ErrorConexion
+                Set session = Nothing
+                Set session = connection.Children(j)
+                Err.Clear
 
-            If txActual = TX_INGRESO Then
-                Set ConectarSAP = session
-                Exit Function
-            End If
+                If Not session Is Nothing Then
 
-        Next j
+                    txActual = ""
+                    txActual = UCase(Trim(CStr(session.Info.Transaction)))
+                    Err.Clear
+
+                    If txActual = TX_INGRESO Then
+                        Set ConectarSAP = session
+                        Exit Function
+                    End If
+
+                    If elegida Is Nothing Then
+                        Set elegida = session
+                    End If
+
+                End If
+
+            Next j
+
+        End If
 
     Next i
 
-    If applicationSAP.Children.Count = 0 Then
-        Set ConectarSAP = Nothing
-        Exit Function
+    If elegida Is Nothing Then
+        detalle = _
+            "Paso 4: hay " & conexiones & " conexión(es) de SAP, pero ninguna con una " & _
+            "sesión utilizable desde scripting." & vbCrLf & vbCrLf & _
+            "Inicie sesión en SAP y vuelva a ejecutar."
+    Else
+        Set ConectarSAP = elegida
     End If
 
-    Set connection = applicationSAP.Children(0)
-
-    If connection.Children.Count = 0 Then
-        Set ConectarSAP = Nothing
-        Exit Function
-    End If
-
-    Set session = connection.Children(0)
-    Set ConectarSAP = session
-
-    Exit Function
-
-ErrorConexion:
-
-    Set ConectarSAP = Nothing
+    Err.Clear
 
 End Function
 
