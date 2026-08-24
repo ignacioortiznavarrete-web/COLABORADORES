@@ -19,6 +19,18 @@
   <main id="app" hidden>
     <div id="mensaje"></div>
 
+    <!-- Camino corto: pegar el código ya armado -->
+    <section class="pegar" id="pegar">
+      <label class="tit" for="codigoPegado">¿Ya tienes el código?</label>
+      <div class="pegar-fila">
+        <input type="text" id="codigoPegado" class="codigo-entrada" autocomplete="off"
+               spellcheck="false" placeholder="RVMH032X180X3960">
+        <button type="button" class="secundario" id="btnPegar">Usar este código</button>
+        <span class="pegar-nota">o ármalo paso a paso más abajo</span>
+      </div>
+      <div id="pegarAviso"></div>
+    </section>
+
     <!-- El banco de trabajo: el código en vivo -->
     <section class="banco" id="banco" aria-label="Código de material">
       <div class="banco-cuerpo">
@@ -226,6 +238,7 @@
     aviso($('mensaje'), 'error', titulo, texto);
     $('acciones').hidden = true;
     $('banco').hidden = true;
+    $('pegar').hidden = true;
     for (var i = 1; i <= 5; i++) $('paso' + i).hidden = true;
   }
 
@@ -289,18 +302,30 @@
       if (!o) return;
       S.origen = valor;
       marcar($('opcOrigen'), valor);
-      $('grupoCentro').hidden = false;
-      $('opcCentro').innerHTML = o.centros.map(function (c) {
-        return boton('chip mono', c, esc(c), o.centros.length === 1);
-      }).join('');
-      S.centro = o.centros.length === 1 ? o.centros[0] : '';
-      olvidarAgrupacion();
+      // Si el centro sigue sirviendo para este origen, no se pierde nada.
+      var centro = o.centros.length === 1 ? o.centros[0]
+        : (o.centros.indexOf(S.centro) !== -1 ? S.centro : '');
+      dibujarCentros(o, centro);
+      if (centro !== S.centro) { S.centro = centro; olvidarAgrupacion(); }
     }
 
-    if (campo === 'centro') { S.centro = valor; marcar($('opcCentro'), valor); olvidarAgrupacion(); }
-    if (campo === 'tipoMaterial') { S.tipoMaterial = valor; marcar($('opcTipo'), valor); olvidarAgrupacion(); }
+    if (campo === 'centro') {
+      marcar($('opcCentro'), valor);
+      if (valor !== S.centro) { S.centro = valor; olvidarAgrupacion(); }
+    }
+    if (campo === 'tipoMaterial') {
+      marcar($('opcTipo'), valor);
+      if (valor !== S.tipoMaterial) { S.tipoMaterial = valor; olvidarAgrupacion(); }
+    }
 
     refrescar();
+  }
+
+  function dibujarCentros(origen, seleccionado) {
+    $('grupoCentro').hidden = false;
+    $('opcCentro').innerHTML = origen.centros.map(function (c) {
+      return boton('chip mono', c, esc(c), c === seleccionado);
+    }).join('');
   }
 
   /** Cambiar centro o tipo de material invalida la agrupación y todo lo que sigue. */
@@ -313,6 +338,108 @@
     S.largos = [];
     S.codigo = '';
     pintarBanco();
+  }
+
+  /* ------------------------------------------- camino corto: pegar el código */
+
+  function usarCodigoPegado() {
+    var texto = $('codigoPegado').value.trim();
+    if (!texto) {
+      aviso($('pegarAviso'), 'alerta', '', 'Pega el código que quieres registrar.');
+      return;
+    }
+    $('btnPegar').disabled = true;
+    aviso($('pegarAviso'), 'info', '', 'Desarmando ' + texto.toUpperCase() + '…');
+    google.script.run
+      .withSuccessHandler(alPegar)
+      .withFailureHandler(function (err) {
+        $('btnPegar').disabled = false;
+        aviso($('pegarAviso'), 'error', 'No se pudo leer el código. ',
+          err && err.message ? err.message : err);
+      })
+      .apiPegarCodigo(texto);
+  }
+
+  function alPegar(r) {
+    $('btnPegar').disabled = false;
+
+    // Sin agrupación no hay nada que aplicar: el código no se reconoció.
+    if (!r.agrupacion) {
+      aviso($('pegarAviso'), 'error', '', r.mensaje);
+      return;
+    }
+
+    S.centro = r.centro;
+    S.tipoMaterial = r.tipoMaterial;
+    S.origen = r.origen || '';
+    S.agrupacion = r.agrupacion;
+    S.agrupaciones = null;          // se recarga sola si vuelve al paso 2
+    S.espesor = r.espesor;
+    S.ancho = r.ancho;
+    S.largo = r.largo;
+    S.largos = r.largos || [];
+    S.material = r.material;
+    S.buscado = true;
+    S.desglose = {};
+
+    // Reflejarlo en los controles, para que se vea de dónde salió cada cosa.
+    marcar($('opcOrigen'), S.origen);
+    var origen = origenPorId(S.origen);
+    dibujarCentros(origen || { centros: [S.centro] }, S.centro);
+    marcar($('opcTipo'), S.tipoMaterial);
+    $('mEspesor').value = S.espesor;
+    $('mAncho').value = S.ancho;
+    $('mLargo').value = S.largo;
+
+    dibujarLargos();
+    pintarBanco();
+
+    if (r.encontrado) {
+      var m = r.material;
+      mostrarFicha('', '<span class="desc">' + esc(m.descripcion) + '</span>' +
+        '<span class="dato">Grupo <b>' + esc(m.grupo || '—') + '</b></span>' +
+        '<span class="dato">TpMt <b>' + esc(m.tipoMaterial || '—') + '</b></span>' +
+        '<span class="dato">Ce <b>' + esc(m.ce || '—') + '</b></span>');
+    } else {
+      mostrarFicha('malo', esc(r.mensaje));
+    }
+
+    var falta = primerPasoIncompleto();
+    aviso($('pegarAviso'), r.encontrado ? 'ok' : 'alerta', '',
+      r.encontrado
+        ? esc(r.agrupacion.codigo) + ' · ' + esc(r.agrupacion.texto) + ' · ' +
+          esc(r.centro) + ' · ' + esc(r.tipoMaterial) + '. ' + queFalta(falta)
+        : r.mensaje);
+
+    irA(falta);
+    refrescar();
+  }
+
+  function queFalta(paso) {
+    if (paso === 1) {
+      var pendientes = [];
+      if (!S.clase) pendientes.push('la clase');
+      if (!S.origen) pendientes.push('el origen');
+      return pendientes.length ? 'Falta ' + pendientes.join(' y ') + '.' : '';
+    }
+    if (paso === 3) return 'Revisa las medidas.';
+    if (paso === 4) return 'Revisa el desglose.';
+    if (paso === 5) return 'Solo falta la cantidad.';
+    return '';
+  }
+
+  function primerPasoIncompleto() {
+    for (var n = 1; n <= PASOS.length; n++) if (!pasoCompleto(n)) return n;
+    return PASOS.length;
+  }
+
+  /**
+   * Siguiente va al próximo paso que falte, no al de al lado. En el camino
+   * normal es lo mismo; con un código pegado se salta lo que ya vino resuelto.
+   */
+  function siguientePaso() {
+    for (var n = PASO + 1; n <= PASOS.length; n++) if (!pasoCompleto(n)) return n;
+    return Math.min(PASO + 1, PASOS.length);
   }
 
   /* --------------------------------------------------------- paso 2 */
@@ -774,6 +901,8 @@
     S.desglose = {};
     $('mEspesor').value = ''; $('mAncho').value = ''; $('mLargo').value = '';
     $('piezas').value = '';
+    $('codigoPegado').value = '';
+    $('pegarAviso').innerHTML = '';
     $('largos').innerHTML = '';
     $('fichaBanco').hidden = true;
     $('listo').hidden = true; $('listo').innerHTML = '';
@@ -796,8 +925,15 @@
   /* ---------------------------------------------------------------- eventos */
 
   $('btnAtras').addEventListener('click', function () { irA(PASO - 1); });
-  $('btnSiguiente').addEventListener('click', function () { irA(PASO + 1); });
+  $('btnSiguiente').addEventListener('click', function () { irA(siguientePaso()); });
   $('btnGuardar').addEventListener('click', guardar);
+  $('btnPegar').addEventListener('click', usarCodigoPegado);
+  $('codigoPegado').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter') { ev.preventDefault(); usarCodigoPegado(); }
+  });
+  $('codigoPegado').addEventListener('input', function () {
+    $('pegarAviso').innerHTML = '';
+  });
 
   var DIGITOS = { mEspesor: 3, mAncho: 3, mLargo: 4 };
   ['mEspesor', 'mAncho', 'mLargo'].forEach(function (id) {

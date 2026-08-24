@@ -130,6 +130,20 @@ function agrupacionesDe_(centro, tipoMaterial) {
   });
 }
 
+/**
+ * Busca la agrupación en TODO el catálogo, sin filtrar por centro.
+ * Es lo que permite pegar un código armado: el prefijo dice a qué centro y a
+ * qué tipo de material pertenece, porque cada AgrupMad aparece una sola vez.
+ */
+function buscarAgrupacion_(codigo) {
+  var buscado = normalizar_(codigo);
+  var lista = catalogoSAP_();
+  for (var i = 0; i < lista.length; i++) {
+    if (normalizar_(lista[i].agrupacion) === buscado) return lista[i];
+  }
+  return null;
+}
+
 function agrupacionPorCodigo_(centro, tipoMaterial, codigo) {
   var buscado = normalizar_(codigo);
   var lista = agrupacionesDe_(centro, tipoMaterial);

@@ -60,6 +60,27 @@ Qué habilita cada combinación, hoy:
 | TCP1 | TPAS | 16 (las de proceso, de tres letras: CSF, RSF, RVM…) |
 | TCD2 | TPAS | ninguna |
 
+## Dos maneras de entrar
+
+**Pegando el código.** Si ya lo tienes armado, lo pegas arriba y el formulario
+lo desarma y trae el resto: la agrupación con su texto, el centro y el tipo de
+material (desde `SAP`), las medidas separadas, las etapas que aplican y la ficha
+del material. Queda por elegir solo lo que el código no dice: la **clase de
+requerimiento** y, si el centro es TCP1, el **origen** — porque TCP1 lo usan
+tanto Trading como Planta. Después, *Siguiente* salta directo a lo que falte.
+
+```
+RVMH032X180X3960  →  RVMH · Rústico Verde Médula Radiata Terceros · TCD2 · TTAS
+                     032 · 180 · 3960 · solo aserradero
+```
+
+Si al copiar se perdió el espacio del cuarto lugar (`CSF019X075` en vez de
+`CSF 019X075`), igual lo reconoce. Si el prefijo no está en `SAP`, lo dice con
+ese nombre en vez de fallar en silencio.
+
+**Armándolo paso a paso.** Los cinco pasos de abajo. Las dos maneras terminan en
+la misma fila; hay una prueba que lo comprueba columna por columna.
+
 ## Los cinco pasos
 
 | Paso | Qué se pide |
@@ -71,7 +92,8 @@ Qué habilita cada combinación, hoy:
 | 5 · Cantidad | Piezas, unidad y stock/pedido, con el resumen de la fila antes de guardar |
 
 Arriba, siempre a la vista, el código se va armando carácter por carácter y
-debajo dice qué significa cada uno.
+debajo dice qué significa cada uno. Los pasos que ya vienen resueltos quedan
+marcados en la barra de arriba y se pueden revisar haciendo clic.
 
 ## Lo que se completa solo
 
@@ -230,11 +252,11 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 |---|---|
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
 | `fuente/Catalogos.gs` | Lectura de las hojas SAP y Agrupamiento, con sus semillas. |
-| `fuente/Registro.gs` | Armado del código, etapas aplicables, búsqueda y escritura. La API. |
+| `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. La API. |
 | `fuente/Setup.gs` | Crea las hojas de catálogo y revisa las columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |
 | `fuente/Estilos.html` | El sistema visual. |
-| `fuente/Formulario.html` | Los cinco pasos y el código en vivo. |
+| `fuente/Formulario.html` | La barra de pegado, los cinco pasos y el código en vivo. |
 | `pruebas/` | Simulador de Apps Script + pruebas. |
 
 ```bash
@@ -244,4 +266,5 @@ cd registromaderas/pruebas && node test.js
 Las pruebas levantan las hojas con los mismos encabezados que tiene hoy el
 spreadsheet (rótulos repetidos incluidos) y cubren las condicionales: qué
 agrupación habilita cada centro, qué etapas aplican según el prefijo, cómo se
-arma el código y qué queda escrito en cada columna.
+arma y se desarma el código, qué queda escrito en cada columna, y que pegar el
+código y armarlo a mano produzcan exactamente la misma fila.

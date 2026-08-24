@@ -195,6 +195,53 @@ seccion('Medidas: arma el código y lo busca en la base');
 
 /* -------------------------------------------------------------- el guardado */
 
+seccion('Pegar un código ya armado');
+{
+  const d = descomponerCodigo_('RVMH032X180X3960');
+  ok(d.agrupacion === 'RVMH' && d.espesor === '032' && d.ancho === '180' && d.largo === '3960',
+    'desarma un código de 16 caracteres en sus cuatro partes');
+
+  const proceso = descomponerCodigo_('CSF 019X075');
+  ok(proceso.agrupacion === 'CSF' && proceso.prefijo === 'CSF ' && proceso.largo === '',
+    'y uno de proceso, con el espacio en el cuarto lugar y sin largo');
+
+  ok(descomponerCodigo_('CSF019X075').agrupacion === 'CSF',
+    'si al copiar se perdió ese espacio, igual lo reconoce');
+  ok(descomponerCodigo_('rvmh032x180x3960').agrupacion === 'RVMH',
+    'y no importa que venga en minúsculas');
+  ok(descomponerCodigo_('RVMH032-180-3960') === null, 'una forma que no calza devuelve null');
+  ok(descomponerCodigo_('RVMH32X180X3960') === null,
+    'un espesor de dos dígitos tampoco: el código va con los ceros puestos');
+}
+{
+  const r = apiPegarCodigo('RVMH032X180X3960');
+  ok(r.ok && r.encontrado, 'el código pegado se encuentra en la base');
+  ok(r.centro === 'TCD2' && r.tipoMaterial === 'TTAS',
+    'el prefijo trae consigo el centro y el tipo de material, desde la hoja SAP');
+  ok(r.origen === 'Trading', 'y el origen, porque TCD2 solo lo usa Trading');
+  ok(r.agrupacion.texto.indexOf('Médula') !== -1, 'trae el texto de la agrupación');
+  ok(r.agrupacion.etapas.aserradero && !r.agrupacion.etapas.secado,
+    'y las etapas que le corresponden');
+  ok(r.agrupacion.sugerido.aserradero.plantilla === 'RVM', 'con la plantilla propuesta');
+  ok(r.espesor === '032' && r.ancho === '180' && r.largo === '3960', 'y las medidas separadas');
+  ok(r.largos.join() === '3200,3960,4000', 'más los otros largos de esa escuadría');
+  ok(r.material.grupo === 'X9000', 'y la ficha del material');
+}
+{
+  const r = apiPegarCodigo('CSF 019X075');
+  ok(r.centro === 'TCP1' && r.tipoMaterial === 'TPAS', 'un producto en proceso trae TCP1 + TPAS');
+  ok(r.origen === '' && r.origenes.join() === 'Trading,Planta',
+    'el origen queda por preguntar: TCP1 lo usan los dos');
+}
+{
+  const viejo = apiPegarCodigo('C23H001X006X0013');
+  ok(!viejo.ok && viejo.mensaje.indexOf('no está en la hoja SAP') !== -1,
+    'un prefijo que no está en SAP dice exactamente eso');
+  ok(apiPegarCodigo('').mensaje.indexOf('Pega el código') !== -1, 'sin código, avisa');
+  ok(apiPegarCodigo('ABC').mensaje.indexOf('No reconozco la forma') !== -1,
+    'con algo que no es un código, explica cómo se arma uno');
+}
+
 seccion('La fila de batch input en la hoja de la clase');
 {
   const r = apiGuardar(SOLICITUD);
@@ -264,6 +311,24 @@ seccion('Cada clase a su hoja');
   const pp = apiGuardar(con({ clase: 'PP' }));
   ok(pp.hoja === 'PP' && pp.fila === 3, 'PP se va a la hoja PP');
   ok(celda('PP', 3, 3) === 'PP', 'y la clase queda escrita en su fila');
+}
+
+seccion('Pegar y armar paso a paso terminan en la misma fila');
+{
+  const pegado = apiPegarCodigo('RVMH032X180X3960');
+  const r = apiGuardar({
+    clase: 'PT', origen: pegado.origen, centro: pegado.centro, tipoMaterial: pegado.tipoMaterial,
+    agrupacion: pegado.agrupacion.codigo,
+    espesor: pegado.espesor, ancho: pegado.ancho, largo: pegado.largo,
+    desglose: { aserradero: { plantilla: pegado.agrupacion.sugerido.aserradero.plantilla,
+                              espesor: pegado.espesor, ancho: pegado.ancho } },
+    piezas: 248, umb: 'PZA', stockPedido: 'P'
+  });
+  const armado = apiGuardar(SOLICITUD);
+  const fila = f => SS.getSheetByName('PT').getRange(f, 1, 1, 26).getValues()[0]
+    .map((v, i) => (i === 4 ? 'fecha' : v)).join('|');
+  ok(fila(r.fila) === fila(armado.fila),
+    'la fila del código pegado es idéntica a la del código armado a mano');
 }
 
 seccion('Trading elige centro, Planta no');

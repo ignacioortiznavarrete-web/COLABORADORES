@@ -138,6 +138,36 @@ function descomponerPrefijo_(agrupacion) {
   });
 }
 
+/**
+ * Desarma un código ya armado en sus partes.
+ *
+ *   RVMH032X180X3960  ->  prefijo RVMH · 032 · 180 · 3960
+ *   CSF 019X075       ->  prefijo "CSF " · 019 · 075 · sin largo
+ *
+ * El prefijo son los primeros cuatro caracteres. Si al copiar y pegar se perdió
+ * el espacio del cuarto lugar (CSF019X075), se reintenta con tres.
+ * Devuelve null si el resto no tiene la forma EEEXAAA[XLLLL].
+ */
+function descomponerCodigo_(texto) {
+  var limpio = normalizarCodigo_(texto).replace(/\u00a0/g, ' ').replace(/ {2,}/g, ' ');
+  var intentos = [
+    { prefijo: limpio.substring(0, 4), resto: limpio.substring(4) },
+    { prefijo: limpio.substring(0, 3) + ' ', resto: limpio.substring(3) }
+  ];
+  for (var i = 0; i < intentos.length; i++) {
+    var m = /^(\d{3})X(\d{3})(?:X(\d{4}))?$/.exec(intentos[i].resto);
+    if (!m) continue;
+    return {
+      prefijo: intentos[i].prefijo,
+      agrupacion: intentos[i].prefijo.trim(),
+      espesor: m[1],
+      ancho: m[2],
+      largo: m[3] || ''
+    };
+  }
+  return null;
+}
+
 /* ------------------------------------------------------- búsqueda en BD */
 
 function buscarEnBD_(codigo) {
@@ -536,6 +566,72 @@ function apiMedidas(datos) {
   } catch (err) {
     return { ok: false, mensaje: err.message };
   }
+}
+
+/**
+ * Recibe un código ya armado y devuelve todo lo que se puede deducir de él:
+ * agrupación, centro, tipo de material, medidas y la ficha de BD_Maderas.
+ *
+ * Lo que NO sale del código es la clase de requerimiento (esa decide en qué
+ * hoja cae la fila) y, cuando el centro es TCP1, el origen: TCP1 lo usan
+ * tanto Trading como Planta.
+ */
+function apiPegarCodigo(texto) {
+  var limpio = normalizarCodigo_(texto);
+  if (!limpio) return { ok: false, mensaje: 'Pega el código que quieres registrar.' };
+
+  var partes = descomponerCodigo_(limpio);
+  if (!partes) {
+    return {
+      ok: false,
+      mensaje: 'No reconozco la forma de "' + limpio + '". Un código va como ' +
+        'PREFIJO + espesor X ancho, y si lleva largo se agrega X y cuatro dígitos: ' +
+        'RVMH032X180X3960.'
+    };
+  }
+
+  var agrupacion = buscarAgrupacion_(partes.agrupacion);
+  if (!agrupacion) {
+    return {
+      ok: false,
+      mensaje: 'El prefijo ' + partes.agrupacion + ' no está en la hoja ' + CFG.HOJA_SAP +
+        '. Agrégalo ahí con su Ce. y su TpMt si corresponde pedirlo.'
+    };
+  }
+
+  var codigo = armarCodigo_(agrupacion.agrupacion, partes.espesor, partes.ancho, partes.largo);
+  var ficha = buscarEnBD_(codigo);
+
+  // Origen: solo se deduce si un único origen usa ese centro.
+  var posibles = ORIGENES.filter(function (o) {
+    return o.centros.indexOf(agrupacion.centro) !== -1;
+  }).map(function (o) { return o.id; });
+
+  return {
+    ok: !!ficha || !MEDIDAS.EXIGIR_EN_BD,
+    codigo: codigo,
+    centro: agrupacion.centro,
+    tipoMaterial: agrupacion.tipoMaterial,
+    origenes: posibles,
+    origen: posibles.length === 1 ? posibles[0] : '',
+    agrupacion: {
+      codigo: agrupacion.agrupacion,
+      prefijo: prefijo_(agrupacion.agrupacion),
+      texto: agrupacion.textoLargo,
+      textoEs: agrupacion.textoEs,
+      textoEn: agrupacion.textoEn,
+      etapas: etapasAplicables_(agrupacion.agrupacion),
+      partes: descomponerPrefijo_(agrupacion.agrupacion),
+      sugerido: desgloseSugerido_(agrupacion.agrupacion, '', '')
+    },
+    espesor: partes.espesor,
+    ancho: partes.ancho,
+    largo: partes.largo,
+    largos: largosDisponibles_(agrupacion.agrupacion, partes.espesor, partes.ancho),
+    encontrado: !!ficha,
+    material: ficha || null,
+    mensaje: ficha ? '' : 'El código ' + codigo + ' no está en la hoja ' + CFG.HOJA_BD + '.'
+  };
 }
 
 /** Guarda la solicitud en la hoja de la clase y en la hoja Registro. */

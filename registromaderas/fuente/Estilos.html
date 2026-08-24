@@ -104,6 +104,28 @@
     outline: 2px solid var(--bosque-200); outline-offset: -2px; border-radius: var(--r-chico);
   }
 
+  /* ------------------------------------------------- pegar un código listo */
+
+  .pegar {
+    margin: 18px 0 0;
+    padding: 14px 18px;
+    background: var(--papel);
+    border: 1px solid var(--linea);
+    border-radius: var(--r-grande);
+  }
+  .pegar-fila { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pegar label.tit {
+    display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--tinta-suave); margin-bottom: 8px;
+  }
+  /* Con el selector del contenedor, para ganarle a la regla general de input. */
+  .pegar input.codigo-entrada {
+    font-family: var(--mono); font-size: 16px; letter-spacing: .08em; text-transform: uppercase;
+    width: 21ch; max-width: 100%; flex: 0 1 auto;
+  }
+  .pegar-nota { font-size: 13px; color: var(--tinta-suave); }
+  .pegar .aviso { margin: 12px 0 0; }
+
   /* ------------------------------------------- el banco: el código en vivo */
 
   .banco {
