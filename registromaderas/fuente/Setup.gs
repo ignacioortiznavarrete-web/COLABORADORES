@@ -2,8 +2,8 @@
  * Preparación del spreadsheet y menú.
  *
  * `instalarRegistro` se ejecuta UNA vez desde el editor de Apps Script:
- * revisa que estén las hojas que el formulario necesita y crea la hoja
- * Registro con sus encabezados.
+ * revisa las hojas, crea SAP y Agrupamiento con los catálogos si no existen,
+ * y deja la hoja Registro con sus encabezados.
  */
 
 function onOpen() {
@@ -14,46 +14,69 @@ function onOpen() {
       .addItem('Ver enlace del formulario', 'mostrarEnlace')
       .addToUi();
   } catch (err) {
-    // Sin interfaz (ejecución por trigger o desde el editor): no hay menú que crear.
+    // Sin interfaz (trigger o editor): no hay menú que crear.
   }
 }
 
 function instalarRegistro() {
   var libro = ss_();
   var problemas = [];
+  var hechos = [];
 
   if (!libro.getSheetByName(CFG.HOJA_BD)) {
     problemas.push('Falta la hoja "' + CFG.HOJA_BD + '" (la base de códigos).');
   }
+
+  if (crearCatalogo_(libro, CFG.HOJA_SAP, SAP_ENCABEZADOS, SAP_SEMILLA)) {
+    hechos.push('Se creó la hoja "' + CFG.HOJA_SAP + '" con las agrupaciones por centro y tipo de material.');
+  }
+  if (crearCatalogo_(libro, CFG.HOJA_AGRUPAMIENTO, AGRUPAMIENTO_ENCABEZADOS, AGRUPAMIENTO_SEMILLA)) {
+    hechos.push('Se creó la hoja "' + CFG.HOJA_AGRUPAMIENTO + '" con las plantillas de cada etapa.');
+  }
+  olvidarCatalogos_();
+
   CLASES.forEach(function (clase) {
     var hoja = libro.getSheetByName(clase.hoja);
     if (!hoja) {
       problemas.push('Falta la hoja "' + clase.hoja + '" (' + clase.titulo + ').');
       return;
     }
-    var indices = indicePorEncabezado_(hoja);
-    var sinColumna = Object.keys(MAPEO_DESTINO).filter(function (encabezado) {
-      return !indices[normalizar_(encabezado)];
+    var ancho = Math.max(hoja.getLastColumn(), 1);
+    var encabezados = hoja.getRange(CFG.FILA_ENCABEZADOS, 1, 1, ancho).getValues()[0];
+    var movidas = MAPEO_DESTINO.filter(function (m) {
+      return normalizar_(encabezados[m.col - 1]) !== normalizar_(m.encabezado);
     });
-    if (sinColumna.length === Object.keys(MAPEO_DESTINO).length) {
-      problemas.push('La hoja "' + clase.hoja + '" no tiene los encabezados en la fila ' +
-        CFG.FILA_ENCABEZADOS + '.');
-    } else if (sinColumna.length) {
-      problemas.push('En "' + clase.hoja + '" no se encontraron estas columnas y quedarán ' +
-        'sin escribir: ' + sinColumna.join(', ') + '.');
+    if (movidas.length) {
+      problemas.push('En "' + clase.hoja + '" estas columnas no están donde se esperaba: ' +
+        movidas.map(function (m) { return m.encabezado + ' (columna ' + m.col + ')'; }).join(', ') +
+        '. Revisa la fila ' + CFG.FILA_ENCABEZADOS + '.');
     }
   });
 
-  var registro = hojaRegistro_();
-  asegurarEncabezadosRegistro_(registro);
+  asegurarEncabezadosRegistro_(hojaRegistro_());
+  hechos.push('La hoja "' + CFG.HOJA_REGISTRO + '" quedó lista.');
 
-  var resumen = problemas.length
-    ? 'Listo, pero revisa esto:\n\n· ' + problemas.join('\n· ')
-    : 'Listo. Las hojas ' + CLASES.map(function (c) { return c.hoja; }).join(', ') +
-      ', ' + CFG.HOJA_BD + ' y ' + CFG.HOJA_REGISTRO + ' están en orden.';
+  var resumen = hechos.join('\n· ');
+  resumen = '· ' + resumen;
+  if (problemas.length) resumen += '\n\nRevisa esto:\n· ' + problemas.join('\n· ');
+  else resumen += '\n\nTodo en orden.';
 
   avisar_('Preparar hojas', resumen);
   return resumen;
+}
+
+/** Crea una hoja de catálogo con su semilla. Devuelve true si la creó. */
+function crearCatalogo_(libro, nombre, encabezados, filas) {
+  if (libro.getSheetByName(nombre)) return false;
+  var hoja = libro.insertSheet(nombre);
+  hoja.getRange(1, 1, 1, encabezados.length)
+    .setValues([encabezados])
+    .setFontWeight('bold')
+    .setBackground('#14352a')
+    .setFontColor('#ffffff');
+  hoja.getRange(2, 1, filas.length, encabezados.length).setValues(filas);
+  hoja.setFrozenRows(1);
+  return true;
 }
 
 function mostrarEnlace() {

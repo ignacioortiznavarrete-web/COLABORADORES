@@ -1,9 +1,9 @@
 /**
- * Lógica del registro: buscar el código en BD_Maderas, validar lo que llega
- * del formulario y escribir en la hoja de la clase (PT/PCP/PP) + Registro.
+ * El motor: arma el código, decide qué etapas del proceso aplican, lo busca en
+ * BD_Maderas y escribe la fila de batch input.
  *
- * Todo lo que el formulario manda se vuelve a validar aquí: el navegador
- * ayuda, pero no decide.
+ * Todo lo que manda el formulario se vuelve a validar acá: el navegador ayuda,
+ * pero no decide.
  */
 
 /* ------------------------------------------------------------------ hojas */
@@ -18,7 +18,6 @@ function hoja_(nombre) {
   return hoja;
 }
 
-/** La hoja Registro se crea sola si no existe: es la bitácora del formulario. */
 function hojaRegistro_() {
   var libro = ss_();
   var hoja = libro.getSheetByName(CFG.HOJA_REGISTRO);
@@ -26,20 +25,12 @@ function hojaRegistro_() {
   return hoja;
 }
 
-/** Encabezados de una hoja de clase: están en la fila 2, no en la 1. */
-function encabezadosDestino_(hoja) {
-  var ancho = Math.max(hoja.getLastColumn(), 1);
-  return hoja.getRange(CFG.FILA_ENCABEZADOS, 1, 1, ancho).getValues()[0];
-}
-
-/** { encabezado normalizado -> número de columna } de una hoja de clase. */
-function indicePorEncabezado_(hoja) {
-  var indices = {};
-  encabezadosDestino_(hoja).forEach(function (titulo, i) {
-    var clave = normalizar_(titulo);
-    if (clave && !indices[clave]) indices[clave] = i + 1;
-  });
-  return indices;
+function cache_() {
+  try {
+    return CacheService.getScriptCache();
+  } catch (err) {
+    return null;
+  }
 }
 
 /* --------------------------------------------------------------- identidad */
@@ -62,69 +53,93 @@ function puedeAcceder_(correo) {
   return false;
 }
 
-/* ----------------------------------------------------------------- código */
+/* ------------------------------------------------------- armado del código */
 
 function normalizarCodigo_(codigo) {
   return String(codigo == null ? '' : codigo).trim().toUpperCase();
 }
 
-/** Devuelve el problema de largo, o '' si el código mide lo que debe. */
-function problemaDeLargo_(codigo) {
-  if (!codigo) return 'Escribe el código del material.';
-  if (!CODIGO.LARGO) return '';
-  var faltan = CODIGO.LARGO - codigo.length;
-  if (faltan > 0) {
-    return 'El código debe tener ' + CODIGO.LARGO + ' caracteres: te ' +
-      (faltan === 1 ? 'falta 1' : 'faltan ' + faltan) + '.';
+/** El prefijo siempre ocupa 4 caracteres; el 4º es un espacio si va en blanco. */
+function prefijo_(agrupacion) {
+  return (normalizarCodigo_(agrupacion) + '    ').substring(0, 4);
+}
+
+/** Número a texto con ceros a la izquierda, como pide la nomenclatura. */
+function rellenar_(valor, digitos, rotulo) {
+  var limpio = String(valor == null ? '' : valor).trim();
+  if (!limpio) return '';
+  if (!/^\d{1,}$/.test(limpio)) {
+    throw new Error('El ' + rotulo + ' tiene que ser un número entero, sin puntos ni comas.');
   }
-  if (faltan < 0) {
-    var sobran = -faltan;
-    return 'El código debe tener ' + CODIGO.LARGO + ' caracteres: te ' +
-      (sobran === 1 ? 'sobra 1' : 'sobran ' + sobran) + '.';
+  var numero = String(Number(limpio));
+  if (numero.length > digitos) {
+    throw new Error('El ' + rotulo + ' no puede tener más de ' + digitos + ' dígitos.');
+  }
+  while (numero.length < digitos) numero = '0' + numero;
+  return numero;
+}
+
+function dimension_(espesor, ancho, largo) {
+  return espesor + 'X' + ancho + (largo ? 'X' + largo : '');
+}
+
+function armarCodigo_(agrupacion, espesor, ancho, largo) {
+  return prefijo_(agrupacion) + dimension_(espesor, ancho, largo);
+}
+
+/**
+ * Qué etapas del proceso tiene el producto, leídas del propio prefijo:
+ *   carácter 1 = C  -> pasa por cepillado
+ *   carácter 2 = V  -> es verde, no pasa por secado
+ * El aserradero va siempre.
+ */
+function etapasAplicables_(agrupacion) {
+  var p = prefijo_(agrupacion);
+  return {
+    aserradero: true,
+    secado: p.charAt(1) !== 'V',
+    cepillado: p.charAt(0) === 'C'
+  };
+}
+
+/** El carácter 3 es la calidad, y es lo que hermana las plantillas entre etapas. */
+function plantillaSugerida_(lista, calidad) {
+  for (var i = 0; i < lista.length; i++) {
+    if (lista[i].codigo.charAt(2) === calidad) return lista[i].codigo;
   }
   return '';
 }
 
-/**
- * Espesor, ancho y largo escritos dentro de un texto (032X180X3960).
- * Devuelve null si no hay ninguna medida reconocible.
- */
-function dimensiones_(texto) {
-  var s = String(texto == null ? '' : texto).toUpperCase();
-  var m, ultimo = null;
-
-  var tres = /(\d{2,4})\s*X\s*(\d{2,4})\s*X\s*(\d{3,5})/g;
-  while ((m = tres.exec(s)) !== null) ultimo = m;
-  if (ultimo) {
-    return { espesor: Number(ultimo[1]), ancho: Number(ultimo[2]), largo: Number(ultimo[3]) };
-  }
-
-  var dos = /(\d{2,4})\s*X\s*(\d{2,4})/g;
-  while ((m = dos.exec(s)) !== null) ultimo = m;
-  if (ultimo) {
-    return { espesor: Number(ultimo[1]), ancho: Number(ultimo[2]), largo: '' };
-  }
-  return null;
+/** Desglose propuesto: mismas medidas que el producto final, plantillas por calidad. */
+function desgloseSugerido_(agrupacion, espesor, ancho) {
+  var catalogo = catalogoEtapas_();
+  var aplica = etapasAplicables_(agrupacion);
+  var calidad = prefijo_(agrupacion).charAt(2);
+  var salida = {};
+  ETAPAS.forEach(function (etapa) {
+    salida[etapa.id] = aplica[etapa.id]
+      ? { plantilla: plantillaSugerida_(catalogo[etapa.id] || [], calidad), espesor: espesor, ancho: ancho }
+      : { plantilla: '', espesor: '', ancho: '' };
+  });
+  return salida;
 }
 
-/**
- * La descripción de BD manda sobre el código: en códigos como
- * C23H001X006X0013 los números NO son la medida, y la descripción sí la trae.
- */
-function dimensionesDe_(descripcion, codigo) {
-  var deTexto = dimensiones_(descripcion);
-  if (deTexto && deTexto.largo !== '') return deTexto;
-  var deCodigo = dimensiones_(codigo);
-  if (deCodigo && deCodigo.largo !== '') return deCodigo;
-  return deTexto || deCodigo || { espesor: '', ancho: '', largo: '' };
+/** Cada carácter del prefijo con su significado, para explicarlo en pantalla. */
+function descomponerPrefijo_(agrupacion) {
+  var p = prefijo_(agrupacion);
+  return NOMENCLATURA.map(function (n) {
+    var caracter = p.charAt(n.posicion - 1);
+    return {
+      posicion: n.posicion,
+      titulo: n.titulo,
+      caracter: caracter,
+      significado: n.valores[caracter] || (caracter === ' ' ? 'Producto en proceso' : '')
+    };
+  });
 }
 
-/**
- * Busca el código en la columna Material de BD_Maderas.
- *
- * Son ~42.000 filas: se usa createTextFinder (busca en el servidor, sin traer
- * la planilla completa) y se recuerda el resultado un rato en caché.
- */
+/* ------------------------------------------------------- búsqueda en BD */
+
 function buscarEnBD_(codigo) {
   var cache = cache_();
   var llave = 'bd:' + codigo;
@@ -135,11 +150,8 @@ function buscarEnBD_(codigo) {
       return previo.vacio ? null : previo;
     }
   }
-
   var ficha = leerDeBD_(codigo);
-  if (cache) {
-    cache.put(llave, JSON.stringify(ficha || { vacio: true }), CFG.SEGUNDOS_CACHE);
-  }
+  if (cache) cache.put(llave, JSON.stringify(ficha || { vacio: true }), CFG.SEGUNDOS_CACHE);
   return ficha;
 }
 
@@ -155,28 +167,19 @@ function leerDeBD_(codigo) {
 
   var fila = celda.getRow();
   var valores = hoja.getRange(fila, 1, 1, BD.COLUMNAS).getValues()[0];
-  var descripcion = String(valores[BD.DESCRIPCION - 1] || '').trim();
-  var material = String(valores[BD.MATERIAL - 1] || '').trim();
-  var medidas = dimensionesDe_(descripcion, material);
-
   return {
     fila: fila,
-    codigo: material,
-    grupo: String(valores[BD.GRUPO - 1] || '').trim(),
-    tipoMaterial: String(valores[BD.TIPO_MATERIAL - 1] || '').trim(),
-    descripcion: descripcion,
-    ce: String(valores[BD.CE - 1] || '').trim(),
-    espesor: medidas.espesor,
-    ancho: medidas.ancho,
-    largo: medidas.largo
+    codigo: normalizarCodigo_(valores[BD.MATERIAL - 1]),
+    grupo: texto_(valores[BD.GRUPO - 1]),
+    tipoMaterial: texto_(valores[BD.TIPO_MATERIAL - 1]),
+    descripcion: texto_(valores[BD.DESCRIPCION - 1]),
+    ce: texto_(valores[BD.CE - 1])
   };
 }
 
 /**
  * Rescate para los códigos que en la base traen espacios pegados: hay varios
- * con un espacio duro al final (RSFR037X130X3600 + \u00a0), y la búsqueda de
- * celda exacta no los ve. Se busca por contenido y se confirma que, sin
- * espacios, sea exactamente el mismo código.
+ * con un espacio duro al final, y la búsqueda de celda exacta no los ve.
  */
 function buscarConEspacios_(rango, codigo) {
   var finder = rango.createTextFinder(codigo).matchEntireCell(false);
@@ -192,15 +195,55 @@ function buscarConEspacios_(rango, codigo) {
   return null;
 }
 
-function cache_() {
-  try {
-    return CacheService.getScriptCache();
-  } catch (err) {
-    return null;
+/**
+ * Largos que la base tiene para esa agrupación y esa escuadría. Es lo que
+ * evita adivinar: se elige de lo que existe.
+ */
+function largosDisponibles_(agrupacion, espesor, ancho) {
+  if (!espesor || !ancho) return [];
+  var base = prefijo_(agrupacion) + espesor + 'X' + ancho + 'X';
+  var hoja = hoja_(CFG.HOJA_BD);
+  var ultima = hoja.getLastRow();
+  if (ultima < 2) return [];
+
+  var finder = hoja.getRange(2, BD.MATERIAL, ultima - 1, 1)
+    .createTextFinder(base).matchEntireCell(false);
+  var vistos = {};
+  var salida = [];
+  var primera = 0;
+
+  for (var i = 0; i < CFG.MAX_LARGOS * 3; i++) {
+    var celda = finder.findNext();
+    if (!celda) break;
+    var fila = celda.getRow();
+    if (primera && fila === primera) break;
+    if (!primera) primera = fila;
+
+    var valor = normalizarCodigo_(celda.getValue());
+    if (valor.indexOf(base) !== 0) continue;
+    var largo = valor.substring(base.length);
+    if (/^\d{1,4}$/.test(largo) && !vistos[largo]) {
+      vistos[largo] = true;
+      salida.push(largo);
+      if (salida.length >= CFG.MAX_LARGOS) break;
+    }
   }
+  salida.sort();
+  return salida;
 }
 
 /* -------------------------------------------------------------- validación */
+
+function etapaDelCatalogo_(etapaId, plantilla) {
+  var limpio = normalizarCodigo_(plantilla);
+  if (!limpio) return '';
+  var lista = catalogoEtapas_()[etapaId] || [];
+  for (var i = 0; i < lista.length; i++) {
+    if (normalizar_(lista[i].codigo) === normalizar_(limpio)) return lista[i].codigo;
+  }
+  throw new Error('La plantilla "' + plantilla + '" no está en el catálogo de ' + etapaId +
+    ' de la hoja ' + CFG.HOJA_AGRUPAMIENTO + '.');
+}
 
 /** Deja la solicitud lista para escribir, o lanza el error que corresponda. */
 function validar_(datos) {
@@ -220,18 +263,22 @@ function validar_(datos) {
   var centro = centroEfectivo_(origen, datos.centro);
   var tipoMaterial = tipoMaterialEfectivo_(datos.tipoMaterial);
 
-  var codigo = normalizarCodigo_(datos.codigo);
-  var problema = problemaDeLargo_(codigo);
-  if (problema) throw new Error(problema);
-
-  var ficha = buscarEnBD_(codigo);
-  if (!ficha && CODIGO.EXIGIR_EN_BD) {
-    throw new Error('El código ' + codigo + ' no está en la hoja ' + CFG.HOJA_BD + '.');
+  // La condicional de fondo: el centro y el tipo de material mandan la lista.
+  var agrupacion = agrupacionPorCodigo_(centro, tipoMaterial, datos.agrupacion);
+  if (!agrupacion) {
+    throw new Error('La agrupación "' + (datos.agrupacion || '') + '" no está habilitada para ' +
+      centro + ' + ' + tipoMaterial + ' en la hoja ' + CFG.HOJA_SAP + '.');
   }
-  if (ficha && CODIGO.EXIGIR_TIPO_MATERIAL && ficha.tipoMaterial &&
-      normalizar_(ficha.tipoMaterial) !== normalizar_(tipoMaterial)) {
-    throw new Error('El código ' + codigo + ' es ' + ficha.tipoMaterial + ' en ' + CFG.HOJA_BD +
-      ', pero elegiste ' + tipoMaterial + '.');
+
+  var espesor = rellenar_(datos.espesor, MEDIDAS.DIGITOS_ESPESOR, 'espesor');
+  var ancho = rellenar_(datos.ancho, MEDIDAS.DIGITOS_ANCHO, 'ancho');
+  var largo = rellenar_(datos.largo, MEDIDAS.DIGITOS_LARGO, 'largo');
+  if (!espesor || !ancho) throw new Error('Faltan el espesor y el ancho.');
+
+  var codigo = armarCodigo_(agrupacion.agrupacion, espesor, ancho, largo);
+  var ficha = buscarEnBD_(codigo);
+  if (!ficha && MEDIDAS.EXIGIR_EN_BD) {
+    throw new Error('El código ' + codigo + ' no está en la hoja ' + CFG.HOJA_BD + '.');
   }
 
   var piezas = Number(datos.piezas);
@@ -239,9 +286,24 @@ function validar_(datos) {
     throw new Error('La cantidad de piezas debe ser un número entero mayor que cero.');
   }
 
-  var medidas = ficha
-    ? { espesor: ficha.espesor, ancho: ficha.ancho, largo: ficha.largo }
-    : dimensionesDe_('', codigo);
+  var aplica = etapasAplicables_(agrupacion.agrupacion);
+  var pedido = datos.desglose || {};
+  var desglose = {};
+  ETAPAS.forEach(function (etapa) {
+    if (!aplica[etapa.id]) {
+      desglose[etapa.id] = { plantilla: '', dimension: '', espesor: '', ancho: '' };
+      return;
+    }
+    var suyo = pedido[etapa.id] || {};
+    var ee = rellenar_(suyo.espesor, MEDIDAS.DIGITOS_ESPESOR, 'espesor de ' + etapa.titulo) || espesor;
+    var aa = rellenar_(suyo.ancho, MEDIDAS.DIGITOS_ANCHO, 'ancho de ' + etapa.titulo) || ancho;
+    desglose[etapa.id] = {
+      plantilla: etapaDelCatalogo_(etapa.id, suyo.plantilla),
+      dimension: dimension_(ee, aa, ''),
+      espesor: ee,
+      ancho: aa
+    };
+  });
 
   return {
     clase: clase.id,
@@ -250,17 +312,23 @@ function validar_(datos) {
     origen: origen.id,
     centro: centro,
     tipoMaterial: tipoMaterial,
+    agrupacion: agrupacion.agrupacion,
+    agrupacionTexto: agrupacion.textoLargo,
     codigo: ficha ? ficha.codigo : codigo,
     descripcion: ficha ? ficha.descripcion : '',
     grupo: ficha ? ficha.grupo : '',
-    ce: ficha ? ficha.ce : '',
+    espesor: espesor,
+    ancho: ancho,
+    largo: largo,
+    dimension: dimension_(espesor, ancho, largo),
     piezas: piezas,
-    espesor: medidas.espesor,
-    ancho: medidas.ancho,
-    largo: medidas.largo,
+    umb: unoDe_(datos.umb, UNIDADES, POR_DEFECTO.UMB),
+    stockPedido: unoDe_(datos.stockPedido, STOCK_PEDIDO.map(function (o) { return o.id; }),
+      POR_DEFECTO.STOCK_PEDIDO),
+    desglose: desglose,
     pais: POR_DEFECTO.PAIS,
     tipoRequerimiento: POR_DEFECTO.TIPO_REQUERIMIENTO,
-    umb: POR_DEFECTO.UMB,
+    fechaTexto: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), CFG.FORMATO_FECHA),
     fecha: new Date(),
     solicitante: correo
   };
@@ -275,24 +343,38 @@ function datosParaHoja_(v) {
     centro: v.centro,
     clase: v.clase,
     tipoRequerimiento: v.tipoRequerimiento,
-    fecha: v.fecha,
+    fecha: v.fechaTexto,
     solicitante: v.solicitante,
-    origen: v.origen,
-    tipoMaterial: v.tipoMaterial,
-    codigo: v.codigo,
-    descripcion: v.descripcion,
-    grupo: v.grupo,
-    piezas: v.piezas,
-    umb: v.umb,
+
+    aserraderoPlantilla: v.desglose.aserradero.plantilla,
+    aserraderoDimension: v.desglose.aserradero.dimension,
+    aserraderoEspesor: v.desglose.aserradero.espesor,
+    aserraderoAncho: v.desglose.aserradero.ancho,
+
+    secadoPlantilla: v.desglose.secado.plantilla,
+    secadoDimension: v.desglose.secado.dimension,
+    secadoEspesor: v.desglose.secado.espesor,
+    secadoAncho: v.desglose.secado.ancho,
+
+    cepilladoPlantilla: v.desglose.cepillado.plantilla,
+    cepilladoDimension: v.desglose.cepillado.dimension,
+    cepilladoEspesor: v.desglose.cepillado.espesor,
+    cepilladoAncho: v.desglose.cepillado.ancho,
+
+    agrupacion: v.agrupacion,
+    dimension: v.dimension,
     espesor: v.espesor,
     ancho: v.ancho,
-    largo: v.largo
+    largo: v.largo,
+    piezas: v.piezas,
+    umb: v.umb,
+    stockPedido: v.stockPedido
   };
 }
 
 /**
  * Escribe solo las columnas mapeadas, agrupando las contiguas en un rango.
- * Así no se pisa nada de las columnas del desglose que quedan en blanco.
+ * Así no se pisa nada de lo que quede fuera del mapa.
  */
 function escribirEnBloques_(hoja, fila, valoresPorColumna) {
   var columnas = Object.keys(valoresPorColumna)
@@ -312,37 +394,30 @@ function escribirEnBloques_(hoja, fila, valoresPorColumna) {
 
 function guardarEnClase_(v) {
   var hoja = hoja_(v.hojaDestino);
-  var indices = indicePorEncabezado_(hoja);
   var datos = datosParaHoja_(v);
-
   var valores = {};
-  Object.keys(MAPEO_DESTINO).forEach(function (encabezado) {
-    var col = indices[normalizar_(encabezado)];
-    if (!col) return;  // la hoja no tiene esa columna: se ignora sin romper
-    var dato = datos[MAPEO_DESTINO[encabezado]];
-    valores[col] = (dato === undefined || dato === null) ? '' : dato;
+  MAPEO_DESTINO.forEach(function (m) {
+    var dato = datos[m.dato];
+    valores[m.col] = (dato === undefined || dato === null) ? '' : dato;
   });
-
-  if (!Object.keys(valores).length) {
-    throw new Error('La hoja ' + hoja.getName() + ' no tiene ninguna de las columnas de ' +
-      'MAPEO_DESTINO en la fila ' + CFG.FILA_ENCABEZADOS + '.');
-  }
 
   var fila = Math.max(hoja.getLastRow() + 1, CFG.PRIMERA_FILA_DATOS);
   escribirEnBloques_(hoja, fila, valores);
-
-  var colFecha = indices[normalizar_(COL_FECHA_DESTINO)];
-  if (colFecha) hoja.getRange(fila, colFecha).setNumberFormat('dd-mm-yyyy hh:mm');
-
   return { hoja: hoja.getName(), fila: fila };
 }
 
 function asegurarEncabezadosRegistro_(hoja) {
-  if (hoja.getLastRow() > 0) return;
+  var ultima = hoja.getLastRow();
+  if (ultima > 1) return;  // ya tiene datos: no se toca
+
+  if (ultima === 1) {
+    var actuales = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0];
+    if (normalizar_(actuales.join('|')) === normalizar_(COL_REGISTRO.join('|'))) return;
+  }
   hoja.getRange(1, 1, 1, COL_REGISTRO.length)
     .setValues([COL_REGISTRO])
     .setFontWeight('bold')
-    .setBackground('#1f3864')
+    .setBackground('#14352a')
     .setFontColor('#ffffff');
   hoja.setFrozenRows(1);
 }
@@ -351,14 +426,14 @@ function guardarEnRegistro_(v, destino) {
   var hoja = hojaRegistro_();
   asegurarEncabezadosRegistro_(hoja);
   hoja.appendRow([
-    v.fecha, v.solicitante, v.pais, v.clase, v.tipoRequerimiento,
-    v.origen, v.centro, v.tipoMaterial, v.codigo, v.descripcion,
-    v.grupo, v.piezas, v.umb, v.espesor, v.ancho, v.largo,
+    v.fechaTexto, v.solicitante, v.pais, v.clase, v.tipoRequerimiento,
+    v.origen, v.centro, v.tipoMaterial, v.agrupacion, v.agrupacionTexto,
+    v.codigo, v.descripcion, v.grupo,
+    v.espesor, v.ancho, v.largo, v.piezas, v.umb, v.stockPedido,
+    v.desglose.aserradero.plantilla, v.desglose.secado.plantilla, v.desglose.cepillado.plantilla,
     destino.hoja, destino.fila
   ]);
-  var fila = hoja.getLastRow();
-  hoja.getRange(fila, 1).setNumberFormat('dd-mm-yyyy hh:mm');
-  return fila;
+  return hoja.getLastRow();
 }
 
 /* --------------------------------------------------------------------- API */
@@ -366,8 +441,8 @@ function guardarEnRegistro_(v, destino) {
 /** Todo lo que el formulario necesita para dibujarse. */
 function apiContexto() {
   var correo = usuario_();
-  var faltantes = [];
   var libro = ss_();
+  var faltantes = [];
   [CFG.HOJA_BD].concat(CLASES.map(function (c) { return c.hoja; })).forEach(function (nombre) {
     if (!libro.getSheetByName(nombre)) faltantes.push(nombre);
   });
@@ -380,11 +455,20 @@ function apiContexto() {
       return { id: o.id, titulo: o.titulo, descripcion: o.descripcion, centros: o.centros.slice() };
     }),
     tiposMaterial: TIPOS_MATERIAL.slice(),
-    largoCodigo: CODIGO.LARGO,
-    exigeCodigoEnBD: CODIGO.EXIGIR_EN_BD,
+    etapas: ETAPAS.map(function (e) { return { id: e.id, titulo: e.titulo }; }),
+    catalogoEtapas: catalogoEtapas_(),
+    unidades: UNIDADES.slice(),
+    stockPedido: STOCK_PEDIDO.slice(),
+    medidas: {
+      espesor: MEDIDAS.DIGITOS_ESPESOR,
+      ancho: MEDIDAS.DIGITOS_ANCHO,
+      largo: MEDIDAS.DIGITOS_LARGO
+    },
     porDefecto: POR_DEFECTO,
     hojaBD: CFG.HOJA_BD,
+    hojaSAP: CFG.HOJA_SAP,
     hojaRegistro: CFG.HOJA_REGISTRO,
+    exigeCodigoEnBD: MEDIDAS.EXIGIR_EN_BD,
     usuario: correo,
     identificado: !!correo,
     exigeIdentidad: AUDITORIA.EXIGIR_IDENTIDAD,
@@ -393,41 +477,65 @@ function apiContexto() {
   };
 }
 
-/** Busca el código mientras la persona escribe. Nunca lanza: siempre responde. */
-function apiBuscarCodigo(codigo, tipoMaterial) {
-  var limpio = normalizarCodigo_(codigo);
-  var problema = problemaDeLargo_(limpio);
-  if (problema) {
-    return { ok: false, encontrado: false, codigo: limpio, mensaje: problema };
-  }
+/** Agrupaciones habilitadas para ese centro y tipo de material. */
+function apiAgrupaciones(centro, tipoMaterial) {
+  var lista = agrupacionesDe_(centro, tipoMaterial);
+  return {
+    centro: centro,
+    tipoMaterial: tipoMaterial,
+    agrupaciones: lista.map(function (f) {
+      return {
+        codigo: f.agrupacion,
+        prefijo: prefijo_(f.agrupacion),
+        texto: f.textoLargo,
+        textoEs: f.textoEs,
+        textoEn: f.textoEn,
+        etapas: etapasAplicables_(f.agrupacion),
+        partes: descomponerPrefijo_(f.agrupacion),
+        sugerido: desgloseSugerido_(f.agrupacion, '', '')
+      };
+    })
+  };
+}
 
-  var ficha;
+/**
+ * Arma el código con las medidas escritas y cuenta qué encontró.
+ * Nunca lanza: el formulario necesita una respuesta para mostrar.
+ */
+function apiMedidas(datos) {
+  datos = datos || {};
   try {
-    ficha = buscarEnBD_(limpio);
-  } catch (err) {
-    return { ok: false, encontrado: false, codigo: limpio, mensaje: err.message };
-  }
-
-  if (!ficha) {
-    return {
-      ok: !CODIGO.EXIGIR_EN_BD,
-      encontrado: false,
-      codigo: limpio,
-      mensaje: 'El código ' + limpio + ' no está en la hoja ' + CFG.HOJA_BD + '.'
-    };
-  }
-
-  var aviso = '';
-  if (tipoMaterial && ficha.tipoMaterial &&
-      normalizar_(ficha.tipoMaterial) !== normalizar_(tipoMaterial)) {
-    aviso = 'En ' + CFG.HOJA_BD + ' este código figura como ' + ficha.tipoMaterial +
-      ' y elegiste ' + tipoMaterial + '.';
-    if (CODIGO.EXIGIR_TIPO_MATERIAL) {
-      return { ok: false, encontrado: true, codigo: ficha.codigo, material: ficha, mensaje: aviso };
+    var espesor = rellenar_(datos.espesor, MEDIDAS.DIGITOS_ESPESOR, 'espesor');
+    var ancho = rellenar_(datos.ancho, MEDIDAS.DIGITOS_ANCHO, 'ancho');
+    var largo = rellenar_(datos.largo, MEDIDAS.DIGITOS_LARGO, 'largo');
+    var agrupacion = normalizarCodigo_(datos.agrupacion);
+    if (!agrupacion) return { ok: false, mensaje: 'Elige primero la agrupación.' };
+    if (!espesor || !ancho) {
+      return {
+        ok: false, espesor: espesor, ancho: ancho, largo: largo,
+        largos: (espesor && ancho) ? largosDisponibles_(agrupacion, espesor, ancho) : [],
+        mensaje: 'Escribe el espesor y el ancho.'
+      };
     }
-  }
 
-  return { ok: true, encontrado: true, codigo: ficha.codigo, material: ficha, aviso: aviso };
+    var codigo = armarCodigo_(agrupacion, espesor, ancho, largo);
+    var largos = largosDisponibles_(agrupacion, espesor, ancho);
+    var ficha = buscarEnBD_(codigo);
+
+    return {
+      ok: !!ficha || !MEDIDAS.EXIGIR_EN_BD,
+      codigo: codigo,
+      espesor: espesor,
+      ancho: ancho,
+      largo: largo,
+      largos: largos,
+      encontrado: !!ficha,
+      material: ficha || null,
+      mensaje: ficha ? '' : 'El código ' + codigo + ' no está en ' + CFG.HOJA_BD + '.'
+    };
+  } catch (err) {
+    return { ok: false, mensaje: err.message };
+  }
 }
 
 /** Guarda la solicitud en la hoja de la clase y en la hoja Registro. */
@@ -450,7 +558,7 @@ function apiGuardar(datos) {
       codigo: v.codigo,
       descripcion: v.descripcion,
       piezas: v.piezas,
-      fecha: Utilities.formatDate(v.fecha, Session.getScriptTimeZone(), 'dd-MM-yyyy HH:mm'),
+      fecha: v.fechaTexto,
       solicitante: v.solicitante
     };
   } finally {

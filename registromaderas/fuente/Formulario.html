@@ -1,101 +1,175 @@
 <!--
-  Formulario de registro, paso a paso:
-  clase -> origen/centro -> tipo de material -> código -> piezas -> guardar.
+  Registro de requerimientos de maderas.
+  El código no se escribe: se arma con la agrupación y las medidas, y se ve
+  armarse arriba, carácter por carácter, con lo que significa cada uno.
 -->
 <?!= include('Estilos') ?>
 
-<div class="wrap">
-  <header class="app">
+<header class="app">
+  <div class="cabecera-fila">
     <h1>Registro de requerimientos</h1>
-    <p id="subtitulo">Cargando…</p>
-    <div class="ruta" id="ruta"></div>
-  </header>
-
-  <div class="panel">
-    <div id="cargando" class="cargando">Cargando formulario…</div>
-
-    <div id="app" style="display:none">
-      <div id="mensaje"></div>
-
-      <!-- 1. Clase de requerimiento -->
-      <div class="paso" id="paso1" style="display:none">
-        <h2>¿Qué vas a registrar?</h2>
-        <p class="ayuda">Define en qué hoja queda guardada la solicitud.</p>
-        <div class="opciones" id="opcClase"></div>
-      </div>
-
-      <!-- 2. Origen y centro -->
-      <div class="paso" id="paso2" style="display:none">
-        <h2>¿Trading o Planta?</h2>
-        <p class="ayuda">Trading elige el centro; Planta queda fijo.</p>
-        <div class="opciones" id="opcOrigen"></div>
-        <div id="cajaCentro" style="display:none;margin-top:20px">
-          <h2 style="font-size:15px;margin:0 0 4px">Centro</h2>
-          <p class="ayuda" id="ayudaCentro"></p>
-          <div class="opciones chicas" id="opcCentro"></div>
-        </div>
-      </div>
-
-      <!-- 3. Tipo de material -->
-      <div class="paso" id="paso3" style="display:none">
-        <h2>Tipo de material</h2>
-        <p class="ayuda">Es el TpMt con el que el código figura en la base.</p>
-        <div class="opciones chicas" id="opcTipo"></div>
-      </div>
-
-      <!-- 4. Código -->
-      <div class="paso" id="paso4" style="display:none">
-        <h2>Código del material</h2>
-        <p class="ayuda" id="ayudaCodigo"></p>
-        <label class="campo">
-          <span class="tit">Código</span>
-          <input type="text" id="codigo" autocomplete="off" spellcheck="false"
-                 placeholder="RVMH032X180X3960">
-        </label>
-        <div class="contador" id="contador"></div>
-        <div id="resultadoCodigo"></div>
-      </div>
-
-      <!-- 5. Piezas y resumen -->
-      <div class="paso" id="paso5" style="display:none">
-        <h2>Cantidad de piezas</h2>
-        <p class="ayuda">Último dato: revisa el resumen antes de guardar.</p>
-        <label class="campo" style="max-width:220px">
-          <span class="tit">Piezas</span>
-          <input type="number" id="piezas" min="1" step="1" placeholder="0">
-        </label>
-        <div class="ficha" id="resumen"></div>
-      </div>
-
-      <div class="acciones" id="acciones">
-        <button type="button" class="secundario" id="btnAtras">Atrás</button>
-        <span class="derecha"></span>
-        <button type="button" class="primario" id="btnSiguiente">Siguiente</button>
-        <button type="button" class="primario" id="btnGuardar" style="display:none">Guardar solicitud</button>
-        <span id="guardando" style="display:none;font-size:13px;color:#5c6b7f">Guardando…</span>
-      </div>
-
-      <!-- Pantalla de confirmación -->
-      <div id="listo" style="display:none"></div>
-
-      <p class="pie" id="pie"></p>
-    </div>
+    <span class="quien" id="quien"></span>
   </div>
+  <nav class="ruta" id="ruta" aria-label="Pasos"></nav>
+</header>
+
+<div class="wrap">
+  <div id="cargando" class="cargando">Cargando…</div>
+
+  <main id="app" hidden>
+    <div id="mensaje"></div>
+
+    <!-- El banco de trabajo: el código en vivo -->
+    <section class="banco" id="banco" aria-label="Código de material">
+      <div class="banco-cuerpo">
+        <div class="banco-rotulo">Código de material</div>
+        <div class="codigo" id="codigo"></div>
+        <div class="codigo-plano" id="codigoPlano"></div>
+      </div>
+      <div class="buscando" id="buscando" hidden><i></i></div>
+      <div class="banco-ficha" id="fichaBanco" hidden></div>
+    </section>
+
+    <!-- 1. Cabecera -->
+    <section class="paso" id="paso1" hidden>
+      <h2>¿Qué vas a pedir y para dónde?</h2>
+      <p class="ayuda">La clase decide en qué hoja queda la fila. El centro y el tipo de
+        material deciden qué agrupaciones podrás pedir en el paso siguiente.</p>
+
+      <div class="grupo">
+        <h3>Clase de requerimiento</h3>
+        <div class="filas" id="opcClase"></div>
+      </div>
+
+      <div class="grupo">
+        <h3>Origen</h3>
+        <div class="chips" id="opcOrigen"></div>
+      </div>
+
+      <div class="grupo" id="grupoCentro" hidden>
+        <h3>Centro</h3>
+        <div class="chips" id="opcCentro"></div>
+      </div>
+
+      <div class="grupo">
+        <h3>Tipo de material</h3>
+        <div class="chips" id="opcTipo"></div>
+      </div>
+    </section>
+
+    <!-- 2. Agrupación -->
+    <section class="paso" id="paso2" hidden>
+      <h2>Agrupación</h2>
+      <p class="ayuda" id="ayudaAgrup"></p>
+      <div id="listaAgrup"></div>
+    </section>
+
+    <!-- 3. Medidas -->
+    <section class="paso" id="paso3" hidden>
+      <h2>Medidas</h2>
+      <p class="ayuda">Escribe los milímetros. Los ceros a la izquierda los pone el
+        formulario: 32 se convierte en 032.</p>
+      <div class="medidas">
+        <label class="campo">
+          <span class="tit">Espesor</span>
+          <input type="text" id="mEspesor" class="num" inputmode="numeric" maxlength="3" placeholder="032">
+        </label>
+        <span class="porX">X</span>
+        <label class="campo">
+          <span class="tit">Ancho</span>
+          <input type="text" id="mAncho" class="num" inputmode="numeric" maxlength="3" placeholder="180">
+        </label>
+        <span class="porX">X</span>
+        <label class="campo">
+          <span class="tit">Largo</span>
+          <input type="text" id="mLargo" class="num" inputmode="numeric" maxlength="4" placeholder="3960">
+        </label>
+      </div>
+      <div class="largos" id="largos"></div>
+    </section>
+
+    <!-- 4. Desglose -->
+    <section class="paso" id="paso4" hidden>
+      <h2>Desglose por etapa</h2>
+      <p class="ayuda" id="ayudaDesglose"></p>
+      <table class="desglose">
+        <thead>
+          <tr><th>Etapa</th><th>Plantilla</th><th>Espesor</th><th>Ancho</th></tr>
+        </thead>
+        <tbody id="tablaDesglose"></tbody>
+      </table>
+    </section>
+
+    <!-- 5. Cantidad y cierre -->
+    <section class="paso" id="paso5" hidden>
+      <h2>Cantidad</h2>
+      <p class="ayuda">Último dato. Revisa el resumen antes de guardar.</p>
+      <div class="medidas" style="margin-bottom:24px">
+        <label class="campo">
+          <span class="tit">Piezas</span>
+          <input type="number" id="piezas" min="1" step="1" placeholder="248" style="width:12ch">
+        </label>
+        <label class="campo">
+          <span class="tit">Unidad</span>
+          <select id="umb"></select>
+        </label>
+        <label class="campo">
+          <span class="tit">Stock o pedido</span>
+          <select id="stockPedido"></select>
+        </label>
+      </div>
+      <div class="grupo">
+        <h3>La fila que se va a escribir</h3>
+        <dl class="resumen" id="resumen"></dl>
+      </div>
+    </section>
+
+    <div class="acciones" id="acciones">
+      <button type="button" class="secundario" id="btnAtras">Atrás</button>
+      <span class="derecha"></span>
+      <button type="button" class="primario" id="btnSiguiente">Siguiente</button>
+      <button type="button" class="primario" id="btnGuardar" hidden>Guardar solicitud</button>
+      <span id="guardando" hidden style="font-size:13px;color:var(--tinta-suave)">Guardando…</span>
+    </div>
+
+    <div id="listo" hidden></div>
+  </main>
 </div>
 
 <script>
   var CLASE_PREVIA = '<?= clasePrevia ?>';
   var CTX = null;
   var PASO = 1;
-  var TOTAL_PASOS = 5;
+  var PASOS = ['Cabecera', 'Agrupación', 'Medidas', 'Desglose', 'Cantidad'];
   var TIMER = null;
+  var ULTIMO = '';          // último código pintado, para animar solo lo que cambió
+  var PEDIDO = 0;           // descarta respuestas que llegan tarde
 
   var S = {
     clase: '', origen: '', centro: '', tipoMaterial: '',
-    codigo: '', material: null, buscado: false, piezas: ''
+    agrupaciones: null, agrupacion: null,
+    espesor: '', ancho: '', largo: '',
+    codigo: '', material: null, largos: [], buscado: false,
+    desglose: {}, piezas: '', umb: '', stockPedido: ''
   };
 
   function $(id) { return document.getElementById(id); }
+
+  /** Ceros a la izquierda, igual que los pone el servidor. */
+  function relleno(valor, digitos) {
+    var t = String(valor == null ? '' : valor).replace(/\D/g, '');
+    if (!t) return '';
+    t = String(Number(t));
+    while (t.length < digitos) t = '0' + t;
+    return t;
+  }
+
+  /** Texto de ancho fijo, para que cada carácter caiga siempre en el mismo lugar. */
+  function fijo(texto, ancho) {
+    var t = String(texto == null ? '' : texto);
+    while (t.length < ancho) t += ' ';
+    return t.substring(0, ancho);
+  }
 
   function esc(v) {
     return String(v == null ? '' : v)
@@ -112,10 +186,7 @@
   /* ---------------------------------------------------------- carga inicial */
 
   function iniciar() {
-    google.script.run
-      .withSuccessHandler(alCargar)
-      .withFailureHandler(errorFatal)
-      .apiContexto();
+    google.script.run.withSuccessHandler(alCargar).withFailureHandler(errorFatal).apiContexto();
   }
 
   function errorFatal(err) {
@@ -125,92 +196,81 @@
 
   function alCargar(ctx) {
     CTX = ctx;
-    $('subtitulo').textContent = 'Se guarda en la hoja de la clase y en ' + ctx.hojaRegistro + '.';
-    $('pie').textContent = ctx.usuario ? 'Registrando como ' + ctx.usuario : '';
-    $('ayudaCodigo').textContent = (ctx.largoCodigo
-      ? 'Son ' + ctx.largoCodigo + ' caracteres. '
-      : '') + 'Lo buscamos en la hoja ' + ctx.hojaBD + ' para asociar su descripción.';
+    S.umb = ctx.porDefecto.UMB;
+    S.stockPedido = ctx.porDefecto.STOCK_PEDIDO;
+    $('quien').textContent = ctx.usuario || '';
 
-    dibujarOpciones();
-    $('cargando').style.display = 'none';
-    $('app').style.display = '';
+    dibujarCabecera();
+    dibujarCierre();
+    $('cargando').hidden = true;
+    $('app').hidden = false;
 
     if (ctx.hojasFaltantes && ctx.hojasFaltantes.length) {
-      aviso($('mensaje'), 'error', 'Faltan hojas en el spreadsheet: ',
+      return bloquear('Faltan hojas en el spreadsheet: ',
         ctx.hojasFaltantes.join(', ') + '. Avisa a quien administra la planilla.');
-      habilitar(false);
-      return;
     }
     if (!ctx.identificado && ctx.exigeIdentidad) {
-      aviso($('mensaje'), 'error', 'No se pudo identificar tu cuenta. ',
-        'No podrás guardar hasta entrar con tu correo corporativo, porque cada solicitud ' +
-        'queda registrada a nombre de quien la ingresa.');
-      habilitar(false);
-      return;
+      return bloquear('No se pudo identificar tu cuenta. ',
+        'Entra con tu correo corporativo: cada solicitud queda registrada a nombre de quien la ingresa.');
     }
     if (!ctx.autorizado) {
-      aviso($('mensaje'), 'error', 'Tu cuenta no está autorizada. ',
-        'Pide que te agreguen en ACCESOS (Config.gs).');
-      habilitar(false);
-      return;
+      return bloquear('Tu cuenta no está autorizada. ', 'Pide que te agreguen en ACCESOS (Config.gs).');
     }
 
-    if (CLASE_PREVIA) {
-      elegirClase(CLASE_PREVIA, true);
-    } else {
-      irA(1);
-    }
+    if (CLASE_PREVIA) elegir('clase', CLASE_PREVIA);
+    pintarBanco();
+    irA(1);
   }
 
-  function habilitar(activo) {
-    $('acciones').style.display = activo ? '' : 'none';
-    ['paso1', 'paso2', 'paso3', 'paso4', 'paso5'].forEach(function (id) {
-      $(id).style.display = 'none';
-    });
+  function bloquear(titulo, texto) {
+    aviso($('mensaje'), 'error', titulo, texto);
+    $('acciones').hidden = true;
+    $('banco').hidden = true;
+    for (var i = 1; i <= 5; i++) $('paso' + i).hidden = true;
   }
 
-  /* -------------------------------------------------------------- opciones */
+  /* --------------------------------------------------------- paso 1 */
 
-  function tarjeta(valor, titulo, detalle, seleccionado) {
-    return '<button type="button" class="opcion' + (seleccionado ? ' sel' : '') +
-      '" data-valor="' + esc(valor) + '"><b>' + esc(titulo) + '</b>' +
-      (detalle ? '<small>' + esc(detalle) + '</small>' : '') + '</button>';
+  function boton(clase, valor, contenido, activo, extra) {
+    return '<button type="button" class="' + clase + '" data-valor="' + esc(valor) + '" ' +
+      'aria-pressed="' + (activo ? 'true' : 'false') + '"' + (extra || '') + '>' + contenido + '</button>';
   }
 
   function alClic(contenedor, accion) {
     contenedor.addEventListener('click', function (ev) {
-      var boton = ev.target;
-      while (boton && boton !== contenedor && !boton.getAttribute('data-valor')) {
-        boton = boton.parentNode;
-      }
-      if (boton && boton !== contenedor) accion(boton.getAttribute('data-valor'));
+      var b = ev.target;
+      while (b && b !== contenedor && !b.hasAttribute('data-valor')) b = b.parentNode;
+      if (b && b !== contenedor) accion(b.getAttribute('data-valor'));
     });
   }
 
-  function dibujarOpciones() {
+  function dibujarCabecera() {
     $('opcClase').innerHTML = CTX.clases.map(function (c) {
-      return tarjeta(c.id, c.id + ' · ' + c.titulo, c.descripcion + ' Hoja ' + c.hoja + '.', false);
+      return boton('fila-opcion', c.id,
+        '<span class="cod">' + esc(c.id) + '</span>' +
+        '<span class="txt">' + esc(c.titulo) + ' <span style="color:var(--tinta-suave)">· ' +
+        esc(c.descripcion) + '</span></span>' +
+        '<span class="etapas"><span>Hoja ' + esc(c.hoja) + '</span></span>', false);
     }).join('');
-    alClic($('opcClase'), function (v) { elegirClase(v, false); });
+    alClic($('opcClase'), function (v) { elegir('clase', v); });
 
     $('opcOrigen').innerHTML = CTX.origenes.map(function (o) {
-      return tarjeta(o.id, o.titulo, o.descripcion, false);
+      return boton('chip', o.id, esc(o.titulo), false);
     }).join('');
-    alClic($('opcOrigen'), elegirOrigen);
+    alClic($('opcOrigen'), function (v) { elegir('origen', v); });
 
-    alClic($('opcCentro'), elegirCentro);
+    alClic($('opcCentro'), function (v) { elegir('centro', v); });
 
     $('opcTipo').innerHTML = CTX.tiposMaterial.map(function (t) {
-      return tarjeta(t, t, '', false);
+      return boton('chip mono', t, esc(t), false);
     }).join('');
-    alClic($('opcTipo'), elegirTipo);
+    alClic($('opcTipo'), function (v) { elegir('tipoMaterial', v); });
   }
 
   function marcar(contenedor, valor) {
-    var botones = contenedor.getElementsByClassName('opcion');
-    for (var i = 0; i < botones.length; i++) {
-      var esta = botones[i].getAttribute('data-valor') === valor;
-      botones[i].className = 'opcion' + (esta ? ' sel' : '');
+    var bs = contenedor.querySelectorAll('[data-valor]');
+    for (var i = 0; i < bs.length; i++) {
+      bs[i].setAttribute('aria-pressed', bs[i].getAttribute('data-valor') === valor ? 'true' : 'false');
     }
   }
 
@@ -221,176 +281,399 @@
     return null;
   }
 
-  function elegirClase(valor, silencioso) {
-    S.clase = valor;
-    marcar($('opcClase'), valor);
-    irA(2);
-    if (silencioso) return;
-  }
+  function elegir(campo, valor) {
+    if (campo === 'clase') { S.clase = valor; marcar($('opcClase'), valor); }
 
-  function elegirOrigen(valor) {
-    var origen = origenPorId(valor);
-    if (!origen) return;
-    S.origen = valor;
-    marcar($('opcOrigen'), valor);
-
-    if (origen.centros.length === 1) {
-      // Un solo centro posible: se deja puesto y no se pregunta.
-      S.centro = origen.centros[0];
-      $('cajaCentro').style.display = '';
-      $('ayudaCentro').textContent = origen.titulo + ' va siempre a ' + S.centro + '.';
-      $('opcCentro').innerHTML = tarjeta(S.centro, S.centro, 'Fijo para ' + origen.titulo, true);
-      irA(3);
-      return;
+    if (campo === 'origen') {
+      var o = origenPorId(valor);
+      if (!o) return;
+      S.origen = valor;
+      marcar($('opcOrigen'), valor);
+      $('grupoCentro').hidden = false;
+      $('opcCentro').innerHTML = o.centros.map(function (c) {
+        return boton('chip mono', c, esc(c), o.centros.length === 1);
+      }).join('');
+      S.centro = o.centros.length === 1 ? o.centros[0] : '';
+      olvidarAgrupacion();
     }
 
-    S.centro = '';
-    $('cajaCentro').style.display = '';
-    $('ayudaCentro').textContent = 'Elige el centro de ' + origen.titulo + '.';
-    $('opcCentro').innerHTML = origen.centros.map(function (c) {
-      return tarjeta(c, c, '', false);
-    }).join('');
+    if (campo === 'centro') { S.centro = valor; marcar($('opcCentro'), valor); olvidarAgrupacion(); }
+    if (campo === 'tipoMaterial') { S.tipoMaterial = valor; marcar($('opcTipo'), valor); olvidarAgrupacion(); }
+
     refrescar();
   }
 
-  function elegirCentro(valor) {
-    var origen = origenPorId(S.origen);
-    if (!origen || origen.centros.indexOf(valor) === -1) return;
-    S.centro = valor;
-    marcar($('opcCentro'), valor);
-    irA(3);
-  }
-
-  function elegirTipo(valor) {
-    S.tipoMaterial = valor;
-    marcar($('opcTipo'), valor);
-    irA(4);
-    $('codigo').focus();
-    if (S.codigo) buscarCodigo();
-  }
-
-  /* ---------------------------------------------------------------- código */
-
-  function alEscribirCodigo() {
-    var campo = $('codigo');
-    var limpio = campo.value.toUpperCase();
-    if (limpio !== campo.value) {
-      var pos = campo.selectionStart;
-      campo.value = limpio;
-      try { campo.setSelectionRange(pos, pos); } catch (err) { /* navegador viejo */ }
-    }
-    S.codigo = limpio.trim();
+  /** Cambiar centro o tipo de material invalida la agrupación y todo lo que sigue. */
+  function olvidarAgrupacion() {
+    S.agrupaciones = null;
+    S.agrupacion = null;
+    S.desglose = {};
     S.material = null;
     S.buscado = false;
-    $('resultadoCodigo').innerHTML = '';
-    dibujarContador();
-    refrescar();
-
-    if (TIMER) clearTimeout(TIMER);
-    if (!CTX.largoCodigo || S.codigo.length === CTX.largoCodigo) {
-      TIMER = setTimeout(buscarCodigo, 250);
-    }
+    S.largos = [];
+    S.codigo = '';
+    pintarBanco();
   }
 
-  function dibujarContador() {
-    if (!CTX.largoCodigo) { $('contador').textContent = ''; return; }
-    var n = S.codigo.length;
-    var caja = $('contador');
-    caja.textContent = n + ' / ' + CTX.largoCodigo + ' caracteres';
-    caja.className = 'contador' + (n === CTX.largoCodigo ? ' listo' : (n ? ' falta' : ''));
-  }
+  /* --------------------------------------------------------- paso 2 */
 
-  function buscarCodigo() {
-    if (!S.codigo) return;
-    if (CTX.largoCodigo && S.codigo.length !== CTX.largoCodigo) return;
-    $('resultadoCodigo').innerHTML = '<div class="aviso info">Buscando en ' +
-      esc(CTX.hojaBD) + '…</div>';
+  function cargarAgrupaciones() {
+    $('ayudaAgrup').textContent = 'Habilitadas para ' + S.centro + ' + ' + S.tipoMaterial +
+      ', según la hoja ' + CTX.hojaSAP + '.';
+    $('listaAgrup').innerHTML = '<div class="vacio-estado">Buscando agrupaciones…</div>';
     google.script.run
-      .withSuccessHandler(alBuscar)
-      .withFailureHandler(function (err) {
-        aviso($('resultadoCodigo'), 'error', 'No se pudo buscar el código. ',
-          err && err.message ? err.message : err);
+      .withSuccessHandler(function (r) {
+        if (r.centro !== S.centro || r.tipoMaterial !== S.tipoMaterial) return;
+        S.agrupaciones = r.agrupaciones;
+        dibujarAgrupaciones();
       })
-      .apiBuscarCodigo(S.codigo, S.tipoMaterial);
+      .withFailureHandler(function (err) {
+        $('listaAgrup').innerHTML = '<div class="aviso error">' +
+          esc(err && err.message ? err.message : err) + '</div>';
+      })
+      .apiAgrupaciones(S.centro, S.tipoMaterial);
   }
 
-  function alBuscar(r) {
-    // Si llegó tarde y el código ya cambió, esta respuesta ya no sirve.
-    if (String(r.codigo).toUpperCase() !== S.codigo.toUpperCase()) return;
-    S.buscado = true;
-
-    if (!r.encontrado) {
-      S.material = null;
-      aviso($('resultadoCodigo'), CTX.exigeCodigoEnBD ? 'error' : 'alerta',
-        r.mensaje, CTX.exigeCodigoEnBD
-          ? 'Revisa el código: solo se pueden registrar códigos que existan en la base.'
-          : 'Puedes seguir, pero la solicitud quedará sin descripción asociada.');
-      refrescar();
+  function dibujarAgrupaciones() {
+    if (!S.agrupaciones.length) {
+      $('listaAgrup').innerHTML = '<div class="vacio-estado">' +
+        'No hay agrupaciones para <b>' + esc(S.centro) + ' + ' + esc(S.tipoMaterial) + '</b>. ' +
+        'Vuelve atrás y cambia el centro o el tipo de material.</div>';
       return;
     }
+    $('listaAgrup').innerHTML = '<div class="filas">' + S.agrupaciones.map(function (a) {
+      var etapas = [];
+      if (a.etapas.aserradero) etapas.push('Aserradero');
+      if (a.etapas.secado) etapas.push('Secado');
+      if (a.etapas.cepillado) etapas.push('Cepillado');
+      return boton('fila-opcion', a.codigo,
+        '<span class="cod">' + esc(a.codigo) + '</span>' +
+        '<span class="txt">' + esc(a.texto) + '</span>' +
+        '<span class="etapas">' + etapas.map(function (e) {
+          return '<span>' + esc(e) + '</span>';
+        }).join('') + '</span>',
+        S.agrupacion && S.agrupacion.codigo === a.codigo);
+    }).join('') + '</div>';
+    if (!$('listaAgrup').dataset.listo) {
+      alClic($('listaAgrup'), elegirAgrupacion);
+      $('listaAgrup').dataset.listo = '1';
+    }
+  }
 
-    S.material = r.material;
-    S.codigo = r.codigo;
-    $('codigo').value = r.codigo;
-    dibujarContador();
-
-    var m = r.material;
-    var medida = [m.espesor, m.ancho, m.largo].filter(function (x) { return x !== '' && x != null; });
-    $('resultadoCodigo').innerHTML =
-      (r.aviso ? '<div class="aviso alerta">' + esc(r.aviso) + '</div>' : '') +
-      '<div class="ficha"><h3>Material encontrado</h3><dl>' +
-      '<dt>Descripción</dt><dd>' + esc(m.descripcion || '—') + '</dd>' +
-      '<dt>Grupo artículo</dt><dd>' + esc(m.grupo || '—') + '</dd>' +
-      '<dt>TpMt en la base</dt><dd>' + esc(m.tipoMaterial || '—') + '</dd>' +
-      '<dt>Ce</dt><dd>' + esc(m.ce || '—') + '</dd>' +
-      '<dt>Espesor · Ancho · Largo</dt><dd>' + esc(medida.length ? medida.join(' · ') : '—') + '</dd>' +
-      '</dl></div>';
+  function elegirAgrupacion(codigo) {
+    for (var i = 0; i < S.agrupaciones.length; i++) {
+      if (S.agrupaciones[i].codigo === codigo) S.agrupacion = S.agrupaciones[i];
+    }
+    marcar($('listaAgrup'), codigo);
+    S.desglose = {};
+    S.material = null;
+    S.buscado = false;
+    consultarMedidas();
+    pintarBanco();
     refrescar();
   }
 
-  /* --------------------------------------------------------------- resumen */
+  /* --------------------------------------------------------- paso 3 */
 
-  function fila(rotulo, valor) {
-    return '<dt>' + esc(rotulo) + '</dt><dd>' + esc(valor == null || valor === '' ? '—' : valor) + '</dd>';
+  function soloDigitos(campo) {
+    var limpio = campo.value.replace(/\D/g, '');
+    if (limpio !== campo.value) campo.value = limpio;
+    return limpio;
+  }
+
+  function alEscribirMedida() {
+    S.espesor = soloDigitos($('mEspesor'));
+    S.ancho = soloDigitos($('mAncho'));
+    S.largo = soloDigitos($('mLargo'));
+    S.material = null;
+    S.buscado = false;
+    pintarBanco();
+    refrescar();
+    if (TIMER) clearTimeout(TIMER);
+    TIMER = setTimeout(consultarMedidas, 320);
+  }
+
+  function consultarMedidas() {
+    if (!S.agrupacion || !S.espesor || !S.ancho) { pintarBanco(); return; }
+    var mio = ++PEDIDO;
+    $('buscando').hidden = false;
+    google.script.run
+      .withSuccessHandler(function (r) { if (mio === PEDIDO) alConsultar(r); })
+      .withFailureHandler(function (err) {
+        if (mio !== PEDIDO) return;
+        $('buscando').hidden = true;
+        mostrarFicha('malo', esc(err && err.message ? err.message : err));
+      })
+      .apiMedidas({
+        agrupacion: S.agrupacion.codigo,
+        espesor: S.espesor, ancho: S.ancho, largo: S.largo
+      });
+  }
+
+  function alConsultar(r) {
+    $('buscando').hidden = true;
+    S.buscado = true;
+    S.largos = r.largos || [];
+    S.codigo = r.codigo || '';
+    S.material = r.encontrado ? r.material : null;
+
+    if (r.encontrado) {
+      var m = r.material;
+      mostrarFicha('', '<span class="desc">' + esc(m.descripcion) + '</span>' +
+        '<span class="dato">Grupo <b>' + esc(m.grupo || '—') + '</b></span>' +
+        '<span class="dato">TpMt <b>' + esc(m.tipoMaterial || '—') + '</b></span>' +
+        '<span class="dato">Ce <b>' + esc(m.ce || '—') + '</b></span>');
+      if (m.tipoMaterial && m.tipoMaterial !== S.tipoMaterial) {
+        mostrarFicha('aviso', 'En ' + esc(CTX.hojaBD) + ' este código figura como ' +
+          esc(m.tipoMaterial) + ' y elegiste ' + esc(S.tipoMaterial) + '.');
+      }
+    } else if (r.mensaje) {
+      mostrarFicha('malo', esc(r.mensaje));
+    } else {
+      $('fichaBanco').hidden = true;
+    }
+
+    dibujarLargos();
+    pintarBanco();
+    refrescar();
+  }
+
+  function mostrarFicha(clase, html) {
+    var caja = $('fichaBanco');
+    caja.className = 'banco-ficha' + (clase ? ' ' + clase : '');
+    caja.innerHTML = html;
+    caja.hidden = false;
+  }
+
+  function dibujarLargos() {
+    var caja = $('largos');
+    if (!S.espesor || !S.ancho) { caja.innerHTML = ''; return; }
+    if (!S.largos.length) {
+      caja.innerHTML = '<div class="vacio-estado">' + esc(CTX.hojaBD) +
+        ' no tiene largos para ' + esc(S.agrupacion.codigo + ' ' + S.espesor + 'X' + S.ancho) +
+        '. Revisa la escuadría.</div>';
+      return;
+    }
+    caja.innerHTML = '<h3 style="margin:0 0 9px;font-size:12px;font-weight:600;letter-spacing:.06em;' +
+      'text-transform:uppercase;color:var(--tinta-suave)">Largos que existen en la base</h3>' +
+      '<div class="chips">' + S.largos.map(function (l, i) {
+        return '<button type="button" class="chip entrando" data-largo="' + esc(l) + '" ' +
+          'style="animation-delay:' + (i * 22) + 'ms" aria-pressed="' +
+          (l === S.largo ? 'true' : 'false') + '">' + esc(l) + '</button>';
+      }).join('') + '</div>';
+    if (!caja.dataset.listo) {
+      caja.addEventListener('click', function (ev) {
+        var b = ev.target;
+        while (b && b !== caja && !b.hasAttribute('data-largo')) b = b.parentNode;
+        if (!b || b === caja) return;
+        $('mLargo').value = b.getAttribute('data-largo');
+        alEscribirMedida();
+        consultarMedidas();
+      });
+      caja.dataset.listo = '1';
+    }
+  }
+
+  /* --------------------------------------------------------- paso 4 */
+
+  function dibujarDesglose() {
+    var a = S.agrupacion;
+    $('ayudaDesglose').textContent = 'El prefijo ' + a.codigo + ' dice por qué etapas pasa el ' +
+      'producto. Las medidas vienen del producto final: ajústalas si la etapa va sobredimensionada.';
+
+    $('tablaDesglose').innerHTML = CTX.etapas.map(function (etapa) {
+      var aplica = a.etapas[etapa.id];
+      if (!aplica) {
+        return '<tr class="no-aplica"><td class="etapa">' + esc(etapa.titulo) + '</td>' +
+          '<td colspan="3" class="motivo">' + esc(motivoSinEtapa(etapa.id)) + '</td></tr>';
+      }
+      var d = S.desglose[etapa.id] || {};
+      var lista = CTX.catalogoEtapas[etapa.id] || [];
+      var opciones = '<option value=""></option>' + lista.map(function (o) {
+        return '<option value="' + esc(o.codigo) + '"' + (o.codigo === d.plantilla ? ' selected' : '') +
+          '>' + esc(o.codigo) + ' — ' + esc(o.descripcion) + '</option>';
+      }).join('');
+      return '<tr><td class="etapa">' + esc(etapa.titulo) + '</td>' +
+        '<td><select data-etapa="' + etapa.id + '" data-campo="plantilla">' + opciones + '</select></td>' +
+        '<td><input type="text" class="num" inputmode="numeric" maxlength="3" ' +
+        'data-etapa="' + etapa.id + '" data-campo="espesor" value="' + esc(d.espesor || '') + '"></td>' +
+        '<td><input type="text" class="num" inputmode="numeric" maxlength="3" ' +
+        'data-etapa="' + etapa.id + '" data-campo="ancho" value="' + esc(d.ancho || '') + '"></td></tr>';
+    }).join('');
+
+    if (!$('tablaDesglose').dataset.listo) {
+      $('tablaDesglose').addEventListener('input', function (ev) {
+        var el = ev.target;
+        var etapa = el.getAttribute('data-etapa');
+        if (!etapa) return;
+        var campo = el.getAttribute('data-campo');
+        if (campo !== 'plantilla') soloDigitos(el);
+        S.desglose[etapa] = S.desglose[etapa] || {};
+        S.desglose[etapa][campo] = el.value;
+        refrescar();
+      });
+      $('tablaDesglose').addEventListener('change', function (ev) {
+        var el = ev.target;
+        if (el.getAttribute('data-campo') !== 'plantilla') return;
+        S.desglose[el.getAttribute('data-etapa')].plantilla = el.value;
+        refrescar();
+      });
+      $('tablaDesglose').addEventListener('focusout', function (ev) {
+        var el = ev.target;
+        var campo = el.getAttribute('data-campo');
+        if (!campo || campo === 'plantilla') return;
+        el.value = relleno(el.value, 3);
+        S.desglose[el.getAttribute('data-etapa')][campo] = el.value;
+      });
+      $('tablaDesglose').dataset.listo = '1';
+    }
+  }
+
+  function motivoSinEtapa(id) {
+    var p = S.agrupacion.prefijo;
+    if (id === 'cepillado') return 'No aplica: ' + p.charAt(0) + ' es rústico, no cepillado.';
+    if (id === 'secado') return 'No aplica: ' + p.charAt(1) + ' es verde, no pasa por secado.';
+    return 'No aplica.';
+  }
+
+  /** Rellena el desglose con lo sugerido si todavía está vacío. */
+  function prepararDesglose() {
+    var a = S.agrupacion;
+    CTX.etapas.forEach(function (etapa) {
+      if (!a.etapas[etapa.id]) { S.desglose[etapa.id] = { plantilla: '', espesor: '', ancho: '' }; return; }
+      if (S.desglose[etapa.id]) return;
+      S.desglose[etapa.id] = {
+        plantilla: (a.sugerido[etapa.id] || {}).plantilla || '',
+        espesor: relleno(S.espesor, 3),
+        ancho: relleno(S.ancho, 3)
+      };
+    });
+    dibujarDesglose();
+  }
+
+  /* --------------------------------------------------------- paso 5 */
+
+  function dibujarCierre() {
+    $('umb').innerHTML = CTX.unidades.map(function (u) {
+      return '<option value="' + esc(u) + '"' + (u === S.umb ? ' selected' : '') + '>' + esc(u) + '</option>';
+    }).join('');
+    $('stockPedido').innerHTML = CTX.stockPedido.map(function (o) {
+      return '<option value="' + esc(o.id) + '"' + (o.id === S.stockPedido ? ' selected' : '') +
+        '>' + esc(o.id) + ' — ' + esc(o.titulo) + '</option>';
+    }).join('');
+  }
+
+  function fila(rotulo, valor, mono) {
+    return '<dt>' + esc(rotulo) + '</dt><dd' + (mono ? ' class="mono"' : '') + '>' +
+      esc(valor === '' || valor == null ? '—' : valor) + '</dd>';
   }
 
   function dibujarResumen() {
     var m = S.material || {};
-    var medida = [m.espesor, m.ancho, m.largo].filter(function (x) { return x !== '' && x != null; });
-    var clase = null;
-    for (var i = 0; i < CTX.clases.length; i++) {
-      if (CTX.clases[i].id === S.clase) clase = CTX.clases[i];
-    }
-    $('resumen').innerHTML = '<h3>Resumen</h3><dl>' +
-      fila('Clase requerimiento', S.clase + (clase ? ' · ' + clase.titulo : '')) +
-      fila('Hoja de destino', clase ? clase.hoja : '') +
-      fila('Origen', S.origen) +
-      fila('Centro', S.centro) +
-      fila('Tipo de material', S.tipoMaterial) +
-      fila('Código', S.codigo) +
-      fila('Descripción', m.descripcion) +
-      fila('Grupo artículo', m.grupo) +
-      fila('Espesor · Ancho · Largo', medida.join(' · ')) +
-      fila('Piezas', S.piezas) +
-      '</dl><h3 style="margin-top:14px">Se completa solo</h3><dl>' +
+    var d = S.desglose;
+    var etapa = function (id) {
+      var x = d[id] || {};
+      return x.plantilla ? x.plantilla + '  ' + (x.espesor || '') + 'X' + (x.ancho || '') : '';
+    };
+    $('resumen').innerHTML =
       fila('País', CTX.porDefecto.PAIS) +
+      fila('Centro', S.centro) +
+      fila('Clase requerimiento', S.clase) +
       fila('Tipo requerimiento', CTX.porDefecto.TIPO_REQUERIMIENTO) +
-      fila('Llegada requerimiento', 'fecha y hora al guardar') +
+      fila('Llegada requerimiento', 'la fecha de hoy, al guardar') +
       fila('Usuario solicitante', CTX.usuario || 'tu correo') +
-      '</dl>';
+      fila('Aserradero', etapa('aserradero'), true) +
+      fila('Secado', etapa('secado'), true) +
+      fila('Cepillado', etapa('cepillado'), true) +
+      fila('Empaquetado', S.agrupacion ? S.agrupacion.codigo : '', true) +
+      fila('Tamaño dimensión', relleno(S.espesor, 3) + 'X' + relleno(S.ancho, 3) +
+        (S.largo ? 'X' + relleno(S.largo, 4) : ''), true) +
+      fila('Espesor · Ancho · Largo',
+        [relleno(S.espesor, 3), relleno(S.ancho, 3), relleno(S.largo, 4)]
+          .filter(Boolean).join(' · '), true) +
+      fila('PAK', S.piezas) +
+      fila('UMB', S.umb) +
+      fila('Stock/Pedido', S.stockPedido) +
+      fila('Material', m.descripcion || '');
   }
 
-  /* ------------------------------------------------------------- navegación */
+  /* ------------------------------------------------------------ el banco */
+
+  function tramo(pie, caracteres, desde) {
+    var chars = caracteres.map(function (c, i) {
+      var pos = desde + i;
+      var vacio = (c === '' || c == null);
+      var cambio = ULTIMO.charAt(pos) !== (vacio ? '' : c);
+      return '<span class="ch' + (vacio ? ' vacio' : '') + (cambio && !vacio ? ' puesto' : '') +
+        '" style="animation-delay:' + (i * 26) + 'ms">' + esc(vacio ? '·' : c) + '</span>';
+    }).join('');
+    return '<span class="tramo"><span class="tramo-chars">' + chars + '</span>' +
+      '<span class="tramo-pie">' + esc(pie) + '</span></span>';
+  }
+
+  function separador(signo) {
+    return '<span class="tramo"><span class="tramo-chars"><span class="ch sep">' + esc(signo) +
+      '</span></span><span class="tramo-pie"></span></span>';
+  }
+
+  function trozos(texto, largo) {
+    var salida = [];
+    for (var i = 0; i < largo; i++) salida.push(texto.charAt(i) || '');
+    return salida;
+  }
+
+  function pintarBanco() {
+    var p = S.agrupacion ? S.agrupacion.prefijo : '    ';
+    var partes = S.agrupacion ? S.agrupacion.partes : [];
+
+    // En pantalla el código va como quedará escrito: con los ceros puestos.
+    var ee = relleno(S.espesor, 3);
+    var aa = relleno(S.ancho, 3);
+    var ll = relleno(S.largo, 4);
+
+    $('codigo').innerHTML =
+      tramo('Agrupación', trozos(p.replace(/ /g, ''), 4), 0) +
+      tramo('Espesor', trozos(ee, 3), 4) +
+      separador('X') +
+      tramo('Ancho', trozos(aa, 3), 8) +
+      separador('X') +
+      tramo('Largo', trozos(ll, 4), 12);
+
+    ULTIMO = fijo(p, 4) + fijo(ee, 3) + 'X' + fijo(aa, 3) + 'X' + fijo(ll, 4);
+
+    var codigo = (S.agrupacion ? p : '') + ee +
+      (ee && aa ? 'X' + aa : '') + (aa && ll ? 'X' + ll : '');
+
+    var significados = partes.filter(function (x) { return x.significado; })
+      .map(function (x) {
+        return '<b>' + esc(x.caracter === ' ' ? '␣' : x.caracter) + '</b> ' + esc(x.significado);
+      }).join(' · ');
+
+    $('codigoPlano').innerHTML = codigo
+      ? '<b>' + esc(codigo) + '</b><span class="largo-codigo">' + codigo.length + ' caracteres</span>' +
+        (significados ? '<span class="largo-codigo">' + significados + '</span>' : '')
+      : '<span class="pista">Elige la agrupación y dicta las medidas.</span>';
+
+    if (!S.agrupacion || !S.espesor || !S.ancho) $('fichaBanco').hidden = true;
+  }
+
+  /* ------------------------------------------------------------ navegación */
 
   function pasoCompleto(n) {
-    if (n === 1) return !!S.clase;
-    if (n === 2) return !!S.origen && !!S.centro;
-    if (n === 3) return !!S.tipoMaterial;
-    if (n === 4) {
-      if (!S.codigo) return false;
-      if (CTX.largoCodigo && S.codigo.length !== CTX.largoCodigo) return false;
-      if (!S.buscado) return false;
+    if (n === 1) return !!(S.clase && S.origen && S.centro && S.tipoMaterial);
+    if (n === 2) return !!S.agrupacion;
+    if (n === 3) {
+      if (!S.espesor || !S.ancho || !S.buscado) return false;
       return CTX.exigeCodigoEnBD ? !!S.material : true;
+    }
+    if (n === 4) {
+      var ok = true;
+      CTX.etapas.forEach(function (etapa) {
+        if (!S.agrupacion.etapas[etapa.id]) return;
+        var d = S.desglose[etapa.id] || {};
+        if (!d.plantilla || !d.espesor || !d.ancho) ok = false;
+      });
+      return ok;
     }
     if (n === 5) return Number(S.piezas) > 0;
     return false;
@@ -398,32 +681,37 @@
 
   function irA(n) {
     if (n > 1 && !pasoCompleto(n - 1)) return;
-    PASO = Math.min(Math.max(n, 1), TOTAL_PASOS);
-    for (var i = 1; i <= TOTAL_PASOS; i++) {
-      $('paso' + i).style.display = (i === PASO) ? '' : 'none';
-    }
+    PASO = Math.min(Math.max(n, 1), PASOS.length);
+    for (var i = 1; i <= PASOS.length; i++) $('paso' + i).hidden = (i !== PASO);
+
+    if (PASO === 2 && !S.agrupaciones) cargarAgrupaciones();
+    else if (PASO === 2) dibujarAgrupaciones();
+    if (PASO === 4) prepararDesglose();
     if (PASO === 5) dibujarResumen();
+
     refrescar();
-    if (PASO === 4) $('codigo').focus();
+    if (PASO === 3) $('mEspesor').focus();
     if (PASO === 5) $('piezas').focus();
   }
 
   function dibujarRuta() {
-    var nombres = ['Clase', 'Origen', 'Material', 'Código', 'Piezas'];
-    $('ruta').innerHTML = nombres.map(function (nombre, i) {
+    $('ruta').innerHTML = PASOS.map(function (nombre, i) {
       var n = i + 1;
-      var cls = (n === PASO) ? 'on' : (n < PASO ? 'hecho' : '');
-      return '<span class="' + cls + '" data-paso="' + n + '">' + n + '. ' + esc(nombre) + '</span>';
+      var cls = n === PASO ? 'on' : (n < PASO ? 'hecho' : '');
+      return '<button type="button" class="' + cls + '" data-paso="' + n + '"' +
+        (n === PASO ? ' aria-current="step"' : '') + '>' +
+        '<span class="n">' + n + '</span>' + esc(nombre) + '</button>';
     }).join('');
   }
 
   function refrescar() {
     dibujarRuta();
-    $('btnAtras').style.display = PASO > 1 ? '' : 'none';
-    $('btnSiguiente').style.display = PASO < TOTAL_PASOS ? '' : 'none';
-    $('btnGuardar').style.display = PASO === TOTAL_PASOS ? '' : 'none';
+    $('btnAtras').hidden = PASO === 1;
+    $('btnSiguiente').hidden = PASO === PASOS.length;
+    $('btnGuardar').hidden = PASO !== PASOS.length;
     $('btnSiguiente').disabled = !pasoCompleto(PASO);
-    $('btnGuardar').disabled = !pasoCompleto(TOTAL_PASOS);
+    $('btnGuardar').disabled = !pasoCompleto(PASOS.length);
+    if (PASO === 5) dibujarResumen();
   }
 
   /* --------------------------------------------------------------- guardar */
@@ -432,47 +720,45 @@
     if (!pasoCompleto(5)) return;
     $('btnGuardar').disabled = true;
     $('btnAtras').disabled = true;
-    $('guardando').style.display = '';
+    $('guardando').hidden = false;
     aviso($('mensaje'), '', '', '');
 
     google.script.run
       .withSuccessHandler(alGuardar)
       .withFailureHandler(function (err) {
-        $('guardando').style.display = 'none';
+        $('guardando').hidden = true;
         $('btnAtras').disabled = false;
         refrescar();
-        aviso($('mensaje'), 'error', 'No se pudo guardar. ',
-          err && err.message ? err.message : err);
+        aviso($('mensaje'), 'error', 'No se pudo guardar. ', err && err.message ? err.message : err);
         window.scrollTo(0, 0);
       })
       .apiGuardar({
-        clase: S.clase,
-        origen: S.origen,
-        centro: S.centro,
-        tipoMaterial: S.tipoMaterial,
-        codigo: S.codigo,
-        piezas: Number(S.piezas)
+        clase: S.clase, origen: S.origen, centro: S.centro, tipoMaterial: S.tipoMaterial,
+        agrupacion: S.agrupacion.codigo,
+        espesor: S.espesor, ancho: S.ancho, largo: S.largo,
+        desglose: S.desglose,
+        piezas: Number(S.piezas), umb: S.umb, stockPedido: S.stockPedido
       });
   }
 
   function alGuardar(r) {
-    $('guardando').style.display = 'none';
+    $('guardando').hidden = true;
     $('btnAtras').disabled = false;
-    $('acciones').style.display = 'none';
-    $('paso5').style.display = 'none';
-    aviso($('mensaje'), '', '', '');
+    $('acciones').hidden = true;
+    $('paso5').hidden = true;
+    document.body.classList.add('guardado');
 
-    $('listo').style.display = '';
+    $('listo').hidden = false;
     $('listo').innerHTML =
-      '<div class="aviso ok"><b>Solicitud registrada</b>' +
+      '<div class="aviso ok"><b>Solicitud guardada</b>' +
       esc(r.codigo) + ' · ' + esc(r.piezas) + ' piezas · ' + esc(r.fecha) + '</div>' +
-      '<div class="ficha"><h3>Dónde quedó</h3><dl>' +
+      '<dl class="resumen">' +
       fila('Hoja ' + r.hoja, 'fila ' + r.fila) +
       fila('Hoja ' + r.hojaRegistro, 'fila ' + r.filaRegistro) +
       fila('Solicitante', r.solicitante) +
-      '</dl></div>' +
+      '</dl>' +
       '<div class="acciones">' +
-      '<button type="button" class="primario" id="btnOtro">Registrar otro código</button>' +
+      '<button type="button" class="primario" id="btnOtro">Registrar otra medida</button>' +
       '<button type="button" class="secundario" id="btnNuevo">Empezar de nuevo</button>' +
       '</div>';
 
@@ -481,52 +767,57 @@
     window.scrollTo(0, 0);
   }
 
-  /** Deja el formulario listo para otra solicitud. */
-  function reiniciar(conservarCabecera) {
-    S.codigo = '';
-    S.material = null;
-    S.buscado = false;
-    S.piezas = '';
-    $('codigo').value = '';
+  function reiniciar(conservar) {
+    document.body.classList.remove('guardado');
+    S.espesor = ''; S.ancho = ''; S.largo = '';
+    S.material = null; S.buscado = false; S.largos = []; S.codigo = ''; S.piezas = '';
+    S.desglose = {};
+    $('mEspesor').value = ''; $('mAncho').value = ''; $('mLargo').value = '';
     $('piezas').value = '';
-    $('resultadoCodigo').innerHTML = '';
-    dibujarContador();
+    $('largos').innerHTML = '';
+    $('fichaBanco').hidden = true;
+    $('listo').hidden = true; $('listo').innerHTML = '';
+    $('acciones').hidden = false;
+    ULTIMO = '';
 
-    $('listo').style.display = 'none';
-    $('listo').innerHTML = '';
-    $('acciones').style.display = '';
-
-    if (!conservarCabecera) {
-      S.clase = '';
-      S.origen = '';
-      S.centro = '';
-      S.tipoMaterial = '';
-      marcar($('opcClase'), '');
-      marcar($('opcOrigen'), '');
-      marcar($('opcTipo'), '');
-      $('cajaCentro').style.display = 'none';
+    if (!conservar) {
+      S.clase = ''; S.origen = ''; S.centro = ''; S.tipoMaterial = '';
+      S.agrupacion = null; S.agrupaciones = null;
+      marcar($('opcClase'), ''); marcar($('opcOrigen'), ''); marcar($('opcTipo'), '');
+      $('grupoCentro').hidden = true;
+      pintarBanco();
       irA(1);
       return;
     }
-    irA(4);
+    pintarBanco();
+    irA(3);
   }
 
-  /* ----------------------------------------------------------------- eventos */
+  /* ---------------------------------------------------------------- eventos */
 
   $('btnAtras').addEventListener('click', function () { irA(PASO - 1); });
   $('btnSiguiente').addEventListener('click', function () { irA(PASO + 1); });
   $('btnGuardar').addEventListener('click', guardar);
-  $('codigo').addEventListener('input', alEscribirCodigo);
-  $('codigo').addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter' && pasoCompleto(4)) irA(5);
+
+  var DIGITOS = { mEspesor: 3, mAncho: 3, mLargo: 4 };
+  ['mEspesor', 'mAncho', 'mLargo'].forEach(function (id) {
+    $(id).addEventListener('input', alEscribirMedida);
+    $(id).addEventListener('blur', function () {
+      $(id).value = relleno($(id).value, DIGITOS[id]);
+      alEscribirMedida();
+    });
+    $(id).addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && pasoCompleto(3)) irA(4);
+    });
   });
-  $('piezas').addEventListener('input', function () {
-    S.piezas = $('piezas').value;
-    dibujarResumen();
-    refrescar();
-  });
+  $('piezas').addEventListener('input', function () { S.piezas = $('piezas').value; refrescar(); });
+  $('umb').addEventListener('change', function () { S.umb = $('umb').value; refrescar(); });
+  $('stockPedido').addEventListener('change', function () { S.stockPedido = $('stockPedido').value; refrescar(); });
   $('ruta').addEventListener('click', function (ev) {
-    var n = Number(ev.target.getAttribute('data-paso'));
+    var b = ev.target;
+    while (b && b !== $('ruta') && !b.hasAttribute('data-paso')) b = b.parentNode;
+    if (!b || b === $('ruta')) return;
+    var n = Number(b.getAttribute('data-paso'));
     if (n && n < PASO) irA(n);
   });
 

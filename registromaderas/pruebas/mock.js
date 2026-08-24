@@ -118,7 +118,8 @@ global.SpreadsheetApp = {
 global.CacheService = {
   getScriptCache: () => ({
     get: k => (k in cache ? cache[k] : null),
-    put: (k, v) => { cache[k] = String(v); }
+    put: (k, v) => { cache[k] = String(v); },
+    remove: k => { delete cache[k]; }
   })
 };
 global.LockService = {

@@ -3,87 +3,120 @@
 Apps Script sobre el spreadsheet **Maderas**
 (`15THGajqCDH0YuBaoEUt9uLM8s-6iKsUf9_-vY8bABmE`).
 
-Un formulario web que pregunta paso a paso, busca el código en la base y guarda
-la solicitud en la hoja que corresponde y en la bitácora `Registro`.
+Nadie escribe el código de material. Se elige la agrupación, se dictan las
+medidas y el formulario arma el código, decide por qué etapas pasa el producto
+y escribe la fila completa de batch input.
+
+```
+RVMH  +  032 X 180 X 3960   ->   RVMH032X180X3960
+└──┬─┘   └─┬─┘   └┬┘   └─┬┘
+prefijo  espesor ancho  largo
+```
 
 ---
 
-## Qué pregunta, en orden
+## Cómo está armado el código
 
-| Paso | Pregunta | Opciones |
+Los cuatro caracteres del prefijo salen de la hoja *MAderas Trading Estructura*:
+
+| Posición | Qué dice | Ejemplos |
 |---|---|---|
-| 1 | Clase de requerimiento | **PT** Producto Terminado · **PCP** Producto Cepillado Proceso · **PP** Producto de Proceso |
-| 2 | Origen | **Trading** (elige centro: TCP1 o TCD2) · **Planta** (queda fijo en TCP1) |
-| 3 | Tipo de material | **TTAS** · **TPAS** |
-| 4 | Código del material | 16 caracteres. Se busca en `BD_Maderas` y se muestra lo que trae asociado |
-| 5 | Cantidad de piezas | Entero mayor que cero |
+| 1 | Elaboración | `C` Cepillado · `R` Rústico |
+| 2 | Estado | `V` Verde · `S` Estufada · `2`/`3`/`4` caras · `B` CTS Bisel · `C` CTS |
+| 3 | Calidad | `M` Médula · `J` COL B · `K` Primera · `N` Mill Run · `F` COL MIX … |
+| 4 | Especie | `H` Radiata Terceros · `R` Radiata EERR · `« »` producto en proceso |
 
-La clase del paso 1 decide la hoja de destino: PT → `PT`, PCP → `PCP`, PP → `PP`.
+Después van espesor (3 dígitos), `X`, ancho (3) y, si el producto lo lleva, `X`
+y largo (4). Con largo el código mide **16 caracteres**; sin largo, **11**. Los
+ceros a la izquierda los pone el formulario: escribes `32` y queda `032`.
 
-Al terminar hay un resumen antes de guardar, y después de guardar se puede
-**registrar otro código** conservando clase, origen, centro y tipo de material.
+De las 41.816 filas de `BD_Maderas`, 40.066 siguen exactamente este patrón.
 
-## Qué se completa solo
+## Las condicionales
 
-Nadie lo escribe, lo pone el sistema:
+Todo lo que el formulario decide solo sale de tus propias hojas:
+
+| Decisión | De dónde sale |
+|---|---|
+| Qué agrupaciones se pueden pedir | Hoja **SAP**: `Ce.` + `TpMt` → `AgrupMad` |
+| Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` |
+| Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
+| Etapa de **aserradero** | Va siempre |
+| Plantilla propuesta de cada etapa | Hoja **Agrupamiento**, por el carácter 3 (calidad) |
+| Largos que se ofrecen | Los que `BD_Maderas` tiene para esa agrupación y escuadría |
+
+Ejemplos, con los mismos códigos de tu archivo:
+
+- `RVMH` → **R**ústico **V**erde: solo aserradero. Secado y cepillado quedan en blanco.
+- `RSFR` → Rústico **S**eco: aserradero y secado.
+- `C4JH` → **C**epillado: las tres etapas.
+
+Qué habilita cada combinación, hoy:
+
+| Centro | TpMt | Agrupaciones |
+|---|---|---|
+| TCD2 | TTAS | 9 (C4JH, C4KH, RSKH, RSMH, RSNH, RSWH, RSYH, RVBH, RVMH) |
+| TCP1 | TTAS | 8 (C4JR, C4KR, RSFR, RSJR, RSKR, RSMR, RSOR, RSZR) |
+| TCP1 | TPAS | 16 (las de proceso, de tres letras: CSF, RSF, RVM…) |
+| TCD2 | TPAS | ninguna |
+
+## Los cinco pasos
+
+| Paso | Qué se pide |
+|---|---|
+| 1 · Cabecera | Clase (PT/PCP/PP), origen (Trading elige centro TCP1 o TCD2; Planta va fijo en TCP1) y tipo de material (TTAS/TPAS) |
+| 2 · Agrupación | Solo las que el centro y el tipo de material habilitan |
+| 3 · Medidas | Espesor, ancho y largo. Se ofrecen los largos que existen en la base |
+| 4 · Desglose | Aserradero, secado y cepillado: propuestos, y editables si la etapa va sobredimensionada |
+| 5 · Cantidad | Piezas, unidad y stock/pedido, con el resumen de la fila antes de guardar |
+
+Arriba, siempre a la vista, el código se va armando carácter por carácter y
+debajo dice qué significa cada uno.
+
+## Lo que se completa solo
 
 | Dato | Valor |
 |---|---|
 | País | `CL` |
-| Tipo Requerimiento | `No` |
-| Clase Requerimiento | la que se eligió en el paso 1 |
-| Llegada requerimiento | fecha y hora del ingreso |
+| Tipo Requerimiento | `NO` |
+| Clase Requerimiento | la del paso 1 |
+| Llegada requerimiento | la fecha de hoy, como texto `dd.mm.aaaa` |
 | Usuario Solicitante | correo de quien está usando el formulario |
 
-## Dónde queda cada solicitud
+## La fila que se escribe
 
-Se escriben **dos filas**, una en cada lugar.
+En la hoja de la clase (`PT`, `PCP` o `PP`), desde la fila 3 porque los rótulos
+están en la fila 2:
 
-### 1. La hoja de la clase (`PT`, `PCP` o `PP`)
+| Col | Rótulo | Qué recibe |
+|---|---|---|
+| A–F | País … Usuario Solicitante | lo automático de arriba |
+| G–J | Aserradero(Template), Tamaño Dimensión, EE, AA | etapa de aserradero |
+| K–N | Secado(Template), Tamaño dimensión, EE, AA | etapa de secado (vacías si no aplica) |
+| O–R | Cepillado(Template), Tamaño dimensión, EE, AA | etapa de cepillado (vacías si no aplica) |
+| S | Empaquetado | la agrupación elegida |
+| T–W | Tamaño dimensión, Espesor, Ancho, Largo | la medida final |
+| X–Z | PAK, UMB, Stock/Pedido | piezas, unidad y origen |
 
-Los encabezados de esas hojas están en la **fila 2**, así que los datos entran
-desde la fila 3. Se escriben solo estas columnas:
+`EE` y `AA` se calculan igual que los `MID()` de tu hoja Entrada, pero se
+escriben como valor: una fila de batch input no debería depender de fórmulas.
 
-| Columna de la hoja | Qué recibe |
-|---|---|
-| País | `CL` |
-| Centro | TCP1 o TCD2 |
-| Clase Requerimiento | PT, PCP o PP |
-| Tipo Requerimiento | `No` |
-| Llegada requerimiento | fecha y hora |
-| Usuario Solicitante | correo |
-| Espesor · Ancho · Largo | la medida del material (ver más abajo) |
-| PAK | cantidad de piezas |
-| UMB PZA ó M3 | `PZA` |
+`Descripcion Especial EN/ES` y los rendimientos **no se tocan**.
 
-**Las columnas del desglose no se tocan**: `Aserradero(Template)`,
-`Secado(Template)`, `Cepillado(Template)`, `Empaquetado`, sus `Tamaño
-dimensión`, `EE`, `AA` y los rendimientos quedan en blanco, esperando las
-asociaciones que faltan por definir.
-
-### 2. La hoja `Registro`
-
-Es la bitácora completa del formulario. Sus encabezados los crea el script la
-primera vez:
-
-`Fecha · Solicitante · País · Clase Requerimiento · Tipo Requerimiento · Origen ·
-Centro · Tipo Material · Código · Descripción Material · Grupo Artículo ·
-Piezas · UMB · Espesor · Ancho · Largo · Hoja Destino · Fila Destino`
-
-Las dos últimas columnas dicen en qué hoja y en qué fila quedó la solicitud, así
-que desde la bitácora siempre se puede llegar a la fila original.
+Además, cada solicitud deja una línea en la hoja `Registro`, con `Hoja Destino`
+y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ---
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son seis archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son siete archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los seis archivos
+### 2. Crea los siete archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -93,6 +126,7 @@ carpeta:
 | Archivo en Apps Script | Contenido |
 |---|---|
 | `Config.gs` | `fuente/Config.gs` |
+| `Catalogos.gs` | `fuente/Catalogos.gs` |
 | `Registro.gs` | `fuente/Registro.gs` |
 | `Setup.gs` | `fuente/Setup.gs` |
 | `WebApp.gs` | `fuente/WebApp.gs` |
@@ -114,8 +148,9 @@ Google pedirá permisos: *Revisar permisos › elige tu cuenta › Configuració
 avanzada › Ir a (nombre del proyecto) › Permitir*. La pantalla de "app no
 verificada" es normal en scripts propios.
 
-Al terminar revisa el mensaje: dice si falta alguna hoja o alguna columna, y
-deja la hoja `Registro` con sus encabezados.
+Eso crea las hojas **SAP** y **Agrupamiento** con los catálogos del archivo de
+Jorge, deja `Registro` con sus encabezados y avisa si alguna columna de
+PT/PCP/PP se movió de lugar.
 
 ### 4. Publica
 
@@ -133,84 +168,49 @@ anotar una solicitud sin solicitante.
 
 ### 5. Reparte el enlace
 
-Copia la URL y mándala. Si quieres que alguien entre con la clase ya elegida,
-agrégale al final `?clase=PT`, `?clase=PCP` o `?clase=PP`. El menú **Registro
-Maderas › Ver enlace del formulario** te los muestra armados.
+Copia la URL y mándala. Con `?clase=PT`, `?clase=PCP` o `?clase=PP` al final se
+entra con la clase ya elegida. El menú **Registro Maderas › Ver enlace del
+formulario** te los muestra armados.
 
 ---
+
+## Mantener los catálogos
+
+**Se editan en Sheets, no en el código.** Las hojas `SAP` y `Agrupamiento` son
+la fuente de verdad: agregar una agrupación nueva es pegar una fila en `SAP` con
+su `Ce.`, `TpMt` y `AgrupMad`, y aparece en el formulario. Lo mismo con las
+plantillas de etapa en `Agrupamiento`.
+
+Los catálogos se recuerdan seis horas para no releer la planilla en cada clic.
+Si acabas de cambiarlos y quieres verlos ya, ejecuta `instalarRegistro`.
 
 ## Decisiones que conviene revisar
 
-Todas se cambian en `ACCESOS`, `CFG`, `CODIGO`, `POR_DEFECTO` y `MAPEO_DESTINO`,
-dentro de `Config.gs`.
+**Las plantillas de etapa se proponen por la calidad.** `RVMH` tiene calidad `M`,
+así que propone `RVM` para aserradero y `RSM` para secado, que son los códigos
+que están en tu hoja Agrupamiento. En tu archivo de ejemplo aparecían `RVFD` y
+`RSFD`, que no están en ese catálogo: si la plantilla correcta lleva la especie
+pegada, agrégala como fila en `Agrupamiento` y quedará disponible.
 
-**La hoja de la base se llama `BD_Maderas`.** En el spreadsheet no hay ninguna
-hoja llamada `BD`; las hojas son `BD_Maderas`, `PT`, `PCP`, `PP` y `Registro`.
-Si le cambias el nombre, ajusta `CFG.HOJA_BD`.
-
-**El código se exige de 16 caracteres exactos.** Ojo con esto: de las 41.816
-filas de `BD_Maderas`, 28.497 tienen 16 caracteres, pero 11.872 tienen 11
-(los `C2C 019X075`, `C2CR019X090`, casi todos TPAS). Con la regla de 16 esos
-códigos no se pueden registrar. Para permitirlos:
-
-```js
-const CODIGO = { LARGO: 0, ... };   // 0 = no validar el largo
-```
+**El código tiene que existir en `BD_Maderas`.** Si la combinación no está, no se
+guarda y el formulario ofrece los largos que sí existen. Para permitir códigos
+nuevos, `MEDIDAS.EXIGIR_EN_BD = false` en `Config.gs`.
 
 **Los códigos con espacios raros igual se encuentran.** Hay 15 filas en
 `BD_Maderas` con un espacio duro pegado al final (`RSFR037X130X3600 `). El
-formulario los reconoce igual y guarda el código limpio.
+formulario los reconoce y guarda el código limpio.
 
-**La cantidad de piezas va a la columna `PAK`.** Es la única columna de conteo de
-las hojas PT/PCP/PP. Si `PAK` significa otra cosa en tu operación, borra esa
-línea de `MAPEO_DESTINO`: la cantidad igual queda guardada en `Registro`.
+**El solicitante es el correo, no el nombre.** En tu ejemplo decía
+"Babara Riquelme"; acá queda `barbara.riquelme@…` porque es lo que Google
+entrega de forma confiable y no se puede escribir a mano.
 
-**Espesor, ancho y largo se deducen de la medida.** Primero de la descripción de
-`BD_Maderas` y, si ahí no hay, del propio código. Se hace en ese orden a
-propósito: en códigos como `C23H001X006X0013` los números **no** son la medida
-(la real, `019X150X4000`, está en la descripción).
-
-**El código tiene que existir en `BD_Maderas`.** Si no está, no se guarda. Para
-permitir códigos nuevos, `CODIGO.EXIGIR_EN_BD = false`.
-
-**Si el TpMt de la base no coincide con el tipo elegido, solo avisa.** Deja
-guardar igual. Para bloquear, `CODIGO.EXIGIR_TIPO_MATERIAL = true`.
-
----
-
-## Cuando definas las asociaciones del código
-
-Las columnas del desglose (aserradero, secado, cepillado, empaquetado y sus
-tamaños) se completan agregando líneas a `MAPEO_DESTINO`:
-
-```js
-const MAPEO_DESTINO = {
-  'País': 'pais',
-  ...
-  'Secado(Template)': 'secadoTemplate'   // <- nueva
-};
-```
-
-La clave es el **encabezado exacto de la fila 2** de la hoja (no distingue
-mayúsculas ni acentos) y el valor es un dato de `datosParaHoja_`, en
-`Registro.gs`. Ahí se agrega cómo se calcula:
-
-```js
-function datosParaHoja_(v) {
-  return {
-    ...
-    secadoTemplate: v.codigo.substring(0, 4)   // lo que corresponda
-  };
-}
-```
-
-Una columna que no esté en el mapa nunca se escribe, y una del mapa que no
-exista en la hoja se ignora sin romper nada.
+**La fecha va como texto.** `21.07.2026`, no como fecha de Sheets, para que el
+batch input salga tal cual.
 
 ## Quién puede entrar
 
-Por defecto entra cualquiera que tenga el enlace (dentro del dominio). Para
-limitarlo, pon los correos en `ACCESOS`:
+Por defecto entra cualquiera con el enlace (dentro del dominio). Para limitarlo,
+pon los correos en `ACCESOS` (`Config.gs`):
 
 ```js
 const ACCESOS = ['ana@empresa.com', 'beto@empresa.com'];
@@ -224,16 +224,17 @@ El permiso se revisa **también al guardar**, no solo al abrir la página.
 
 Los archivos de `fuente/` son exactamente los que van al editor: acá no se
 genera ni se compila nada. Si editas en el editor de Apps Script, copia el
-cambio de vuelta al archivo que corresponda para que el repositorio siga siendo
-el respaldo de lo que está funcionando.
+cambio de vuelta para que el repositorio siga siendo el respaldo.
 
 | Archivo | Qué hay |
 |---|---|
-| `fuente/Config.gs` | Spreadsheet, clases, orígenes, centros, validaciones, `MAPEO_DESTINO`, `ACCESOS`. |
-| `fuente/Registro.gs` | Búsqueda en la base, validación y escritura. La API que usa el formulario. |
-| `fuente/Setup.gs` | Revisa las hojas, crea `Registro`, menú del spreadsheet. |
+| `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
+| `fuente/Catalogos.gs` | Lectura de las hojas SAP y Agrupamiento, con sus semillas. |
+| `fuente/Registro.gs` | Armado del código, etapas aplicables, búsqueda y escritura. La API. |
+| `fuente/Setup.gs` | Crea las hojas de catálogo y revisa las columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |
-| `fuente/*.html` | Formulario y estilos. |
+| `fuente/Estilos.html` | El sistema visual. |
+| `fuente/Formulario.html` | Los cinco pasos y el código en vivo. |
 | `pruebas/` | Simulador de Apps Script + pruebas. |
 
 ```bash
@@ -241,4 +242,6 @@ cd registromaderas/pruebas && node test.js
 ```
 
 Las pruebas levantan las hojas con los mismos encabezados que tiene hoy el
-spreadsheet, así que si alguien cambia una columna, se nota ahí.
+spreadsheet (rótulos repetidos incluidos) y cubren las condicionales: qué
+agrupación habilita cada centro, qué etapas aplican según el prefijo, cómo se
+arma el código y qué queda escrito en cada columna.
