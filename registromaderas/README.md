@@ -77,18 +77,34 @@ que desde la bitácora siempre se puede llegar a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. **Todo el código es un solo archivo: `Codigo.gs`.**
+Cinco pasos, una sola vez. Son seis archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Pega el código
+### 2. Crea los seis archivos
 
-Borra el `function myFunction() {}` que viene y pega el contenido de
-**`Codigo.gs`** de esta carpeta. Guarda con `Ctrl+S`.
+Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
+*HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
+Script se la pone solo). En cada uno pega el contenido del archivo de esta
+carpeta:
 
-No hay que crear ningún archivo `.html`: van incrustados dentro.
+| Archivo en Apps Script | Contenido |
+|---|---|
+| `Config.gs` | `fuente/Config.gs` |
+| `Registro.gs` | `fuente/Registro.gs` |
+| `Setup.gs` | `fuente/Setup.gs` |
+| `WebApp.gs` | `fuente/WebApp.gs` |
+| `Estilos.html` | `fuente/Estilos.html` |
+| `Formulario.html` | `fuente/Formulario.html` |
+
+Borra el `Código.gs` que viene por defecto con su `function myFunction() {}`.
+Guarda con `Ctrl+S`.
+
+Los nombres `Estilos` y `Formulario` tienen que quedar tal cual: el código los
+llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
+importa, porque en Apps Script todos comparten el mismo espacio.
 
 ### 3. Prepara las hojas
 
@@ -126,7 +142,7 @@ Maderas › Ver enlace del formulario** te los muestra armados.
 ## Decisiones que conviene revisar
 
 Todas se cambian en `ACCESOS`, `CFG`, `CODIGO`, `POR_DEFECTO` y `MAPEO_DESTINO`,
-arriba del `Codigo.gs`.
+dentro de `Config.gs`.
 
 **La hoja de la base se llama `BD_Maderas`.** En el spreadsheet no hay ninguna
 hoja llamada `BD`; las hojas son `BD_Maderas`, `PT`, `PCP`, `PP` y `Registro`.
@@ -206,12 +222,10 @@ El permiso se revisa **también al guardar**, no solo al abrir la página.
 
 ## Para desarrollar (opcional)
 
-`Codigo.gs` es **generado**. Si vas a modificar bastante, trabaja con los
-fuentes de `fuente/` y regenéralo:
-
-```bash
-cd registromaderas && node fuente/construir.js
-```
+Los archivos de `fuente/` son exactamente los que van al editor: acá no se
+genera ni se compila nada. Si editas en el editor de Apps Script, copia el
+cambio de vuelta al archivo que corresponda para que el repositorio siga siendo
+el respaldo de lo que está funcionando.
 
 | Archivo | Qué hay |
 |---|---|
@@ -223,9 +237,7 @@ cd registromaderas && node fuente/construir.js
 | `pruebas/` | Simulador de Apps Script + pruebas. |
 
 ```bash
-cd registromaderas/pruebas
-node test.js                    # sobre los fuentes
-ARCHIVO_UNICO=1 node test.js    # lo mismo, sobre el Codigo.gs generado
+cd registromaderas/pruebas && node test.js
 ```
 
 Las pruebas levantan las hojas con los mismos encabezados que tiene hoy el

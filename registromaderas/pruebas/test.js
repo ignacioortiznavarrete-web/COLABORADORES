@@ -3,11 +3,9 @@ const vm = require('vm');
 const path = require('path');
 const { SS, limpiarCache } = require('./mock');
 
-// Con ARCHIVO_UNICO=1 se prueba el Codigo.gs generado en vez de los fuentes,
-// para confirmar que ambos se comportan igual.
-const FUENTES = process.env.ARCHIVO_UNICO === '1'
-  ? [path.join(__dirname, '..', 'Codigo.gs')]
-  : ['Config.gs', 'Registro.gs', 'Setup.gs'].map(f => path.join(__dirname, '..', 'fuente', f));
+// Los mismos archivos que se pegan en el editor de Apps Script.
+const FUENTES = ['Config.gs', 'Registro.gs', 'Setup.gs']
+  .map(f => path.join(__dirname, '..', 'fuente', f));
 
 console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
 FUENTES.forEach(f => {
