@@ -87,6 +87,24 @@ Private Const RADIO_TIPO_2 As String = "wnd[0]/usr/radYYYY"
 Private Const RADIO_TIPO_3 As String = "wnd[0]/usr/radMCON"
 ```
 
+## El flujo que reproduce la macro
+
+Sacado de la grabación completa de una guía, paso por paso:
+
+1. `resizeWorkingPane 168, 37`
+2. `/nzcmmd001` + Enter
+3. Cabecera: Tipo Recepción, Guía, OC, Fecha, Patente, Rol
+4. **Enter hasta que aparezca la pantalla del detalle** (en la grabación son 3;
+   la macro repite hasta `ENTER_CABECERA` = 6 y corta apenas ve la grilla y las opciones)
+5. Marca la opción del check list
+6. `modifyCell` de cada diámetro (CALIDAD, CATEGORIA, LARGO, DIAMETRO, TROZO)
+7. `currentCellColumn` + `triggerModified`
+8. Cierra las ventanas de validación (una por línea)
+9. **Vuelve a marcar la opción del check list** — el `triggerModified` la desmarca
+10. → aquí pregunta **¿Está seguro de guardar esta recepción?**
+11. `tbar[1]/btn[6]` y `tbar[1]/btn[7]`
+12. Presiona `btnBUTTON_1` en la ventana final y captura el número de recepción
+
 ## Qué se corrigió del código original
 
 | Detalle | Qué pasaba | Cómo quedó |

@@ -5,8 +5,9 @@ Private Const TX_INGRESO As String = "ZCMMD001"
 Private Const HOJA_DATOS As String = "Hoja1"
 Private Const FILA_INICIO As Long = 2
 Private Const SEG_ESPERA As Long = 60
-Private Const PANE_ANCHO As Long = 139
+Private Const PANE_ANCHO As Long = 168
 Private Const PANE_ALTO As Long = 37
+Private Const ENTER_CABECERA As Long = 6
 
 Private Const ID_TIPO_RECEP As String = "wnd[0]/usr/txtTIPO_RECEP"
 Private Const ID_GUIA As String = "wnd[0]/usr/txtXGUIA"
@@ -17,6 +18,7 @@ Private Const ID_ROL As String = "wnd[0]/usr/txt*ZTMMMD001-ROL_PRE"
 Private Const ID_GRID As String = "wnd[0]/usr/cntlBCALV_GRID_DEMO_0100_CONT1/shellcont/shell"
 Private Const ID_SBAR As String = "wnd[0]/sbar"
 Private Const ID_OKCD As String = "wnd[0]/tbar[0]/okcd"
+Private Const BTN_POPUP_OK As String = "/usr/btnBUTTON_1"
 
 Private Const BTN_GRABAR_1 As String = "wnd[0]/tbar[1]/btn[6]"
 Private Const BTN_GRABAR_2 As String = "wnd[0]/tbar[1]/btn[7]"
@@ -434,6 +436,7 @@ Private Function ProcesarGuiaSAP( _
     Dim valorTipo As Variant
     Dim filaExcel As Long
     Dim filaSAP As Long
+    Dim intento As Long
     Dim etapa As String
     Dim mensajeSAP As String
     Dim documento As String
@@ -515,13 +518,22 @@ Private Function ProcesarGuiaSAP( _
     SetTextoSAP session, ID_ROL, rol
 
     etapa = "Validando cabecera"
-    session.findById("wnd[0]").sendVKey 0
 
-    EsperarSAP session
+    For intento = 1 To ENTER_CABECERA
 
-    CerrarVentanasSAP session, 60, True
+        session.findById("wnd[0]").sendVKey 0
 
-    RevisarMensajeSAP session, "La cabecera fue rechazada por SAP"
+        EsperarSAP session
+
+        CerrarVentanasSAP session, 60, True
+
+        RevisarMensajeSAP session, "La cabecera fue rechazada por SAP"
+
+        If PantallaDeDetalle(session) Then
+            Exit For
+        End If
+
+    Next intento
 
     etapa = "Seleccionando Tipo Material"
     SeleccionarTipoMaterial session, tipoMaterial
@@ -623,6 +635,12 @@ Private Function ProcesarGuiaSAP( _
 
     End If
 
+    etapa = "Remarcando Tipo Material"
+
+    SeleccionarTipoMaterial session, tipoMaterial
+
+    EsperarSAP session
+
     etapa = "Guardando guía"
 
     If Not ExisteControlSAP(session, BTN_GRABAR_1) Then
@@ -634,29 +652,21 @@ Private Function ProcesarGuiaSAP( _
 
     EsperarSAP session
 
+    If ExisteControlSAP(session, BTN_GRABAR_2) Then
+
+        etapa = "Confirmando grabación"
+
+        session.findById(BTN_GRABAR_2).Press
+
+        EsperarSAP session
+
+    End If
+
     etapa = "Buscando número de recepción"
 
     documento = CapturarRecepcionGuardada(session, mensajeSAP)
 
     RevisarMensajeSAP session, "SAP rechazó la grabación"
-
-    If documento = "" Then
-
-        If ExisteControlSAP(session, BTN_GRABAR_2) Then
-
-            etapa = "Confirmando grabación"
-
-            session.findById(BTN_GRABAR_2).Press
-
-            EsperarSAP session
-
-            documento = CapturarRecepcionGuardada(session, mensajeSAP)
-
-            RevisarMensajeSAP session, "SAP rechazó la grabación"
-
-        End If
-
-    End If
 
     If documento <> "" Then
 
@@ -957,10 +967,7 @@ Private Function CapturarRecepcionGuardada( _
             Exit For
         End If
 
-        On Error Resume Next
-        ventana.sendVKey 0
-        Err.Clear
-        On Error GoTo 0
+        PulsarEnVentana session, ventana
 
         EsperarSAP session
 
@@ -1193,10 +1200,7 @@ Private Sub CerrarVentanasSAP( _
             Exit Do
         End If
 
-        On Error Resume Next
-        ventana.sendVKey 0
-        Err.Clear
-        On Error GoTo 0
+        PulsarEnVentana session, ventana
 
         EsperarSAP session
 
@@ -1219,6 +1223,57 @@ Private Sub CerrarVentanasSAP( _
         End If
 
     Loop
+
+End Sub
+
+Private Function PantallaDeDetalle(ByVal session As Object) As Boolean
+
+    Dim lista As Collection
+
+    PantallaDeDetalle = False
+
+    If Not ExisteControlSAP(session, ID_GRID) Then
+        Exit Function
+    End If
+
+    Set lista = RadiosDePantalla(session)
+
+    PantallaDeDetalle = (lista.Count > 0)
+
+End Function
+
+Private Sub PulsarEnVentana( _
+    ByVal session As Object, _
+    ByVal ventana As Object)
+
+    Dim idBoton As String
+
+    idBoton = ""
+
+    On Error Resume Next
+    idBoton = CStr(ventana.Id) & BTN_POPUP_OK
+    Err.Clear
+    On Error GoTo 0
+
+    If idBoton <> "" Then
+
+        If ExisteControlSAP(session, idBoton) Then
+
+            On Error Resume Next
+            session.findById(idBoton).Press
+            Err.Clear
+            On Error GoTo 0
+
+            Exit Sub
+
+        End If
+
+    End If
+
+    On Error Resume Next
+    ventana.sendVKey 0
+    Err.Clear
+    On Error GoTo 0
 
 End Sub
 
