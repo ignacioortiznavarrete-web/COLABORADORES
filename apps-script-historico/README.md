@@ -42,7 +42,7 @@ viajes detectó, y qué columnas opcionales encontró.
 | Tabla de proveedores con 7 columnas | 15 columnas: participación, acumulado Pareto, variación contra la base, mini-serie de 12 meses, CV, meses activos, días sin entregar y semáforo |
 | — | Pestaña **Plan de acción** con hallazgos priorizados y acción sugerida para cada uno |
 | — | Pestaña **Operación**: viajes, m³ por viaje, camiones, distribución diamétrica, largo, hora, día de semana, turno y estado |
-| Filtros de selección única | Multi-selección con buscador en todos los filtros, más año, mes calendario, turno, estado y rango de diámetro |
+| Filtros de selección única | Multi-selección con buscador en todos los filtros, más año, mes calendario, turno, estado, producto y rango de diámetro |
 | — | Presets de periodo (último mes, últimos 3/6/12, año en curso, año anterior) |
 | — | Exportación a CSV de la vista y del plan de acción |
 | — | Tema claro y oscuro |
@@ -82,6 +82,70 @@ Todas son opcionales: si la columna no está, el dashboard lo detecta
   manda en el bundle.
 - **Caché comprimida con gzip** antes de trocearla, lo que reduce mucho el número
   de claves de `CacheService` y hace que la caché aguante planillas grandes.
+
+---
+
+## Sistema visual
+
+La regla de fondo es que **el cromo es acromático y el color queda reservado
+para los datos**. Antes el verde significaba cinco cosas a la vez (marca,
+ingresado, cumple, serie de región, proveedor estable), así que no significaba
+ninguna. Ahora cada color tiene un solo trabajo.
+
+### Color por rol
+
+| Rol | Claro | Oscuro | Dónde aparece |
+|---|---|---|---|
+| Ingresado (real) | `#0f7a4a` | `#2fa36a` | barras de volumen, series de lo efectivamente recibido |
+| Comparación | `#2a78d6` | `#4288d8` | periodo base, año anterior |
+| Plan (meta) | tinta neutra | tinta neutra | línea de meta, marca en la regla y en las barras de tabla |
+| Bajo plan | `#b0392c` | `#db6a5c` | brechas negativas |
+| Cerca del plan | `#96690f` | `#c98500` | 90-100% de cumplimiento |
+
+Las **calidades** toman el color real de la madera: verde en pie, violeta para
+la mancha azul (que es el color que deja el hongo), rojo para el siniestrado.
+Las **regiones** usan una paleta categórica de ocho tonos en orden fijo, de modo
+que una región conserva su color aunque un filtro cambie el ranking.
+
+Toda la paleta está verificada con el validador del skill `dataviz`: banda de
+luminosidad, piso de croma, separación para daltonismo, piso de visión normal y
+contraste contra la superficie, en claro y en oscuro. El contraste de texto se
+audita en navegador sobre las cinco pestañas y los dos temas: 0 incumplimientos
+de 4.5:1.
+
+### Tipografía
+
+IBM Plex Sans para la interfaz y **IBM Plex Mono para todas las cifras**. El
+monoespaciado no es decorativo: alinea las columnas numéricas de las tablas y
+hace que un número se lea como la lectura de un instrumento. La hoja de fuentes
+se carga sin bloquear el render y hay pila de reserva, así que en una red
+corporativa que bloquee Google Fonts el tablero se ve igual de ordenado.
+
+### La regla
+
+El primer elemento del Resumen es una regla: riel único, relleno según lo
+recibido, marca de meta al 100% y la brecha en m³. Reemplaza a tres tarjetas
+sueltas (plan, cumplimiento, brecha) porque las tres respondían la misma
+pregunta. El mismo gesto se repite dentro de la tabla de proveedores: cada barra
+lleva su marca de meta, así que la fila se lee igual que el encabezado.
+
+### Gráficos
+
+- **Ningún gráfico de doble eje.** Los Pareto (proveedores y clases diamétricas)
+  ponen barras y acumulado en una sola escala 0-100%; viajes y carga media, que
+  son medidas distintas, se separaron en dos gráficos.
+- El plan dejó de ser una barra que compite con lo ingresado y pasó a ser una
+  **línea de meta**; la barra de cada mes se pinta según su distancia al plan.
+- Los años son una secuencia, no categorías: en las series por año el más
+  reciente va en verde y grueso, y los anteriores se apagan hacia el fondo.
+- La matriz año × mes usa una rampa secuencial de un solo tono.
+
+### Accesibilidad y movimiento
+
+Foco de teclado visible en todos los controles (aclarado sobre la cabecera
+oscura), sin desplazamiento horizontal en 390 px, y `prefers-reduced-motion`
+respetado: las transiciones se anulan sin que ningún contenido dependa de una
+animación para aparecer.
 
 ---
 

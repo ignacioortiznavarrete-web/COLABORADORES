@@ -5,432 +5,575 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dashboard Forestal · Histórico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"></noscript>
   <script src="https://www.gstatic.com/charts/loader.js"></script>
 
   <style>
+    /* ==========================================================
+       SISTEMA VISUAL · "instrumento de medición"
+       El cromo es acromático y el color queda reservado para los
+       datos. Paleta validada con el validador de dataviz:
+       series y calidades pasan banda de luminosidad, piso de croma,
+       separación CVD, piso de visión normal y contraste, en claro
+       y en oscuro.
+       ========================================================== */
     :root{
-      --bg:#eef2ec; --bg2:#e3ebe1; --surface:#ffffff; --surface2:#f6faf5; --surface3:#eef4ed;
-      --ink:#12241a; --ink2:#33493b; --muted:#61756a; --line:#d9e3d9; --line2:#c7d6c7;
-      --forest:#0f3626; --forest2:#1c5039; --forest3:#2c6a4c; --leaf:#4fa074; --leaf2:#7cbf99;
-      --plan:#c98a2e; --plan2:#e6b566;
-      --danger:#b23b2e; --warning:#c28a22; --success:#2c6a4c; --info:#2f6f8f;
-      --shadow:0 10px 30px rgba(15,54,38,.08);
-      --shadow2:0 2px 8px rgba(15,54,38,.06);
-      --radius:16px; --radius-sm:10px;
-      --chart-text:#5e7264; --chart-grid:#e3ebe1;
+      color-scheme: light;
+
+      /* superficies acromáticas, tinte frío hacia el propio gris tinta */
+      --bg:#f4f6f7; --bg2:#eaeef0;
+      --surface:#ffffff; --surface2:#f7f9fa; --surface3:#edf1f3;
+      --ink:#1a1f23; --ink2:#3a444c; --muted:#5a646c;
+      --line:#dde3e6; --line2:#c8d1d6;
+
+      /* datos: cada color tiene un solo significado */
+      --real:#0f7a4a;        /* lo que efectivamente entró */
+      --base:#2a78d6;        /* periodo de comparación */
+      --plan:#3a444c;        /* la meta: una regla, no un competidor */
+      --neg:#b0392c;         /* bajo plan */
+      --warn:#96690f;        /* cerca del plan */
+      --pos:#0f7a4a;         /* sobre plan */
+      --neutral:#8a9199;     /* punto medio de la escala divergente */
+
+      /* variantes para texto: pasan 4.5:1 incluso sobre --surface3 */
+      --real-ink:#0f7a4a; --base-ink:#1f5fae; --neg-ink:#b0392c;
+      --warn-ink:#96690f; --pos-ink:#0f7a4a;
+
+      /* calidad de la madera, tomada de su color real:
+         verde en pie, mancha azul, siniestrado */
+      --cal-verde:#0f7a4a; --cal-manchado:#4a3aa7; --cal-siniestrado:#b0392c; --cal-sin:#8a9199;
+
+      /* categórica de identidad (regiones), orden fijo, nunca ciclada */
+      --cat-1:#2a78d6; --cat-2:#eb6834; --cat-3:#1baf7a; --cat-4:#eda100;
+      --cat-5:#e87ba4; --cat-6:#008300; --cat-7:#4a3aa7; --cat-8:#e34948;
+
+      --chart-text:#5a646c; --chart-grid:#e4e9ec; --chart-surface:#ffffff;
+
+      --shadow:0 1px 2px rgba(20,28,33,.05), 0 6px 18px rgba(20,28,33,.05);
+      --shadow-pop:0 8px 28px rgba(20,28,33,.14);
+      --radius:12px; --radius-sm:8px; --radius-xs:6px;
+
+      --sans:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,sans-serif;
+      --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Consolas,monospace;
+
+      --ease:cubic-bezier(.25,1,.5,1);          /* out-quart */
+      --ease-expo:cubic-bezier(.16,1,.3,1);
+      --t-fast:120ms; --t-mid:190ms; --t-slow:420ms;
+
+      --z-raised:10; --z-sticky:20; --z-dropdown:200; --z-header:300; --z-overlay:400;
+
+      /* tinta sobre relleno saturado: blanca en claro, oscura en oscuro */
+      --btn-ink:#ffffff;
     }
 
     html[data-theme="dark"]{
-      --bg:#0d1512; --bg2:#111b16; --surface:#152019; --surface2:#1a271f; --surface3:#203026;
-      --ink:#e8f1e9; --ink2:#c3d5c8; --muted:#8ba394; --line:#26362c; --line2:#32483a;
-      --forest:#0b2a1d; --forest2:#154032; --forest3:#2c6a4c; --leaf:#63b98a; --leaf2:#8ed2ab;
-      --plan:#e0a44a; --plan2:#f0c37f;
-      --danger:#e0705f; --warning:#e0ad4a; --success:#63b98a; --info:#69aecd;
-      --shadow:0 10px 30px rgba(0,0,0,.4);
-      --shadow2:0 2px 8px rgba(0,0,0,.3);
-      --chart-text:#8ba394; --chart-grid:#26362c;
+      color-scheme: dark;
+
+      --bg:#0e1113; --bg2:#0b0e10;
+      --surface:#171b1e; --surface2:#1e2327; --surface3:#252b30;
+      --ink:#e6ebee; --ink2:#c4ced4; --muted:#96a2aa;
+      --line:#2a3236; --line2:#39434a;
+
+      --real:#2fa36a; --base:#4288d8; --plan:#c4ced4;
+      --neg:#db6a5c; --warn:#c98500; --pos:#2fa36a; --neutral:#7d878e;
+
+      --real-ink:#52bd88; --base-ink:#7db0e8; --neg-ink:#e8897c;
+      --warn-ink:#e0a53a; --pos-ink:#52bd88;
+
+      --cal-verde:#2fa36a; --cal-manchado:#9085e9; --cal-siniestrado:#db6a5c; --cal-sin:#7d878e;
+
+      --cat-1:#3987e5; --cat-2:#d95926; --cat-3:#199e70; --cat-4:#c98500;
+      --cat-5:#d55181; --cat-6:#008300; --cat-7:#9085e9; --cat-8:#e66767;
+
+      --chart-text:#96a2aa; --chart-grid:#262e33; --chart-surface:#171b1e;
+
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.32);
+      --shadow-pop:0 10px 32px rgba(0,0,0,.55);
+
+      --btn-ink:#0b0f11;
     }
 
     *{box-sizing:border-box}
     html,body{margin:0;min-height:100%}
 
     body{
-      font-family:"Segoe UI",system-ui,-apple-system,BlinkMacSystemFont,Roboto,Arial,sans-serif;
-      color:var(--ink);
-      background:
-        radial-gradient(circle at 8% -12%,rgba(79,160,116,.18),transparent 36%),
-        radial-gradient(circle at 92% -4%,rgba(201,138,46,.10),transparent 30%),
-        linear-gradient(180deg,var(--bg),var(--bg2));
-      background-attachment:fixed;
-      font-variant-numeric:tabular-nums;
-      -webkit-font-smoothing:antialiased;
+      font-family:var(--sans);
       font-size:14px;
+      color:var(--ink);
+      background:linear-gradient(180deg,var(--bg),var(--bg2));
+      background-attachment:fixed;
+      font-feature-settings:"tnum" 1,"cv05" 1;
+      -webkit-font-smoothing:antialiased;
     }
 
-    /* ---------- HEADER ---------- */
+    :focus-visible{outline:2px solid var(--real);outline-offset:2px;border-radius:3px}
+    /* sobre la cabecera oscura el verde de marca no se ve: el foco se aclara */
+    header :focus-visible{outline-color:#7fd3ab}
+
+    /* ---------- CABECERA ---------- */
     header{
-      position:sticky; top:0; z-index:60; color:#fff;
-      background:
-        linear-gradient(120deg,rgba(15,54,38,.985),rgba(44,106,76,.97)),
-        repeating-linear-gradient(45deg,rgba(255,255,255,.04) 0 1px,transparent 1px 11px);
-      box-shadow:0 6px 24px rgba(0,0,0,.20);
+      position:sticky;top:0;z-index:var(--z-header);
+      background:var(--ink);color:#f2f5f6;
+      border-bottom:1px solid rgba(255,255,255,.09);
     }
+    html[data-theme="dark"] header{background:#0a0d0f}
 
     .head-inner{
-      max-width:1840px; margin:0 auto; padding:14px 22px 0;
-      display:flex; justify-content:space-between; align-items:flex-start; gap:18px; flex-wrap:wrap;
+      max-width:1840px;margin:0 auto;padding:9px 20px 0;
+      display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
     }
 
-    .brand{display:flex;gap:12px;align-items:center}
+    .brand{display:flex;gap:10px;align-items:center;min-width:0}
 
-    .logo{
-      width:42px;height:42px;border-radius:13px;flex:0 0 auto;
-      background:
-        radial-gradient(circle at 50% 26%,#d9ead3 0 10%,transparent 11%),
-        linear-gradient(145deg,#4fa074,#0f3626);
-      display:grid;place-items:center;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),0 6px 16px rgba(0,0,0,.2);
+    /* La marca es un indicador de escala, no un árbol: el objeto que
+       este tablero imita es la romana de la báscula del patio. */
+    .gauge{
+      width:26px;height:26px;border-radius:var(--radius-xs);flex:0 0 auto;
+      background:rgba(255,255,255,.09);display:grid;place-items:center;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.13);
     }
-    .logo svg{width:25px;height:25px;fill:#fff}
+    .gauge svg{width:16px;height:16px}
 
-    .title{font-size:20px;font-weight:900;letter-spacing:.2px;line-height:1.15}
-    .subtitle{font-size:11.5px;color:rgba(255,255,255,.74);margin-top:3px}
-    .src{font-size:11px;color:rgba(255,255,255,.66);margin-top:3px}
+    .title{font-size:15px;font-weight:600;letter-spacing:-.01em;line-height:1.2;white-space:nowrap}
+    .subtitle{display:none}
+    .src{
+      font-family:var(--mono);font-size:10.5px;font-weight:500;
+      color:rgba(242,245,246,.62);margin-top:2px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;
+    }
 
-    .actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 
     button{
-      border:0;cursor:pointer;border-radius:11px;padding:9px 13px;color:#fff;
-      background:linear-gradient(135deg,var(--leaf),var(--forest3));
-      font-weight:800;font-size:12.5px;box-shadow:0 5px 14px rgba(15,54,38,.2);
-      transition:transform .14s ease,filter .14s ease;
-      font-family:inherit;
+      font-family:inherit;border:0;cursor:pointer;border-radius:var(--radius-sm);
+      padding:7px 12px;color:var(--btn-ink);background:var(--real);
+      font-weight:600;font-size:12.5px;
+      transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease);
     }
-    button:hover{transform:translateY(-1px);filter:brightness(1.08)}
-    button:active{transform:translateY(0)}
-    button.ghost{background:rgba(255,255,255,.12);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
-    button.mini{padding:5px 9px;font-size:11px;border-radius:8px}
+    button:hover{background:color-mix(in oklab,var(--real) 86%,#fff)}
+    button.ghost{
+      background:rgba(255,255,255,.08);color:rgba(242,245,246,.92);
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+    button.ghost:hover{background:rgba(255,255,255,.16)}
+    button.mini{padding:4px 9px;font-size:11px;border-radius:var(--radius-xs)}
 
-    /* ---------- TABS ---------- */
+    /* ---------- PESTAÑAS ---------- */
     .tabs{
-      max-width:1840px;margin:0 auto;padding:10px 22px 0;
-      display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+      max-width:1840px;margin:0 auto;padding:6px 20px 0;
+      display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;
     }
     .tabs::-webkit-scrollbar{display:none}
 
     .tab{
-      appearance:none;border:0;cursor:pointer;white-space:nowrap;
-      background:transparent;color:rgba(255,255,255,.68);
-      padding:10px 15px 12px;font-weight:800;font-size:13px;font-family:inherit;
-      border-bottom:3px solid transparent;border-radius:9px 9px 0 0;
-      box-shadow:none;transition:.15s;
+      background:transparent;color:rgba(242,245,246,.6);
+      padding:8px 13px 9px;font-weight:500;font-size:13px;white-space:nowrap;
+      border-bottom:2px solid transparent;border-radius:var(--radius-xs) var(--radius-xs) 0 0;
+      transition:color var(--t-fast) var(--ease),background var(--t-fast) var(--ease);
     }
-    .tab:hover{color:#fff;background:rgba(255,255,255,.07);transform:none;filter:none}
-    .tab.on{color:#fff;background:rgba(255,255,255,.11);border-bottom-color:var(--leaf2)}
+    .tab:hover{color:#fff;background:rgba(255,255,255,.06)}
+    .tab.on{color:#fff;font-weight:600;border-bottom-color:var(--real);background:rgba(255,255,255,.07)}
     .tab .dot{
-      display:inline-block;min-width:17px;padding:0 4px;margin-left:6px;border-radius:9px;
-      background:var(--plan);color:#1a1206;font-size:10.5px;font-weight:900;line-height:17px;text-align:center;
+      display:none;min-width:16px;padding:0 4px;margin-left:6px;border-radius:8px;
+      background:var(--neg);color:var(--btn-ink);font-family:var(--mono);
+      font-size:10px;font-weight:600;line-height:16px;text-align:center;
     }
+    .tab .dot.on{display:inline-block}
 
-    main{max-width:1840px;margin:0 auto;padding:18px 22px 40px}
+    main{max-width:1840px;margin:0 auto;padding:16px 20px 40px}
 
     /* ---------- FILTROS ---------- */
     .filterwrap{
       background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-      box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden;
+      box-shadow:var(--shadow);margin-bottom:14px;
     }
 
     .filterhead{
       display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-      padding:11px 14px;background:var(--surface2);border-bottom:1px solid var(--line);
+      padding:9px 13px;background:var(--surface2);border-bottom:1px solid var(--line);
+      border-radius:var(--radius) var(--radius) 0 0;
     }
-    .filterhead .ttl{font-size:12px;font-weight:900;color:var(--forest3);letter-spacing:.4px;text-transform:uppercase}
+    .filterhead .ttl{
+      font-size:10px;font-weight:600;color:var(--muted);
+      letter-spacing:.09em;text-transform:uppercase;
+    }
 
-    .presets{display:flex;gap:6px;flex-wrap:wrap}
+    .presets{display:flex;gap:4px;flex-wrap:wrap}
     .preset{
       border:1px solid var(--line2);background:var(--surface);color:var(--ink2);
-      border-radius:999px;padding:5px 11px;font-size:11.5px;font-weight:800;cursor:pointer;
-      box-shadow:none;font-family:inherit;
+      border-radius:999px;padding:4px 10px;font-size:11.5px;font-weight:500;
+      transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease);
     }
-    .preset:hover{background:var(--surface3);transform:none;filter:none}
-    .preset.on{background:var(--forest3);color:#fff;border-color:var(--forest3)}
+    .preset:hover{background:var(--surface3);color:var(--ink)}
+    .preset.on{background:var(--ink);color:var(--surface);border-color:var(--ink);font-weight:600}
 
-    .filters{
-      display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;padding:14px;
-    }
+    .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:9px;padding:12px 13px}
 
     label.fl{
-      display:flex;flex-direction:column;gap:5px;font-size:10px;text-transform:uppercase;
-      letter-spacing:.5px;color:var(--muted);font-weight:900;min-width:0;
+      display:flex;flex-direction:column;gap:4px;font-size:10.5px;
+      letter-spacing:.02em;color:var(--muted);font-weight:600;min-width:0;
     }
+    .fl-wide{grid-column:span 2}
 
     input,select{
-      width:100%;min-width:0;border:1px solid var(--line);background:var(--surface);color:var(--ink);
-      border-radius:var(--radius-sm);padding:8px 9px;font-size:12.5px;font-weight:700;
-      font-family:inherit;
+      font-family:var(--sans);width:100%;min-width:0;
+      border:1px solid var(--line2);background:var(--surface);color:var(--ink);
+      border-radius:var(--radius-sm);padding:7px 8px;font-size:12.5px;font-weight:500;
+      transition:border-color var(--t-fast) var(--ease);
     }
-    input:focus,select:focus{outline:2px solid var(--leaf);outline-offset:1px;border-color:var(--leaf)}
+    input:hover,select:hover{border-color:var(--muted)}
+    input[type="number"],input[type="date"]{font-family:var(--mono);font-size:12px}
+    ::placeholder{color:var(--muted);opacity:1}
 
-    .fl-wide{grid-column:span 2}
-    .fl-row{display:flex;gap:6px}
+    .fl-row{display:flex;gap:5px}
     .fl-row input{flex:1}
 
     .check{
-      display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:800;color:var(--ink2);
-      text-transform:none;letter-spacing:0;
+      display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;
+      color:var(--ink2);letter-spacing:0;cursor:pointer;
     }
-    .check input{width:auto;flex:0 0 auto}
+    .check input{width:auto;flex:0 0 auto;accent-color:var(--real)}
 
-    .activefilters{
-      display:flex;gap:6px;flex-wrap:wrap;align-items:center;
-      padding:0 14px 13px;
-    }
+    .activefilters{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding:0 13px 11px}
     .chip{
-      display:inline-flex;align-items:center;gap:6px;background:var(--surface3);color:var(--ink2);
-      border:1px solid var(--line);border-radius:999px;padding:4px 6px 4px 10px;font-size:11px;font-weight:800;
+      display:inline-flex;align-items:center;gap:5px;background:var(--surface3);color:var(--ink2);
+      border:1px solid var(--line);border-radius:999px;padding:3px 5px 3px 9px;font-size:11px;font-weight:500;
     }
-    .chip b{color:var(--forest3)}
-    .chip button{
-      background:transparent;color:var(--muted);box-shadow:none;padding:0 3px;font-size:13px;line-height:1;
-      border-radius:50%;
-    }
-    .chip button:hover{color:var(--danger);transform:none;filter:none}
+    .chip b{color:var(--ink);font-weight:600}
+    .chip button{background:transparent;color:var(--muted);padding:0 3px;font-size:13px;line-height:1;border-radius:50%}
+    .chip button:hover{background:transparent;color:var(--neg-ink)}
+    .nofilters{font-size:11.5px;color:var(--muted);font-weight:500}
 
     /* ---------- MULTISELECT ---------- */
     .ms{position:relative;width:100%}
     .ms-btn{
       width:100%;text-align:left;background:var(--surface);color:var(--ink);
-      border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 26px 8px 9px;
-      font-size:12.5px;font-weight:700;box-shadow:none;position:relative;overflow:hidden;
-      text-overflow:ellipsis;white-space:nowrap;font-family:inherit;
+      border:1px solid var(--line2);border-radius:var(--radius-sm);padding:7px 24px 7px 8px;
+      font-size:12.5px;font-weight:500;position:relative;overflow:hidden;
+      text-overflow:ellipsis;white-space:nowrap;
+      transition:border-color var(--t-fast) var(--ease);
     }
-    .ms-btn:hover{transform:none;filter:none;border-color:var(--leaf)}
+    .ms-btn:hover{background:var(--surface);border-color:var(--muted)}
     .ms-btn::after{
-      content:"";position:absolute;right:9px;top:50%;margin-top:-2px;
+      content:"";position:absolute;right:8px;top:50%;margin-top:-2px;
       border:4px solid transparent;border-top-color:var(--muted);
     }
-    .ms-btn.has{border-color:var(--leaf);box-shadow:inset 3px 0 0 var(--leaf)}
+    .ms-btn.has{border-color:var(--real);color:var(--ink);font-weight:600}
 
     .ms-pop{
-      display:none;position:absolute;z-index:80;top:calc(100% + 4px);left:0;min-width:100%;
-      max-width:340px;background:var(--surface);border:1px solid var(--line2);
-      border-radius:12px;box-shadow:var(--shadow);padding:8px;
+      position:absolute;z-index:var(--z-dropdown);top:calc(100% + 4px);left:0;min-width:100%;
+      max-width:320px;background:var(--surface);border:1px solid var(--line2);
+      border-radius:var(--radius-sm);box-shadow:var(--shadow-pop);padding:7px;
+      opacity:0;transform:translateY(-4px) scale(.985);transform-origin:top left;
+      visibility:hidden;pointer-events:none;
+      transition:opacity var(--t-mid) var(--ease),transform var(--t-mid) var(--ease),visibility 0s linear var(--t-mid);
     }
-    .ms.open .ms-pop{display:block}
-    .ms-search{margin-bottom:6px}
-    .ms-acts{display:flex;gap:6px;margin-bottom:6px}
-    .ms-acts button{
-      flex:1;background:var(--surface3);color:var(--ink2);box-shadow:none;
-      padding:4px 6px;font-size:11px;border-radius:7px;
+    .ms.open .ms-pop{
+      opacity:1;transform:none;visibility:visible;pointer-events:auto;
+      transition:opacity var(--t-mid) var(--ease),transform var(--t-mid) var(--ease-expo),visibility 0s;
     }
-    .ms-acts button:hover{transform:none;filter:none;background:var(--line)}
-    .ms-list{max-height:230px;overflow:auto}
+    .ms-search{margin-bottom:5px}
+    .ms-acts{display:flex;gap:5px;margin-bottom:5px}
+    .ms-acts button{flex:1;background:var(--surface3);color:var(--ink2);padding:4px 6px;font-size:11px;border-radius:var(--radius-xs)}
+    .ms-acts button:hover{background:var(--line);color:var(--ink)}
+    .ms-list{max-height:224px;overflow:auto}
     .ms-item{
-      display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;
-      font-size:12px;font-weight:700;cursor:pointer;color:var(--ink2);
+      display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:var(--radius-xs);
+      font-size:12px;font-weight:500;cursor:pointer;color:var(--ink2);
     }
-    .ms-item:hover{background:var(--surface3)}
-    .ms-item input{width:auto;flex:0 0 auto}
+    .ms-item:hover{background:var(--surface3);color:var(--ink)}
+    .ms-item input{width:auto;flex:0 0 auto;accent-color:var(--real)}
     .ms-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .ms-empty{padding:10px;color:var(--muted);font-size:12px;font-weight:700;text-align:center}
+    .ms-empty{padding:10px;color:var(--muted);font-size:12px;font-weight:500;text-align:center}
 
-    /* ---------- KPIs ---------- */
-    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
-    @media(min-width:1200px){
+    /* ---------- TABLERO DE LECTURAS ----------
+       Un solo panel con celdas separadas por filetes, en vez de ocho
+       tarjetas flotando: se lee como un instrumento, no como un grid. */
+    .kpis{
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+      gap:1px;background:var(--line);
+      border:1px solid var(--line);border-radius:var(--radius);
+      overflow:hidden;box-shadow:var(--shadow);margin-bottom:14px;
+    }
+    @media(min-width:1180px){
       .kpis{grid-template-columns:repeat(4,1fr)}
       .kpis.k6{grid-template-columns:repeat(6,1fr)}
     }
 
-    .card{
-      background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-      box-shadow:var(--shadow2);padding:15px;
+    .kpi{
+      background:var(--surface);padding:12px 13px 11px;
+      display:flex;flex-direction:column;min-height:96px;min-width:0;
     }
+    .kpi.hero{background:var(--surface2)}
 
-    .kpi{position:relative;overflow:hidden;min-height:112px;display:flex;flex-direction:column}
-    .kpi::after{
-      content:"";position:absolute;right:-34px;bottom:-40px;width:118px;height:118px;border-radius:50%;
-      background:rgba(79,160,116,.09);
+    .kpi .lab{font-size:11.5px;color:var(--muted);font-weight:500;letter-spacing:0;line-height:1.3}
+    .kpi .val{
+      font-family:var(--mono);font-weight:600;
+      margin-top:6px;font-size:clamp(19px,1.45vw,24px);line-height:1.1;
+      color:var(--ink);letter-spacing:-.02em;overflow-wrap:anywhere;
     }
-    .kpi.hero{
-      background:linear-gradient(155deg,var(--forest),var(--forest3));
-      border:none;color:#fff;
-    }
-    .kpi.hero::after{background:rgba(255,255,255,.07)}
-    .kpi .lab{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:900;position:relative;z-index:1}
-    .kpi.hero .lab{color:rgba(255,255,255,.76)}
-    .kpi .val{margin-top:7px;font-size:clamp(19px,1.55vw,25px);line-height:1.1;font-weight:900;color:var(--forest3);position:relative;z-index:1;overflow-wrap:anywhere}
-    .kpi.hero .val{color:#fff;font-size:clamp(21px,1.8vw,29px)}
-    .kpi .hint{margin-top:auto;padding-top:7px;font-size:11px;color:var(--muted);position:relative;z-index:1;font-weight:700}
-    .kpi.hero .hint{color:rgba(255,255,255,.74)}
-    .val.pos{color:var(--success)}
-    .val.neg{color:var(--danger)}
-    .val.near{color:var(--warning)}
+    .kpi.hero .val{font-size:clamp(20px,1.6vw,27px)}
+    .kpi .hint{margin-top:auto;padding-top:7px;font-size:11px;color:var(--muted);font-weight:500;line-height:1.35}
+    .val.pos{color:var(--pos-ink)}
+    .val.neg{color:var(--neg-ink)}
+    .val.near{color:var(--warn-ink)}
 
     .delta{
-      display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 8px;
-      font-size:11px;font-weight:900;margin-top:6px;position:relative;z-index:1;
+      display:inline-flex;align-items:center;gap:3px;border-radius:var(--radius-xs);
+      padding:1px 6px;font-family:var(--mono);font-size:11px;font-weight:600;margin-top:5px;align-self:flex-start;
     }
-    .delta.up{background:rgba(44,106,76,.13);color:var(--success)}
-    .delta.down{background:rgba(178,59,46,.13);color:var(--danger)}
-    .delta.flat{background:var(--surface3);color:var(--muted)}
-    .kpi.hero .delta.up{background:rgba(255,255,255,.18);color:#c9f0da}
-    .kpi.hero .delta.down{background:rgba(255,255,255,.18);color:#ffc9c1}
-    .kpi.hero .delta.flat{background:rgba(255,255,255,.14);color:rgba(255,255,255,.8)}
+    .delta.up{background:color-mix(in oklab,var(--pos) 12%,transparent);color:var(--pos-ink)}
+    .delta.down{background:color-mix(in oklab,var(--neg) 12%,transparent);color:var(--neg-ink)}
+    .delta.flat{background:var(--surface3);color:var(--muted);font-family:var(--sans);font-weight:500}
 
-    /* ---------- GRID / CARDS ---------- */
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    /* ---------- LA REGLA: real contra meta ----------
+       El único gesto llamativo de la página, y encierra la única
+       pregunta que importa: ¿llegamos al plan? */
+    .track{grid-column:span 2;background:var(--surface);padding:12px 14px 11px;display:flex;flex-direction:column;min-width:0}
+    .track-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+    .track-top .lab{font-size:11.5px;color:var(--muted);font-weight:500}
+    .track-top b{font-family:var(--mono);font-size:clamp(20px,1.6vw,27px);font-weight:600;letter-spacing:-.02em}
+    .track-rail{
+      position:relative;height:9px;margin:11px 0 8px;border-radius:2px;
+      background:var(--surface3);box-shadow:inset 0 0 0 1px var(--line);
+    }
+    .track-fill{
+      position:absolute;inset:0 auto 0 0;border-radius:2px;width:0;
+      transition:width var(--t-slow) var(--ease-expo),background-color var(--t-mid) var(--ease);
+    }
+    .track-goal{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--plan);border-radius:1px}
+    .track-goal::after{
+      content:"meta";position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+      font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+    }
+    .track-foot{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted);font-weight:500;margin-top:auto}
+    .track-foot b{font-family:var(--mono);font-weight:600;color:var(--ink2)}
+    .track-foot .gap{font-family:var(--mono);font-weight:600}
+
+    /* ---------- TARJETAS ---------- */
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .grid.three{grid-template-columns:repeat(3,1fr)}
     .full{grid-column:1/-1}
 
+    .card{
+      background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:14px;min-width:0;
+    }
+
     h3{
-      margin:0 0 11px;color:var(--forest3);font-size:14px;font-weight:900;
+      margin:0 0 11px;color:var(--ink);font-size:14px;font-weight:600;letter-spacing:-.01em;text-wrap:balance;
       display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
     }
-    h3 .meta{color:var(--muted);font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px}
-    h3 select{width:auto;min-width:150px;padding:5px 8px;font-size:11.5px;border-radius:8px}
+    h3 .meta{color:var(--muted);font-size:11px;font-weight:500;display:flex;align-items:center;gap:7px;letter-spacing:0}
+    h3 select{width:auto;min-width:148px;padding:4px 7px;font-size:11.5px;border-radius:var(--radius-xs)}
 
-    .chart{height:330px;width:100%}
-    .chart.tall{height:420px}
-    .chart.xtall{height:560px}
+    .chart{height:320px;width:100%}
+    .chart.tall{height:400px}
+    .chart.xtall{height:540px}
 
     .note{
-      font-size:11.5px;color:var(--muted);font-weight:700;margin-top:9px;line-height:1.5;
-      padding-top:9px;border-top:1px dashed var(--line);
+      font-size:11.5px;color:var(--muted);font-weight:500;margin-top:10px;line-height:1.55;
+      padding-top:9px;border-top:1px solid var(--line);max-width:72ch;
     }
+    .note b{color:var(--ink2);font-weight:600}
 
     .warnbox{
-      display:flex;gap:9px;align-items:flex-start;background:rgba(194,138,34,.10);
-      border:1px solid rgba(194,138,34,.32);color:var(--warning);
-      border-radius:11px;padding:9px 11px;font-size:11.5px;font-weight:800;margin-bottom:12px;
+      display:flex;gap:9px;align-items:flex-start;
+      background:color-mix(in oklab,var(--warn) 9%,var(--surface));
+      border:1px solid color-mix(in oklab,var(--warn) 32%,var(--surface));
+      color:var(--ink2);border-radius:var(--radius-sm);
+      padding:9px 11px;font-size:11.5px;font-weight:500;margin-bottom:12px;line-height:1.5;
     }
-    .warnbox b{display:block;color:var(--ink)}
+    .warnbox b{display:block;color:var(--ink);font-weight:600;margin-bottom:1px}
+    .warnbox>span{color:var(--warn-ink);font-size:13px;line-height:1.25}
 
     /* ---------- TABLAS ---------- */
-    .tw{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-    .tw.short{max-height:360px}
+    .tw{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
+    .tw.short{max-height:340px}
     .tw.auto{max-height:none}
 
-    table{width:100%;border-collapse:collapse;font-size:12px;background:var(--surface)}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;background:var(--surface)}
 
     th{
-      position:sticky;top:0;z-index:2;background:linear-gradient(120deg,var(--forest),var(--forest3));
-      color:#fff;padding:8px 9px;text-align:left;white-space:nowrap;font-weight:800;font-size:11px;
-      text-transform:uppercase;letter-spacing:.3px;
+      position:sticky;top:0;z-index:var(--z-sticky);
+      background:var(--surface3);color:var(--muted);
+      padding:8px 9px;text-align:left;white-space:nowrap;
+      font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.07em;
+      border-bottom:1px solid var(--line2);
     }
     th.sortable{cursor:pointer;user-select:none}
-    th.sortable:hover{background:var(--forest2)}
-    th .arrow{opacity:.55;font-size:9px;margin-left:3px}
+    th.sortable:hover{color:var(--ink)}
 
-    td{padding:7px 9px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--ink2)}
+    td{
+      padding:6px 9px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--ink2);
+    }
+    td.r,th.r{text-align:right;font-family:var(--mono);font-weight:500}
+    th.r{font-family:var(--sans)}
+    td.c{text-align:center}
+    tbody tr{transition:background var(--t-fast) var(--ease)}
     tbody tr:hover td{background:var(--surface2)}
-    tbody tr.tot td{background:var(--surface3);font-weight:900;color:var(--ink);border-top:2px solid var(--line2)}
-    .tw table th:first-child{left:0;z-index:4}
-    .tw table td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}
+    tbody tr.tot td{background:var(--surface3);font-weight:600;color:var(--ink);border-top:1px solid var(--line2)}
+
+    .tw table th:first-child{left:0;z-index:calc(var(--z-sticky) + 1)}
+    .tw table td:first-child{position:sticky;left:0;z-index:var(--z-raised);background:var(--surface);color:var(--ink);font-weight:500}
     .tw tbody tr:hover td:first-child{background:var(--surface2)}
     .tw tbody tr.tot td:first-child{background:var(--surface3)}
     .tw tbody tr.faena-row td:first-child{background:var(--surface2)}
-    .r{text-align:right}
-    .c{text-align:center}
 
-    .bar-cell{position:relative;min-width:110px}
-    .bar-cell .fill{position:absolute;inset:0 auto 0 0;background:rgba(79,160,116,.17);z-index:0}
-    .bar-cell span{position:relative;z-index:1;font-weight:800}
+    /* barra de magnitud dentro de la celda: extremo redondeado, anclada al cero */
+    .bar-cell{position:relative;min-width:104px}
+    .bar-cell .fill{
+      position:absolute;top:4px;bottom:4px;left:0;
+      background:color-mix(in oklab,var(--real) 20%,transparent);
+      border-radius:0 3px 3px 0;z-index:0;
+    }
+    .bar-cell .fill.under{background:color-mix(in oklab,var(--neg) 20%,transparent)}
+    .bar-cell .goal{position:absolute;top:2px;bottom:2px;width:2px;background:var(--plan);opacity:.55;z-index:1;border-radius:1px}
+    .bar-cell span{position:relative;z-index:2;font-weight:600}
 
     .pill{
-      display:inline-block;min-width:54px;text-align:center;padding:2px 8px;border-radius:999px;
-      color:#fff;font-weight:900;font-size:11px;
+      display:inline-block;min-width:52px;text-align:center;padding:1px 7px;border-radius:var(--radius-xs);
+      font-family:var(--mono);font-weight:600;font-size:11px;
     }
+    .pill.ok{background:color-mix(in oklab,var(--pos) 14%,transparent);color:var(--pos-ink)}
+    .pill.near{background:color-mix(in oklab,var(--warn) 16%,transparent);color:var(--warn-ink)}
+    .pill.bad{background:color-mix(in oklab,var(--neg) 14%,transparent);color:var(--neg-ink)}
+
     .tag{
-      display:inline-block;padding:2px 7px;border-radius:6px;font-weight:900;font-size:10.5px;
-      border:1px solid transparent;
+      display:inline-block;padding:1px 7px;border-radius:var(--radius-xs);
+      font-weight:600;font-size:10.5px;letter-spacing:.01em;
     }
-    .tag.crit{background:rgba(178,59,46,.13);color:var(--danger);border-color:rgba(178,59,46,.3)}
-    .tag.risk{background:rgba(194,138,34,.13);color:var(--warning);border-color:rgba(194,138,34,.3)}
-    .tag.ok{background:rgba(44,106,76,.13);color:var(--success);border-color:rgba(44,106,76,.3)}
-    .tag.top{background:rgba(47,111,143,.13);color:var(--info);border-color:rgba(47,111,143,.3)}
-    .tag.off{background:var(--surface3);color:var(--muted);border-color:var(--line)}
+    .tag.crit{background:color-mix(in oklab,var(--neg) 13%,transparent);color:var(--neg-ink)}
+    .tag.risk{background:color-mix(in oklab,var(--warn) 15%,transparent);color:var(--warn-ink)}
+    .tag.ok{background:color-mix(in oklab,var(--pos) 13%,transparent);color:var(--pos-ink)}
+    .tag.top{background:color-mix(in oklab,var(--base) 13%,transparent);color:var(--base-ink)}
+    .tag.off{background:var(--surface3);color:var(--muted)}
+    .tag.num{font-family:var(--mono)}
 
-    .diff-pos{color:var(--success);font-weight:800}
-    .diff-neg{color:var(--danger);font-weight:800}
-    .diff-zero{color:var(--muted);font-weight:800}
+    .diff-pos{color:var(--pos-ink);font-weight:600}
+    .diff-neg{color:var(--neg-ink);font-weight:600}
+    .diff-zero{color:var(--muted);font-weight:500}
 
-    .spark{vertical-align:middle;color:var(--leaf)}
-    .spark.down{color:var(--danger)}
+    .spark{vertical-align:middle;color:var(--real-ink)}
+    .spark.down{color:var(--neg-ink)}
 
     .btn-expand{
-      border:0;background:var(--surface3);color:var(--forest3);font-weight:900;border-radius:6px;
-      padding:1px 7px;margin-right:6px;cursor:pointer;box-shadow:none;font-size:12px;line-height:1.5;
+      background:var(--surface3);color:var(--ink2);font-weight:600;border-radius:var(--radius-xs);
+      padding:0 6px;margin-right:6px;font-size:12px;line-height:1.55;
     }
-    .btn-expand:hover{transform:none;filter:none;background:var(--line)}
-    .faena-name{padding-left:26px;font-weight:800;color:var(--forest3)}
+    .btn-expand:hover{background:var(--line);color:var(--ink)}
+    .faena-name{padding-left:24px;font-weight:500;color:var(--muted)}
     tr.faena-row td{background:var(--surface2)}
 
-    .region-block + .region-block{margin-top:12px}
+    .region-block + .region-block{margin-top:11px}
     .region-title{
       display:flex;justify-content:space-between;align-items:center;gap:12px;
-      padding:8px 11px;background:var(--surface3);color:var(--forest3);
-      border:1px solid var(--line);border-bottom:0;border-radius:11px 11px 0 0;
-      font-size:12px;font-weight:900;
+      padding:7px 11px;background:var(--surface3);color:var(--ink);
+      border:1px solid var(--line);border-bottom:0;border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+      font-size:12px;font-weight:600;
     }
+    .region-title strong{font-family:var(--mono);font-weight:600}
+    .region-title .swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:baseline}
     .region-title + table{border-top-left-radius:0;border-top-right-radius:0}
 
-    /* ---------- HEATMAP ---------- */
-    .heat td{text-align:center;font-weight:800;color:var(--ink);border:1px solid var(--surface)}
-    .heat th{font-size:10.5px}
-    .heat td.y{background:var(--surface3);font-weight:900;text-align:left;color:var(--forest3)}
+    /* ---------- MATRIZ AÑO × MES ---------- */
+    .heat td{text-align:center;font-family:var(--mono);font-weight:500;color:var(--ink);border-bottom:1px solid var(--surface)}
+    .heat td.y{background:var(--surface3);font-weight:600;text-align:left;color:var(--ink);font-family:var(--sans)}
+    .heat th{font-size:10px}
 
-    /* ---------- INSIGHTS ---------- */
-    .insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+    /* ---------- HALLAZGOS ---------- */
+    .insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:11px}
 
     .ins{
-      background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--muted);
-      border-radius:12px;padding:13px 14px;box-shadow:var(--shadow2);
+      background:var(--surface);border:1px solid var(--line);
+      border-radius:var(--radius-sm);padding:13px 14px;display:flex;flex-direction:column;
     }
-    .ins.alta{border-left-color:var(--danger)}
-    .ins.media{border-left-color:var(--warning)}
-    .ins.baja{border-left-color:var(--info)}
-    .ins.buena{border-left-color:var(--success)}
-
     .ins-top{display:flex;justify-content:space-between;align-items:center;gap:9px;margin-bottom:7px}
-    .ins-cat{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:900}
-    .ins-pri{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:900;padding:2px 7px;border-radius:999px}
-    .ins.alta .ins-pri{background:rgba(178,59,46,.13);color:var(--danger)}
-    .ins.media .ins-pri{background:rgba(194,138,34,.13);color:var(--warning)}
-    .ins.baja .ins-pri{background:rgba(47,111,143,.13);color:var(--info)}
-    .ins.buena .ins-pri{background:rgba(44,106,76,.13);color:var(--success)}
-    .ins h4{margin:0 0 6px;font-size:13.5px;font-weight:900;color:var(--ink);line-height:1.3}
-    .ins p{margin:0 0 8px;font-size:12px;color:var(--ink2);line-height:1.55;font-weight:600}
-    .ins .acc{
-      font-size:11.5px;font-weight:800;color:var(--forest3);background:var(--surface2);
-      border-radius:8px;padding:7px 9px;line-height:1.5;
+    .ins-cat{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+    .ins-pri{
+      display:inline-flex;align-items:center;gap:5px;
+      font-size:10.5px;font-weight:600;letter-spacing:.01em;
     }
-    .ins .acc::before{content:"▸ Acción: ";font-weight:900}
-    .ins .imp{font-size:11px;color:var(--muted);font-weight:800;margin-top:7px}
+    .ins-pri::before{content:"";width:7px;height:7px;border-radius:2px;background:currentColor}
+    .ins.alta .ins-pri{color:var(--neg-ink)}
+    .ins.media .ins-pri{color:var(--warn-ink)}
+    .ins.baja .ins-pri{color:var(--base-ink)}
+    .ins.buena .ins-pri{color:var(--pos-ink)}
+    .ins.alta{border-color:color-mix(in oklab,var(--neg) 38%,var(--line))}
+    .ins h4{margin:0 0 6px;font-size:14px;font-weight:600;color:var(--ink);line-height:1.32;letter-spacing:-.01em;text-wrap:balance}
+    .ins p{margin:0 0 9px;font-size:12.5px;color:var(--ink2);line-height:1.55;font-weight:400;text-wrap:pretty}
+    .ins .acc{
+      margin-top:auto;
+      font-size:12px;font-weight:500;color:var(--ink2);background:var(--surface2);
+      border:1px solid var(--line);border-radius:var(--radius-xs);padding:8px 10px;line-height:1.55;text-wrap:pretty;
+    }
+    .ins .acc::before{content:"Acción · ";font-weight:600;color:var(--ink)}
+    .ins .imp{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:500;padding-top:9px}
 
-    /* ---------- ESTADO ---------- */
+    /* ---------- ESTADOS ---------- */
     .empty{
-      min-height:220px;display:grid;place-items:center;color:var(--muted);background:var(--surface2);
-      border-radius:11px;font-weight:800;font-size:12.5px;text-align:center;padding:20px;
+      min-height:200px;display:grid;place-items:center;color:var(--muted);background:var(--surface2);
+      border:1px dashed var(--line2);border-radius:var(--radius-sm);
+      font-weight:500;font-size:12.5px;text-align:center;padding:20px;max-width:100%;
     }
 
     #overlay{
-      position:fixed;inset:0;display:none;place-items:center;z-index:200;
-      background:rgba(238,242,236,.9);backdrop-filter:blur(4px);
+      position:fixed;inset:0;display:none;place-items:center;z-index:var(--z-overlay);
+      background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:blur(3px);
     }
-    html[data-theme="dark"] #overlay{background:rgba(13,21,18,.9)}
     #overlay.on{display:grid}
 
     .loader-box{
-      background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px 28px;
-      box-shadow:var(--shadow);text-align:center;color:var(--forest3);font-weight:800;font-size:13px;
+      background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+      padding:20px 26px;box-shadow:var(--shadow-pop);text-align:center;
+      color:var(--ink);font-weight:500;font-size:13px;
     }
     .spin{
-      width:38px;height:38px;border:4px solid var(--line);border-top-color:var(--forest3);
-      border-radius:50%;margin:0 auto 12px;animation:rot .8s linear infinite;
+      width:32px;height:32px;border:3px solid var(--line);border-top-color:var(--real);
+      border-radius:50%;margin:0 auto 11px;animation:rot .75s linear infinite;
     }
     @keyframes rot{to{transform:rotate(360deg)}}
 
     #errbar{
-      display:none;background:rgba(178,59,46,.10);border:1px solid rgba(178,59,46,.35);color:var(--danger);
-      border-radius:12px;padding:11px 13px;font-size:12.5px;font-weight:800;margin-bottom:14px;
+      display:none;
+      background:color-mix(in oklab,var(--neg) 9%,var(--surface));
+      border:1px solid color-mix(in oklab,var(--neg) 34%,var(--surface));
+      color:var(--neg-ink);border-radius:var(--radius-sm);
+      padding:10px 12px;font-size:12.5px;font-weight:500;margin-bottom:12px;
     }
 
+    /* ---------- PANELES ---------- */
     .panel{display:none}
-    .panel.on{display:block}
+    .panel.on{display:block;animation:panelIn var(--t-mid) var(--ease) both}
+    @keyframes panelIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
     @media(max-width:1100px){
       .grid,.grid.three{grid-template-columns:1fr}
-      .chart.xtall{height:460px}
+      .chart.xtall{height:440px}
     }
     @media(max-width:640px){
-      main{padding:14px}
-      .head-inner{padding:12px 14px 0}
-      .tabs{padding:8px 14px 0}
-      .title{font-size:17px}
+      main{padding:12px}
+      .head-inner{padding:9px 13px 0}
+      .tabs{padding:5px 13px 0}
+      .src{max-width:100%}
       .kpis{grid-template-columns:1fr 1fr}
-      .kpi .val{font-size:21px}
-      .kpi.hero .val{font-size:24px}
-      .chart,.chart.tall,.chart.xtall{height:320px}
+      .track{grid-column:span 2}
+      .filters{grid-template-columns:1fr 1fr}
+      .fl-wide{grid-column:span 2}
+      .chart,.chart.tall,.chart.xtall{height:300px}
+    }
+
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{
+        animation-duration:.01ms !important;animation-iteration-count:1 !important;
+        transition-duration:.01ms !important;scroll-behavior:auto !important;
+      }
+      .panel.on{animation:none}
+      .ms-pop{transition:none}
     }
   </style>
 </head>
@@ -438,14 +581,13 @@
 <header>
   <div class="head-inner">
     <div class="brand">
-      <div class="logo" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <path d="M12 2 4 13h5l-4 6h14l-4-6h5L12 2Zm0 4.2 3.7 5.1h-3.2l2.6 3.9H8.9l2.6-3.9H8.3L12 6.2Z"/>
+      <div class="gauge" aria-hidden="true">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#7fd3ab" stroke-width="1.5" stroke-linecap="round">
+          <path d="M2 11.5h12"/><path d="M4.5 11.5V9"/><path d="M11.5 11.5V9"/><path d="M8 11.5V3.5"/>
         </svg>
       </div>
-      <div>
+      <div style="min-width:0">
         <div class="title">Dashboard Forestal · Histórico</div>
-        <div class="subtitle">Plan vs ingresado, comparativos mes a mes y año contra año, y plan de acción</div>
         <div id="src" class="src">Cargando fuente…</div>
       </div>
     </div>
@@ -508,8 +650,8 @@
       </label>
       <label class="fl">Comparar contra
         <select id="fCompare">
-          <option value="yoy">Mismo periodo, año anterior</option>
-          <option value="prev">Periodo inmediatamente anterior</option>
+          <option value="yoy">Año anterior</option>
+          <option value="prev">Periodo anterior</option>
           <option value="none">Sin comparación</option>
         </select>
       </label>
@@ -526,14 +668,28 @@
     <div id="planWarn"></div>
 
     <div class="kpis" id="kpisResumen">
-      <div class="card kpi hero"><div class="lab">Cubicación ingresada</div><div id="kCub" class="val">–</div><div id="kCubDelta"></div><div id="kPeriodo" class="hint">periodo</div></div>
-      <div class="card kpi hero"><div class="lab">Plan del periodo</div><div id="kPlan" class="val">–</div><div id="kCumplBadge"></div><div id="kPlanHint" class="hint">m³ planificados</div></div>
-      <div class="card kpi"><div class="lab">Cumplimiento</div><div id="kCumpl" class="val">–</div><div id="kBrecha" class="hint">brecha</div></div>
-      <div class="card kpi"><div class="lab">Promedio mensual</div><div id="kProm" class="val">–</div><div id="kPromHint" class="hint">m³/mes en el periodo</div></div>
-      <div class="card kpi"><div class="lab">Variabilidad (CV)</div><div id="kCV" class="val">–</div><div id="kCVHint" class="hint">regularidad del abastecimiento</div></div>
-      <div class="card kpi"><div class="lab">Tendencia</div><div id="kTend" class="val">–</div><div id="kTendHint" class="hint">m³ por mes</div></div>
-      <div class="card kpi"><div class="lab">Proveedores activos</div><div id="kProv" class="val">–</div><div id="kProvDelta"></div><div class="hint">con ingreso en el periodo</div></div>
-      <div class="card kpi"><div class="lab">Diámetro promedio</div><div id="kDiam" class="val">–</div><div id="kDiamDelta"></div><div class="hint">cm ponderado por trozo</div></div>
+      <div class="track" id="trackPlan">
+        <div class="track-top">
+          <b id="kCumpl">–</b>
+          <span class="lab">del plan del periodo</span>
+        </div>
+        <div class="track-rail">
+          <div class="track-fill" id="trackFill"></div>
+          <div class="track-goal" id="trackGoal" style="left:80%"></div>
+        </div>
+        <div class="track-foot">
+          <span>Real <b id="kCubReal">–</b></span>
+          <span>Plan <b id="kPlan">–</b></span>
+          <span class="gap" id="kBrecha">–</span>
+        </div>
+      </div>
+      <div class="kpi"><div class="lab">Cubicación ingresada</div><div id="kCub" class="val">–</div><div id="kCubDelta"></div><div id="kPeriodo" class="hint">periodo</div></div>
+      <div class="kpi"><div class="lab">Promedio mensual</div><div id="kProm" class="val">–</div><div id="kPromHint" class="hint">m³ por mes en el periodo</div></div>
+      <div class="kpi"><div class="lab">Regularidad mes a mes</div><div id="kCV" class="val">–</div><div id="kCVHint" class="hint">variación del abastecimiento</div></div>
+      <div class="kpi"><div class="lab">Tendencia</div><div id="kTend" class="val">–</div><div id="kTendHint" class="hint">m³ por mes</div></div>
+      <div class="kpi"><div class="lab">Proveedores activos</div><div id="kProv" class="val">–</div><div id="kProvDelta"></div><div class="hint">con ingreso en el periodo</div></div>
+      <div class="kpi"><div class="lab">Diámetro promedio</div><div id="kDiam" class="val">–</div><div id="kDiamDelta"></div><div class="hint">cm ponderado por trozo</div></div>
+    </div>
     </div>
 
     <div class="grid">
@@ -578,12 +734,12 @@
   <!-- ================= COMPARATIVO ================= -->
   <section class="panel" id="panel-comparativo">
     <div class="kpis k6">
-      <div class="card kpi hero"><div class="lab">Periodo seleccionado</div><div id="cActual" class="val">–</div><div id="cActualHint" class="hint">–</div></div>
-      <div class="card kpi hero"><div class="lab">Periodo de comparación</div><div id="cBase" class="val">–</div><div id="cBaseHint" class="hint">–</div></div>
-      <div class="card kpi"><div class="lab">Variación</div><div id="cVar" class="val">–</div><div id="cVarHint" class="hint">m³ de diferencia</div></div>
-      <div class="card kpi"><div class="lab">Meses sobre plan</div><div id="cSobre" class="val">–</div><div id="cSobreHint" class="hint">del periodo</div></div>
-      <div class="card kpi"><div class="lab">Mejor mes</div><div id="cMax" class="val">–</div><div id="cMaxHint" class="hint">–</div></div>
-      <div class="card kpi"><div class="lab">Peor mes</div><div id="cMin" class="val">–</div><div id="cMinHint" class="hint">–</div></div>
+      <div class="kpi hero"><div class="lab">Periodo seleccionado</div><div id="cActual" class="val">–</div><div id="cActualHint" class="hint">–</div></div>
+      <div class="kpi hero"><div class="lab">Periodo de comparación</div><div id="cBase" class="val">–</div><div id="cBaseHint" class="hint">–</div></div>
+      <div class="kpi"><div class="lab">Variación</div><div id="cVar" class="val">–</div><div id="cVarHint" class="hint">m³ de diferencia</div></div>
+      <div class="kpi"><div class="lab">Meses sobre plan</div><div id="cSobre" class="val">–</div><div id="cSobreHint" class="hint">del periodo</div></div>
+      <div class="kpi"><div class="lab">Mejor mes</div><div id="cMax" class="val">–</div><div id="cMaxHint" class="hint">–</div></div>
+      <div class="kpi"><div class="lab">Peor mes</div><div id="cMin" class="val">–</div><div id="cMinHint" class="hint">–</div></div>
     </div>
 
     <div class="grid">
@@ -628,12 +784,12 @@
   <!-- ================= PROVEEDORES ================= -->
   <section class="panel" id="panel-proveedores">
     <div class="kpis k6">
-      <div class="card kpi hero"><div class="lab">Concentración (HHI)</div><div id="pHHI" class="val">–</div><div id="pHHIHint" class="hint">–</div></div>
-      <div class="card kpi"><div class="lab">Top 3 proveedores</div><div id="pTop3" class="val">–</div><div class="hint">del volumen del periodo</div></div>
-      <div class="card kpi"><div class="lab">Regla 80/20</div><div id="pPareto" class="val">–</div><div class="hint">proveedores hacen el 80% del volumen</div></div>
-      <div class="card kpi"><div class="lab">Bajo plan</div><div id="pBajo" class="val">–</div><div id="pBajoHint" class="hint">proveedores bajo 85% de cumplimiento</div></div>
-      <div class="card kpi"><div class="lab">En caída</div><div id="pCaida" class="val">–</div><div class="hint">caen más de 20% vs comparación</div></div>
-      <div class="card kpi"><div class="lab">Inactivos</div><div id="pInactivos" class="val">–</div><div class="hint">con historial y sin ingreso reciente</div></div>
+      <div class="kpi hero"><div class="lab">Concentración (HHI)</div><div id="pHHI" class="val">–</div><div id="pHHIHint" class="hint">–</div></div>
+      <div class="kpi"><div class="lab">Top 3 proveedores</div><div id="pTop3" class="val">–</div><div class="hint">del volumen del periodo</div></div>
+      <div class="kpi"><div class="lab">Regla 80/20</div><div id="pPareto" class="val">–</div><div class="hint">proveedores hacen el 80% del volumen</div></div>
+      <div class="kpi"><div class="lab">Bajo plan</div><div id="pBajo" class="val">–</div><div id="pBajoHint" class="hint">proveedores bajo 85% de cumplimiento</div></div>
+      <div class="kpi"><div class="lab">En caída</div><div id="pCaida" class="val">–</div><div class="hint">caen más de 20% vs comparación</div></div>
+      <div class="kpi"><div class="lab">Inactivos</div><div id="pInactivos" class="val">–</div><div class="hint">con historial y sin ingreso reciente</div></div>
     </div>
 
     <div class="grid">
@@ -666,7 +822,7 @@
           <b>Cómo leer la tabla.</b>
           <b>Var.</b> compara contra el periodo de comparación elegido arriba.
           <b>CV</b> es el coeficiente de variación mensual: sobre 35% el abastecimiento es irregular y conviene comprometer entregas mínimas por mes.
-          <b>Días s/ entrega</b> son los días entre la última entrega del proveedor y el fin del periodo.
+          <b>Días sin entregar</b> cuenta desde la última entrega del proveedor hasta el fin del periodo.
           <b>Tendencia</b> es la pendiente de la regresión lineal sobre los meses del periodo.
         </div>
       </div>
@@ -681,14 +837,14 @@
   <!-- ================= OPERACIÓN ================= -->
   <section class="panel" id="panel-operacion">
     <div class="kpis">
-      <div class="card kpi hero"><div class="lab">Viajes recepcionados</div><div id="oViajes" class="val">–</div><div id="oViajesDelta"></div><div class="hint">guías distintas en el periodo</div></div>
-      <div class="card kpi hero"><div class="lab">m³ por viaje</div><div id="oM3Viaje" class="val">–</div><div id="oM3ViajeDelta"></div><div class="hint">carga media por camión</div></div>
-      <div class="card kpi"><div class="lab">Días con recepción</div><div id="oDias" class="val">–</div><div id="oDiasHint" class="hint">–</div></div>
-      <div class="card kpi"><div class="lab">Viajes por día activo</div><div id="oViajesDia" class="val">–</div><div class="hint">ritmo de recepción</div></div>
-      <div class="card kpi"><div class="lab">Camiones distintos</div><div id="oCamiones" class="val">–</div><div class="hint">patentes en el periodo</div></div>
-      <div class="card kpi"><div class="lab">Trozos ingresados</div><div id="oTrozos" class="val">–</div><div class="hint">unidades</div></div>
-      <div class="card kpi"><div class="lab">m³ por trozo</div><div id="oM3Trozo" class="val">–</div><div class="hint">rendimiento medio</div></div>
-      <div class="card kpi"><div class="lab">Predios activos</div><div id="oPredios" class="val">–</div><div class="hint">orígenes distintos</div></div>
+      <div class="kpi hero"><div class="lab">Viajes recepcionados</div><div id="oViajes" class="val">–</div><div id="oViajesDelta"></div><div class="hint">guías distintas en el periodo</div></div>
+      <div class="kpi hero"><div class="lab">m³ por viaje</div><div id="oM3Viaje" class="val">–</div><div id="oM3ViajeDelta"></div><div class="hint">carga media por camión</div></div>
+      <div class="kpi"><div class="lab">Días con recepción</div><div id="oDias" class="val">–</div><div id="oDiasHint" class="hint">–</div></div>
+      <div class="kpi"><div class="lab">Viajes por día activo</div><div id="oViajesDia" class="val">–</div><div class="hint">ritmo de recepción</div></div>
+      <div class="kpi"><div class="lab">Camiones distintos</div><div id="oCamiones" class="val">–</div><div class="hint">patentes en el periodo</div></div>
+      <div class="kpi"><div class="lab">Trozos ingresados</div><div id="oTrozos" class="val">–</div><div class="hint">unidades</div></div>
+      <div class="kpi"><div class="lab">m³ por trozo</div><div id="oM3Trozo" class="val">–</div><div class="hint">rendimiento medio</div></div>
+      <div class="kpi"><div class="lab">Predios activos</div><div id="oPredios" class="val">–</div><div class="hint">orígenes distintos</div></div>
     </div>
 
     <div class="grid">
@@ -728,9 +884,14 @@
         <div id="chEstado" class="chart"></div>
       </div>
 
-      <div class="card full">
-        <h3>Viajes y carga media por mes</h3>
-        <div id="chViajes" class="chart tall"></div>
+      <div class="card">
+        <h3>Viajes por mes <span class="meta">guías distintas</span></h3>
+        <div id="chViajes" class="chart"></div>
+      </div>
+
+      <div class="card">
+        <h3>Carga media por viaje <span class="meta">m³ por camión</span></h3>
+        <div id="chCarga" class="chart"></div>
       </div>
     </div>
   </section>
@@ -738,12 +899,12 @@
   <!-- ================= PLAN DE ACCIÓN ================= -->
   <section class="panel" id="panel-accion">
     <div class="kpis k6">
-      <div class="card kpi hero"><div class="lab">Brecha total del periodo</div><div id="aBrecha" class="val">–</div><div id="aBrechaHint" class="hint">m³ vs plan</div></div>
-      <div class="card kpi hero"><div class="lab">Recuperación requerida</div><div id="aReq" class="val">–</div><div id="aReqHint" class="hint">m³ por mes</div></div>
-      <div class="card kpi"><div class="lab">Hallazgos críticos</div><div id="aCrit" class="val">–</div><div class="hint">prioridad alta</div></div>
-      <div class="card kpi"><div class="lab">Volumen en riesgo</div><div id="aRiesgo" class="val">–</div><div class="hint">m³ identificados</div></div>
-      <div class="card kpi"><div class="lab">Volumen recuperable</div><div id="aRecup" class="val">–</div><div class="hint">m³ con acción directa</div></div>
-      <div class="card kpi"><div class="lab">Proyección próximo mes</div><div id="aProy" class="val">–</div><div id="aProyHint" class="hint">tendencia + estacionalidad</div></div>
+      <div class="kpi hero"><div class="lab">Brecha total del periodo</div><div id="aBrecha" class="val">–</div><div id="aBrechaHint" class="hint">m³ vs plan</div></div>
+      <div class="kpi hero"><div class="lab">Recuperación requerida</div><div id="aReq" class="val">–</div><div id="aReqHint" class="hint">m³ por mes</div></div>
+      <div class="kpi"><div class="lab">Hallazgos críticos</div><div id="aCrit" class="val">–</div><div class="hint">prioridad alta</div></div>
+      <div class="kpi"><div class="lab">Volumen en riesgo</div><div id="aRiesgo" class="val">–</div><div class="hint">m³ identificados</div></div>
+      <div class="kpi"><div class="lab">Volumen recuperable</div><div id="aRecup" class="val">–</div><div class="hint">m³ con acción directa</div></div>
+      <div class="kpi"><div class="lab">Proyección próximo mes</div><div id="aProy" class="val">–</div><div id="aProyHint" class="hint">tendencia + estacionalidad</div></div>
     </div>
 
     <div class="card" style="margin-bottom:14px">
@@ -814,9 +975,37 @@ var DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'
 /* =========================================================
    ARRANQUE
    ========================================================= */
+var DOM_LISTO = false, ARRANCADO = false;
+
 google.charts.load('current', { packages:['corechart','bar','line'] });
-google.charts.setOnLoadCallback(function(){ CHARTS_OK = true; if(B) renderAll(); else reload(false); });
-window.addEventListener('load', function(){ initTheme(); setTimeout(function(){ if(!B) reload(false); }, 1500); });
+google.charts.setOnLoadCallback(function(){ CHARTS_OK = true; arrancar(); });
+
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', function(){ DOM_LISTO = true; arrancar(); });
+} else {
+  DOM_LISTO = true;
+}
+
+// Red de seguridad: si Google Charts nunca responde, el tablero igual carga.
+window.addEventListener('load', function(){
+  DOM_LISTO = true;
+  arrancar();
+  setTimeout(arrancar, 1500);
+});
+
+function arrancar(){
+  if(!DOM_LISTO) return;
+
+  if(ARRANCADO){
+    // Los gráficos llegaron después del primer render: hay que dibujarlos.
+    if(B && CHARTS_OK){ ST.rendered = {}; renderTabCharts(); }
+    return;
+  }
+
+  ARRANCADO = true;
+  initTheme();
+  reload(false);
+}
 window.addEventListener('resize', debounce(function(){ if(B && CHARTS_OK){ ST.rendered = {}; renderTabCharts(); } }, 260));
 
 document.addEventListener('click', function(e){
@@ -1207,8 +1396,9 @@ function renderActiveFilters(){
   if(dmin || dmax) chip('Diámetro', (dmin || '0') + ' a ' + (dmax || '∞') + ' cm', "quitarDiametro()");
 
   setHtml('activeFilters', out.length
-    ? out.join('') + '<span class="chip" style="background:transparent;border-style:dashed"><button onclick="clearFilters()" style="color:var(--danger)">Limpiar todo</button></span>'
-    : '<span style="font-size:11.5px;color:var(--muted);font-weight:700">Sin filtros de dimensión activos — se muestra todo el periodo seleccionado.</span>');
+    ? out.join('') + '<span class="chip" style="background:transparent;border-style:dashed">' +
+      '<button onclick="clearFilters()" style="color:var(--neg-ink);padding:0 4px">Limpiar todo</button></span>'
+    : '<span class="nofilters">Sin filtros activos: se muestra todo el periodo seleccionado.</span>');
 }
 
 function quitarFiltro(id){ if(MS[id]) MS[id].set([]); }
@@ -1674,7 +1864,7 @@ function renderTabCharts(){
     } else if(ST.tab === 'proveedores'){
       drawPareto();
     } else if(ST.tab === 'operacion'){
-      drawDiametro(); drawLargo(); drawCalMes(); drawHora(); drawDow(); drawTurno(); drawEstado(); drawViajes();
+      drawDiametro(); drawLargo(); drawCalMes(); drawHora(); drawDow(); drawTurno(); drawEstado(); drawViajes(); drawCarga();
     }
   }catch(err){
     showErr('Al dibujar los gráficos: ' + (err && err.message ? err.message : err));
@@ -1720,42 +1910,22 @@ function renderResumenKPIs(){
   var P = V.P, C = V.C, plan = V.plan.total;
 
   setText('kCub', fmt(P.cub) + ' m³');
-  setHtml('kCubDelta', deltaBadge(P.cub, C.cub, 'vs ' + (V.cmp ? V.cmp.etiqueta : '')));
+  setHtml('kCubDelta', deltaBadge(P.cub, C.cub, V.cmp ? V.cmp.etiqueta : ''));
   setText('kPeriodo', isoDe(V.f.d1) + ' → ' + isoDe(V.f.d2) + ' · ' + V.mesesPeriodo.length + ' meses');
 
-  setText('kPlan', plan ? fmt(plan) + ' m³' : 'Sin plan');
-  setText('kPlanHint', plan
-    ? V.plan.meses + ' meses con plan' + (V.f.prorrateo ? ' · mes parcial prorrateado' : '')
-    : 'm³ planificados');
-
-  var cEl = document.getElementById('kCumpl');
-  var bEl = document.getElementById('kBrecha');
-
-  if(plan){
-    var pct = P.cub / plan;
-    var brecha = P.cub - plan;
-    cEl.textContent = fmtPct(pct);
-    cEl.className = 'val ' + (pct >= 1 ? 'pos' : pct >= .9 ? 'near' : 'neg');
-    bEl.textContent = fmtSigned(brecha) + ' m³ contra el plan';
-    setHtml('kCumplBadge', V.plan.comparable ? '' : '<span class="delta flat">referencial</span>');
-  } else {
-    cEl.textContent = '–'; cEl.className = 'val';
-    bEl.textContent = 'sin plan en el periodo';
-    setHtml('kCumplBadge', '');
-  }
+  renderTrack(P.cub, plan);
 
   var e = V.est;
   setText('kProm', e.n ? fmt(e.mean) + ' m³' : '–');
   setText('kPromHint', e.n
-    ? 'mediana ' + fmt(e.median) + ' · rango ' + fmt(e.min) + '–' + fmt(e.max)
-    : 'm³/mes en el periodo');
+    ? 'mediana ' + fmt(e.median) + ' · entre ' + fmt(e.min) + ' y ' + fmt(e.max)
+    : 'm³ por mes en el periodo');
 
   var cvEl = document.getElementById('kCV');
   cvEl.textContent = e.n > 1 ? fmtPct(e.cv) : '–';
   cvEl.className = 'val ' + (e.cv > .5 ? 'neg' : e.cv > .35 ? 'near' : 'pos');
   setText('kCVHint', e.n > 1
-    ? (e.cv > .5 ? 'muy irregular' : e.cv > .35 ? 'irregular' : 'abastecimiento estable') +
-      ' · σ ' + fmt(e.sd) + ' m³'
+    ? (e.cv > .5 ? 'muy irregular' : e.cv > .35 ? 'irregular' : 'estable') + ' · σ ' + fmt(e.sd) + ' m³'
     : 'se necesitan al menos 2 meses');
 
   var r = V.reg;
@@ -1763,7 +1933,7 @@ function renderResumenKPIs(){
   tEl.textContent = r.n > 1 ? fmtSigned(r.slope) + ' m³' : '–';
   tEl.className = 'val ' + (r.slope > 0 ? 'pos' : r.slope < 0 ? 'neg' : '');
   setText('kTendHint', r.n > 1
-    ? 'por mes · R² ' + fmt2(r.r2) + (r.r2 < .3 ? ' (tendencia débil)' : '')
+    ? 'por mes · R² ' + fmt2(r.r2) + (r.r2 < .3 ? ' · tendencia débil' : '')
     : 'm³ por mes');
 
   setText('kProv', fmt0(Object.keys(P.provSeen).length));
@@ -1773,6 +1943,49 @@ function renderResumenKPIs(){
   var diamC = C.qty ? C.diaW / C.qty : 0;
   setText('kDiam', diam ? fmt1(diam) + ' cm' : '–');
   setHtml('kDiamDelta', deltaBadge(diam, diamC, ''));
+}
+
+/**
+ * La regla: real contra meta sobre un riel único.
+ * El riel llega a 125% del plan, así que la marca de meta cae al 80% del
+ * ancho y el sobrecumplimiento se ve como lo que es, sin salirse.
+ */
+var TRACK_MAX = 1.25;
+
+function renderTrack(real, plan){
+  var fill = document.getElementById('trackFill');
+  var goal = document.getElementById('trackGoal');
+
+  setText('kCubReal', fmt(real) + ' m³');
+
+  if(!plan){
+    setText('kCumpl', 'sin plan');
+    document.getElementById('kCumpl').style.color = 'var(--muted)';
+    setText('kPlan', '–');
+    setHtml('kBrecha', '<span style="color:var(--muted)">no hay plan cargado para este periodo</span>');
+    fill.style.width = '0%';
+    goal.style.display = 'none';
+    return;
+  }
+
+  goal.style.display = '';
+  goal.style.left = (100 / TRACK_MAX) + '%';
+
+  var pct = real / plan;
+  var marca = pct >= 1 ? 'var(--pos)' : pct >= .9 ? 'var(--warn)' : 'var(--neg)';
+  var tinta = pct >= 1 ? 'var(--pos-ink)' : pct >= .9 ? 'var(--warn-ink)' : 'var(--neg-ink)';
+
+  fill.style.width = Math.max(0, Math.min(pct, TRACK_MAX) / TRACK_MAX * 100) + '%';
+  fill.style.background = marca;
+
+  var cEl = document.getElementById('kCumpl');
+  cEl.textContent = fmtPct(pct);
+  cEl.style.color = tinta;
+
+  setText('kPlan', fmt(plan) + ' m³' + (V.plan.comparable ? '' : ' (ref.)'));
+
+  var brecha = real - plan;
+  setHtml('kBrecha', '<span style="color:' + tinta + '">' + fmtSigned(brecha) + ' m³</span>');
 }
 
 function deltaBadge(actual, base, sufijo){
@@ -1792,16 +2005,93 @@ function deltaBadge(actual, base, sufijo){
    GRÁFICOS · BASE
    ========================================================= */
 function palette(){
-  var oscuro = ST.theme === 'dark';
   return {
-    ing:  oscuro ? '#63b98a' : '#2c6a4c',
-    plan: oscuro ? '#e0a44a' : '#c98a2e',
-    cmp:  oscuro ? '#69aecd' : '#2f6f8f',
-    neg:  oscuro ? '#e0705f' : '#b23b2e',
-    serie: oscuro
-      ? ['#63b98a','#e0a44a','#69aecd','#e0705f','#8ed2ab','#c9a227','#9db8c7','#b0c9a8']
-      : ['#2c6a4c','#c98a2e','#2f6f8f','#b23b2e','#7cbf99','#6b4f2a','#8ea9b8','#8aa683']
+    real:    cssVar('--real'),
+    base:    cssVar('--base'),
+    plan:    cssVar('--plan'),
+    neg:     cssVar('--neg'),
+    warn:    cssVar('--warn'),
+    neutral: cssVar('--neutral'),
+    calSin:  cssVar('--cal-sin'),
+    cal: {
+      'VERDE':       cssVar('--cal-verde'),
+      'MANCHADO':    cssVar('--cal-manchado'),
+      'SINIESTRADO': cssVar('--cal-siniestrado')
+    },
+    cat: [1,2,3,4,5,6,7,8].map(function(i){ return cssVar('--cat-' + i); })
   };
+}
+
+/** El color sigue a la entidad, nunca a su posición en el ranking. */
+function colorRegion(nombre){
+  var pal = palette();
+  var orden = (B && B.regionOrder) ? B.regionOrder : [];
+  var i = orden.indexOf(nombre);
+  if(i === -1) i = Math.abs(hashTexto(nombre)) % pal.cat.length;
+  return pal.cat[i % pal.cat.length];
+}
+
+function colorCalidad(nombre){
+  var pal = palette();
+  return pal.cal[nombre] || pal.calSin;
+}
+
+/** Mezcla dos colores en sRGB; suficiente para una rampa de 6 pasos. */
+function mezcla(a, b, t){
+  var A = hexRGB(a), Bc = hexRGB(b);
+  if(!A || !Bc) return a;
+  var r = Math.round(A[0] + (Bc[0]-A[0]) * t);
+  var g = Math.round(A[1] + (Bc[1]-A[1]) * t);
+  var bl = Math.round(A[2] + (Bc[2]-A[2]) * t);
+  return '#' + [r,g,bl].map(function(v){ return ('0' + Math.max(0,Math.min(255,v)).toString(16)).slice(-2); }).join('');
+}
+
+function hexRGB(h){
+  var m = String(h).trim().match(/^#?([0-9a-f]{6})$/i);
+  if(!m) return null;
+  var n = parseInt(m[1], 16);
+  return [n >> 16 & 255, n >> 8 & 255, n & 255];
+}
+
+/**
+ * Los años son una secuencia, no categorías sueltas: el año más reciente
+ * es el protagonista y los anteriores se van apagando hacia el fondo.
+ */
+function coloresPorAnio(anios){
+  var pal = palette();
+  var fondo = cssVar('--chart-surface');
+  var n = anios.length;
+
+  return anios.map(function(_, i){
+    if(i === n - 1) return pal.real;
+    if(i === n - 2) return pal.base;
+    var t = n > 2 ? (n - 2 - i) / (n - 1) : 0;
+    return mezcla(pal.neutral, fondo, Math.min(.62, t * .75));
+  });
+}
+
+function anchosPorAnio(anios){
+  var series = {};
+  anios.forEach(function(_, i){
+    series[i] = (i === anios.length - 1)
+      ? { lineWidth:3, pointSize:6 }
+      : (i === anios.length - 2 ? { lineWidth:2, pointSize:4 } : { lineWidth:1.5, pointSize:0 });
+  });
+  return series;
+}
+
+function hashTexto(t){
+  var h = 0;
+  for(var i=0;i<String(t).length;i++) h = ((h << 5) - h + String(t).charCodeAt(i)) | 0;
+  return h;
+}
+
+/** Color de la barra según su distancia al plan (escala divergente). */
+function colorDesvio(real, plan){
+  var pal = palette();
+  if(!plan) return pal.real;
+  var pct = real / plan;
+  return pct >= 1 ? pal.real : pct >= .9 ? pal.warn : pal.neg;
 }
 
 function chartOpts(extra){
@@ -1852,62 +2142,71 @@ function drawOn(id, tipo, filas, opciones){
    ========================================================= */
 function drawMensual(){
   var meses = V.mesesPeriodo;
-  if(!meses.length) return empty('chMensual', 'Selecciona un periodo con datos.');
+  if(!meses.length) return empty('chMensual', 'Elige un periodo con datos.');
 
   var pal = palette();
   var hayPlan = V.plan.total > 0;
 
-  var head = ['Mes', 'Ingresado'];
+  // El plan es una meta, no un competidor: va como línea, no como barra rival.
+  var head = ['Mes', 'Ingresado', {role:'style'}, {role:'tooltip', type:'string'}];
   if(hayPlan) head.push('Plan');
   head.push('Mismo mes año anterior');
 
   var filas = meses.map(function(m){
-    var f = [mesLabel(m), V.P.byMonth[m] || 0];
-    if(hayPlan) f.push(V.plan.byMonth[m] || 0);
+    var ing = V.P.byMonth[m] || 0;
+    var plan = V.plan.byMonth[m] || 0;
     var prev = V.serie[mesAnioAnterior(m)];
-    f.push(prev ? prev.cub : 0);
+    var anterior = prev ? prev.cub : 0;
+
+    var tip = mesLabel(m) + ': ' + fmt(ing) + ' m³' +
+      (plan ? ' · plan ' + fmt(plan) + ' m³ · ' + fmtPct(ing/plan) : '') +
+      (anterior ? ' · año anterior ' + fmt(anterior) + ' m³' : '');
+
+    var f = [mesLabel(m), ing, colorDesvio(ing, plan), tip];
+    if(hayPlan) f.push(plan);
+    f.push(anterior);
     return f;
   });
 
-  var idxLinea = hayPlan ? 3 : 2;
   var series = {};
-  series[idxLinea] = { type:'line', color:pal.cmp, lineWidth:2, pointSize:4, lineDashStyle:[5,3] };
+  var idx = 1;
+  if(hayPlan){ series[idx] = { type:'line', color:pal.plan, lineWidth:2, pointSize:0, lineDashStyle:[3,3] }; idx++; }
+  series[idx] = { type:'line', color:pal.base, lineWidth:2, pointSize:6 };
 
-  setHtml('mMeta', meses.length + ' meses' + (hayPlan ? ' · barras verdes = ingresado, ámbar = plan' : '') +
-                   ' · línea punteada = mismo mes del año anterior');
+  setHtml('mMeta', meses.length + ' meses · ' +
+    (hayPlan ? 'la barra se pinta según su distancia al plan: verde cumple, ámbar 90-100%, rojo bajo 90% · línea punteada = plan · ' : '') +
+    'línea azul = mismo mes del año anterior');
 
   drawOn('chMensual', 'ComboChart', [head].concat(filas), chartOpts({
     seriesType: 'bars',
     series: series,
-    colors: hayPlan ? [pal.ing, pal.plan, pal.cmp] : [pal.ing, pal.cmp],
-    bar: { groupWidth:'72%' },
+    colors: hayPlan ? [pal.real, pal.plan, pal.base] : [pal.real, pal.base],
+    bar: { groupWidth:'68%' },
     vAxis: { title:'m³' },
     hAxis: { slantedText: meses.length > 14, slantedTextAngle:45 },
-    chartArea: { width:'86%', height:'66%' }
+    chartArea: { width:'86%', height:'68%' }
   }));
 
-  var e = V.est, r = V.reg;
-  var texto = [];
+  var e = V.est, r = V.reg, texto = [];
 
   if(e.n){
-    texto.push('<b>Promedio</b> ' + fmt(e.mean) + ' m³/mes · <b>mediana</b> ' + fmt(e.median) +
-               ' · <b>desviación</b> ' + fmt(e.sd) + ' m³ (CV ' + fmtPct(e.cv) + ').');
+    texto.push('<b>Promedio</b> ' + fmt(e.mean) + ' m³ por mes, <b>mediana</b> ' + fmt(e.median) +
+               ', <b>desviación</b> ' + fmt(e.sd) + ' m³ (CV ' + fmtPct(e.cv) + ').');
   }
   if(r.n > 1){
-    texto.push('<b>Tendencia</b> ' + fmtSigned(r.slope) + ' m³ por mes (R² ' + fmt2(r.r2) + '), ' +
-               'equivalente a ' + fmtSigned(r.slope * 12) + ' m³ en un año si se mantiene el ritmo.');
+    texto.push('<b>Tendencia</b> ' + fmtSigned(r.slope) + ' m³ por mes (R² ' + fmt2(r.r2) + '): ' +
+               fmtSigned(r.slope * 12) + ' m³ en un año si se mantiene el ritmo.');
   }
   if(hayPlan){
-    var sobre = meses.filter(function(m){ return (V.P.byMonth[m]||0) >= (V.plan.byMonth[m]||0) && V.plan.byMonth[m]; }).length;
-    var conPlan = meses.filter(function(m){ return V.plan.byMonth[m]; }).length;
-    if(conPlan) texto.push('<b>' + sobre + ' de ' + conPlan + '</b> meses cumplieron o superaron el plan.');
+    var conPlan = meses.filter(function(m){ return V.plan.byMonth[m]; });
+    var sobre = conPlan.filter(function(m){ return (V.P.byMonth[m]||0) >= V.plan.byMonth[m]; }).length;
+    if(conPlan.length) texto.push('<b>' + sobre + ' de ' + conPlan.length + '</b> meses alcanzaron el plan.');
   }
 
   setHtml('notaMensual', texto.join(' '));
 }
 
 function drawRegion(){
-  var pal = palette();
   var filas = Object.keys(V.P.byReg)
     .map(function(k){ return [B.dicts.reg[k], V.P.byReg[k]]; })
     .sort(function(a,b){ return b[1]-a[1]; });
@@ -1915,9 +2214,10 @@ function drawRegion(){
   if(!filas.length) return empty('chReg');
 
   drawOn('chReg', 'PieChart', [['Región','m³']].concat(filas), chartOpts({
-    pieHole: .56,
-    colors: pal.serie,
-    chartArea: { width:'92%', height:'82%' },
+    pieHole: .58,
+    colors: filas.map(function(f){ return colorRegion(f[0]); }),
+    pieSliceBorderColor: cssVar('--chart-surface'),
+    chartArea: { width:'92%', height:'84%' },
     legend: { position:'right', alignment:'center' }
   }));
 }
@@ -1930,9 +2230,10 @@ function drawCalidad(){
   if(!filas.length) return empty('chCal');
 
   drawOn('chCal', 'PieChart', [['Calidad','m³']].concat(filas), chartOpts({
-    pieHole: .56,
-    colors: ['#2c6a4c','#c98a2e','#b23b2e','#7cbf99','#2f6f8f','#6b4f2a'],
-    chartArea: { width:'92%', height:'82%' },
+    pieHole: .58,
+    colors: filas.map(function(f){ return colorCalidad(f[0]); }),
+    pieSliceBorderColor: cssVar('--chart-surface'),
+    chartArea: { width:'92%', height:'84%' },
     legend: { position:'right', alignment:'center' }
   }));
 }
@@ -1946,7 +2247,7 @@ function drawPredios(){
   if(!filas.length) return empty('chPred');
 
   drawOn('chPred', 'BarChart', [['Predio','m³']].concat(filas), chartOpts({
-    colors: [pal.ing],
+    colors: [pal.real],
     legend: { position:'none' },
     chartArea: { width:'58%', height:'88%' },
     hAxis: { title:'m³' }
@@ -1962,7 +2263,7 @@ function drawComunas(){
   if(!filas.length) return empty('chCom');
 
   drawOn('chCom', 'BarChart', [['Comuna','m³']].concat(filas), chartOpts({
-    colors: [pal.cmp],
+    colors: [pal.base],
     legend: { position:'none' },
     chartArea: { width:'58%', height:'88%' },
     hAxis: { title:'m³' }
@@ -2051,13 +2352,10 @@ function drawAnios(){
 
   if(!filas.length) return empty('chAnios');
 
-  var pal = palette();
-
   drawOn('chAnios', 'LineChart', [head].concat(filas), chartOpts({
-    colors: pal.serie.slice(0, anios.length),
+    colors: coloresPorAnio(anios),
+    series: anchosPorAnio(anios),
     curveType: 'none',
-    lineWidth: 3,
-    pointSize: 6,
     interpolateNulls: true,
     vAxis: { title:'m³' },
     hAxis: { title:'Mes calendario' },
@@ -2079,8 +2377,8 @@ function drawEstacional(){
 
   drawOn('chEstacional', 'ComboChart', [['Mes','Índice','Base 100']].concat(filas), chartOpts({
     seriesType: 'bars',
-    series: { 1:{ type:'line', color:pal.cmp, lineWidth:2, lineDashStyle:[6,4], pointSize:0 } },
-    colors: [pal.ing, pal.cmp],
+    series: { 1:{ type:'line', color:pal.plan, lineWidth:2, lineDashStyle:[5,4], pointSize:0 } },
+    colors: [pal.real, pal.plan],
     vAxis: { title:'índice (100 = mes promedio)' },
     bar: { groupWidth:'70%' },
     chartArea: { width:'86%', height:'70%' }
@@ -2121,7 +2419,7 @@ function drawVarProv(){
   var sel = arriba.concat(abajo).sort(function(a,b){ return a.dif - b.dif; });
 
   var datos = [['Proveedor','Δ m³',{role:'style'},{role:'annotation'}]].concat(sel.map(function(x){
-    return [x.nombre, x.dif, x.dif >= 0 ? pal.ing : pal.neg, fmtSigned(x.dif)];
+    return [x.nombre, x.dif, x.dif >= 0 ? pal.real : pal.neg, fmtSigned(x.dif)];
   }));
 
   drawOn('chVarProv', 'BarChart', datos, chartOpts({
@@ -2155,12 +2453,9 @@ function drawYtd(){
     filas.push(fila);
   }
 
-  var pal = palette();
-
   drawOn('chYtd', 'LineChart', [head].concat(filas), chartOpts({
-    colors: pal.serie.slice(0, anios.length),
-    lineWidth: 3,
-    pointSize: 5,
+    colors: coloresPorAnio(anios),
+    series: anchosPorAnio(anios),
     interpolateNulls: true,
     vAxis: { title:'m³ acumulados' },
     hAxis: { title:'Mes' },
@@ -2220,10 +2515,8 @@ function renderHeat(){
 
 function heatColor(v, max){
   if(!v || !max) return 'transparent';
-  var a = Math.max(.05, v/max);
-  return ST.theme === 'dark'
-    ? 'rgba(99,185,138,' + (a*.5).toFixed(3) + ')'
-    : 'rgba(44,106,76,' + (a*.4).toFixed(3) + ')';
+  var pct = Math.round(Math.max(4, Math.min(1, v/max) * 62));
+  return 'color-mix(in oklab, var(--real) ' + pct + '%, var(--surface))';
 }
 
 function renderVarTables(){
@@ -2265,7 +2558,7 @@ function tablaVariacion(actual, base, dict, titulo){
     ''
   ];
 
-  return tabla([titulo,'m³ periodo','% del total','m³ base','Dif. m³','Var. %'], rows, [1,2,3,4,5], tot);
+  return tabla([titulo,'m³ periodo','% del total','m³ base','Diferencia','Var. %'], rows, [1,2,3,4,5], tot);
 }
 </script>
 
@@ -2418,26 +2711,32 @@ function drawPareto(){
 
   var pal = palette();
   var top = lista.slice(0, 30);
+  var total = V.P.cub || 1;
 
+  // Barras y línea comparten escala 0-100%: un solo eje, sin doble lectura.
   var filas = top.map(function(e){
-    return [e.nombre, e.ing, Math.round(e.acum * 100)];
+    return [
+      e.nombre,
+      e.ing / total * 100,
+      e.nombre + ': ' + fmt(e.ing) + ' m³ (' + fmtPct(e.part) + ' del periodo)',
+      e.acum * 100
+    ];
   });
 
   var el = document.getElementById('chPareto');
-  el.style.height = Math.max(420, Math.min(760, top.length * 26 + 120)) + 'px';
+  el.style.height = Math.max(400, Math.min(720, top.length * 24 + 130)) + 'px';
 
-  drawOn('chPareto', 'ComboChart', [['Proveedor','m³','% acumulado']].concat(filas), chartOpts({
-    seriesType: 'bars',
-    series: { 1:{ type:'line', targetAxisIndex:1, color:pal.plan, lineWidth:2, pointSize:4 } },
-    colors: [pal.ing, pal.plan],
-    vAxes: {
-      0: { title:'m³', textStyle:{fontSize:11,color:cssVar('--chart-text')} },
-      1: { title:'% acumulado', minValue:0, maxValue:100, textStyle:{fontSize:11,color:cssVar('--chart-text')}, gridlines:{color:'transparent'} }
-    },
-    hAxis: { slantedText:true, slantedTextAngle:55, textStyle:{fontSize:9.5} },
-    chartArea: { width:'84%', height:'56%' },
-    bar: { groupWidth:'70%' }
-  }));
+  drawOn('chPareto', 'ComboChart',
+    [['Proveedor', '% del periodo', {role:'tooltip', type:'string'}, '% acumulado']].concat(filas),
+    chartOpts({
+      seriesType: 'bars',
+      series: { 1:{ type:'line', color:pal.plan, lineWidth:2, pointSize:4 } },
+      colors: [pal.real, pal.plan],
+      vAxis: { title:'% del volumen del periodo', minValue:0, maxValue:100, format:"#'%'" },
+      hAxis: { slantedText:true, slantedTextAngle:55, textStyle:{fontSize:9.5} },
+      chartArea: { width:'84%', height:'56%' },
+      bar: { groupWidth:'68%' }
+    }));
 }
 
 function renderProveedores(){
@@ -2475,7 +2774,7 @@ function renderProveedores(){
 
     rows.push([
       nombre,
-      barCell(e.ing, maxIng),
+      barCell(e.ing, maxIng, e.plan),
       fmtPct(e.part),
       fmtPct(e.acum),
       e.plan ? fmt(e.plan) : '–',
@@ -2518,8 +2817,8 @@ function renderProveedores(){
   ];
 
   setHtml('tProv', tabla(
-    ['Proveedor / faena','Ingresado m³','% vol.','% acum.','Plan m³','Dif. m³','Cumpl.',
-     'Var. %','Var. m³','12 meses','CV','Meses act.','Días s/ entrega','Faenas','Estado'],
+    ['Proveedor / faena','Ingresado m³','% vol.','% acum.','Plan m³','Brecha m³','Cumpl.',
+     'Var. %','Var. m³','Últimos 12 meses','CV','Meses con entrega','Días sin entregar','Faenas','Estado'],
     rows, [1,2,3,4,5,6,7,8,10,11,12,13], tot
   ));
 }
@@ -2616,27 +2915,30 @@ function drawDiametro(){
 
   if(!claves.length) return empty('chDiam');
 
-  var total = claves.reduce(function(s,d){ return s + V.P.byDiam[d]; }, 0);
+  var total = claves.reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0) || 1;
   var pal = palette();
   var acc = 0;
 
   var filas = claves.map(function(d){
     acc += V.P.byDiam[d];
-    return [String(d), V.P.byDiam[d], Math.round(acc/total*100)];
+    return [
+      String(d),
+      V.P.byDiam[d] / total * 100,
+      d + ' cm: ' + fmt(V.P.byDiam[d]) + ' m³ (' + fmtPct(V.P.byDiam[d]/total) + ')',
+      acc / total * 100
+    ];
   });
 
-  drawOn('chDiam', 'ComboChart', [['Diámetro (cm)','m³','% acumulado']].concat(filas), chartOpts({
-    seriesType: 'bars',
-    series: { 1:{ type:'line', targetAxisIndex:1, color:pal.plan, lineWidth:2, pointSize:3 } },
-    colors: [pal.ing, pal.plan],
-    vAxes: {
-      0: { title:'m³', textStyle:{fontSize:11,color:cssVar('--chart-text')} },
-      1: { title:'% acumulado', minValue:0, maxValue:100, gridlines:{color:'transparent'},
-           textStyle:{fontSize:11,color:cssVar('--chart-text')} }
-    },
-    bar: { groupWidth:'80%' },
-    chartArea: { width:'84%', height:'70%' }
-  }));
+  drawOn('chDiam', 'ComboChart',
+    [['Diámetro (cm)', '% del volumen', {role:'tooltip', type:'string'}, '% acumulado']].concat(filas),
+    chartOpts({
+      seriesType: 'bars',
+      series: { 1:{ type:'line', color:pal.plan, lineWidth:2, pointSize:3 } },
+      colors: [pal.real, pal.plan],
+      vAxis: { title:'% del volumen', minValue:0, maxValue:100, format:"#'%'" },
+      bar: { groupWidth:'78%' },
+      chartArea: { width:'84%', height:'70%' }
+    }));
 
   // Mediana ponderada por volumen: la mitad del volumen está bajo este diámetro.
   var mitad = total/2, corrido = 0, mediana = claves[0];
@@ -2673,7 +2975,7 @@ function drawLargo(){
   if(!filas.length) return empty('chLargo');
 
   drawOn('chLargo', 'ColumnChart', [['Largo','m³']].concat(filas), chartOpts({
-    colors: [pal.ing],
+    colors: [pal.real],
     legend: { position:'none' },
     vAxis: { title:'m³' },
     bar: { groupWidth:'62%' }
@@ -2684,7 +2986,10 @@ function drawCalMes(){
   var meses = V.mesesPeriodo.filter(function(m){ return V.P.byCalMes[m]; });
   if(!meses.length) return empty('chCalMes');
 
-  var cals = Object.keys(V.P.byCal).sort(function(a,b){ return V.P.byCal[b] - V.P.byCal[a]; });
+  // Orden fijo por identidad: el color de cada calidad no depende del ranking.
+  var cals = Object.keys(V.P.byCal).sort(function(a,b){
+    return String(B.dicts.cal[a]).localeCompare(String(B.dicts.cal[b]), 'es');
+  });
   var head = ['Mes'].concat(cals.map(function(k){ return B.dicts.cal[k]; }));
 
   var filas = meses.map(function(m){
@@ -2695,7 +3000,7 @@ function drawCalMes(){
 
   drawOn('chCalMes', 'ColumnChart', [head].concat(filas), chartOpts({
     isStacked: 'percent',
-    colors: ['#2c6a4c','#c98a2e','#b23b2e','#7cbf99','#2f6f8f','#6b4f2a'],
+    colors: cals.map(function(k){ return colorCalidad(B.dicts.cal[k]); }),
     vAxis: { format:'percent' },
     hAxis: { slantedText: meses.length > 10, slantedTextAngle:45 },
     bar: { groupWidth:'72%' }
@@ -2713,7 +3018,7 @@ function drawHora(){
   if(!conDatos) return empty('chHora');
 
   drawOn('chHora', 'ColumnChart', [['Hora','m³']].concat(filas), chartOpts({
-    colors: [pal.cmp],
+    colors: [pal.base],
     legend: { position:'none' },
     vAxis: { title:'m³' },
     hAxis: { slantedText:true, slantedTextAngle:60, textStyle:{fontSize:9.5} },
@@ -2729,7 +3034,7 @@ function drawDow(){
   if(!filas.some(function(f){ return f[1] > 0; })) return empty('chDow');
 
   drawOn('chDow', 'ColumnChart', [['Día','m³']].concat(filas), chartOpts({
-    colors: [pal.ing],
+    colors: [pal.real],
     legend: { position:'none' },
     vAxis: { title:'m³' },
     bar: { groupWidth:'62%' }
@@ -2746,8 +3051,9 @@ function drawTurno(){
   if(!filas.length) return empty('chTurno');
 
   drawOn('chTurno', 'PieChart', [['Turno','m³']].concat(filas), chartOpts({
-    pieHole: .5,
-    colors: palette().serie,
+    pieHole: .55,
+    pieSliceBorderColor: cssVar('--chart-surface'),
+    colors: palette().cat,
     chartArea: { width:'90%', height:'80%' },
     legend: { position:'right' }
   }));
@@ -2763,40 +3069,54 @@ function drawEstado(){
   if(!filas.length) return empty('chEstado');
 
   drawOn('chEstado', 'PieChart', [['Estado','m³']].concat(filas), chartOpts({
-    pieHole: .5,
-    colors: ['#2c6a4c','#c98a2e','#b23b2e','#2f6f8f','#7cbf99'],
+    pieHole: .55,
+    pieSliceBorderColor: cssVar('--chart-surface'),
+    colors: [palette().real, palette().neg, palette().warn, palette().base],
     chartArea: { width:'90%', height:'80%' },
     legend: { position:'right' }
   }));
 }
 
 function drawViajes(){
-  if(!(B.caps && B.caps.viajes)) return empty('chViajes', 'La planilla no tiene columna Guía ni Patente.');
+  if(!(B.caps && B.caps.viajes)) return empty('chViajes', 'La planilla no trae columna Guía ni Patente.');
 
   var meses = V.mesesPeriodo.filter(function(m){ return V.P.byMonthDet[m]; });
   if(!meses.length) return empty('chViajes');
 
   var pal = palette();
+  var filas = meses.map(function(m){ return [mesLabel(m), V.P.byMonthDet[m].nViajes]; });
+
+  drawOn('chViajes', 'ColumnChart', [['Mes','Viajes']].concat(filas), chartOpts({
+    colors: [pal.base],
+    legend: { position:'none' },
+    vAxis: { title:'viajes' },
+    hAxis: { slantedText: meses.length > 10, slantedTextAngle:45 },
+    bar: { groupWidth:'68%' }
+  }));
+}
+
+function drawCarga(){
+  if(!(B.caps && B.caps.viajes)) return empty('chCarga', 'La planilla no trae columna Guía ni Patente.');
+
+  var meses = V.mesesPeriodo.filter(function(m){ return V.P.byMonthDet[m] && V.P.byMonthDet[m].nViajes; });
+  if(!meses.length) return empty('chCarga');
+
+  var pal = palette();
+  var promedio = V.P.nViajes ? V.P.cub / V.P.nViajes : 0;
 
   var filas = meses.map(function(m){
     var d = V.P.byMonthDet[m];
-    return [mesLabel(m), d.nViajes, d.nViajes ? round1(d.cub / d.nViajes) : 0];
+    return [mesLabel(m), round1(d.cub / d.nViajes), round1(promedio)];
   });
 
-  drawOn('chViajes', 'ComboChart', [['Mes','Viajes','m³ por viaje']].concat(filas), chartOpts({
-    seriesType: 'bars',
-    series: { 1:{ type:'line', targetAxisIndex:1, color:pal.plan, lineWidth:3, pointSize:5 } },
-    colors: [pal.cmp, pal.plan],
-    vAxes: {
-      0: { title:'viajes', textStyle:{fontSize:11,color:cssVar('--chart-text')} },
-      1: { title:'m³ por viaje', gridlines:{color:'transparent'},
-           textStyle:{fontSize:11,color:cssVar('--chart-text')} }
-    },
-    hAxis: { slantedText: meses.length > 14, slantedTextAngle:45 },
-    bar: { groupWidth:'70%' },
-    chartArea: { width:'84%', height:'66%' }
+  drawOn('chCarga', 'LineChart', [['Mes','m³ por viaje','Promedio del periodo']].concat(filas), chartOpts({
+    colors: [pal.real, pal.plan],
+    series: { 0:{ lineWidth:3, pointSize:5 }, 1:{ lineWidth:1.5, pointSize:0, lineDashStyle:[5,4] } },
+    vAxis: { title:'m³ por viaje' },
+    hAxis: { slantedText: meses.length > 10, slantedTextAngle:45 }
   }));
 }
+
 </script>
 
 <script>
@@ -3089,7 +3409,9 @@ function renderAccion(){
   });
 
   var criticos = todos.filter(function(x){ return x.pri === 'alta'; });
-  setText('dotAccion', String(criticos.length));
+  var dot = document.getElementById('dotAccion');
+  dot.textContent = String(criticos.length);
+  dot.classList.toggle('on', criticos.length > 0);
 
   var brecha = V.plan.total ? V.plan.total - V.P.cub : 0;
   setText('aBrecha', V.plan.total ? fmtSigned(-brecha) + ' m³' : 'Sin plan');
@@ -3197,7 +3519,7 @@ function renderProyeccion(){
   });
 
   setHtml('tProy', tabla(
-    ['Mes','Por tendencia','Por estacionalidad','Índice estacional','Proyección m³','Plan m³','Dif. vs plan','Cumpl. proyectado'],
+    ['Mes','Por tendencia','Por estacionalidad','Índice estacional','Proyección m³','Plan m³','Brecha vs plan','Cumpl. proyectado'],
     rows, [1,2,3,4,5,6,7]
   ));
 }
@@ -3257,8 +3579,8 @@ function renderMesTable(){
   ];
 
   setHtml('tMes', tabla(
-    ['Mes','Ingresado m³','Plan m³','Dif. m³','Cumpl.','Var. mes ant.',
-     'Mismo mes año ant.','Var. año ant.','Prom. móvil 3m','Desv. vs promedio','Viajes','m³/viaje'],
+    ['Mes','Ingresado m³','Plan m³','Brecha m³','Cumpl.','vs mes anterior',
+     'Mismo mes año ant.','vs año anterior','Media móvil 3m','vs promedio','Viajes','m³/viaje'],
     rows, [1,2,3,4,5,6,7,8,9,10,11], tot
   ));
 }
@@ -3297,7 +3619,7 @@ function renderComunaTable(){
     return '' +
       '<div class="region-block">' +
         '<div class="region-title">' +
-          '<span>' + esc(region) + '</span>' +
+          '<span><i class="swatch" style="background:' + colorRegion(region) + '"></i>' + esc(region) + '</span>' +
           '<strong>' + fmt(totalRegion) + ' m³' +
             (V.hayComparacion && baseRegion ? ' · ' + fmtSignedPct(difRegion / baseRegion) : '') +
           '</strong>' +
@@ -3324,7 +3646,7 @@ function tabla(headers, rows, rightCols, totalsRow){
 
   function fila(r, clase){
     return '<tr' + (clase ? ' class="' + clase + '"' : '') + '>' + r.map(function(c,i){
-      var esBarra = String(c).indexOf('bar-cell') > -1 || String(c).indexOf('class="fill"') > -1;
+      var esBarra = String(c).indexOf('bar-cell') > -1 || String(c).indexOf('class="fill') > -1;
       var cls = (rset[i] ? 'r ' : '') + (esBarra ? 'bar-cell' : '');
       return '<td class="' + cls.trim() + '">' + c + '</td>';
     }).join('') + '</tr>';
@@ -3340,15 +3662,26 @@ function tabla(headers, rows, rightCols, totalsRow){
   return '<table><thead>' + th + '</thead><tbody>' + cuerpo + '</tbody></table>';
 }
 
-function barCell(v, max){
+/**
+ * Barra de magnitud. Cuando hay plan marca además dónde queda la meta,
+ * así cada fila se lee igual que la regla de arriba.
+ */
+function barCell(v, max, plan){
   var w = max > 0 ? Math.max(2, Math.round(v / max * 100)) : 0;
-  return '<div class="fill" style="width:' + w + '%"></div><span>' + fmt(v) + '</span>';
+  var bajo = plan && v < plan;
+  var out = '<div class="fill' + (bajo ? ' under' : '') + '" style="width:' + w + '%"></div>';
+
+  if(plan && max > 0 && plan <= max){
+    out += '<div class="goal" style="left:' + Math.min(99.5, plan / max * 100) + '%"></div>';
+  }
+
+  return out + '<span>' + fmt(v) + '</span>';
 }
 
 function cumplPill(pct){
   if(pct === null || !isFinite(pct)) return '–';
-  var col = pct >= 1 ? '#2c6a4c' : pct >= .9 ? '#c28a22' : '#b23b2e';
-  return '<span class="pill" style="background:' + col + '">' + fmtPct(pct) + '</span>';
+  var clase = pct >= 1 ? 'ok' : pct >= .9 ? 'near' : 'bad';
+  return '<span class="pill ' + clase + '">' + fmtPct(pct) + '</span>';
 }
 
 function diffCell(v){
