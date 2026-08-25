@@ -39,7 +39,8 @@ vm.runInContext(
   '  CONFIG, SUBPRODUCTOS_OBJETIVO, ESTADOS_MAPEO,' +
   '  ESTADO_INICIAL, ESTADO_CERRADO, MAPEOS_HEADERS, LIMITES_CL,' +
   '  RUTA_CONFIG, RUTAS_HEADERS, PROVEEDORES_HEADERS,' +
-  '  ORIGENES_ALIAS, SUGERENCIAS_PROVEEDORES' +
+  '  ORIGENES_ALIAS, SUGERENCIAS_PROVEEDORES, APUNTES_HEADERS,' +
+  '  ESTADOS_APUNTE, TEMAS_APUNTE' +
   '};',
   sandbox
 );
@@ -959,6 +960,157 @@ check('la propuesta no se contradice a sí misma', (function() {
       return true;
     });
   });
+})());
+
+
+/* =====================================================================
+ * 15. FACTOR POR MATERIAL
+ * ===================================================================== */
+
+console.log('\n15. Toneladas secas por camión');
+
+check('nitens carga 15,2',
+  sandbox.factorDe_('ASTILLA EUCALYPTUS NITENS') === 15.2,
+  String(sandbox.factorDe_('ASTILLA EUCALYPTUS NITENS')));
+
+check('pino con corteza carga 10,7',
+  sandbox.factorDe_('AST. PINO VERDE C/ CORTEZA') === 10.7,
+  String(sandbox.factorDe_('AST. PINO VERDE C/ CORTEZA')));
+
+check('pino verde sigue en 11',
+  sandbox.factorDe_('ASTILLA PINO VERDE') === 11,
+  String(sandbox.factorDe_('ASTILLA PINO VERDE')));
+
+check('un material desconocido usa el factor general',
+  sandbox.factorDe_('ASERRIN') === K.CONFIG.FACTOR_CAMION);
+
+check('sin nombre tampoco rompe',
+  sandbox.factorDe_('') === K.CONFIG.FACTOR_CAMION);
+
+// Los tres subproductos de proceso tienen que estar en la tabla: si
+// alguno falta, se le aplica 11 en silencio y la cifra queda mal sin
+// que nadie lo note.
+K.SUBPRODUCTOS_OBJETIVO.forEach(function(nombre) {
+  check('"' + nombre + '" tiene factor propio',
+    Object.prototype.hasOwnProperty.call(
+      K.CONFIG.FACTOR_POR_MATERIAL, nombre
+    ));
+});
+
+// Y el código SAP tiene que llevar al mismo nombre que la tabla usa.
+[
+  ['3009003', 15.2],
+  ['3009002', 10.7],
+  ['3000039', 11]
+].forEach(function(par) {
+  var nombre = K.CONFIG.MATERIAL_MAP[par[0]];
+
+  check('el código ' + par[0] + ' cae en ' + par[1],
+    sandbox.factorDe_(nombre) === par[1],
+    nombre + ' → ' + sandbox.factorDe_(nombre));
+});
+
+// Diez camiones de cada cosa ya no dan lo mismo.
+check('10 camiones de nitens son 152 TS, no 110',
+  10 * sandbox.factorDe_('ASTILLA EUCALYPTUS NITENS') === 152);
+
+check('10 camiones con corteza son 107 TS, no 110',
+  10 * sandbox.factorDe_('AST. PINO VERDE C/ CORTEZA') === 107);
+
+
+/* =====================================================================
+ * 16. APUNTES DE REUNIÓN
+ * ===================================================================== */
+
+console.log('\n16. Semana de la reunión');
+
+// La semana ISO tiene bordes desagradables: el 1 de enero puede caer en
+// la última semana del año anterior, y hay años de 53 semanas.
+[
+  ['2026-01-01', '2026-S01'],
+  ['2026-08-25', '2026-S35'],
+  ['2026-12-31', '2026-S53'],
+  ['2027-01-01', '2026-S53'],
+  ['2024-12-30', '2025-S01'],
+  ['2025-01-01', '2025-S01']
+].forEach(function(par) {
+  var salida = sandbox.semanaDe_(par[0]);
+
+  check(par[0] + ' → ' + par[1], salida === par[1], salida);
+});
+
+check('una fecha inválida no rompe',
+  sandbox.semanaDe_('') === '');
+
+console.log('\n   Reuniones de la misma semana');
+
+// El punto de la columna: dos reuniones corridas de día siguen siendo
+// "la reunión de esa semana".
+check('lunes y viernes caen en la misma semana',
+  sandbox.semanaDe_('2026-08-24') === sandbox.semanaDe_('2026-08-28'),
+  sandbox.semanaDe_('2026-08-24') + ' vs ' + sandbox.semanaDe_('2026-08-28'));
+
+check('el domingo cierra la semana, no abre la siguiente',
+  sandbox.semanaDe_('2026-08-30') === sandbox.semanaDe_('2026-08-24'),
+  sandbox.semanaDe_('2026-08-30'));
+
+check('el lunes siguiente sí cambia de semana',
+  sandbox.semanaDe_('2026-08-31') !== sandbox.semanaDe_('2026-08-30'));
+
+console.log('\n   La hoja');
+
+check('el encabezado lleva fecha, tema y asunto',
+  K.APUNTES_HEADERS.indexOf('Fecha') !== -1 &&
+  K.APUNTES_HEADERS.indexOf('Tema') !== -1 &&
+  K.APUNTES_HEADERS.indexOf('Asunto') !== -1);
+
+check('los estados incluyen Abierto y Cerrado',
+  K.ESTADOS_APUNTE.indexOf('Abierto') !== -1 &&
+  K.ESTADOS_APUNTE.indexOf('Cerrado') !== -1);
+
+check('hay un tema para la reunión semanal',
+  K.TEMAS_APUNTE.indexOf('Reunión semanal') !== -1);
+
+console.log('\n   Validaciones antes de escribir');
+
+function rechaza(nombre, payload, fragmento) {
+  var lanzo = false;
+  var msg = '';
+
+  try {
+    sandbox.guardarApunte(payload);
+  } catch (e) {
+    lanzo = true;
+    msg = e.message;
+  }
+
+  check(nombre, lanzo && msg.indexOf(fragmento) !== -1, msg);
+}
+
+rechaza('sin asunto no guarda',
+  { fecha: '2026-08-25', asunto: '' }, 'asunto');
+
+rechaza('sin fecha no guarda',
+  { fecha: '', asunto: 'Precio nitens' }, 'fecha');
+
+rechaza('con fecha mal escrita no guarda',
+  { fecha: '25/08/2026', asunto: 'Precio nitens' }, 'fecha');
+
+rechaza('con un estado inventado no guarda',
+  { fecha: '2026-08-25', asunto: 'Precio', estado: 'Pendiente' },
+  'Estado no reconocido');
+
+// Los cuatro rechazos de arriba prueban que valida antes de tocar la
+// hoja: en este entorno "Apuntes" no existe, así que si hubiera abierto
+// el spreadsheet primero el mensaje sería "falta la hoja".
+
+check('sin id de apunte, eliminar avisa', (function() {
+  try {
+    sandbox.eliminarApunte('');
+    return false;
+  } catch (e) {
+    return e.message.indexOf('identificador') !== -1;
+  }
 })());
 
 

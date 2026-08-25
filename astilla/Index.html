@@ -577,6 +577,146 @@
 
     .campo input::placeholder { color: var(--ink-3); }
 
+
+    /* Mandos de una tabla: filtrar y ordenar sin salir del panel. */
+    .tabla-mandos {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+      align-items: end;
+    }
+
+    .tabla-mandos .campo { min-width: 138px; }
+    .tabla-mandos .campo-buscar { flex: 1 1 200px; min-width: 170px; }
+
+    /* ---------------------------------------------------------------
+       APUNTES DE REUNIÓN
+       --------------------------------------------------------------- */
+
+    .apuntes-marco {
+      display: grid;
+      grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .apuntes-marco { grid-template-columns: minmax(0, 1fr); }
+    }
+
+    .apunte-form {
+      display: grid;
+      gap: 11px;
+      padding: 16px;
+      border: 1px solid var(--rule);
+      border-radius: 11px;
+      background: var(--surface);
+      position: sticky;
+      top: 84px;
+    }
+
+    @media (max-width: 900px) {
+      .apunte-form { position: static; }
+    }
+
+    .apunte-fila {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+      gap: 10px;
+    }
+
+    .apunte-fila .campo-ancho { grid-column: 1 / -1; }
+
+    .apunte-botones { display: flex; gap: 8px; align-items: center; }
+
+    .apuntes-lista { display: grid; gap: 10px; min-width: 0; }
+
+    .apunte {
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      background: var(--paper);
+      padding: 14px 16px;
+      transition: border-color .16s var(--ease);
+    }
+
+    .apunte:hover { border-color: var(--ink-3); }
+    .apunte.editando { border-color: var(--verde-2); background: var(--verde-soft); }
+
+    .apunte-cabecera {
+      display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: 5px 10px; margin-bottom: 7px;
+    }
+
+    .apunte-fecha {
+      font-family: var(--mono); font-size: 12px;
+      font-weight: 500; color: var(--ink);
+    }
+
+    .apunte-semana {
+      font-family: var(--mono); font-size: 10.5px;
+      color: var(--ink-3);
+    }
+
+    .apunte-tema {
+      font-family: var(--mono); font-size: 10px;
+      letter-spacing: .07em; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+      background: var(--pizarra-soft); color: var(--pizarra);
+    }
+
+    .apunte-estado {
+      font-family: var(--mono); font-size: 10px;
+      letter-spacing: .07em; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+      background: var(--madera-soft); color: var(--madera);
+    }
+
+    .apunte-estado.es-cerrado {
+      background: var(--verde-soft); color: var(--verde);
+    }
+
+    .apunte-estado.es-curso {
+      background: var(--pizarra-soft); color: var(--pizarra);
+    }
+
+    .apunte h3 {
+      font-family: var(--display); font-size: 15px; font-weight: 600;
+      letter-spacing: -.008em; margin: 0 0 6px;
+      text-wrap: balance;
+    }
+
+    .apunte-texto {
+      font-size: 13px; color: var(--ink-2); line-height: 1.55;
+      margin: 0 0 8px; white-space: pre-wrap;
+      overflow-wrap: anywhere; max-width: 74ch;
+    }
+
+    .apunte-acuerdos {
+      border-top: 1px solid var(--rule-soft);
+      padding-top: 9px; margin-top: 9px;
+    }
+
+    .apunte-acuerdos dt {
+      font-family: var(--mono); font-size: 10px;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--ink-3); margin-bottom: 3px;
+    }
+
+    .apunte-acuerdos dd {
+      margin: 0 0 8px; font-size: 13px; color: var(--ink);
+      white-space: pre-wrap; overflow-wrap: anywhere; max-width: 74ch;
+    }
+
+    .apunte-pie {
+      display: flex; flex-wrap: wrap; gap: 8px 14px;
+      align-items: center; margin-top: 10px;
+      font-size: 11.5px; color: var(--ink-3);
+    }
+
+    .apunte-pie .boton-fino { margin-left: auto; }
+    .apunte-pie .boton-fino + .boton-fino { margin-left: 0; }
+
     /* ---------------------------------------------------------------
        LECTURA SECUNDARIA
        --------------------------------------------------------------- */
@@ -846,6 +986,164 @@
       border-top: 1px solid rgba(233, 241, 236, .16);
       font-size: 11px;
       color: #9DB8A9;
+    }
+
+
+    /* ---------------------------------------------------------------
+       PLAN DE ACCIÓN
+       --------------------------------------------------------------- */
+
+    .accion-filtros {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .pastilla {
+      font-family: var(--body);
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border: 1px solid var(--rule);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink-2);
+      cursor: pointer;
+      transition: background .14s var(--ease), color .14s var(--ease),
+                  border-color .14s var(--ease);
+    }
+
+    .pastilla:hover { border-color: var(--ink-3); color: var(--ink); }
+
+    .pastilla.activa {
+      background: var(--verde);
+      border-color: var(--verde);
+      color: #fff;
+    }
+
+    .pastilla:focus-visible {
+      outline: 2px solid var(--verde-2); outline-offset: 2px;
+    }
+
+    .acciones { display: grid; gap: 10px; }
+
+    /* La severidad se lee en el sello del caso y en el borde completo.
+       Nada de franja de color al costado. */
+    .accion {
+      border: 1px solid var(--rule);
+      border-radius: 9px;
+      background: var(--paper);
+    }
+
+    .accion.es-critico { border-color: rgba(163, 56, 42, .45); }
+    .accion.es-atencion { border-color: rgba(169, 108, 42, .38); }
+    .accion.es-oportunidad { border-color: rgba(30, 122, 80, .32); }
+
+    .accion.es-critico .accion-cuerpo { background: var(--ladrillo-soft); }
+
+    .accion-cuerpo { padding: 14px 16px 15px; border-radius: 8px; }
+
+    .accion-cab {
+      display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: 4px 10px; margin-bottom: 3px;
+    }
+
+    .accion-cab strong {
+      font-family: var(--display);
+      font-size: 14.5px; font-weight: 600;
+      letter-spacing: -.006em;
+    }
+
+    .accion-caso {
+      font-family: var(--mono);
+      font-size: 10.5px; font-weight: 500;
+      letter-spacing: .06em; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+    }
+
+    .es-critico .accion-caso {
+      background: var(--ladrillo-soft); color: var(--ladrillo);
+    }
+    .es-atencion .accion-caso {
+      background: var(--madera-soft); color: var(--madera);
+    }
+    .es-oportunidad .accion-caso {
+      background: var(--verde-soft); color: var(--verde);
+    }
+
+    .accion-porque {
+      font-size: 13px; color: var(--ink-2);
+      margin: 0 0 10px; max-width: 78ch;
+    }
+
+    .accion-pasos {
+      display: grid; gap: 7px;
+      border-top: 1px solid var(--rule-soft);
+      padding-top: 10px;
+    }
+
+    .accion-paso {
+      display: grid;
+      grid-template-columns: 62px minmax(0, 1fr);
+      gap: 12px; align-items: baseline;
+      font-size: 13px;
+    }
+
+    .accion-paso dt {
+      font-family: var(--mono);
+      font-size: 10px; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--ink-3);
+    }
+
+    .accion-paso dd { margin: 0; color: var(--ink); max-width: 74ch; }
+
+    .accion-ts {
+      margin-left: auto;
+      font-family: var(--mono); font-size: 12px;
+      color: var(--ink-3); white-space: nowrap;
+    }
+
+    .accion-mas {
+      margin-top: 11px;
+      border-top: 1px solid var(--rule-soft);
+      padding-top: 9px;
+    }
+
+    .accion-mas summary {
+      font-size: 12.5px;
+      color: var(--ink-2);
+      cursor: pointer;
+      list-style: none;
+      display: flex; gap: 7px; align-items: baseline;
+    }
+
+    .accion-mas summary::-webkit-details-marker { display: none; }
+
+    .accion-mas summary::before {
+      content: '+';
+      font-family: var(--mono); font-size: 13px;
+      color: var(--verde); font-weight: 600;
+    }
+
+    .accion-mas[open] summary::before { content: '\2013'; }
+
+    .accion-mas summary:hover { color: var(--ink); }
+
+    .accion-mas summary:focus-visible {
+      outline: 2px solid var(--verde-2); outline-offset: 3px;
+      border-radius: 3px;
+    }
+
+    .accion-extra {
+      margin-top: 12px;
+      padding-top: 11px;
+      border-top: 1px dashed var(--rule);
+    }
+
+    .accion-extra .accion-caso { display: inline-block; margin-bottom: 6px; }
+
+    @media (max-width: 640px) {
+      .accion-paso { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+      .accion-ts { margin-left: 0; }
     }
 
     .vacio {
@@ -1126,14 +1424,13 @@
       display: grid;
       gap: 7px;
       padding: 11px 13px;
-      border: 1px solid var(--rule);
-      border-left: 3px solid var(--verde);
+      border: 1px solid rgba(30, 122, 80, .4);
       border-radius: 9px;
       background: var(--verde-soft);
     }
 
     .resumen-ruta.se-pasa {
-      border-left-color: var(--ladrillo);
+      border-color: rgba(163, 56, 42, .45);
       background: var(--ladrillo-soft);
     }
 
@@ -1623,6 +1920,42 @@
             </div>
             <div class="conteo" id="conteoPrecios">—</div>
           </div>
+
+          <div class="tabla-mandos">
+            <div class="campo campo-buscar">
+              <label for="pBuscar">Buscar proveedor</label>
+              <input id="pBuscar" type="search" placeholder="Nombre o parte">
+            </div>
+            <div class="campo">
+              <label for="pBrecha">Brecha</label>
+              <select id="pBrecha">
+                <option value="">Todas</option>
+                <option value="bajo">Bajo plan</option>
+                <option value="sobre">Sobre plan</option>
+                <option value="sinplan">Sin plan</option>
+                <option value="sinprecio">Sin precio</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="pOrden">Ordenar por</label>
+              <select id="pOrden">
+                <option value="total">Cantidad</option>
+                <option value="brecha">Brecha</option>
+                <option value="precio">Precio</option>
+                <option value="plan">Plan del mes</option>
+                <option value="costo">Costo valorizado</option>
+                <option value="proveedor">Proveedor</option>
+              </select>
+            </div>
+            <div class="campo">
+              <label for="pSentido">Sentido</label>
+              <select id="pSentido">
+                <option value="desc">Mayor a menor</option>
+                <option value="asc">Menor a mayor</option>
+              </select>
+            </div>
+          </div>
+
           <div class="tabla-marco">
             <table>
               <thead><tr>
@@ -1679,6 +2012,114 @@
               <tbody id="providerBody"></tbody>
               <tfoot id="providerFoot"></tfoot>
             </table>
+          </div>
+        </article>
+
+        <article class="panel" id="panelAccion">
+          <div class="panel-cab">
+            <div>
+              <h2>Plan de acción</h2>
+              <p class="panel-nota">
+                Qué hacer con lo que muestran los números de arriba, y con
+                qué argumento. Ordenado por lo que está en juego, no por
+                orden alfabético.
+              </p>
+            </div>
+            <div class="conteo" id="conteoAccion">—</div>
+          </div>
+
+          <div class="accion-filtros" role="group"
+               aria-label="Filtrar plan de acción">
+            <button type="button" class="pastilla activa"
+                    data-sev="">Todo</button>
+            <button type="button" class="pastilla"
+                    data-sev="critico">Crítico</button>
+            <button type="button" class="pastilla"
+                    data-sev="atencion">Atención</button>
+            <button type="button" class="pastilla"
+                    data-sev="oportunidad">Oportunidad</button>
+          </div>
+
+          <div id="listaAccion" class="acciones"></div>
+        </article>
+
+        <article class="panel" id="panelApuntes">
+          <div class="panel-cab">
+            <div>
+              <h2>Apuntes de reunión</h2>
+              <p class="panel-nota">
+                Una ficha por reunión, con fecha, tema y asunto. La semana
+                se calcula sola, así que la reunión sigue siendo la de esa
+                semana aunque se corra de día.
+              </p>
+            </div>
+            <div class="conteo" id="conteoApuntes">—</div>
+          </div>
+
+          <div class="apuntes-marco">
+            <form class="apunte-form" id="apunteForm" autocomplete="off">
+              <input type="hidden" id="apId">
+
+              <div class="apunte-fila">
+                <div class="campo">
+                  <label for="apFecha">Fecha</label>
+                  <input id="apFecha" type="date" required>
+                </div>
+                <div class="campo">
+                  <label for="apTema">Tema</label>
+                  <select id="apTema"></select>
+                </div>
+                <div class="campo campo-ancho">
+                  <label for="apAsunto">Asunto</label>
+                  <input id="apAsunto" type="text" maxlength="180" required
+                         placeholder="Precio nitens con Promasa">
+                </div>
+              </div>
+
+              <div class="campo">
+                <label for="apParticipantes">Participantes</label>
+                <input id="apParticipantes" type="text" maxlength="180"
+                       placeholder="Quiénes estuvieron">
+              </div>
+
+              <div class="campo">
+                <label for="apApuntes">Apuntes</label>
+                <textarea id="apApuntes" rows="5"
+                          placeholder="Lo que se dijo."></textarea>
+              </div>
+
+              <div class="campo">
+                <label for="apAcuerdos">Acuerdos</label>
+                <textarea id="apAcuerdos" rows="3"
+                          placeholder="Lo que quedó comprometido."></textarea>
+              </div>
+
+              <div class="apunte-fila">
+                <div class="campo">
+                  <label for="apResponsable">Responsable</label>
+                  <input id="apResponsable" type="text" maxlength="90">
+                </div>
+                <div class="campo">
+                  <label for="apCompromiso">Compromiso</label>
+                  <input id="apCompromiso" type="date">
+                </div>
+                <div class="campo">
+                  <label for="apEstado">Estado</label>
+                  <select id="apEstado"></select>
+                </div>
+              </div>
+
+              <div class="apunte-botones">
+                <button type="submit" class="boton boton-firme"
+                        id="apGuardar">Guardar apunte</button>
+                <button type="button" class="boton" id="apNuevo"
+                        hidden>Nuevo</button>
+              </div>
+
+              <div class="recado" id="apRecado"></div>
+            </form>
+
+            <div class="apuntes-lista" id="apuntesLista"></div>
           </div>
         </article>
 
@@ -1881,7 +2322,10 @@
       if (MAPA) { MAPA.invalidateSize(); }
     }, 200));
 
+    montarFiltrosAccion();
+    montarMandosPrecios();
     cargarTodo();
+    montarApuntes();
 
     /* =================================================================
        VISTAS
@@ -2000,8 +2444,9 @@
         ? 'Ingresos reales hasta <b>' + esc(source.lastActualDateLabel) +
           '</b>. Del <b>' + esc(source.supplementStartLabel) + '</b> al <b>' +
           esc(source.latestReportDateLabel) + '</b> se complementan <b>' +
-          formatInteger(source.supplementCamiones) + ' camiones</b> × ' +
-          formatQuantity(DATA.factor) + ' TS. ' +
+          formatInteger(source.supplementCamiones) + ' camiones</b>, ' +
+          'convertidos a TS con el factor de cada material (' +
+          esc(factoresLegibles()) + '). ' +
           'El estimado desaparece solo cuando la fecha aparece en Ingresos.'
         : 'No hay fechas posteriores al último registro real: todo lo que ' +
           'se ve está confirmado en la hoja Ingresos.';
@@ -2126,6 +2571,7 @@
       dibujarTablaProducto(CURRENT_PRODUCTS);
       dibujarTablaPrecios(CURRENT_PRICING, CURRENT_METRICS);
       dibujarTablaProveedor(CURRENT_PROVIDERS);
+      dibujarAcciones();
       dibujarDetalle(CURRENT_ROWS);
       dibujarGraficos();
       observarPaneles();
@@ -3035,8 +3481,8 @@
         {
           tag: 'Complemento estimado', val: formatQuantity(m.estimate),
           uni: unidad(),
-          pie: formatInteger(m.trucks) + ' camiones × ' +
-               formatQuantity(DATA.factor)
+          pie: formatInteger(m.trucks) + ' camiones · ' +
+               esc(factoresLegibles())
         },
         {
           tag: 'Plan del período',
@@ -3712,10 +4158,13 @@
       var agrupado = {};
 
       CURRENT_ROWS.forEach(function(f) {
-        if (!agrupado[f.fecha]) { agrupado[f.fecha] = { real: 0, est: 0 }; }
+        if (!agrupado[f.fecha]) {
+          agrupado[f.fecha] = { real: 0, est: 0, camiones: 0 };
+        }
 
         if (f.source === 'PLANILLA') {
           agrupado[f.fecha].est += Number(f.ts) || 0;
+          agrupado[f.fecha].camiones += Number(f.camiones) || 0;
         } else {
           agrupado[f.fecha].real += Number(f.ts) || 0;
         }
@@ -3851,16 +4300,13 @@
             });
           }
 
-          var camiones = d.est > 0
-            ? Math.round(d.est / (DATA.factor || 11))
-            : 0;
+          var camiones = d.camiones || 0;
 
           return globoHTML({
             titulo: formatDateKey(k),
             filas: filas,
             pie: d.est > 0
-              ? camiones + ' camiones de planilla · ' +
-                (DATA.factor || 11) + ' TS cada uno, aún sin confirmar en SAP'
+              ? camiones + ' camiones de planilla, aún sin confirmar en SAP'
               : (d.real > 0 ? 'Cerrado en SAP.' : null)
           });
         },
@@ -4246,6 +4692,862 @@
       return '<td class="number ' + (clase || '') + '">' + html + '</td>';
     }
 
+/* =====================================================================
+ * PLAN DE ACCIÓN
+ *
+ * El dashboard ya dice qué pasa. Esto dice qué hacer, y con qué
+ * argumento: sirve de poco saber que un proveedor cayó 40% si al
+ * llamarlo no tienes a mano por qué le conviene volver a despachar.
+ *
+ * Cada regla mira UNA situación y responde tres cosas:
+ *   porque -> el dato que la dispara, con cifras
+ *   hacer  -> el paso concreto, no un consejo genérico
+ *   decir  -> el argumento frente al proveedor
+ * ===================================================================== */
+
+    var SEVERIDAD = { critico: 0, atencion: 1, oportunidad: 2 };
+
+    /**
+     * Cruza el resumen de proveedores con el de precios para tener,
+     * en una sola ficha, volumen + tendencia + plan + precio.
+     */
+    function fichasProveedor() {
+      var porNombre = {};
+
+      CURRENT_PROVIDERS.forEach(function(p) {
+        porNombre[p.proveedor] = {
+          proveedor: p.proveedor,
+          total: p.total,
+          real: p.real,
+          estimate: p.estimate,
+          share: p.share,
+          rank: p.rank,
+          days: p.days,
+          average: p.average,
+          trend: p.trend,
+          recent7: p.recent7,
+          previous7: p.previous7,
+          daysSinceLast: p.daysSinceLast,
+          products: p.products || [],
+          precio: p.weightedPrice,
+          cost: p.cost,
+          planToDate: 0,
+          planPeriod: 0,
+          monthlyPlan: 0,
+          gap: null,
+          sinPrecio: 0,
+          enPlan: false
+        };
+      });
+
+      CURRENT_PRICING.forEach(function(x) {
+        var f = porNombre[x.proveedor];
+
+        if (!f) {
+          // Está en el Plan pero no despachó en el rango.
+          f = porNombre[x.proveedor] = {
+            proveedor: x.proveedor,
+            total: 0, real: 0, estimate: 0, share: 0, rank: null,
+            days: 0, average: 0, trend: null, recent7: 0, previous7: 0,
+            daysSinceLast: null, products: [], precio: null, cost: 0,
+            planToDate: 0, planPeriod: 0, monthlyPlan: 0, gap: null,
+            sinPrecio: 0, enPlan: false
+          };
+        }
+
+        f.monthlyPlan += Number(x.monthlyPlan) || 0;
+        f.planToDate += Number(x.planToDate) || 0;
+        f.planPeriod += Number(x.planPeriod) || 0;
+
+        if (x.monthlyPlan > 0) { f.enPlan = true; }
+
+        if (x.precio === null || x.precio === undefined) {
+          f.sinPrecio += Number(x.total) || 0;
+        }
+      });
+
+      return Object.keys(porNombre).map(function(k) {
+        var f = porNombre[k];
+
+        f.gap = f.planToDate > 0 ? f.total - f.planToDate : null;
+
+        f.cumplimiento = f.planToDate > 0
+          ? f.total / f.planToDate
+          : null;
+
+        return f;
+      });
+    }
+
+    /**
+     * Todas las reglas. El orden importa solo para leer el código: el
+     * ordenamiento final es por severidad y por TS en juego.
+     */
+    function reglasDeAccion(f, ctx) {
+      var out = [];
+      var faltan = f.gap !== null && f.gap < 0 ? -f.gap : 0;
+
+      // --- 1. Se cortó el despacho -----------------------------------
+      if (f.total > 0 && f.daysSinceLast !== null && f.daysSinceLast >= 7) {
+        out.push({
+          severidad: 'critico',
+          caso: 'Dejó de despachar',
+          porque: 'Sin despachar hace ' + f.daysSinceLast + ' días, ' +
+            'después de aportar ' + formatTs(f.total) + ' en el período.',
+          hacer: 'Llamar hoy y averiguar si es stock, precio, camiones o ' +
+            'un compromiso con otro comprador. Registrar el motivo en la ' +
+            'hoja de apuntes.',
+          decir: 'Que tiene cupo asegurado en cuanto retome, y que la ' +
+            'programación de descarga se le respeta: el costo de volver ' +
+            'es cero.',
+          ts: faltan || f.average * f.daysSinceLast
+        });
+      }
+
+      // --- 2. Tendencia a la baja ------------------------------------
+      if (
+        f.trend !== null && isFinite(f.trend) && f.trend <= -0.25 &&
+        f.previous7 > 0 && (f.daysSinceLast === null || f.daysSinceLast < 7)
+      ) {
+        out.push({
+          severidad: f.trend <= -0.5 ? 'critico' : 'atencion',
+          caso: 'Viene a la baja',
+          porque: 'Cayó ' + formatPercent(Math.abs(f.trend)) +
+            ' entre las dos últimas semanas (' + formatCorto(f.previous7) +
+            ' → ' + formatCorto(f.recent7) + ').',
+          hacer: 'Preguntar por su nivel de stock y por su programa de ' +
+            'aserrío de las próximas dos semanas antes de que la caída se ' +
+            'consolide.',
+          decir: 'Que se le puede dar continuidad de retiro y previsibilidad ' +
+            'de pago, que es lo que le permite programar aserrío. Si el ' +
+            'problema es transporte, ofrecer coordinar el flete.',
+          ts: Math.max(0, f.previous7 - f.recent7)
+        });
+      }
+
+      // --- 3. Bajo su plan ------------------------------------------
+      if (faltan > 0 && f.total > 0) {
+        var severidad = f.cumplimiento !== null && f.cumplimiento < 0.6
+          ? 'critico'
+          : 'atencion';
+
+        out.push({
+          severidad: severidad,
+          caso: 'Bajo su plan',
+          porque: 'Va en ' + formatPercent(f.cumplimiento) +
+            ' de lo comprometido a la fecha: faltan ' + formatTs(faltan) + '.',
+          hacer: 'Fijar con él una cifra semanal para el resto del mes: ' +
+            formatTs(faltan / Math.max(1, ctx.semanasRestantes)) +
+            ' por semana cierra la brecha.',
+          decir: 'Recordar el compromiso del mes y ofrecer ventana de ' +
+            'descarga preferente para las cargas de recuperación.' +
+            (f.precio !== null && ctx.precioMedio && f.precio < ctx.precioMedio
+              ? ' Está bajo el precio medio, así que hay espacio para ' +
+                'conversar precio a cambio de volumen firme.'
+              : ''),
+          ts: faltan
+        });
+      }
+
+      // --- 4. En el Plan pero sin despachar --------------------------
+      if (f.monthlyPlan > 0 && f.total === 0) {
+        out.push({
+          severidad: 'critico',
+          caso: 'Comprometido y sin entregar',
+          porque: 'Tiene ' + formatTs(f.monthlyPlan) +
+            ' comprometidos en el Plan y no ha despachado nada en el rango.',
+          hacer: 'Confirmar que el contrato sigue vigente y que el ' +
+            'proveedor está operativo. Si no va a cumplir, reasignar el ' +
+            'volumen ahora, no a fin de mes.',
+          decir: 'Que el volumen comprometido se reasigna si no hay ' +
+            'despacho: el cupo tiene valor y no se guarda indefinidamente.',
+          ts: f.monthlyPlan
+        });
+      }
+
+      // --- 5. Caro y sin cumplir ------------------------------------
+      if (
+        f.precio !== null && ctx.precioMedio &&
+        f.precio > ctx.precioMedio * 1.05 && faltan > 0
+      ) {
+        out.push({
+          severidad: 'atencion',
+          caso: 'Precio sobre el promedio y bajo plan',
+          porque: 'Cobra ' + formatPrice(f.precio) + '/TS contra ' +
+            formatPrice(ctx.precioMedio) + ' de promedio ponderado, y ' +
+            'aun así va bajo su plan.',
+          hacer: 'Es la conversación de precio del mes. Llevar el ' +
+            'comparativo de precio contra volumen entregado.',
+          decir: 'Que el precio sobre mercado se sostiene con cumplimiento; ' +
+            'sin volumen firme, corresponde revisarlo a la baja o ' +
+            'redistribuir a quien sí entrega.',
+          ts: faltan
+        });
+      }
+
+      // --- 6. Barato y cumpliendo -----------------------------------
+      if (
+        f.precio !== null && ctx.precioMedio &&
+        f.precio < ctx.precioMedio * 0.95 &&
+        f.gap !== null && f.gap >= 0 && f.total > 0
+      ) {
+        out.push({
+          severidad: 'oportunidad',
+          caso: 'Barato y cumpliendo',
+          porque: 'Entrega al día a ' + formatPrice(f.precio) + '/TS, ' +
+            formatPrice(ctx.precioMedio - f.precio) + ' bajo el promedio.',
+          hacer: 'Pedirle volumen adicional antes de salir a buscar ' +
+            'proveedor nuevo: cada TS que tome él baja el costo medio.',
+          decir: 'Ofrecer más volumen comprometido y continuidad para el ' +
+            'mes siguiente a cambio de mantener el precio.',
+          ts: f.total * 0.2
+        });
+      }
+
+      // --- 7. Sobre plan --------------------------------------------
+      if (f.gap !== null && f.gap > 0 && f.planToDate > 0 && f.total > 0) {
+        out.push({
+          severidad: 'oportunidad',
+          caso: 'Sobre su plan',
+          porque: 'Va ' + formatTs(f.gap) + ' sobre lo comprometido a la ' +
+            'fecha (' + formatPercent(f.cumplimiento) + ').',
+          hacer: 'Considerar subirle el plan del mes siguiente y usarlo ' +
+            'para cubrir la brecha de los que están abajo.',
+          decir: 'Reconocer el cumplimiento y ofrecerle mayor volumen ' +
+            'comprometido: es la moneda que valora un aserradero.',
+          ts: f.gap
+        });
+      }
+
+      // --- 8. Todo estimado, nada confirmado ------------------------
+      if (f.estimate > 0 && f.real === 0 && f.estimate > ctx.umbralTs) {
+        out.push({
+          severidad: 'atencion',
+          caso: 'Sin confirmar en SAP',
+          porque: 'Sus ' + formatTs(f.estimate) + ' vienen solo de la ' +
+            'planilla; ninguna carga aparece todavía en Ingresos.',
+          hacer: 'Verificar recepción con romana antes de darlo por bueno. ' +
+            'Si SAP no lo registra, el volumen del mes está inflado.',
+          decir: 'Nada todavía: primero confirmar que la carga existe.',
+          ts: f.estimate
+        });
+      }
+
+      // --- 9. Sin precio homologado ---------------------------------
+      if (f.sinPrecio > ctx.umbralTs) {
+        out.push({
+          severidad: 'atencion',
+          caso: 'Sin precio homologado',
+          porque: formatTs(f.sinPrecio) + ' entraron sin precio, así que ' +
+            'quedan fuera del costo del mes.',
+          hacer: 'Esto no es del proveedor: es de la hoja. Agregar la ' +
+            'equivalencia en Proveedores, o la fila que falta en el Plan.',
+          decir: 'Nada. Se arregla en la planilla, no en la reunión.',
+          ts: f.sinPrecio
+        });
+      }
+
+      // --- 10. Despacha a saltos ------------------------------------
+      if (
+        f.total > 0 && f.days > 0 && ctx.diasConIngreso >= 6 &&
+        f.days <= Math.max(2, Math.round(ctx.diasConIngreso * 0.34)) &&
+        f.total > ctx.umbralTs
+      ) {
+        out.push({
+          severidad: 'atencion',
+          caso: 'Despacha a saltos',
+          porque: 'Concentró ' + formatTs(f.total) + ' en ' + f.days +
+            ' de ' + ctx.diasConIngreso + ' días con movimiento.',
+          hacer: 'Acordar una frecuencia fija. Las llegadas en bloque ' +
+            'saturan la descarga y dejan días sin abastecimiento.',
+          decir: 'Que una frecuencia pareja le asegura ventana de descarga ' +
+            'sin cola, y a la planta le evita el vacío entre camionadas.',
+          ts: f.total * 0.15
+        });
+      }
+
+      return out;
+    }
+
+    /**
+     * Reglas que miran el conjunto, no a un proveedor.
+     */
+    function reglasDeCartera(fichas, ctx) {
+      var out = [];
+
+      var top3 = CURRENT_PROVIDERS.slice(0, 3).reduce(function(t, p) {
+        return t + p.share;
+      }, 0);
+
+      if (top3 >= 0.6 && CURRENT_PROVIDERS.length >= 3) {
+        // Mapeos se carga al entrar a esa vista. Si todavía no está,
+        // la acción se escribe sin la cuenta en vez de mentir un cero.
+        var pendientes = MAPEOS && MAPEOS.rows
+          ? MAPEOS.rows.filter(function(r) {
+              return r.estado === 'Por visitar' ||
+                r.estado === 'En negociación';
+            }).length
+          : null;
+
+        out.push({
+          proveedor: 'Cartera',
+          severidad: 'atencion',
+          caso: 'Dependencia concentrada',
+          porque: 'Los tres primeros proveedores son el ' +
+            formatPercent(top3) + ' del suministro.',
+          hacer: pendientes === null
+            ? 'Abrir Mapeos y armar una ruta con los aserraderos por ' +
+              'visitar: la alternativa hay que tenerla antes de necesitarla.'
+            : (pendientes
+                ? 'Hay ' + pendientes + ' aserraderos por visitar o en ' +
+                  'negociación en Mapeos. Armar una ruta esta semana.'
+                : 'No queda ningún aserradero pendiente en Mapeos. Cargar ' +
+                  'prospectos nuevos antes de que la concentración apriete.'),
+          decir: 'A los nuevos: que hay demanda estable y pago al día. ' +
+            'A los actuales, nada: la alternativa se construye callado.',
+          ts: 0
+        });
+      }
+
+      var enRiesgo = fichas.filter(function(f) {
+        return f.gap !== null && f.gap < 0;
+      });
+
+      var brecha = enRiesgo.reduce(function(t, f) {
+        return t + (-f.gap);
+      }, 0);
+
+      if (brecha > 0 && ctx.semanasRestantes > 0) {
+        out.push({
+          proveedor: 'Cartera',
+          severidad: brecha > ctx.planToDate * 0.2 ? 'critico' : 'atencion',
+          caso: 'Brecha total del mes',
+          porque: enRiesgo.length + ' proveedores suman ' + formatTs(brecha) +
+            ' por debajo de su plan a la fecha.',
+          hacer: 'Repartir la recuperación: ' +
+            formatTs(brecha / Math.max(1, ctx.semanasRestantes)) +
+            ' por semana. Empezar por los que están sobre plan, que ya ' +
+            'demostraron que pueden.',
+          decir: 'Al que está sobre plan: volumen adicional pagado al mismo ' +
+            'precio, cerrado esta semana.',
+          ts: brecha
+        });
+      }
+
+      return out;
+    }
+
+    function planDeAccion() {
+      if (!CURRENT_METRICS) { return []; }
+
+      var m = CURRENT_METRICS;
+      var fichas = fichasProveedor();
+
+      var diasConIngreso = {};
+
+      CURRENT_ROWS.forEach(function(r) { diasConIngreso[r.fecha] = true; });
+
+      var planToDate = fichas.reduce(function(t, f) {
+        return t + f.planToDate;
+      }, 0);
+
+      var restantes = m.period && m.period.selectedWorkdays
+        ? Math.max(0, m.period.selectedWorkdays - (m.period.elapsedWorkdays || 0))
+        : 0;
+
+      var ctx = {
+        precioMedio: m.avgPrice,
+        planToDate: planToDate,
+        diasConIngreso: Object.keys(diasConIngreso).length,
+        semanasRestantes: Math.max(1, Math.round(restantes / 5)),
+        // Debajo de esto no vale la pena una acción: es ruido.
+        umbralTs: Math.max(20, (m.real + m.estimate) * 0.02)
+      };
+
+      var acciones = [];
+
+      fichas.forEach(function(f) {
+        reglasDeAccion(f, ctx).forEach(function(a) {
+          a.proveedor = f.proveedor;
+          a.ficha = f;
+          acciones.push(a);
+        });
+      });
+
+      reglasDeCartera(fichas, ctx).forEach(function(a) {
+        acciones.push(a);
+      });
+
+      return acciones.sort(function(a, b) {
+        var d = SEVERIDAD[a.severidad] - SEVERIDAD[b.severidad];
+        return d !== 0 ? d : (b.ts || 0) - (a.ts || 0);
+      });
+    }
+
+    var FILTRO_SEVERIDAD = '';
+    var ACCIONES = [];
+
+    function dibujarAcciones() {
+      ACCIONES = planDeAccion();
+      pintarAcciones();
+    }
+
+    function pintarAcciones() {
+      var caja = document.getElementById('listaAccion');
+
+      if (!caja) { return; }
+
+      var lista = FILTRO_SEVERIDAD
+        ? ACCIONES.filter(function(a) {
+            return a.severidad === FILTRO_SEVERIDAD;
+          })
+        : ACCIONES;
+
+      var criticos = ACCIONES.filter(function(a) {
+        return a.severidad === 'critico';
+      }).length;
+
+      var frentes = {};
+
+      ACCIONES.forEach(function(a) { frentes[a.proveedor] = true; });
+
+      setText('conteoAccion',
+        ACCIONES.length
+          ? Object.keys(frentes).length + ' frentes · ' +
+            ACCIONES.length + ' puntos' +
+            (criticos ? ' · ' + criticos + ' críticos' : '')
+          : 'sin pendientes');
+
+      if (!ACCIONES.length) {
+        caja.innerHTML = vacio(
+          'Nada que corregir con estos filtros: todos los proveedores ' +
+          'van dentro de su plan y sin caídas de tendencia.'
+        );
+        return;
+      }
+
+      if (!lista.length) {
+        caja.innerHTML = vacio('No hay acciones de ese tipo.');
+        return;
+      }
+
+      // Una tarjeta por proveedor. Cinco viñetas sueltas del mismo
+      // aserradero no son cinco tareas: son una conversación. Manda la
+      // más grave, el resto queda plegado debajo.
+      var orden = [];
+      var porProveedor = {};
+
+      lista.forEach(function(a) {
+        if (!porProveedor[a.proveedor]) {
+          porProveedor[a.proveedor] = [];
+          orden.push(a.proveedor);
+        }
+
+        porProveedor[a.proveedor].push(a);
+      });
+
+      caja.innerHTML = orden.map(function(nombre) {
+        var grupo = porProveedor[nombre];
+        var principal = grupo[0];
+        var resto = grupo.slice(1);
+
+        var enJuego = grupo.reduce(function(t, a) {
+          return Math.max(t, a.ts || 0);
+        }, 0);
+
+        return '<article class="accion es-' + principal.severidad + '">' +
+          '<div class="accion-cuerpo">' +
+            '<div class="accion-cab">' +
+              '<strong>' + esc(shortProvider(nombre)) + '</strong>' +
+              '<span class="accion-caso">' + esc(principal.caso) + '</span>' +
+              (enJuego > 0
+                ? '<span class="accion-ts">' + formatTs(enJuego) +
+                  ' en juego</span>'
+                : '') +
+            '</div>' +
+            '<p class="accion-porque">' + esc(principal.porque) + '</p>' +
+            '<dl class="accion-pasos">' +
+              '<div class="accion-paso"><dt>Hacer</dt><dd>' +
+                esc(principal.hacer) + '</dd></div>' +
+              '<div class="accion-paso"><dt>Decirle</dt><dd>' +
+                esc(principal.decir) + '</dd></div>' +
+            '</dl>' +
+            (resto.length ? bloqueResto(resto) : '') +
+          '</div>' +
+        '</article>';
+      }).join('');
+    }
+
+    function bloqueResto(resto) {
+      return '<details class="accion-mas">' +
+        '<summary>' + resto.length +
+        (resto.length === 1 ? ' punto más' : ' puntos más') + ': ' +
+        esc(resto.map(function(a) { return a.caso; }).join(' · ')) +
+        '</summary>' +
+        resto.map(function(a) {
+          return '<div class="accion-extra es-' + a.severidad + '">' +
+            '<span class="accion-caso">' + esc(a.caso) + '</span>' +
+            '<p class="accion-porque">' + esc(a.porque) + '</p>' +
+            '<dl class="accion-pasos">' +
+              '<div class="accion-paso"><dt>Hacer</dt><dd>' +
+                esc(a.hacer) + '</dd></div>' +
+              '<div class="accion-paso"><dt>Decirle</dt><dd>' +
+                esc(a.decir) + '</dd></div>' +
+            '</dl></div>';
+        }).join('') +
+        '</details>';
+    }
+
+    function montarFiltrosAccion() {
+      var caja = document.querySelector('.accion-filtros');
+
+      if (!caja) { return; }
+
+      caja.addEventListener('click', function(ev) {
+        var boton = ev.target.closest('.pastilla');
+
+        if (!boton) { return; }
+
+        FILTRO_SEVERIDAD = boton.getAttribute('data-sev') || '';
+
+        Array.prototype.forEach.call(
+          caja.querySelectorAll('.pastilla'),
+          function(b) { b.classList.toggle('activa', b === boton); }
+        );
+
+        pintarAcciones();
+      });
+    }
+
+/* =====================================================================
+ * APUNTES DE REUNIÓN
+ * ===================================================================== */
+
+    var APUNTES = null;
+    var APUNTES_PEDIDOS = false;
+
+    function montarApuntes() {
+      var form = document.getElementById('apunteForm');
+
+      if (!form) { return; }
+
+      form.addEventListener('submit', function(ev) {
+        ev.preventDefault();
+        guardarApunteUI();
+      });
+
+      var nuevo = document.getElementById('apNuevo');
+
+      if (nuevo) {
+        nuevo.addEventListener('click', limpiarApunte);
+      }
+
+      var lista = document.getElementById('apuntesLista');
+
+      if (lista) {
+        lista.addEventListener('click', function(ev) {
+          var boton = ev.target.closest('[data-accion]');
+
+          if (!boton) { return; }
+
+          var id = boton.getAttribute('data-id');
+
+          if (boton.getAttribute('data-accion') === 'editar') {
+            editarApunte(id);
+          } else {
+            borrarApunte(id);
+          }
+        });
+      }
+
+      // La fecha por defecto es hoy: el 90% de las veces es la correcta.
+      var fecha = document.getElementById('apFecha');
+
+      if (fecha && !fecha.value) {
+        fecha.value = hoyISO();
+      }
+
+      cargarApuntes();
+    }
+
+    function hoyISO() {
+      var d = new Date();
+
+      return d.getFullYear() + '-' +
+        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+        String(d.getDate()).padStart(2, '0');
+    }
+
+    function cargarApuntes() {
+      if (APUNTES_PEDIDOS) { return; }
+
+      APUNTES_PEDIDOS = true;
+
+      // Los apuntes son una sección aparte: si fallan, el dashboard de
+      // suministro tiene que seguir en pie. Sin este try, una versión
+      // vieja del script sin getApuntes deja el velo puesto y la página
+      // entera muerta.
+      try {
+        google.script.run
+          .withSuccessHandler(function(res) {
+            APUNTES = res;
+            llenarSelectoresApunte();
+            pintarApuntes();
+          })
+          .withFailureHandler(function(err) {
+            APUNTES_PEDIDOS = false;
+            apuntesNoDisponibles(mensaje(err));
+          })
+          .getApuntes();
+      } catch (error) {
+        APUNTES_PEDIDOS = false;
+        apuntesNoDisponibles(String(error && error.message || error));
+      }
+    }
+
+    function apuntesNoDisponibles(detalle) {
+      var caja = document.getElementById('apuntesLista');
+
+      if (caja) {
+        caja.innerHTML = vacio(
+          'No pude leer los apuntes. Revisa que exista la hoja "Apuntes" ' +
+          '(Astilla Dashboard › Preparar hoja de apuntes). ' + (detalle || '')
+        );
+      }
+
+      setText('conteoApuntes', 'no disponible');
+
+      var form = document.getElementById('apunteForm');
+
+      if (form) { form.setAttribute('hidden', 'hidden'); }
+    }
+
+    function llenarSelectoresApunte() {
+      if (!APUNTES) { return; }
+
+      var tema = document.getElementById('apTema');
+      var estado = document.getElementById('apEstado');
+
+      if (tema && !tema.options.length) {
+        tema.innerHTML = (APUNTES.temas || []).map(function(t) {
+          return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+        }).join('');
+      }
+
+      if (estado && !estado.options.length) {
+        estado.innerHTML = (APUNTES.estados || []).map(function(e) {
+          return '<option value="' + esc(e) + '">' + esc(e) + '</option>';
+        }).join('');
+      }
+    }
+
+    function pintarApuntes() {
+      var caja = document.getElementById('apuntesLista');
+
+      if (!caja || !APUNTES) { return; }
+
+      var filas = APUNTES.rows || [];
+
+      var abiertos = filas.filter(function(a) {
+        return a.estado !== 'Cerrado';
+      }).length;
+
+      setText('conteoApuntes',
+        filas.length
+          ? filas.length + (filas.length === 1 ? ' apunte' : ' apuntes') +
+            (abiertos ? ' · ' + abiertos + ' sin cerrar' : '')
+          : 'sin apuntes');
+
+      if (APUNTES.missingSheet) {
+        caja.innerHTML = vacio(
+          'Falta la hoja "Apuntes". En el spreadsheet: Astilla Dashboard › ' +
+          'Preparar hoja de apuntes.'
+        );
+        return;
+      }
+
+      if (!filas.length) {
+        caja.innerHTML = vacio(
+          'Todavía no hay apuntes. El formulario de al lado crea el primero.'
+        );
+        return;
+      }
+
+      var actual = document.getElementById('apId').value;
+
+      caja.innerHTML = filas.map(function(a) {
+        var clase = a.estado === 'Cerrado'
+          ? ' es-cerrado'
+          : (a.estado === 'En curso' ? ' es-curso' : '');
+
+        return '<article class="apunte' +
+            (a.id === actual ? ' editando' : '') + '">' +
+          '<div class="apunte-cabecera">' +
+            '<span class="apunte-fecha">' + esc(a.fechaLabel || '—') + '</span>' +
+            '<span class="apunte-semana">' + esc(a.semana || '') + '</span>' +
+            (a.tema
+              ? '<span class="apunte-tema">' + esc(a.tema) + '</span>'
+              : '') +
+            '<span class="apunte-estado' + clase + '">' +
+              esc(a.estado) + '</span>' +
+          '</div>' +
+          '<h3>' + esc(a.asunto) + '</h3>' +
+          (a.apuntes
+            ? '<p class="apunte-texto">' + esc(a.apuntes) + '</p>'
+            : '') +
+          (a.acuerdos
+            ? '<dl class="apunte-acuerdos"><dt>Acuerdos</dt><dd>' +
+              esc(a.acuerdos) + '</dd></dl>'
+            : '') +
+          '<div class="apunte-pie">' +
+            (a.participantes ? esc(a.participantes) : '') +
+            (a.responsable
+              ? '<span>Responsable: ' + esc(a.responsable) + '</span>'
+              : '') +
+            (a.compromiso
+              ? '<span>Compromiso: ' + esc(formatDateKey(a.compromiso)) +
+                '</span>'
+              : '') +
+            '<button type="button" class="boton boton-fino" ' +
+              'data-accion="editar" data-id="' + esc(a.id) + '">Editar</button>' +
+            '<button type="button" class="boton boton-fino" ' +
+              'data-accion="borrar" data-id="' + esc(a.id) + '">Borrar</button>' +
+          '</div>' +
+        '</article>';
+      }).join('');
+    }
+
+    function valorApunte(id) {
+      var nodo = document.getElementById(id);
+      return nodo ? nodo.value : '';
+    }
+
+    function ponerApunte(id, valor) {
+      var nodo = document.getElementById(id);
+      if (nodo) { nodo.value = valor || ''; }
+    }
+
+    function guardarApunteUI() {
+      var boton = document.getElementById('apGuardar');
+
+      if (boton) { boton.disabled = true; }
+
+      recadoApunte('', '');
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          APUNTES = res;
+          if (boton) { boton.disabled = false; }
+          limpiarApunte();
+          pintarApuntes();
+          recadoApunte('bien', 'Apunte guardado.');
+        })
+        .withFailureHandler(function(err) {
+          if (boton) { boton.disabled = false; }
+          recadoApunte('mal', mensaje(err));
+        })
+        .guardarApunte({
+          id: valorApunte('apId'),
+          fecha: valorApunte('apFecha'),
+          tema: valorApunte('apTema'),
+          asunto: valorApunte('apAsunto'),
+          participantes: valorApunte('apParticipantes'),
+          apuntes: valorApunte('apApuntes'),
+          acuerdos: valorApunte('apAcuerdos'),
+          responsable: valorApunte('apResponsable'),
+          compromiso: valorApunte('apCompromiso'),
+          estado: valorApunte('apEstado')
+        });
+    }
+
+    function editarApunte(id) {
+      if (!APUNTES) { return; }
+
+      var a = (APUNTES.rows || []).filter(function(x) {
+        return x.id === id;
+      })[0];
+
+      if (!a) { return; }
+
+      ponerApunte('apId', a.id);
+      ponerApunte('apFecha', a.fecha);
+      ponerApunte('apTema', a.tema);
+      ponerApunte('apAsunto', a.asunto);
+      ponerApunte('apParticipantes', a.participantes);
+      ponerApunte('apApuntes', a.apuntes);
+      ponerApunte('apAcuerdos', a.acuerdos);
+      ponerApunte('apResponsable', a.responsable);
+      ponerApunte('apCompromiso', a.compromiso);
+      ponerApunte('apEstado', a.estado);
+
+      var nuevo = document.getElementById('apNuevo');
+      var guardar = document.getElementById('apGuardar');
+
+      if (nuevo) { nuevo.hidden = false; }
+      if (guardar) { guardar.textContent = 'Guardar cambios'; }
+
+      pintarApuntes();
+
+      var form = document.getElementById('apunteForm');
+
+      if (form) {
+        form.scrollIntoView({
+          behavior: SUAVE ? 'smooth' : 'auto', block: 'nearest'
+        });
+      }
+    }
+
+    function limpiarApunte() {
+      ['apId', 'apAsunto', 'apParticipantes', 'apApuntes',
+       'apAcuerdos', 'apResponsable', 'apCompromiso'
+      ].forEach(function(id) { ponerApunte(id, ''); });
+
+      ponerApunte('apFecha', hoyISO());
+
+      var estado = document.getElementById('apEstado');
+
+      if (estado) { estado.selectedIndex = 0; }
+
+      var nuevo = document.getElementById('apNuevo');
+      var guardar = document.getElementById('apGuardar');
+
+      if (nuevo) { nuevo.hidden = true; }
+      if (guardar) { guardar.textContent = 'Guardar apunte'; }
+    }
+
+    function borrarApunte(id) {
+      if (!window.confirm('¿Borrar este apunte? No se puede deshacer.')) {
+        return;
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          APUNTES = res;
+          if (valorApunte('apId') === id) { limpiarApunte(); }
+          pintarApuntes();
+          recadoApunte('bien', 'Apunte borrado.');
+        })
+        .withFailureHandler(function(err) {
+          recadoApunte('mal', mensaje(err));
+        })
+        .eliminarApunte(id);
+    }
+
+    function recadoApunte(tipo, texto) {
+      var recado = document.getElementById('apRecado');
+
+      if (!recado) { return; }
+
+      if (!texto) {
+        recado.className = 'recado';
+        recado.textContent = '';
+        return;
+      }
+
+      recado.className = 'recado recado-' + tipo + ' se-ve';
+      recado.textContent = texto;
+    }
+
     function dibujarTablaProducto(resumen) {
       var cuerpo = document.getElementById('productBody');
       var pie = document.getElementById('productFoot');
@@ -4304,20 +5606,117 @@
         '</tr>';
     }
 
-    function dibujarTablaPrecios(resumen, m) {
+    /**
+     * Filtra y ordena la tabla de precio/plan/cantidad. La tabla completa
+     * son decenas de cruces; casi siempre se entra a ella buscando una
+     * sola cosa: quién está bajo plan, o quién cobra más.
+     */
+    function ordenarPrecios(resumen) {
+      var buscar = normalizar(valorApunte('pBuscar'));
+      var brecha = valorApunte('pBrecha');
+      var orden = valorApunte('pOrden') || 'total';
+      var asc = valorApunte('pSentido') === 'asc';
+
+      var lista = resumen.filter(function(x) {
+        if (buscar) {
+          var nombre = normalizar(x.proveedor) + ' ' +
+            normalizar(x.proveedorPlan) + ' ' +
+            normalizar(x.subproducto);
+
+          if (nombre.indexOf(buscar) === -1) { return false; }
+        }
+
+        var sinPrecio = x.precio === null || x.precio === undefined;
+
+        if (brecha === 'sinprecio') { return sinPrecio; }
+        if (brecha === 'sinplan') { return !x.monthlyPlan; }
+        if (brecha === 'bajo') {
+          return x.gapToDate !== null && x.gapToDate < 0;
+        }
+        if (brecha === 'sobre') {
+          return x.gapToDate !== null && x.gapToDate > 0;
+        }
+
+        return true;
+      });
+
+      var llave = {
+        total: function(x) { return x.total; },
+        brecha: function(x) { return x.gapToDate; },
+        precio: function(x) { return x.precio; },
+        plan: function(x) { return x.monthlyPlan; },
+        costo: function(x) { return x.cost; }
+      }[orden];
+
+      if (orden === 'proveedor') {
+        lista.sort(function(a, b) {
+          var d = String(a.proveedor).localeCompare(
+            String(b.proveedor), 'es'
+          );
+          return asc ? d : -d;
+        });
+
+        return lista;
+      }
+
+      // Los nulos van siempre al final, se ordene como se ordene: un
+      // "sin precio" no es un precio de cero.
+      lista.sort(function(a, b) {
+        var va = llave(a);
+        var vb = llave(b);
+
+        var na = va === null || va === undefined || !isFinite(va);
+        var nb = vb === null || vb === undefined || !isFinite(vb);
+
+        if (na && nb) { return 0; }
+        if (na) { return 1; }
+        if (nb) { return -1; }
+
+        return asc ? va - vb : vb - va;
+      });
+
+      return lista;
+    }
+
+    function montarMandosPrecios() {
+      ['pBuscar', 'pBrecha', 'pOrden', 'pSentido'].forEach(function(id) {
+        var nodo = document.getElementById(id);
+
+        if (!nodo) { return; }
+
+        nodo.addEventListener(
+          nodo.tagName === 'INPUT' ? 'input' : 'change',
+          function() {
+            if (CURRENT_METRICS) {
+              dibujarTablaPrecios(CURRENT_PRICING, CURRENT_METRICS);
+            }
+          }
+        );
+      });
+    }
+
+    function dibujarTablaPrecios(todos, m) {
       var cuerpo = document.getElementById('pricingBody');
       var pie = document.getElementById('pricingFoot');
+
+      var resumen = ordenarPrecios(todos || []);
 
       var conPrecio = resumen.filter(function(x) {
         return x.precio !== null && x.precio !== undefined;
       }).length;
 
       setText('conteoPrecios',
-        resumen.length + ' cruces · ' + conPrecio + ' con precio');
+        (resumen.length === (todos || []).length
+          ? resumen.length + ' cruces'
+          : resumen.length + ' de ' + (todos || []).length + ' cruces') +
+        ' · ' + conPrecio + ' con precio');
 
       if (!resumen.length) {
         cuerpo.innerHTML = '<tr class="fila-vacia"><td colspan="13">' +
-          'Nada que valorizar con estos filtros.</td></tr>';
+          ((todos || []).length
+            ? 'Ningún cruce cumple ese filtro.'
+            : 'Nada que valorizar con estos filtros.') +
+          '</td></tr>';
         pie.innerHTML = '';
         return;
       }
@@ -5668,6 +7067,40 @@
     function shortProvider(value) {
       const text = String(value || '');
       return text.length > 28 ? text.slice(0, 27) + '…' : text;
+    }
+
+    /**
+     * Toneladas secas por camión del material. Un camión de nitens no
+     * carga lo mismo que uno de pino con corteza.
+     */
+    function factorDe(subproducto) {
+      var tabla = (DATA && DATA.factorPorMaterial) || {};
+
+      return tabla[subproducto] || (DATA && DATA.factor) || 11;
+    }
+
+    /** "15,2 / 10,7 / 11 según material" */
+    function factoresLegibles() {
+      var tabla = (DATA && DATA.factorPorMaterial) || {};
+      var nombres = Object.keys(tabla);
+
+      if (!nombres.length) {
+        return formatQuantity((DATA && DATA.factor) || 11) + ' TS';
+      }
+
+      return nombres.map(function(n) {
+        return formatQuantity(tabla[n]) + ' ' +
+          shortProduct(n).toLowerCase();
+      }).join(' · ');
+    }
+
+    /** Para buscar sin que estorben tildes ni mayúsculas. */
+    function normalizar(valor) {
+      return String(valor || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
     }
 
     function unidad() {

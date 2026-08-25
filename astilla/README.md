@@ -9,11 +9,32 @@ todavía no contabiliza.
 
 ---
 
+## Un camión no son 11 TS
+
+Lo eran para todo, y esa era una cifra de oficina. Un camión carga
+distinto según lo que trae:
+
+| Código SAP | Material | TS por camión |
+|---|---|---|
+| `3009003` | Astilla eucalyptus nitens | **15,2** |
+| `3000039` | Astilla pino verde | **11** |
+| `3009002` | Astilla pino verde c/corteza | **10,7** |
+
+Usar 11 para todo desinflaba el nitens un 28% y sobrestimaba la corteza
+un 3% en **cada día complementado desde la planilla**.
+
+**El material manda.** La columna `Factor` de `InformeAstilla` es
+informativa: se reescribe en cada importación y el dashboard no la lee,
+deriva el factor del material. Así la corrección alcanza también a las
+filas importadas antes, sin reconstruir el historial.
+
+---
+
 ## La regla, en una línea
 
 Hasta la última *Fecha Contab.* se usan solo los datos de SAP. Desde el
 día siguiente y hasta la última planilla recibida se usa
-`CAMIONES × 11 TS`. Cuando SAP avanza, el estimado de ese día
+`CAMIONES × el factor del material`. Cuando SAP avanza, el estimado de ese día
 desaparece solo.
 
 ## Las hojas
@@ -23,6 +44,7 @@ desaparece solo.
 | `Ingresos` | Registro real de recepción, por *Fecha Contab.* | Sí |
 | `InformeAstilla` | La escribe el script con lo que extrae de los correos | La crea sola |
 | `Plan` | `Suministro · Proveedor · Precio · <mes>` | Para plan y costo |
+| `Apuntes` | Una fila por reunión: fecha, tema, asunto, acuerdos | Opcional |
 | `Proveedores` | Equivalencias: cada forma de escribir un proveedor apunta a su nombre en SAP | Recomendada |
 | `Mapeos` | Un aserradero por fila: nombre, coordenada y estado | Para el mapa |
 | `Rutas` | Una ruta de visita por fila, con sus paradas y su evento | La crea sola |
@@ -260,6 +282,82 @@ alias que escribiste y todavía no tienen su proveedor SAP al lado.
 
 ---
 
+## Plan de acción
+
+El dashboard ya dice qué pasa. El panel **Plan de acción** dice qué
+hacer, y con qué argumento: sirve de poco saber que un proveedor cayó
+40% si al llamarlo no tienes a mano por qué le conviene volver.
+
+Cada punto responde tres cosas:
+
+- **Por qué** — el dato que lo dispara, con cifras
+- **Hacer** — el paso concreto, no un consejo genérico
+- **Decirle** — el argumento frente al proveedor
+
+Los casos que detecta:
+
+| Caso | Cuándo salta |
+|---|---|
+| Dejó de despachar | Sin entregar hace 7 días o más |
+| Viene a la baja | Cayó 25% o más entre las dos últimas semanas |
+| Bajo su plan | Va por debajo de lo comprometido a la fecha |
+| Comprometido y sin entregar | Tiene plan del mes y cero despachos |
+| Precio sobre el promedio y bajo plan | Cobra caro y además no cumple |
+| Barato y cumpliendo | Entrega al día bajo el precio medio |
+| Sobre su plan | Va por encima de lo comprometido |
+| Sin confirmar en SAP | Todo su volumen viene de la planilla |
+| Sin precio homologado | Sus TS quedan fuera del costo |
+| Despacha a saltos | Concentra el volumen en pocos días |
+| Dependencia concentrada | Los tres primeros pasan del 60% |
+| Brecha total del mes | Cuánto falta y cuánto por semana |
+
+**Una tarjeta por proveedor**, no por punto: cinco viñetas del mismo
+aserradero no son cinco tareas, son una conversación. Manda la más
+grave y el resto queda plegado debajo.
+
+Se filtra por *crítico · atención · oportunidad*.
+
+---
+
+## Apuntes de reunión
+
+El acuerdo que no queda escrito se convierte en *"me parece que
+quedamos en"* tres semanas después, y ahí ya no hay conversación
+posible.
+
+En la página, la sección **Apuntes de reunión** escribe directo en la
+hoja `Apuntes`: fecha, tema, asunto, participantes, apuntes, acuerdos,
+responsable, compromiso y estado.
+
+**La semana se calcula sola** a partir de la fecha, en formato ISO
+(`2026-S35`). Por eso una reunión que se corre del lunes al miércoles
+sigue siendo la de esa semana, y las fichas quedan agrupadas sin que
+tengas que escribir nada.
+
+Si la hoja no existe, la sección lo dice y el resto del dashboard sigue
+funcionando: los apuntes no pueden tumbar el control de suministro.
+
+---
+
+## Filtrar y ordenar proveedores
+
+La tabla **Precio, plan y cantidad por proveedor** son decenas de
+cruces, y casi siempre se entra a ella buscando una sola cosa. Sobre la
+tabla hay cuatro mandos:
+
+- **Buscar** por proveedor, proveedor del Plan o subproducto. Ignora
+  tildes y mayúsculas.
+- **Brecha**: bajo plan · sobre plan · sin plan · sin precio.
+- **Ordenar por**: cantidad, brecha, precio, plan del mes, costo
+  valorizado o proveedor.
+- **Sentido**: mayor a menor, o al revés.
+
+Los nulos van siempre al final, se ordene como se ordene: un *sin
+precio* no es un precio de cero. El total del pie suma lo filtrado, no
+la tabla completa, y el rótulo dice cuántos cruces quedaron de cuántos.
+
+---
+
 ## Mapeo de aserraderos
 
 Hoja `Mapeos`, una fila por aserradero. Tú pones **Nombre** y, para
@@ -465,6 +563,7 @@ pegadas en el cuerpo del correo, no hace falta.
 | Preparar hoja de proveedores | Crea/repara `Proveedores` y siembra los nombres que hoy no cruzan |
 | Rellenar proveedores sugeridos | Escribe la propuesta de equivalencias sin pisar lo que ya decidiste |
 | Preparar hoja de rutas | Crea/repara `Rutas` con sus encabezados |
+| Preparar hoja de apuntes | Crea/repara `Apuntes` para las reuniones |
 
 Antes de una carga masiva, corre siempre **Probar último correo**.
 

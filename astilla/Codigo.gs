@@ -38,11 +38,27 @@ const CONFIG = Object.freeze({
   SHEET_MAPEOS: 'Mapeos',
   SHEET_PROVEEDORES: 'Proveedores',
   SHEET_RUTAS: 'Rutas',
+  SHEET_APUNTES: 'Apuntes',
   HTML_FILE: 'Index',
   TIMEZONE: 'America/Santiago',
 
-  // Toneladas secas por camión.
+  // Toneladas secas por camión, POR MATERIAL. No es un promedio de
+  // oficina: un camión de nitens carga más seco que uno de pino con
+  // corteza, y usar 11 para todo desinflaba el nitens y sobrestimaba
+  // la corteza en cada día complementado desde la planilla.
+  //
+  //   3009003 nitens          15,2
+  //   3009002 con corteza     10,7
+  //   3000039 pino verde      11
+  //
+  // El material manda: la columna "Factor" de InformeAstilla es
+  // informativa y se reescribe en cada importación.
   FACTOR_CAMION: 11,
+  FACTOR_POR_MATERIAL: Object.freeze({
+    'ASTILLA EUCALYPTUS NITENS': 15.2,
+    'AST. PINO VERDE C/ CORTEZA': 10.7,
+    'ASTILLA PINO VERDE': 11
+  }),
   UNIDAD: 'TS',
 
   // Meses de historia que viajan al dashboard (el mes vigente
@@ -181,6 +197,7 @@ function onOpen() {
     .addItem('Preparar hoja de mapeos', 'instalarMapeos')
     .addItem('Ubicar en el mapa', 'ubicarMapeos')
     .addItem('Preparar hoja de rutas', 'instalarRutas')
+    .addItem('Preparar hoja de apuntes', 'instalarApuntes')
     .addSeparator()
     .addItem('Instalar automatización', 'instalarDisparador')
     .addItem('Eliminar automatización', 'eliminarDisparadores')
@@ -351,6 +368,7 @@ function getDashboardData() {
     timezone: timezone,
     unidad: CONFIG.UNIDAD,
     factor: CONFIG.FACTOR_CAMION,
+    factorPorMaterial: CONFIG.FACTOR_POR_MATERIAL,
     month: month,
     workdays: workdays,
     holidays: CONFIG.FERIADOS.slice(),
@@ -381,6 +399,7 @@ function getDashboardData() {
         ? formatDateKey_(supplement.latestReportDate)
         : 'Sin planilla',
       staleReports: supplement.staleReports,
+      factoresViejos: informe.factoresViejos || 0,
       hasPlan: plan.details.length > 0,
       planInvalidRows: plan.invalidRows.length,
       planMissingProducts: SUBPRODUCTOS_OBJETIVO.filter(function(name) {
@@ -796,6 +815,7 @@ function readInformeRows_(
   }
 
   const byDate = {};
+  let factoresViejos = 0;
   let errors = 0;
 
   for (
@@ -850,18 +870,26 @@ function readInformeRows_(
       displayRow[map['camiones']]
     );
 
-    const factor =
-      toNumber_(
-        row[map['factor']],
-        displayRow[map['factor']]
-      ) || CONFIG.FACTOR_CAMION;
-
     const subproducto =
       canonicalSubproducto_(row[map['subproducto']]) ||
       canonicalSubproducto_(row[map['subproducto planilla']]);
 
     if (!subproducto) {
       continue;
+    }
+
+    // El factor lo decide el material, no lo que quedó escrito en la
+    // hoja. Así la corrección alcanza también a las filas importadas
+    // antes, sin tener que reconstruir el historial.
+    const factor = factorDe_(subproducto);
+
+    const factorEscrito = toNumber_(
+      row[map['factor']],
+      displayRow[map['factor']]
+    );
+
+    if (factorEscrito && Math.abs(factorEscrito - factor) > 0.001) {
+      factoresViejos++;
     }
 
     const proveedorRaw =
@@ -922,6 +950,7 @@ function readInformeRows_(
     rows: rows,
     reports: Object.keys(byDate).length,
     errors: errors,
+    factoresViejos: factoresViejos,
     missingSheet: false
   };
 }
@@ -2718,8 +2747,8 @@ function importarPlanillas_(rebuild) {
               item.proveedor,
               item.destino,
               item.camiones,
-              CONFIG.FACTOR_CAMION,
-              item.camiones * CONFIG.FACTOR_CAMION,
+              factorDe_(item.subproducto),
+              item.camiones * factorDe_(item.subproducto),
               subject,
               messageId,
               message.getFrom(),
@@ -2740,7 +2769,7 @@ function importarPlanillas_(rebuild) {
 
           output.push([
             '', '', '', '', '', '', '',
-            CONFIG.FACTOR_CAMION,
+            '',
             '',
             subject,
             messageId,
@@ -2961,21 +2990,18 @@ function probarUltimoCorreo() {
       'Fecha detectada: ' + formatDateKey_(parsed.fecha),
       'Método: ' + parsed.method,
       'Filas útiles: ' + parsed.rows.length,
-      'Camiones proceso: ' +
-        camiones +
-        ' = ' +
-        camiones * CONFIG.FACTOR_CAMION +
-        ' ' +
-        CONFIG.UNIDAD,
+      'Camiones proceso: ' + camiones,
       ''
     ];
 
     SUBPRODUCTOS_OBJETIVO.forEach(function(name) {
       const trucks = byProduct[name] || 0;
+      const f = factorDe_(name);
+
       lines.push(
         name + ': ' +
-        trucks + ' camiones = ' +
-        trucks * CONFIG.FACTOR_CAMION + ' ' +
+        trucks + ' camiones × ' + f + ' = ' +
+        round_(trucks * f, 1) + ' ' +
         CONFIG.UNIDAD
       );
     });
@@ -3626,6 +3652,17 @@ function parsePlanillaText_(body) {
  * plural, "C/ CORTEZA" vs "CON CORTEZA", tildes y espacios dobles.
  * Si el correo usa un nombre muy distinto, agrégalo aquí.
  */
+/**
+ * Toneladas secas por camión del material. Si el subproducto no está
+ * en la tabla se usa el factor general, que es lo que había antes.
+ */
+function factorDe_(subproducto) {
+  const clave = text_(subproducto);
+  const tabla = CONFIG.FACTOR_POR_MATERIAL || {};
+
+  return tabla[clave] || CONFIG.FACTOR_CAMION;
+}
+
 function canonicalSubproducto_(value) {
   const key = normalizeKey_(value)
     .replace(/\//g, ' ')
@@ -5247,6 +5284,422 @@ const RUTA_CONFIG = Object.freeze({
   // Sobre este total, la ruta no cabe en una jornada.
   MINUTOS_JORNADA: 9 * 60
 });
+
+/* =====================================================================
+ * APUNTES DE REUNIÓN
+ *
+ * Una fila por reunión. El acuerdo que no queda escrito se convierte en
+ * "me parece que quedamos en" tres semanas después, y ahí ya no hay
+ * conversación posible.
+ * ===================================================================== */
+
+const APUNTES_HEADERS = Object.freeze([
+  'ID',
+  'Fecha',
+  'Semana',
+  'Tema',
+  'Asunto',
+  'Participantes',
+  'Apuntes',
+  'Acuerdos',
+  'Responsable',
+  'Compromiso',
+  'Estado',
+  'Creado por',
+  'Actualizado'
+]);
+
+const ESTADOS_APUNTE = Object.freeze([
+  'Abierto', 'En curso', 'Cerrado'
+]);
+
+const TEMAS_APUNTE = Object.freeze([
+  'Reunión semanal',
+  'Proveedor',
+  'Precio',
+  'Plan',
+  'Terreno',
+  'Interno',
+  'Otro'
+]);
+
+function columnasApuntes_(sheet) {
+  const ancho = sheet.getLastColumn();
+
+  const encabezados = ancho
+    ? sheet.getRange(1, 1, 1, ancho).getValues()[0].map(normalizeHeader_)
+    : [];
+
+  function col(nombre, obligatoria) {
+    const indice = encabezados.indexOf(normalizeHeader_(nombre));
+
+    if (indice === -1) {
+      if (obligatoria) {
+        throw new Error(
+          'A la hoja "' + CONFIG.SHEET_APUNTES + '" le falta la columna "' +
+          nombre + '". Corre "Preparar hoja de apuntes" para repararla.'
+        );
+      }
+      return 0;
+    }
+
+    return indice + 1;
+  }
+
+  return {
+    id: col('ID', true),
+    fecha: col('Fecha', true),
+    semana: col('Semana', false),
+    tema: col('Tema', true),
+    asunto: col('Asunto', true),
+    participantes: col('Participantes', false),
+    apuntes: col('Apuntes', false),
+    acuerdos: col('Acuerdos', false),
+    responsable: col('Responsable', false),
+    compromiso: col('Compromiso', false),
+    estado: col('Estado', false),
+    creadoPor: col('Creado por', false),
+    actualizado: col('Actualizado', false)
+  };
+}
+
+/**
+ * Semana ISO, en formato 2026-S34. Es lo que permite agrupar "la
+ * reunión de esta semana" sin depender de qué día se hizo.
+ */
+function semanaDe_(dateKey) {
+  const fecha = dateKeyToLocalDate_(dateKey);
+
+  if (!fecha) { return ''; }
+
+  // ISO 8601: el jueves de esa semana decide a qué año pertenece.
+  const jueves = new Date(fecha.getTime());
+  const dia = (fecha.getUTCDay() + 6) % 7;
+
+  jueves.setUTCDate(fecha.getUTCDate() - dia + 3);
+
+  const primerJueves = new Date(
+    Date.UTC(jueves.getUTCFullYear(), 0, 4)
+  );
+
+  const diaPrimero = (primerJueves.getUTCDay() + 6) % 7;
+
+  primerJueves.setUTCDate(primerJueves.getUTCDate() - diaPrimero + 3);
+
+  const semana = 1 + Math.round(
+    (jueves.getTime() - primerJueves.getTime()) / (7 * 24 * 3600 * 1000)
+  );
+
+  return jueves.getUTCFullYear() + '-S' +
+    (semana < 10 ? '0' + semana : String(semana));
+}
+
+function instalarApuntes() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+
+  let sheet = spreadsheet.getSheetByName(CONFIG.SHEET_APUNTES);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(CONFIG.SHEET_APUNTES);
+  }
+
+  sheet
+    .getRange(1, 1, 1, APUNTES_HEADERS.length)
+    .setValues([APUNTES_HEADERS])
+    .setBackground('#121C17')
+    .setFontColor('#B5793F')
+    .setFontWeight('bold');
+
+  sheet.setFrozenRows(1);
+
+  [90, 105, 90, 130, 260, 190, 420, 340, 150, 110, 100, 190, 150]
+    .forEach(function(ancho, indice) {
+      sheet.setColumnWidth(indice + 1, ancho);
+    });
+
+  const columnas = columnasApuntes_(sheet);
+  const filas = Math.max(sheet.getMaxRows() - 1, 1);
+
+  sheet.getRange(2, columnas.fecha, filas, 1)
+    .setNumberFormat('dd/MM/yyyy');
+
+  if (columnas.compromiso) {
+    sheet.getRange(2, columnas.compromiso, filas, 1)
+      .setNumberFormat('dd/MM/yyyy');
+  }
+
+  if (columnas.tema) {
+    sheet.getRange(2, columnas.tema, filas, 1)
+      .setDataValidation(
+        SpreadsheetApp.newDataValidation()
+          .requireValueInList(TEMAS_APUNTE.slice(), true)
+          .setAllowInvalid(true)
+          .build()
+      );
+  }
+
+  if (columnas.estado) {
+    sheet.getRange(2, columnas.estado, filas, 1)
+      .setDataValidation(
+        SpreadsheetApp.newDataValidation()
+          .requireValueInList(ESTADOS_APUNTE.slice(), true)
+          .setAllowInvalid(false)
+          .build()
+      );
+  }
+
+  // El texto largo se lee mucho mejor envuelto que en una línea de
+  // cuatrocientos caracteres que hay que arrastrar.
+  [columnas.apuntes, columnas.acuerdos].forEach(function(col) {
+    if (col) {
+      sheet.getRange(2, col, filas, 1)
+        .setWrap(true)
+        .setVerticalAlignment('top');
+    }
+  });
+
+  SpreadsheetApp.getUi().alert(
+    'Hoja "' + CONFIG.SHEET_APUNTES + '" lista.\n\n' +
+    'Una fila por reunión, con fecha, tema y asunto. La semana se ' +
+    'calcula sola a partir de la fecha, así que las reuniones quedan ' +
+    'agrupadas aunque una se corra de día.\n\n' +
+    'Se escribe desde el dashboard, en la sección "Apuntes de reunión", ' +
+    'o directamente aquí.'
+  );
+}
+
+function filaDeApunte_(sheet, columnas, id) {
+  const ultima = sheet.getLastRow();
+
+  if (ultima < 2) { return 0; }
+
+  const ids = sheet
+    .getRange(2, columnas.id, ultima - 1, 1)
+    .getValues();
+
+  for (let i = 0; i < ids.length; i++) {
+    if (text_(ids[i][0]) === text_(id)) {
+      return i + 2;
+    }
+  }
+
+  return 0;
+}
+
+function getApuntes() {
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_APUNTES);
+
+  const timezone =
+    spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return {
+      rows: [],
+      temas: TEMAS_APUNTE.slice(),
+      estados: ESTADOS_APUNTE.slice(),
+      missingSheet: !sheet
+    };
+  }
+
+  const columnas = columnasApuntes_(sheet);
+  const range = sheet.getDataRange();
+  const valores = range.getValues();
+  const vistos = range.getDisplayValues();
+
+  const rows = [];
+
+  for (let i = 1; i < valores.length; i++) {
+    const fila = valores[i];
+    const visto = vistos[i] || [];
+
+    const id = text_(valorEn_(fila, columnas.id));
+    const asunto = text_(valorEn_(fila, columnas.asunto));
+
+    if (!id && !asunto) { continue; }
+
+    const fecha = toDateKey_(
+      valorEn_(fila, columnas.fecha),
+      valorEn_(visto, columnas.fecha),
+      timezone
+    );
+
+    rows.push({
+      id: id,
+      fecha: fecha,
+      fechaLabel: fecha ? formatDateKey_(fecha) : '',
+      semana: text_(valorEn_(fila, columnas.semana)) ||
+        (fecha ? semanaDe_(fecha) : ''),
+      tema: text_(valorEn_(fila, columnas.tema)),
+      asunto: asunto,
+      participantes: text_(valorEn_(fila, columnas.participantes)),
+      apuntes: String(valorEn_(fila, columnas.apuntes) || ''),
+      acuerdos: String(valorEn_(fila, columnas.acuerdos) || ''),
+      responsable: text_(valorEn_(fila, columnas.responsable)),
+      compromiso: toDateKey_(
+        valorEn_(fila, columnas.compromiso),
+        valorEn_(visto, columnas.compromiso),
+        timezone
+      ),
+      estado: text_(valorEn_(fila, columnas.estado)) || 'Abierto',
+      creadoPor: text_(valorEn_(fila, columnas.creadoPor)),
+      actualizado: text_(valorEn_(visto, columnas.actualizado))
+    });
+  }
+
+  rows.sort(function(a, b) {
+    return String(b.fecha || '').localeCompare(String(a.fecha || ''));
+  });
+
+  return {
+    rows: rows,
+    temas: TEMAS_APUNTE.slice(),
+    estados: ESTADOS_APUNTE.slice(),
+    missingSheet: false
+  };
+}
+
+/**
+ * Crea o actualiza un apunte. Sin id, es nuevo.
+ */
+function guardarApunte(payload) {
+  const datos = payload || {};
+
+  const asunto = text_(datos.asunto);
+
+  if (!asunto) {
+    throw new Error('El asunto es obligatorio: es lo que se lee después.');
+  }
+
+  const fecha = text_(datos.fecha);
+
+  if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    throw new Error('Falta la fecha de la reunión.');
+  }
+
+  const estado = text_(datos.estado) || 'Abierto';
+
+  if (ESTADOS_APUNTE.indexOf(estado) === -1) {
+    throw new Error(
+      'Estado no reconocido: "' + estado + '". Usa ' +
+      ESTADOS_APUNTE.join(', ') + '.'
+    );
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_APUNTES);
+
+  if (!sheet) {
+    throw new Error(
+      'Falta la hoja "' + CONFIG.SHEET_APUNTES + '". Corre ' +
+      '"Preparar hoja de apuntes" en el menú.'
+    );
+  }
+
+  const bloqueo = LockService.getDocumentLock();
+
+  if (!bloqueo.tryLock(20000)) {
+    throw new Error('La hoja está ocupada. Intenta de nuevo.');
+  }
+
+  try {
+    const columnas = columnasApuntes_(sheet);
+    const timezone =
+      spreadsheet.getSpreadsheetTimeZone() || CONFIG.TIMEZONE;
+
+    let id = text_(datos.id);
+    let fila = id ? filaDeApunte_(sheet, columnas, id) : 0;
+
+    if (!fila) {
+      id = id || 'APU-' + Utilities.formatDate(
+        new Date(), timezone, 'yyyyMMdd-HHmmss'
+      );
+
+      fila = Math.max(sheet.getLastRow(), 1) + 1;
+      sheet.getRange(fila, columnas.id).setValue(id);
+    }
+
+    function poner(col, valor) {
+      if (col) { sheet.getRange(fila, col).setValue(valor); }
+    }
+
+    sheet.getRange(fila, columnas.fecha)
+      .setValue(dateKeyToLocalDate_(fecha));
+
+    poner(columnas.semana, semanaDe_(fecha));
+    poner(columnas.tema, text_(datos.tema) || 'Reunión semanal');
+    poner(columnas.asunto, asunto);
+    poner(columnas.participantes, text_(datos.participantes));
+    poner(columnas.apuntes, String(datos.apuntes || ''));
+    poner(columnas.acuerdos, String(datos.acuerdos || ''));
+    poner(columnas.responsable, text_(datos.responsable));
+
+    const compromiso = text_(datos.compromiso);
+
+    if (columnas.compromiso) {
+      sheet.getRange(fila, columnas.compromiso).setValue(
+        /^\d{4}-\d{2}-\d{2}$/.test(compromiso)
+          ? dateKeyToLocalDate_(compromiso)
+          : ''
+      );
+    }
+
+    poner(columnas.estado, estado);
+
+    if (columnas.creadoPor &&
+        !text_(sheet.getRange(fila, columnas.creadoPor).getValue())) {
+      sheet.getRange(fila, columnas.creadoPor).setValue(autorActual_());
+    }
+
+    poner(
+      columnas.actualizado,
+      Utilities.formatDate(new Date(), timezone, 'dd/MM/yyyy HH:mm')
+    );
+
+    SpreadsheetApp.flush();
+  } finally {
+    bloqueo.releaseLock();
+  }
+
+  return getApuntes();
+}
+
+function eliminarApunte(id) {
+  const clave = text_(id);
+
+  if (!clave) {
+    throw new Error('Falta el identificador del apunte.');
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(CONFIG.SHEET_APUNTES);
+
+  if (!sheet) {
+    throw new Error('Falta la hoja "' + CONFIG.SHEET_APUNTES + '".');
+  }
+
+  const bloqueo = LockService.getDocumentLock();
+
+  if (!bloqueo.tryLock(20000)) {
+    throw new Error('La hoja está ocupada. Intenta de nuevo.');
+  }
+
+  try {
+    const columnas = columnasApuntes_(sheet);
+    const fila = filaDeApunte_(sheet, columnas, clave);
+
+    if (!fila) {
+      throw new Error('No encontré ese apunte en la hoja.');
+    }
+
+    sheet.deleteRow(fila);
+    SpreadsheetApp.flush();
+  } finally {
+    bloqueo.releaseLock();
+  }
+
+  return getApuntes();
+}
 
 function columnasRutas_(sheet) {
   const encabezados = sheet
