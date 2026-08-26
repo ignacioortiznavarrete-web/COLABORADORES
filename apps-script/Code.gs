@@ -3,9 +3,10 @@ const CONFIG = {
   SHEET_NAME: 'Hoja 1',
   PLAN_SHEET_NAME: 'Hoja 2',
   PROJECTION_SHEET_NAME: 'ProyeccionCamiones',
+  PLAN_ACCION_SHEET_NAME: 'PlanAccion',
   M3_PER_CAMION: 26,
-  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V18',
-  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V18',
+  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V19',
+  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V19',
   CACHE_SECONDS: 21600,
   CACHE_CHUNK_CHARS: 45000, // margen de sobra bajo el límite de 100KB por clave de CacheService, incluso con acentos en UTF-8
   MAX_ROLES_MAPA: 150
@@ -430,6 +431,7 @@ function buildDashboardCore_() {
       largo,
       fecha,
       dia: businessDayNumberFromValue_(row[col.fecha]),
+      semana: weekKeyFromValue_(row[col.fecha]),
       trozos: cantidad,
       cubicacion,
       diametroPromedio: diametro,
@@ -474,6 +476,7 @@ function buildDashboardCore_() {
     generatedAt: new Date().toISOString(),
     lastUpdate: lastUpdateISO,
     planMonth: plan.monthLabel,
+    m3PorCamion: CONFIG.M3_PER_CAMION,
 
     kpis: {
       totalCubicacion: totalCub,
@@ -502,6 +505,7 @@ function buildDashboardCore_() {
 
     proveedores: proveedoresArray,
     cumplimientoProveedores,
+    semanas: buildWeeklyAgg_(detalleIngresos, plan, lastIngresoDate),
 
     comunas: enrichComunasWithRegion_(objectToArray_(comunas, 'comuna')),
     regiones: objectToArray_(regiones, 'region'),
@@ -1733,4 +1737,227 @@ function dateSortValue_(value) {
 
 function pad2_(value) {
   return String(value || '').padStart(2, '0');
+}
+
+/*******************************************************
+ SEMANAS
+ La reunión de seguimiento es semanal, así que el mes se
+ corta en semanas hábiles (lunes a viernes) y cada una
+ lleva su propia meta proporcional al plan diario.
+*******************************************************/
+
+const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function weekStart_(date) {
+  if (!(date instanceof Date) || isNaN(date)) return null;
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dow = day.getDay();
+  day.setDate(day.getDate() + (dow === 0 ? -6 : 1 - dow));
+  return day;
+}
+
+function weekKeyFromValue_(value) {
+  const date = value instanceof Date && !isNaN(value)
+    ? value
+    : parseDateKey_(dateKey_(value));
+
+  const monday = weekStart_(date);
+  if (!monday) return '';
+
+  return Utilities.formatDate(monday, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function weekLabel_(monday) {
+  const friday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 4);
+
+  return monday.getMonth() === friday.getMonth()
+    ? monday.getDate() + ' al ' + friday.getDate() + ' ' + MESES_CORTOS[monday.getMonth()]
+    : monday.getDate() + ' ' + MESES_CORTOS[monday.getMonth()] +
+      ' al ' + friday.getDate() + ' ' + MESES_CORTOS[friday.getMonth()];
+}
+
+/**
+ * Agrupa los ingresos por semana hábil y le pone a cada una la meta que
+ * le corresponde: plan diario x días hábiles de esa semana dentro del mes.
+ */
+function buildWeeklyAgg_(detalle, plan, lastIngresoDate) {
+  const weeks = {};
+
+  (detalle || []).forEach(row => {
+    const key = row.semana;
+    if (!key) return;
+
+    if (!weeks[key]) weeks[key] = { key, cubicacion: 0, trozos: 0 };
+    weeks[key].cubicacion += Number(row.cubicacion) || 0;
+    weeks[key].trozos += Number(row.trozos) || 0;
+  });
+
+  const referenceMonth = lastIngresoDate || new Date();
+  const dailyPlan = Number(plan && plan.dailyPlan) || 0;
+
+  return Object.keys(weeks).sort().map(key => {
+    const monday = parseDateKey_(key);
+    const week = weeks[key];
+
+    let diasHabiles = 0;
+    let diasHabilesTranscurridos = 0;
+
+    for (let offset = 0; offset < 7; offset++) {
+      const day = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + offset);
+
+      // Solo cuentan los días hábiles que caen dentro del mes que se está midiendo.
+      if (!isBusinessDay_(day) || !sameMonth_(day, referenceMonth)) continue;
+
+      diasHabiles++;
+      if (!lastIngresoDate || day <= lastIngresoDate) diasHabilesTranscurridos++;
+    }
+
+    week.label = weekLabel_(monday);
+    week.inicio = key;
+    week.diasHabiles = diasHabiles;
+    week.diasHabilesTranscurridos = diasHabilesTranscurridos;
+    week.meta = dailyPlan * diasHabiles;
+    week.metaTranscurrida = dailyPlan * diasHabilesTranscurridos;
+    week.cumplimiento = week.metaTranscurrida ? week.cubicacion / week.metaTranscurrida : 0;
+
+    return week;
+  });
+}
+
+/*******************************************************
+ PLAN DE ACCIÓN
+ Los acuerdos de la reunión semanal viven en su propia
+ hoja para que sobrevivan al caché y los vea todo el equipo.
+*******************************************************/
+
+const PLAN_ACCION_HEADERS = [
+  'ID', 'Semana', 'Categoria', 'Severidad', 'Hallazgo', 'Medida',
+  'Responsable', 'FechaCompromiso', 'Estado', 'Notas',
+  'CreadoPor', 'CreadoEn', 'ActualizadoEn'
+];
+
+const PLAN_ACCION_ESTADOS = ['Abierto', 'En curso', 'Cerrado'];
+
+function ensurePlanAccionSheet_() {
+  const ss = getSpreadsheet_();
+  let sheet = ss.getSheetByName(CONFIG.PLAN_ACCION_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.PLAN_ACCION_SHEET_NAME);
+    sheet.getRange(1, 1, 1, PLAN_ACCION_HEADERS.length)
+      .setValues([PLAN_ACCION_HEADERS])
+      .setFontWeight('bold')
+      .setBackground('#1a4a36')
+      .setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidth(5, 320);
+    sheet.setColumnWidth(6, 320);
+  }
+
+  return sheet;
+}
+
+function planAccionRowToObject_(row) {
+  return {
+    id: rawText_(row[0]),
+    semana: dateKey_(row[1]),
+    categoria: rawText_(row[2]),
+    severidad: rawText_(row[3]),
+    hallazgo: rawText_(row[4]),
+    medida: rawText_(row[5]),
+    responsable: rawText_(row[6]),
+    fechaCompromiso: dateKey_(row[7]),
+    estado: rawText_(row[8]) || 'Abierto',
+    notas: rawText_(row[9]),
+    creadoPor: rawText_(row[10]),
+    creadoEn: dateKey_(row[11]),
+    actualizadoEn: dateKey_(row[12])
+  };
+}
+
+function getPlanAccion() {
+  const sheet = ensurePlanAccionSheet_();
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
+
+  return values.slice(1)
+    .filter(row => rawText_(row[0]))
+    .map(planAccionRowToObject_)
+    .sort((a, b) => String(b.semana).localeCompare(String(a.semana)) ||
+                    String(a.estado).localeCompare(String(b.estado)));
+}
+
+function savePlanAccion(item) {
+  item = item || {};
+
+  const hallazgo = rawText_(item.hallazgo);
+  if (!hallazgo) throw new Error('El acuerdo necesita un hallazgo.');
+
+  const estado = PLAN_ACCION_ESTADOS.indexOf(rawText_(item.estado)) !== -1
+    ? rawText_(item.estado)
+    : 'Abierto';
+
+  const sheet = ensurePlanAccionSheet_();
+  const values = sheet.getDataRange().getValues();
+  const now = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  const id = rawText_(item.id) || 'ACC-' + new Date().getTime();
+
+  let rowIndex = -1;
+  for (let i = 1; i < values.length; i++) {
+    if (rawText_(values[i][0]) === id) { rowIndex = i + 1; break; }
+  }
+
+  const creadoPor = rowIndex > 0
+    ? rawText_(values[rowIndex - 1][10])
+    : currentUserEmail_();
+
+  const creadoEn = rowIndex > 0
+    ? (dateKey_(values[rowIndex - 1][11]) || now)
+    : now;
+
+  const record = [
+    id,
+    rawText_(item.semana),
+    rawText_(item.categoria),
+    rawText_(item.severidad),
+    hallazgo,
+    rawText_(item.medida),
+    rawText_(item.responsable),
+    rawText_(item.fechaCompromiso),
+    estado,
+    rawText_(item.notas),
+    creadoPor,
+    creadoEn,
+    now
+  ];
+
+  const targetRow = rowIndex > 0 ? rowIndex : sheet.getLastRow() + 1;
+  sheet.getRange(targetRow, 1, 1, PLAN_ACCION_HEADERS.length).setValues([record]);
+
+  return planAccionRowToObject_(record);
+}
+
+function deletePlanAccion(id) {
+  id = rawText_(id);
+  if (!id) return false;
+
+  const sheet = ensurePlanAccionSheet_();
+  const values = sheet.getDataRange().getValues();
+
+  for (let i = values.length - 1; i >= 1; i--) {
+    if (rawText_(values[i][0]) === id) {
+      sheet.deleteRow(i + 1);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function currentUserEmail_() {
+  try {
+    return Session.getActiveUser().getEmail() || 'Sin identificar';
+  } catch (err) {
+    return 'Sin identificar';
+  }
 }
