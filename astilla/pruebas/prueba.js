@@ -118,12 +118,41 @@ check('rechaza una respuesta del hilo',
 check('rechaza un reenvío',
   !asunto('RV: PLANILLA CUMPLIMIENTO SUB-PRODUCTOS VIERNES 14 DE AGOSTO DE 2026'));
 
-check('rechaza texto agregado al final',
-  !asunto('PLANILLA CUMPLIMIENTO SUB-PRODUCTOS VIERNES 14 DE AGOSTO DE 2026 (corregida)'));
+// Decisión, no descuido: una reenviada "(corregida)" ahora entra. El
+// lector se queda con el correo más nuevo de cada fecha, así que la
+// corregida reemplaza a la anterior en vez de quedar fuera.
+check('acepta una corrección del mismo día',
+  asunto('PLANILLA CUMPLIMIENTO SUB-PRODUCTOS VIERNES 14 DE AGOSTO DE 2026 (corregida)'));
 
 check('rechaza a otro remitente',
   !asunto('PLANILLA CUMPLIMIENTO SUB-PRODUCTOS VIERNES 14 DE AGOSTO DE 2026',
           'Otro <otro@masisa.com>'));
+
+console.log('\n   El título corto de la tabla');
+
+// El correo puede venir titulado como la tabla: "CUMPLIMIENTO
+// SUBPRODUCTOS", sin la palabra PLANILLA y sin fecha en el asunto.
+// Antes no entraba ninguno de estos.
+[
+  'CUMPLIMIENTO SUBPRODUCTOS',
+  'CUMPLIMIENTO SUB-PRODUCTOS',
+  'Cumplimiento subproductos 25-08-2026',
+  'CUMPLIMIENTO SUBPRODUCTOS MARTES 25 DE AGOSTO DE 2026'
+].forEach(function(texto) {
+  check('acepta "' + texto + '"', asunto(texto));
+});
+
+check('sin fecha en el asunto igual entra: la trae la primera columna',
+  asunto('CUMPLIMIENTO SUBPRODUCTOS'));
+
+check('sigue rechazando el reenvío del título corto',
+  !asunto('RV: CUMPLIMIENTO SUBPRODUCTOS'));
+
+check('rechaza un asunto que solo contiene la frase',
+  !asunto('Informe de CUMPLIMIENTO SUBPRODUCTOS de ayer'));
+
+check('rechaza el título corto desde otro remitente',
+  !asunto('CUMPLIMIENTO SUBPRODUCTOS', 'Otro <otro@masisa.com>'));
 
 /* =====================================================================
  * 3. Feriados en el prorrateo
@@ -1112,6 +1141,95 @@ check('sin id de apunte, eliminar avisa', (function() {
     return e.message.indexOf('identificador') !== -1;
   }
 })());
+
+
+/* =====================================================================
+ * 17. LA TABLA TAL COMO LLEGA
+ *
+ * Reproduce la planilla real: la fecha en la primera columna y el
+ * título "CUMPLIMIENTO SUBPRODUCTOS" como encabezado de la columna de
+ * subproducto.
+ * ===================================================================== */
+
+console.log('\n17. Lectura de la tabla del correo');
+
+var TABLA = [
+  ['FECHA', 'CUMPLIMIENTO SUBPRODUCTOS', 'PROVEEDORES', 'PRODUCTOS', 'productos'],
+  ['25/08/2026', '', '', '', ''],
+  ['', 'ADITIVO FORTIFICANTE', 'RESINAS DEL BIO BIO SPA', 'TABLEROS', '2'],
+  ['', 'Total ADITIVO FORTIFICANTE', '', '', '2'],
+  ['', 'ANTIBLU IBC', 'QUIMETAL', 'TABLEROS', '1'],
+  ['', 'Total ANTIBLU IBC', '', '', '1'],
+  ['', 'ASERRÍN COMBUSTIBLE', 'INDUSTRIAS MADERAS WOOD S.A.', 'TABLEROS', '4'],
+  ['', 'Total ASERRÍN COMBUSTIBLE', '', '', '4'],
+  ['', 'ASTILLA PINO VERDE', 'PROMASA S.A.', 'TABLEROS', '6'],
+  ['', '', 'WOOD CARFU SPA', 'TABLEROS', '3'],
+  ['', 'Total ASTILLA PINO VERDE', '', '', '9'],
+  ['', 'ASTILLA EUCALYPTUS NITENS', 'FORESTAL AITUE LTDA', 'TABLEROS', '2'],
+  ['', 'Total ASTILLA EUCALYPTUS NITENS', '', '', '2'],
+  ['', 'Total general', '', '', '18']
+];
+
+var leido = sandbox.parseGridRows_(TABLA);
+
+check('saca la fecha de la primera columna',
+  leido.fecha === '2026-08-25', leido.fecha);
+
+check('lee solo los subproductos de proceso',
+  leido.rows.length === 3, String(leido.rows.length));
+
+check('descarta aditivo, antiblu y aserrín',
+  !leido.rows.some(function(r) {
+    return /ADITIVO|ANTIBLU|ASERRIN|ASERRÍN/i.test(r.subproductoRaw);
+  }));
+
+check('no cuenta ninguna fila de total',
+  !leido.rows.some(function(r) {
+    return /^Total/i.test(r.subproductoRaw) ||
+      /^Total/i.test(r.proveedor);
+  }));
+
+check('arrastra el subproducto a la fila sin etiqueta',
+  leido.rows.filter(function(r) {
+    return r.proveedor === 'WOOD CARFU SPA';
+  })[0].subproducto === 'ASTILLA PINO VERDE');
+
+check('suma 11 camiones de proceso',
+  leido.rows.reduce(function(t, r) { return t + r.camiones; }, 0) === 11,
+  String(leido.rows.reduce(function(t, r) { return t + r.camiones; }, 0)));
+
+check('toma el destino de la columna PRODUCTOS',
+  leido.rows[0].destino === 'TABLEROS', leido.rows[0].destino);
+
+console.log('\n   Cuando la cantidad no se llama PRODUCTOS');
+
+// Antes, un rótulo distinto en la columna de cantidad tiraba la tabla
+// entera y el correo quedaba sin leer, sin decir por qué.
+var OTRO_ROTULO = [
+  ['Fecha', 'CUMPLIMIENTO SUBPRODUCTOS', 'PROVEEDORES', 'CAMIONES'],
+  ['25-08-2026', '', '', ''],
+  ['', 'ASTILLA PINO VERDE', 'PROMASA S.A.', '6'],
+  ['', 'Total ASTILLA PINO VERDE', '', '6']
+];
+
+var otro = sandbox.parseGridRows_(OTRO_ROTULO);
+
+check('lee la tabla igual', otro.rows.length === 1,
+  String(otro.rows.length));
+
+check('con la fecha de la primera columna',
+  otro.fecha === '2026-08-25', otro.fecha);
+
+check('y los camiones correctos',
+  otro.rows[0].camiones === 6, String(otro.rows[0].camiones));
+
+console.log('\n   Sin proveedor no hay tabla');
+
+check('una tabla sin columna de proveedores no se lee',
+  sandbox.parseGridRows_([
+    ['FECHA', 'CUMPLIMIENTO SUBPRODUCTOS', 'PRODUCTOS'],
+    ['25/08/2026', 'ASTILLA PINO VERDE', '6']
+  ]).rows.length === 0);
 
 
 console.log(

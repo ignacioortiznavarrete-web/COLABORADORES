@@ -97,17 +97,46 @@ de las TS tiene proveedor/material valorizado. Bajo 95% avisa.
 
 ## Qué correos entran
 
-Solo el mensaje **original** de `reservador.horario@masisa.com` cuyo
-asunto calce exactamente con:
+Solo mensajes de `reservador.horario@masisa.com` cuyo asunto
+**empiece** con una de estas frases:
 
 ```
-PLANILLA CUMPLIMIENTO SUB-PRODUCTOS <DÍA> DD DE <MES> DE YYYY
+PLANILLA CUMPLIMIENTO SUB-PRODUCTOS
+CUMPLIMIENTO SUBPRODUCTOS
 ```
 
-Se excluyen respuestas (`Re:`), reenvíos (`RV:`, `Fwd:`), notas
-internas y cualquier texto agregado al asunto. Dentro de la planilla se
-descartan las filas «Total…» y las filas sin proveedor, porque son
-sumas y duplicarían los camiones.
+Se comparan sin espacios ni guiones, así que `SUB-PRODUCTOS`,
+`SUB PRODUCTOS` y `SUBPRODUCTOS` son lo mismo. Que tenga que
+**empezar** con la frase es lo que descarta los `Re:`, `RV:` y `Fwd:`
+sin necesidad de listarlos, y también un «Informe de cumplimiento
+subproductos de ayer», donde la frase va en el medio.
+
+**La fecha ya no se exige en el asunto.** Viene en la primera columna
+de la planilla, y pedirla dos veces dejaba fuera correos que sí traían
+el dato. Si no aparece en ninguna parte, el importador lo dice con
+nombre y apellido en vez de escribir una fila en blanco.
+
+Una reenviada del mismo día —`… (corregida)`— sí entra: el lector se
+queda con **el correo más nuevo de cada fecha**, así que la corregida
+reemplaza a la anterior en vez de sumarse.
+
+### Cómo se lee la tabla
+
+| Columna | Se reconoce por |
+|---|---|
+| Fecha | Encabezado que contenga `FECHA`. Es la primera columna |
+| Subproducto | `CUMPLIMIENTO SUBPRODUCTOS` — el título de la tabla es el encabezado de esta columna |
+| Proveedor | `PROVEEDORES` o `PROVEEDOR` |
+| Destino | La primera columna `PRODUCTOS` |
+| Camiones | La última `PRODUCTOS`, o una rotulada `CAMIONES` / `CANTIDAD` |
+
+El subproducto **se arrastra hacia abajo**: cuando un material tiene
+varios proveedores, solo la primera fila lleva el nombre.
+
+Se descartan las filas «Total…» y las que no traen proveedor, porque
+son sumas y duplicarían los camiones. También se ignora todo lo que no
+sea uno de los tres materiales de proceso: aditivo fortificante,
+antiblu, aserrín combustible y el resto pasan de largo.
 
 ## El diseño
 

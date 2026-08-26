@@ -15,7 +15,8 @@
  * - Hasta la última Fecha Contab. existente en Ingresos se usan únicamente
  *   datos reales.
  * - Desde el día siguiente y hasta la última planilla recibida se utiliza
- *   CAMIONES × FACTOR_CAMION.
+ *   CAMIONES × el factor del material (nitens 15,2 · pino 11 ·
+ *   con corteza 10,7).
  * - Cuando una fecha aparece en Ingresos, el estimado de esa fecha deja de
  *   entrar automáticamente al dashboard.
  *
@@ -97,12 +98,21 @@ const CONFIG = Object.freeze({
   ]),
 
   GMAIL_LABEL: '',
-  // ÚNICA fuente de correo válida.
-  // Se procesa solo el mensaje ORIGINAL enviado por esta casilla y cuyo
-  // asunto tenga el formato:
-  // PLANILLA CUMPLIMIENTO SUB-PRODUCTOS <DÍA> DD DE <MES> DE YYYY
-  GMAIL_SUBJECT: 'PLANILLA CUMPLIMIENTO SUB-PRODUCTOS',
-  GMAIL_SUBJECT_PREFIX: 'PLANILLA CUMPLIMIENTO SUB-PRODUCTOS',
+  // ÚNICA fuente de correo válida: solo el mensaje enviado por esta
+  // casilla, y solo si el asunto EMPIEZA con una de las frases de
+  // abajo. Empezar es lo que descarta los "Re:", "RV:" y "Fwd:".
+  //
+  // La fecha ya no se exige en el asunto: viene en la primera columna
+  // de la planilla.
+  //
+  // Formas aceptadas del asunto. El correo puede venir titulado con
+  // la frase larga o solo con "CUMPLIMIENTO SUBPRODUCTOS", que es el
+  // título que lleva la tabla. Se comparan sin espacios ni guiones,
+  // así que "SUB-PRODUCTOS" y "SUBPRODUCTOS" son lo mismo.
+  GMAIL_SUBJECTS: Object.freeze([
+    'PLANILLA CUMPLIMIENTO SUB-PRODUCTOS',
+    'CUMPLIMIENTO SUBPRODUCTOS'
+  ]),
   GMAIL_ALLOWED_SENDERS: Object.freeze([
     'reservador.horario@masisa.com'
   ]),
@@ -2834,10 +2844,19 @@ function buildGmailQuery_() {
     parts.push('label:"' + CONFIG.GMAIL_LABEL + '"');
   }
 
-  // La búsqueda ya se restringe al remitente oficial y a la frase
-  // inicial del asunto. Después matchesPlanillaMessage_ vuelve a validar
-  // mensaje por mensaje porque Gmail.search() devuelve hilos completos.
-  parts.push('subject:"' + CONFIG.GMAIL_SUBJECT + '"');
+  // La búsqueda ya se restringe al remitente oficial y a las frases
+  // aceptadas del asunto. Después matchesPlanillaMessage_ vuelve a
+  // validar mensaje por mensaje porque Gmail.search() devuelve hilos
+  // completos.
+  const asuntos = CONFIG.GMAIL_SUBJECTS.map(function(frase) {
+    return 'subject:"' + frase + '"';
+  });
+
+  parts.push(
+    asuntos.length > 1
+      ? '(' + asuntos.join(' OR ') + ')'
+      : asuntos[0]
+  );
 
   if (
     CONFIG.GMAIL_ALLOWED_SENDERS &&
@@ -2890,28 +2909,17 @@ function matchesPlanillaMessage_(message) {
     return false;
   }
 
-  // 2) Asunto exacto en estructura. No se aceptan Re:, RV:, Fwd:, notas
-  // internas ni textos agregados. Solo cambia el día/fecha del informe.
-  const normalizedSubject = normalizeKey_(subject)
-    .replace(/-/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const officialPattern = new RegExp(
-    '^PLANILLA CUMPLIMIENTO SUB PRODUCTOS ' +
-    '(LUNES|MARTES|MIERCOLES|JUEVES|VIERNES|SABADO|DOMINGO) ' +
-    '\\d{1,2} DE ' +
-    '(ENERO|FEBRERO|MARZO|ABRIL|MAYO|JUNIO|JULIO|AGOSTO|' +
-    'SEPTIEMBRE|SETIEMBRE|OCTUBRE|NOVIEMBRE|DICIEMBRE) ' +
-    'DE \\d{4}$'
-  );
-
-  if (!officialPattern.test(normalizedSubject)) {
-    return false;
-  }
-
-  // 3) La fecha debe poder extraerse del propio asunto.
-  return Boolean(extractSpanishDateKey_(subject));
+  // 2) El asunto tiene que EMPEZAR con una de las frases aceptadas.
+  // Eso descarta los "Re:", "RV:" y "Fwd:" —que anteponen texto— y a la
+  // vez deja pasar tanto el asunto largo con el día escrito como el
+  // corto, "CUMPLIMIENTO SUBPRODUCTOS", que es el título de la tabla.
+  //
+  // Antes se exigía además que la fecha estuviera en el asunto. Ya no:
+  // la fecha vive en la primera columna de la planilla, y exigirla dos
+  // veces dejaba fuera correos que sí traían el dato. Si no aparece en
+  // ninguna parte, buildParsedReport_ lo dice con nombre y apellido en
+  // vez de escribir una fila en blanco.
+  return matchesSubject_(subject);
 }
 
 function isTotalText_(value) {
@@ -2925,16 +2933,24 @@ function isTotalGridRow_(row) {
   });
 }
 
+/**
+ * ¿El asunto empieza con alguna de las frases aceptadas?
+ *
+ * Se compara sin espacios ni guiones para que "SUB-PRODUCTOS",
+ * "SUB PRODUCTOS" y "SUBPRODUCTOS" cuenten como lo mismo. Que tenga
+ * que EMPEZAR con la frase es lo que descarta los "Re:", "RV:" y
+ * "Fwd:" sin necesidad de listarlos.
+ */
 function matchesSubject_(subject) {
   function collapse(value) {
     return normalizeKey_(value).replace(/[\s-]/g, '');
   }
 
-  return (
-    collapse(subject).indexOf(
-      collapse(CONFIG.GMAIL_SUBJECT_PREFIX)
-    ) === 0
-  );
+  const limpio = collapse(subject);
+
+  return CONFIG.GMAIL_SUBJECTS.some(function(frase) {
+    return limpio.indexOf(collapse(frase)) === 0;
+  });
 }
 
 
@@ -3313,6 +3329,7 @@ function parseGridRows_(grid) {
   ) {
     const row = grid[rowIndex];
     const productosColumns = [];
+    const camionesColumns = [];
 
     let hasProveedores = false;
     let localFecha = -1;
@@ -3322,10 +3339,12 @@ function parseGridRows_(grid) {
     row.forEach(function(cell, columnIndex) {
       const key = normalizeKey_(cell);
 
-      if (key === 'FECHA') {
+      if (key.indexOf('FECHA') !== -1) {
         localFecha = columnIndex;
       }
 
+      // El título de la tabla ES el encabezado de esta columna:
+      // "CUMPLIMIENTO SUBPRODUCTOS".
       if (
         key.indexOf('SUBPRODUCTO') !== -1 ||
         key.indexOf('SUB PRODUCTO') !== -1 ||
@@ -3342,9 +3361,25 @@ function parseGridRows_(grid) {
       if (key === 'PRODUCTOS') {
         productosColumns.push(columnIndex);
       }
+
+      // Respaldo por si la columna de cantidad no viene rotulada
+      // "PRODUCTOS". Sin esto, un rótulo distinto tiraba la tabla
+      // entera y el correo quedaba sin leer.
+      if (
+        key.indexOf('CAMION') !== -1 ||
+        key === 'CANTIDAD' ||
+        key === 'N CAMIONES' ||
+        key === 'NRO CAMIONES'
+      ) {
+        camionesColumns.push(columnIndex);
+      }
     });
 
-    if (!hasProveedores || !productosColumns.length) {
+    if (!hasProveedores) {
+      continue;
+    }
+
+    if (!productosColumns.length && !camionesColumns.length) {
       continue;
     }
 
@@ -3355,14 +3390,18 @@ function parseGridRows_(grid) {
 
     // "PRODUCTOS" en mayúsculas es el destino (TABLEROS,
     // COGENERACIÓN, NEOMAS); "productos" en minúsculas, la última,
-    // es la cantidad de camiones.
-    cantidadColumn =
-      productosColumns[productosColumns.length - 1];
+    // es la cantidad de camiones. Si la tabla rotula la cantidad con
+    // su nombre, ese rótulo manda.
+    cantidadColumn = camionesColumns.length
+      ? camionesColumns[camionesColumns.length - 1]
+      : productosColumns[productosColumns.length - 1];
 
     destinoColumn =
       productosColumns.length > 1
         ? productosColumns[0]
-        : -1;
+        : (camionesColumns.length && productosColumns.length
+            ? productosColumns[0]
+            : -1);
 
     break;
   }
