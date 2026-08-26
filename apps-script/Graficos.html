@@ -1,0 +1,1099 @@
+<script>
+/* ══════════════════════════════════════════════════════
+   MOTOR DE GRÁFICOS
+   SVG propio, sin dependencias externas. Existe porque
+   las specs de marca del tablero (extremo de dato
+   redondeado, separación de 2px en superficie, anillo
+   de superficie en los puntos, etiquetas directas
+   selectivas, crosshair) no se pueden expresar con una
+   librería de gráficos genérica.
+
+   Cada gráfico entrega además su tabla equivalente: el
+   tooltip nunca es la única forma de leer un valor.
+   ══════════════════════════════════════════════════════ */
+
+const GR = (() => {
+
+  const NS = 'http://www.w3.org/2000/svg';
+
+  const COLOR = {
+    serie: ['#07724e', '#e36a1f', '#388eea'],
+    mag: ['#71c49c', '#4fad84', '#31966d', '#187e58', '#116545'],
+    bueno: '#07724e',
+    aviso: '#bb8317',
+    critico: '#b3261e',
+    tinta: '#12211A',
+    tinta2: '#40544A',
+    tinta3: '#5E7268',
+    linea: '#E4EAE6',
+    lineaFuerte: '#C6D2CB',
+    superficie: '#FFFFFF',
+    superficie2: '#F7FAF8'
+  };
+
+  const CALIDAD_COLOR = {
+    'VERDE': COLOR.bueno,
+    'MANCHADO': COLOR.aviso,
+    'SINIESTRADO': COLOR.critico
+  };
+  const CALIDAD_FORMA = { 'VERDE': 'caja', 'MANCHADO': 'redonda', 'SINIESTRADO': 'rombo' };
+
+  // El movimiento se apaga entero, no se acelera: así el
+  // contenido nunca depende de que una transición ocurra.
+  const sinMovimiento = () =>
+    window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ── Utilidades ────────────────────────────────────── */
+
+  const el = (tag, attrs, padre) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) {
+      if (attrs[k] === null || attrs[k] === undefined) continue;
+      n.setAttribute(k, attrs[k]);
+    }
+    if (padre) padre.appendChild(n);
+    return n;
+  };
+
+  const texto = (padre, x, y, contenido, clase, extra) => {
+    const t = el('text', Object.assign({ x, y, class: clase || 'gr-eje' }, extra || {}), padre);
+    t.textContent = contenido;              // contenido no confiable: nunca innerHTML
+    return t;
+  };
+
+  const num = v => Number(v) || 0;
+
+  const fmt = (v, dec) => Number(v || 0).toLocaleString('es-CL', {
+    minimumFractionDigits: dec || 0, maximumFractionDigits: dec === undefined ? 0 : dec
+  });
+
+  const fmtCompacto = v => {
+    const n = Math.abs(Number(v) || 0);
+    if (n >= 1000000) return (v / 1000000).toLocaleString('es-CL', { maximumFractionDigits: 1 }) + 'M';
+    if (n >= 10000)   return (v / 1000).toLocaleString('es-CL', { maximumFractionDigits: 0 }) + 'k';
+    if (n >= 1000)    return (v / 1000).toLocaleString('es-CL', { maximumFractionDigits: 1 }) + 'k';
+    return Number(v || 0).toLocaleString('es-CL', { maximumFractionDigits: n < 10 ? 2 : 0 });
+  };
+
+  const fmtPct = (v, dec) => (Number(v || 0) * 100).toLocaleString('es-CL', {
+    maximumFractionDigits: dec === undefined ? 1 : dec
+  }) + '%';
+
+  const acortar = (s, max) => {
+    s = String(s == null ? '' : s);
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  };
+
+  // Ticks en números redondos: 0 / 1.000 / 2.000, no 0 / 1.237 / 2.474.
+  //
+  // Los extremos se redondean HACIA AFUERA. Redondear hacia adentro deja
+  // el último tick por debajo del máximo, y como las escalas se derivan
+  // de los ticks, las marcas terminan dibujadas fuera del área del
+  // gráfico; con un rango simétrico puede quedar un único tick en 0 y la
+  // escala se degrada a la pendiente por defecto.
+  function ticksLimpios(min, max, objetivo) {
+    objetivo = Math.max(2, objetivo || 5);
+
+    if (!isFinite(min) || !isFinite(max)) return [0, 1];
+    if (min === max) return min === 0 ? [0, 1] : [Math.min(0, min), Math.max(0, max)];
+
+    const bruto = (max - min) / objetivo;
+    const mag = Math.pow(10, Math.floor(Math.log10(Math.abs(bruto) || 1)));
+    const norm = bruto / mag;
+    const paso = (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag;
+
+    const desde = Math.floor(min / paso) * paso;
+    const hasta = Math.ceil(max / paso) * paso;
+
+    const out = [];
+    for (let v = desde; v <= hasta + paso * 1e-6; v += paso) {
+      out.push(Math.abs(v) < paso * 1e-9 ? 0 : v);
+    }
+
+    return out.length > 1 ? out : [desde, desde + paso];
+  }
+
+  const escala = (d0, d1, r0, r1) => {
+    const span = (d1 - d0) || 1;
+    return v => r0 + ((num(v) - d0) / span) * (r1 - r0);
+  };
+
+  /* ── Tooltip único, compartido por todos los gráficos ─ */
+
+  let globo = null;
+
+  function elGlobo() {
+    if (!globo) {
+      globo = document.createElement('div');
+      globo.className = 'gr-globo';
+      globo.setAttribute('role', 'status');
+      document.body.appendChild(globo);
+    }
+    return globo;
+  }
+
+  function mostrarGlobo(evt, titulo, filas) {
+    const g = elGlobo();
+    g.textContent = '';
+
+    const t = document.createElement('div');
+    t.className = 'gr-globo-tit';
+    t.textContent = titulo;
+    g.appendChild(t);
+
+    filas.forEach(f => {
+      const fila = document.createElement('div');
+      fila.className = 'gr-globo-fila';
+
+      if (f.color) {
+        const llave = document.createElement('i');
+        llave.style.background = f.color;
+        fila.appendChild(llave);
+      }
+
+      const nombre = document.createElement('span');
+      nombre.textContent = f.nombre;                // texto, nunca markup
+      fila.appendChild(nombre);
+
+      const valor = document.createElement('b');
+      valor.textContent = f.valor;
+      fila.appendChild(valor);
+
+      g.appendChild(fila);
+    });
+
+    g.classList.add('se-ve');
+    ubicarGlobo(evt);
+  }
+
+  function ubicarGlobo(evt) {
+    if (!globo) return;
+    const r = globo.getBoundingClientRect();
+    const margen = 14;
+
+    let x = evt.clientX + margen;
+    let y = evt.clientY - r.height - margen;
+
+    if (x + r.width > window.innerWidth - 8) x = evt.clientX - r.width - margen;
+    if (y < 8) y = evt.clientY + margen;
+
+    globo.style.left = Math.max(8, x) + 'px';
+    globo.style.top = Math.max(8, y) + 'px';
+  }
+
+  function ocultarGlobo() {
+    if (globo) globo.classList.remove('se-ve');
+  }
+
+  document.addEventListener('scroll', ocultarGlobo, true);
+
+  /* ── Andamiaje común ───────────────────────────────── */
+
+  function preparar(destino, alto, margen) {
+    const cont = typeof destino === 'string' ? document.getElementById(destino) : destino;
+    if (!cont) return null;
+
+    const ancho = Math.max(280, cont.clientWidth || cont.parentElement.clientWidth || 640);
+
+    cont.textContent = '';
+    cont.classList.add('gr');
+
+    const svg = el('svg', {
+      width: ancho, height: alto,
+      viewBox: '0 0 ' + ancho + ' ' + alto,
+      role: 'img'
+    }, cont);
+
+    return {
+      cont, svg, ancho, alto,
+      m: Object.assign({ t: 16, r: 20, b: 34, l: 56 }, margen || {}),
+      get w() { return ancho - this.m.l - this.m.r; },
+      get h() { return alto - this.m.t - this.m.b; }
+    };
+  }
+
+  function vacio(destino, mensaje) {
+    const cont = typeof destino === 'string' ? document.getElementById(destino) : destino;
+    if (!cont) return;
+    cont.textContent = '';
+    const d = document.createElement('div');
+    d.className = 'gr-vacio';
+    d.textContent = mensaje;
+    cont.appendChild(d);
+  }
+
+  // Grilla horizontal + eje Y. Hairline sólida, recesiva.
+  function ejeY(svg, ctx, escalaY, ticks, formato) {
+    const g = el('g', {}, svg);
+
+    ticks.forEach(v => {
+      const y = Math.round(escalaY(v)) + 0.5;
+      el('line', { x1: ctx.m.l, y1: y, x2: ctx.m.l + ctx.w, y2: y, class: 'gr-grilla' }, g);
+      texto(g, ctx.m.l - 8, y + 3.5, (formato || fmtCompacto)(v), 'gr-eje', { 'text-anchor': 'end' });
+    });
+
+    return g;
+  }
+
+  function lineaBase(svg, ctx, y) {
+    el('line', {
+      x1: ctx.m.l, y1: Math.round(y) + 0.5,
+      x2: ctx.m.l + ctx.w, y2: Math.round(y) + 0.5,
+      class: 'gr-base'
+    }, svg);
+  }
+
+  /* ── Leyenda (siempre presente con dos o más series) ── */
+
+  function leyenda(cont, series, alConmutar) {
+    if (!series || series.length < 2) return null;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'gr-leyenda';
+
+    series.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'true');
+
+      const llave = document.createElement('span');
+      llave.className = 'gr-llave' + (s.forma === 'caja' ? ' es-caja' : s.forma === 'guion' ? ' es-guion' : '');
+      if (s.forma === 'guion') llave.style.color = s.color; else llave.style.background = s.color;
+      b.appendChild(llave);
+
+      const tx = document.createElement('span');
+      tx.textContent = s.nombre;
+      b.appendChild(tx);
+
+      if (alConmutar) {
+        b.addEventListener('click', () => {
+          const activo = b.getAttribute('aria-pressed') === 'true';
+          b.setAttribute('aria-pressed', activo ? 'false' : 'true');
+          alConmutar(i, !activo);
+        });
+      } else {
+        b.disabled = true;
+        b.style.cursor = 'default';
+      }
+
+      wrap.appendChild(b);
+    });
+
+    cont.parentElement.insertBefore(wrap, cont);
+    return wrap;
+  }
+
+  /* ── Tabla equivalente ─────────────────────────────── */
+
+  function tabla(destino, encabezados, filas) {
+    const cont = typeof destino === 'string' ? document.getElementById(destino) : destino;
+    if (!cont) return;
+
+    cont.textContent = '';
+
+    const marco = document.createElement('div');
+    marco.className = 'tabla-marco';
+
+    const t = document.createElement('table');
+    t.className = 'datos';
+
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    encabezados.forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = typeof h === 'string' ? h : h.texto;
+      if (typeof h === 'object' && h.num) th.className = 'num';
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    t.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    filas.forEach(fila => {
+      const tr = document.createElement('tr');
+      fila.forEach((c, i) => {
+        const td = document.createElement('td');
+        td.textContent = c === null || c === undefined ? '—' : String(c);
+        const h = encabezados[i];
+        if (typeof h === 'object' && h.num) td.className = 'num';
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+
+    marco.appendChild(t);
+    cont.appendChild(marco);
+  }
+
+  /* ══════════════════════════════════════════════════════
+     BARRAS HORIZONTALES
+     Para rankings con nombres largos. Una serie, un color:
+     el largo de la barra ya codifica la magnitud, así que
+     el color no vuelve a codificarla.
+     ══════════════════════════════════════════════════════ */
+
+  function barras(destino, opts) {
+    const datos = opts.datos || [];
+    if (!datos.length) return vacio(destino, opts.vacio || 'Sin datos para graficar.');
+
+    const anchoEtiqueta = opts.anchoEtiqueta || 148;
+    const grosor = Math.min(24, opts.grosor || 22);
+    const paso = grosor + 12;
+    const alto = datos.length * paso + 46;
+
+    const ctx = preparar(destino, alto, { l: anchoEtiqueta, r: 74, t: 10, b: 30 });
+    if (!ctx) return;
+
+    const max = Math.max.apply(null, datos.map(d => num(d.valor)).concat([0]));
+    const ticks = ticksLimpios(0, max, 4);
+    const x = escala(0, ticks[ticks.length - 1] || 1, ctx.m.l, ctx.m.l + ctx.w);
+
+    // Grilla vertical
+    ticks.forEach(v => {
+      const px = Math.round(x(v)) + 0.5;
+      el('line', { x1: px, y1: ctx.m.t, x2: px, y2: ctx.m.t + ctx.h, class: 'gr-grilla' }, ctx.svg);
+      texto(ctx.svg, px, ctx.m.t + ctx.h + 18, fmtCompacto(v), 'gr-eje', { 'text-anchor': 'middle' });
+    });
+
+    const color = opts.color || COLOR.serie[0];
+    const anima = !sinMovimiento();
+
+    datos.forEach((d, i) => {
+      const y = ctx.m.t + i * paso;
+      const w = Math.max(0, x(num(d.valor)) - ctx.m.l);
+      const propio = d.color || color;
+
+      const g = el('g', { class: 'gr-marca', tabindex: '0', role: 'listitem' }, ctx.svg);
+      g.setAttribute('aria-label', d.etiqueta + ': ' + (d.textoValor || fmt(d.valor)));
+
+      // Extremo de dato redondeado, cuadrado en la línea base.
+      const r = Math.min(4, w / 2);
+      const camino = w <= 0.5
+        ? ''
+        : 'M' + ctx.m.l + ' ' + y +
+          'H' + (ctx.m.l + w - r) +
+          'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r +
+          'V' + (y + grosor - r) +
+          'a' + r + ' ' + r + ' 0 0 1 ' + (-r) + ' ' + r +
+          'H' + ctx.m.l + 'Z';
+
+      if (camino) {
+        const b = el('path', { d: camino, fill: propio, class: 'gr-barra-h' + (anima ? ' anima' : '') }, g);
+        if (anima) b.style.animationDelay = (i * 34) + 'ms';
+      }
+
+      // Etiqueta de categoría, a la izquierda
+      texto(g, ctx.m.l - 10, y + grosor / 2 + 4, acortar(d.etiqueta, 22), 'gr-eje',
+        { 'text-anchor': 'end', fill: COLOR.tinta2, 'font-weight': '600' });
+
+      // Valor en la punta. Se mide antes: si no cabe fuera, va al tooltip.
+      const espacioFuera = ctx.ancho - (ctx.m.l + w) - 6;
+      if (espacioFuera >= 42) {
+        texto(g, ctx.m.l + w + 8, y + grosor / 2 + 4, d.textoValor || fmtCompacto(d.valor), 'gr-etiqueta');
+      }
+
+      // Blanco de interacción: incluye el hueco entre barras.
+      const hit = el('rect', {
+        x: ctx.m.l, y: y - 6, width: ctx.w, height: grosor + 12,
+        fill: 'transparent'
+      }, g);
+
+      const filas = [{ color: propio, nombre: opts.nombreSerie || 'Valor', valor: d.textoValor || fmt(d.valor, 1) }];
+      if (d.extra) d.extra.forEach(e => filas.push({ nombre: e.nombre, valor: e.valor }));
+
+      const abrir = e => mostrarGlobo(e, d.etiqueta, filas);
+      hit.addEventListener('pointerenter', abrir);
+      hit.addEventListener('pointermove', ubicarGlobo);
+      hit.addEventListener('pointerleave', ocultarGlobo);
+      g.addEventListener('focus', () => {
+        const r2 = g.getBoundingClientRect();
+        mostrarGlobo({ clientX: r2.right, clientY: r2.top + r2.height }, d.etiqueta, filas);
+      });
+      g.addEventListener('blur', ocultarGlobo);
+    });
+
+    lineaBase(ctx.svg, ctx, ctx.m.t + ctx.h);
+    return ctx;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     COLUMNAS con línea de umbral opcional
+     ══════════════════════════════════════════════════════ */
+
+  function columnas(destino, opts) {
+    const datos = opts.datos || [];
+    if (!datos.length) return vacio(destino, opts.vacio || 'Sin datos para graficar.');
+
+    const alto = opts.alto || 300;
+    const ctx = preparar(destino, alto, opts.margen);
+    if (!ctx) return;
+
+    const valores = datos.map(d => num(d.valor));
+    const max = Math.max.apply(null, valores.concat([num(opts.umbral) || 0, 0]));
+    const ticks = ticksLimpios(0, max, 5);
+    const tope = ticks[ticks.length - 1] || 1;
+
+    const y = escala(0, tope, ctx.m.t + ctx.h, ctx.m.t);
+    const paso = ctx.w / datos.length;
+    const grosor = Math.min(24, Math.max(3, paso - 2));   // el hueco de 2px es la separación
+
+    ejeY(ctx.svg, ctx, y, ticks, opts.formatoY);
+    if (opts.nombreY) texto(ctx.svg, ctx.m.l, ctx.m.t - 10, opts.nombreY, 'gr-eje-nombre', { 'text-anchor': 'start' });
+
+    const color = opts.color || COLOR.serie[0];
+    const anima = !sinMovimiento();
+    const yBase = ctx.m.t + ctx.h;
+
+    datos.forEach((d, i) => {
+      const cx = ctx.m.l + paso * i + paso / 2;
+      const v = num(d.valor);
+      const altura = Math.max(0, yBase - y(v));
+      const propio = d.color || color;
+
+      const g = el('g', { class: 'gr-marca', tabindex: '0' }, ctx.svg);
+      g.setAttribute('aria-label', d.etiqueta + ': ' + (d.textoValor || fmt(v)));
+
+      if (altura > 0.5) {
+        const r = Math.min(4, grosor / 2, altura);
+        const x0 = cx - grosor / 2;
+        const camino = 'M' + x0 + ' ' + yBase +
+          'V' + (y(v) + r) +
+          'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + (-r) +
+          'H' + (x0 + grosor - r) +
+          'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r +
+          'V' + yBase + 'Z';
+
+        const b = el('path', { d: camino, fill: propio, class: 'gr-barra' + (anima ? ' anima' : '') }, g);
+        if (anima) b.style.animationDelay = (i * 16) + 'ms';
+      }
+
+      // Etiquetas de eje X: se ralean para que nunca se pisen.
+      const cada = Math.ceil(datos.length / Math.max(4, Math.floor(ctx.w / 42)));
+      if (i % cada === 0) {
+        texto(ctx.svg, cx, yBase + 18, d.etiqueta, 'gr-eje', { 'text-anchor': 'middle' });
+      }
+
+      const hit = el('rect', { x: cx - paso / 2, y: ctx.m.t, width: paso, height: ctx.h, fill: 'transparent' }, g);
+      const filas = [{ color: propio, nombre: opts.nombreSerie || 'Valor', valor: d.textoValor || fmt(v, 1) }];
+      if (opts.umbral) filas.push({ color: COLOR.tinta3, nombre: opts.nombreUmbral || 'Meta', valor: fmt(opts.umbral, 1) });
+      if (d.extra) d.extra.forEach(e => filas.push({ nombre: e.nombre, valor: e.valor }));
+
+      const tit = (opts.prefijoEtiqueta || '') + d.etiqueta;
+      hit.addEventListener('pointerenter', e => mostrarGlobo(e, tit, filas));
+      hit.addEventListener('pointermove', ubicarGlobo);
+      hit.addEventListener('pointerleave', ocultarGlobo);
+      g.addEventListener('focus', () => {
+        const r2 = g.getBoundingClientRect();
+        mostrarGlobo({ clientX: r2.left + r2.width / 2, clientY: r2.top }, tit, filas);
+      });
+      g.addEventListener('blur', ocultarGlobo);
+    });
+
+    // Umbral: una regla, no una serie.
+    if (opts.umbral) {
+      const uy = Math.round(y(opts.umbral)) + 0.5;
+      el('line', { x1: ctx.m.l, y1: uy, x2: ctx.m.l + ctx.w, y2: uy, class: 'gr-umbral' }, ctx.svg);
+      texto(ctx.svg, ctx.m.l + ctx.w, uy - 6, opts.nombreUmbral || 'Meta', 'gr-umbral-tx', { 'text-anchor': 'end' });
+    }
+
+    lineaBase(ctx.svg, ctx, yBase);
+    if (opts.nombreX) texto(ctx.svg, ctx.m.l + ctx.w / 2, alto - 2, opts.nombreX, 'gr-eje-nombre', { 'text-anchor': 'middle' });
+
+    return ctx;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     LÍNEAS con crosshair
+     Un solo eje Y: nunca dos escalas en un mismo dibujo.
+     ══════════════════════════════════════════════════════ */
+
+  function lineas(destino, opts) {
+    const puntos = opts.x || [];
+    const series = (opts.series || []).filter(s => s && s.valores);
+    if (!puntos.length || !series.length) return vacio(destino, opts.vacio || 'Sin datos para graficar.');
+
+    const alto = opts.alto || 320;
+    const ctx = preparar(destino, alto, opts.margen);
+    if (!ctx) return;
+
+    let max = 0, min = 0;
+    series.forEach(s => s.valores.forEach(v => {
+      if (v === null || v === undefined) return;
+      max = Math.max(max, num(v));
+      min = Math.min(min, num(v));
+    }));
+    if (opts.umbral) max = Math.max(max, num(opts.umbral));
+
+    const ticks = ticksLimpios(min, max, 5);
+    const y = escala(Math.min(0, ticks[0]), ticks[ticks.length - 1] || 1, ctx.m.t + ctx.h, ctx.m.t);
+    const x = escala(0, Math.max(1, puntos.length - 1), ctx.m.l, ctx.m.l + ctx.w);
+
+    ejeY(ctx.svg, ctx, y, ticks, opts.formatoY);
+    if (opts.nombreY) texto(ctx.svg, ctx.m.l, ctx.m.t - 10, opts.nombreY, 'gr-eje-nombre', { 'text-anchor': 'start' });
+
+    // Eje X raleado
+    const cada = Math.ceil(puntos.length / Math.max(4, Math.floor(ctx.w / 44)));
+    puntos.forEach((p, i) => {
+      if (i % cada !== 0 && i !== puntos.length - 1) return;
+      texto(ctx.svg, x(i), ctx.m.t + ctx.h + 18, String(p), 'gr-eje', { 'text-anchor': 'middle' });
+    });
+
+    if (opts.umbral) {
+      const uy = Math.round(y(opts.umbral)) + 0.5;
+      el('line', { x1: ctx.m.l, y1: uy, x2: ctx.m.l + ctx.w, y2: uy, class: 'gr-umbral' }, ctx.svg);
+      texto(ctx.svg, ctx.m.l + ctx.w, uy - 6, opts.nombreUmbral || 'Meta', 'gr-umbral-tx', { 'text-anchor': 'end' });
+    }
+
+    const anima = !sinMovimiento();
+    const capaSeries = el('g', {}, ctx.svg);
+
+    series.forEach((s, si) => {
+      const color = s.color || COLOR.serie[si % COLOR.serie.length];
+      const g = el('g', {}, capaSeries);
+
+      // Los tramos se cortan donde el dato no existe: una línea
+      // que atraviesa un hueco inventa datos que no hay.
+      const tramos = [];
+      let actual = [];
+      s.valores.forEach((v, i) => {
+        if (v === null || v === undefined || !isFinite(num(v))) {
+          if (actual.length) tramos.push(actual);
+          actual = [];
+        } else {
+          actual.push([x(i), y(num(v))]);
+        }
+      });
+      if (actual.length) tramos.push(actual);
+
+      tramos.forEach(tramo => {
+        if (tramo.length < 2) {
+          if (tramo.length === 1) {
+            el('circle', { cx: tramo[0][0], cy: tramo[0][1], r: 4, fill: color, class: 'gr-punto' }, g);
+          }
+          return;
+        }
+
+        const d = tramo.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+
+        if (s.area) {
+          const base = y(Math.min(0, ticks[0]));
+          el('path', {
+            d: d + ' L' + tramo[tramo.length - 1][0].toFixed(1) + ' ' + base + ' L' + tramo[0][0].toFixed(1) + ' ' + base + ' Z',
+            fill: color, class: 'gr-area'
+          }, g);
+        }
+
+        const linea = el('path', {
+          d, stroke: color, class: 'gr-linea' + (anima ? ' anima' : ''),
+          'stroke-dasharray': s.punteada ? '5 5' : null
+        }, g);
+
+        if (anima) {
+          const largo = linea.getTotalLength ? linea.getTotalLength() : 1000;
+          linea.style.setProperty('--largo', largo);
+          linea.style.animationDelay = (si * 90) + 'ms';
+        }
+      });
+
+      // Punto y etiqueta directa solo en el extremo: nunca un número en cada punto.
+      let ultimo = -1;
+      s.valores.forEach((v, i) => { if (v !== null && v !== undefined && isFinite(num(v))) ultimo = i; });
+
+      if (ultimo >= 0 && s.marcarFin !== false) {
+        el('circle', {
+          cx: x(ultimo), cy: y(num(s.valores[ultimo])), r: 4.5,
+          fill: color, class: 'gr-punto' + (anima ? ' anima' : '')
+        }, g);
+      }
+    });
+
+    // ── Crosshair: el lector apunta a un día, no a una línea de 2px ──
+    const cruz = el('line', { y1: ctx.m.t, y2: ctx.m.t + ctx.h, class: 'gr-cruz' }, ctx.svg);
+    const blanco = el('rect', {
+      x: ctx.m.l, y: ctx.m.t, width: ctx.w, height: ctx.h, class: 'gr-blanco'
+    }, ctx.svg);
+
+    const leer = e => {
+      const caja = ctx.svg.getBoundingClientRect();
+      const px = (e.clientX - caja.left) * (ctx.ancho / caja.width);
+      const i = Math.max(0, Math.min(puntos.length - 1,
+        Math.round((px - ctx.m.l) / (ctx.w / Math.max(1, puntos.length - 1)))));
+
+      cruz.setAttribute('x1', x(i));
+      cruz.setAttribute('x2', x(i));
+      cruz.classList.add('se-ve');
+
+      const filas = series
+        .filter(s => s.valores[i] !== null && s.valores[i] !== undefined && isFinite(num(s.valores[i])))
+        .map((s, si) => ({
+          color: s.color || COLOR.serie[series.indexOf(s) % COLOR.serie.length],
+          nombre: s.nombre,
+          valor: (s.formato || fmtCompacto)(s.valores[i])
+        }));
+
+      if (opts.umbral) filas.push({ color: COLOR.tinta3, nombre: opts.nombreUmbral || 'Meta', valor: fmtCompacto(opts.umbral) });
+
+      mostrarGlobo(e, (opts.prefijoEtiqueta || '') + puntos[i], filas);
+    };
+
+    blanco.addEventListener('pointerenter', leer);
+    blanco.addEventListener('pointermove', leer);
+    blanco.addEventListener('pointerleave', () => { ocultarGlobo(); cruz.classList.remove('se-ve'); });
+
+    lineaBase(ctx.svg, ctx, y(Math.min(0, ticks[0])));
+    if (opts.nombreX) texto(ctx.svg, ctx.m.l + ctx.w / 2, alto - 2, opts.nombreX, 'gr-eje-nombre', { 'text-anchor': 'middle' });
+
+    return ctx;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     COLUMNAS APILADAS
+     Cada segmento separado por 2px de superficie, nunca
+     por un borde dibujado alrededor de la marca.
+     ══════════════════════════════════════════════════════ */
+
+  function apiladas(destino, opts) {
+    const puntos = opts.x || [];
+    const series = opts.series || [];
+    if (!puntos.length || !series.length) return vacio(destino, opts.vacio || 'Sin datos para graficar.');
+
+    const alto = opts.alto || 300;
+    const ctx = preparar(destino, alto, opts.margen);
+    if (!ctx) return;
+
+    const totales = puntos.map((_, i) => series.reduce((s, ser) => s + num(ser.valores[i]), 0));
+    const max = Math.max.apply(null, totales.concat([0]));
+    const ticks = ticksLimpios(0, max, 5);
+    const tope = ticks[ticks.length - 1] || 1;
+
+    const y = escala(0, tope, ctx.m.t + ctx.h, ctx.m.t);
+    const paso = ctx.w / puntos.length;
+    const grosor = Math.min(24, Math.max(3, paso - 2));
+    const yBase = ctx.m.t + ctx.h;
+    const HUECO = 2;                                    // separación en color de superficie
+
+    ejeY(ctx.svg, ctx, y, ticks, opts.formatoY);
+    if (opts.nombreY) texto(ctx.svg, ctx.m.l, ctx.m.t - 10, opts.nombreY, 'gr-eje-nombre', { 'text-anchor': 'start' });
+
+    const anima = !sinMovimiento();
+    const cada = Math.ceil(puntos.length / Math.max(4, Math.floor(ctx.w / 42)));
+
+    puntos.forEach((p, i) => {
+      const cx = ctx.m.l + paso * i + paso / 2;
+      const x0 = cx - grosor / 2;
+      let acumulado = 0;
+
+      const g = el('g', { class: 'gr-marca', tabindex: '0' }, ctx.svg);
+      const filas = [];
+
+      series.forEach((s, si) => {
+        const v = num(s.valores[i]);
+        if (v > 0) {
+          const yTope = y(acumulado + v);
+          const yPie = y(acumulado);
+          const h = Math.max(0, yPie - yTope - (acumulado > 0 ? HUECO : 0));
+
+          if (h > 0.4) {
+            const esUltimo = si === series.length - 1 ||
+              series.slice(si + 1).every(o => num(o.valores[i]) <= 0);
+            const r = esUltimo ? Math.min(4, grosor / 2, h) : 0;
+
+            const camino = r
+              ? 'M' + x0 + ' ' + (yTope + h) + 'V' + (yTope + r) +
+                'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + (-r) +
+                'H' + (x0 + grosor - r) + 'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r +
+                'V' + (yTope + h) + 'Z'
+              : 'M' + x0 + ' ' + yTope + 'h' + grosor + 'v' + h + 'h' + (-grosor) + 'Z';
+
+            const seg = el('path', { d: camino, fill: s.color || COLOR.serie[si % 3], class: 'gr-barra' + (anima ? ' anima' : '') }, g);
+            if (anima) seg.style.animationDelay = (i * 14 + si * 40) + 'ms';
+          }
+          acumulado += v;
+        }
+
+        filas.push({
+          color: s.color || COLOR.serie[si % 3],
+          nombre: s.nombre,
+          valor: (s.formato || fmtCompacto)(v)
+        });
+      });
+
+      if (totales[i] > 0) {
+        filas.push({ nombre: opts.nombreTotal || 'Total', valor: fmtCompacto(totales[i]) });
+      }
+
+      if (i % cada === 0) texto(ctx.svg, cx, yBase + 18, String(p), 'gr-eje', { 'text-anchor': 'middle' });
+
+      const hit = el('rect', { x: cx - paso / 2, y: ctx.m.t, width: paso, height: ctx.h, fill: 'transparent' }, g);
+      const tit = (opts.prefijoEtiqueta || '') + p;
+
+      hit.addEventListener('pointerenter', e => mostrarGlobo(e, tit, filas));
+      hit.addEventListener('pointermove', ubicarGlobo);
+      hit.addEventListener('pointerleave', ocultarGlobo);
+      g.setAttribute('aria-label', tit + ': ' + filas.map(f => f.nombre + ' ' + f.valor).join(', '));
+      g.addEventListener('focus', () => {
+        const r2 = g.getBoundingClientRect();
+        mostrarGlobo({ clientX: r2.left + r2.width / 2, clientY: r2.top }, tit, filas);
+      });
+      g.addEventListener('blur', ocultarGlobo);
+    });
+
+    lineaBase(ctx.svg, ctx, yBase);
+    if (opts.nombreX) texto(ctx.svg, ctx.m.l + ctx.w / 2, alto - 2, opts.nombreX, 'gr-eje-nombre', { 'text-anchor': 'middle' });
+
+    return ctx;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     BARRAS DIVERGENTES
+     Polaridad contra una línea base: sobre o bajo el plan.
+     Verde y rojo aquí significan bueno y malo, así que
+     llevan tokens de estado, signo y etiqueta.
+     ══════════════════════════════════════════════════════ */
+
+  function divergente(destino, opts) {
+    const datos = opts.datos || [];
+    if (!datos.length) return vacio(destino, opts.vacio || 'Sin desviaciones para graficar.');
+
+    const anchoEtiqueta = opts.anchoEtiqueta || 152;
+    const grosor = Math.min(20, opts.grosor || 18);
+    const paso = grosor + 10;
+    const alto = datos.length * paso + 44;
+
+    const ctx = preparar(destino, alto, { l: anchoEtiqueta, r: 78, t: 10, b: 28 });
+    if (!ctx) return;
+
+    const valores = datos.map(d => num(d.valor));
+    const tope = Math.max.apply(null, valores.map(Math.abs).concat([1]));
+    const ticks = ticksLimpios(-tope, tope, 4);
+    const lim = Math.max(Math.abs(ticks[0]), Math.abs(ticks[ticks.length - 1]));
+    const x = escala(-lim, lim, ctx.m.l, ctx.m.l + ctx.w);
+    const cero = x(0);
+
+    ticks.forEach(v => {
+      const px = Math.round(x(v)) + 0.5;
+      el('line', { x1: px, y1: ctx.m.t, x2: px, y2: ctx.m.t + ctx.h, class: 'gr-grilla' }, ctx.svg);
+      texto(ctx.svg, px, ctx.m.t + ctx.h + 17, fmtCompacto(v), 'gr-eje', { 'text-anchor': 'middle' });
+    });
+
+    const anima = !sinMovimiento();
+
+    datos.forEach((d, i) => {
+      const y = ctx.m.t + i * paso;
+      const v = num(d.valor);
+      const positivo = v >= 0;
+      const color = positivo ? COLOR.bueno : COLOR.critico;
+      const px = x(v);
+      const w = Math.abs(px - cero);
+
+      const g = el('g', { class: 'gr-marca', tabindex: '0' }, ctx.svg);
+      g.setAttribute('aria-label', d.etiqueta + ': ' + (positivo ? 'sobre plan ' : 'bajo plan ') + fmt(Math.abs(v)));
+
+      if (w > 0.5) {
+        const r = Math.min(4, w);
+        const camino = positivo
+          ? 'M' + cero + ' ' + y + 'H' + (cero + w - r) + 'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r +
+            'V' + (y + grosor - r) + 'a' + r + ' ' + r + ' 0 0 1 ' + (-r) + ' ' + r + 'H' + cero + 'Z'
+          : 'M' + cero + ' ' + y + 'H' + (cero - w + r) + 'a' + r + ' ' + r + ' 0 0 0 ' + (-r) + ' ' + r +
+            'V' + (y + grosor - r) + 'a' + r + ' ' + r + ' 0 0 0 ' + r + ' ' + r + 'H' + cero + 'Z';
+
+        const b = el('path', { d: camino, fill: color }, g);
+        if (anima) {
+          b.style.transformBox = 'fill-box';
+          b.style.transformOrigin = positivo ? 'left center' : 'right center';
+          b.classList.add('gr-barra-h', 'anima');
+          b.style.animationDelay = (i * 30) + 'ms';
+        }
+      }
+
+      texto(g, ctx.m.l - 10, y + grosor / 2 + 4, acortar(d.etiqueta, 22), 'gr-eje',
+        { 'text-anchor': 'end', fill: COLOR.tinta2, 'font-weight': '600' });
+
+      // Etiqueta directa con signo: el color nunca carga solo la polaridad.
+      // Si no cabe fuera de la barra entra dentro, en blanco sobre el
+      // relleno; nunca se recorta ni desaparece.
+      const tx = (positivo ? '+' : '−') + fmtCompacto(Math.abs(v));
+      const anchoTexto = tx.length * 7 + 10;
+      const cabeFuera = positivo ? (ctx.ancho - px > anchoTexto + 12) : (px - ctx.m.l > anchoTexto + 12);
+
+      if (cabeFuera) {
+        texto(g, positivo ? px + 8 : px - 8, y + grosor / 2 + 4, tx, 'gr-etiqueta',
+          { 'text-anchor': positivo ? 'start' : 'end', fill: color });
+      } else if (w > anchoTexto) {
+        texto(g, positivo ? px - 8 : px + 8, y + grosor / 2 + 4, tx, 'gr-etiqueta',
+          { 'text-anchor': positivo ? 'end' : 'start', fill: '#FFFFFF' });
+      }
+
+      const hit = el('rect', { x: ctx.m.l, y: y - 5, width: ctx.w, height: grosor + 10, fill: 'transparent' }, g);
+      const filas = [
+        { color, nombre: positivo ? 'Sobre plan' : 'Bajo plan', valor: tx + ' m³' }
+      ];
+      if (d.extra) d.extra.forEach(e => filas.push({ nombre: e.nombre, valor: e.valor }));
+
+      hit.addEventListener('pointerenter', e => mostrarGlobo(e, d.etiqueta, filas));
+      hit.addEventListener('pointermove', ubicarGlobo);
+      hit.addEventListener('pointerleave', ocultarGlobo);
+      g.addEventListener('focus', () => {
+        const r2 = g.getBoundingClientRect();
+        mostrarGlobo({ clientX: r2.right, clientY: r2.top + r2.height }, d.etiqueta, filas);
+      });
+      g.addEventListener('blur', ocultarGlobo);
+    });
+
+    // Línea de cero: es el plan, y se rotula.
+    el('line', { x1: cero, y1: ctx.m.t - 4, x2: cero, y2: ctx.m.t + ctx.h + 2, class: 'gr-umbral' }, ctx.svg);
+    texto(ctx.svg, cero, ctx.m.t - 8, opts.nombreCero || 'Plan a fecha', 'gr-umbral-tx', { 'text-anchor': 'middle' });
+
+    return ctx;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     CHISPA (sparkline del stat tile)
+     Contexto en el mosaico, no un gráfico: sin ejes, sin
+     etiquetas, con el último período acentuado.
+     ══════════════════════════════════════════════════════ */
+
+  function chispa(destino, valores, opts) {
+    opts = opts || {};
+    const cont = typeof destino === 'string' ? document.getElementById(destino) : destino;
+    if (!cont) return;
+
+    cont.textContent = '';
+    const datos = (valores || []).map(num);
+    if (datos.length < 2) return;
+
+    const w = Math.max(60, cont.clientWidth || 120);
+    const h = 26;
+    const pad = 3;
+
+    const svg = el('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h, 'aria-hidden': 'true' }, cont);
+
+    const max = Math.max.apply(null, datos);
+    const min = Math.min.apply(null, datos.concat([0]));
+    const x = escala(0, datos.length - 1, pad, w - pad);
+    const y = escala(min, max || 1, h - pad, pad);
+
+    const puntos = datos.map((v, i) => [x(i), y(v)]);
+    const d = puntos.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+
+    el('path', {
+      d: d + ' L' + puntos[puntos.length - 1][0].toFixed(1) + ' ' + (h - pad) + ' L' + puntos[0][0].toFixed(1) + ' ' + (h - pad) + ' Z',
+      fill: opts.color || COLOR.serie[0], class: 'gr-area'
+    }, svg);
+
+    el('path', { d, stroke: opts.color || COLOR.lineaFuerte, class: 'gr-linea', 'stroke-width': '1.75' }, svg);
+
+    const ult = puntos[puntos.length - 1];
+    el('circle', { cx: ult[0], cy: ult[1], r: 3, fill: opts.color || COLOR.serie[0], class: 'gr-punto' }, svg);
+  }
+
+  /* ══════════════════════════════════════════════════════
+     MATRIZ DE CALIBRE
+     Diámetro contra largo. Es el catálogo del trozo y el
+     elemento firma del tablero.
+     Cinco tramos discretos de un solo matiz, con escala
+     rotulada; la celda sin dato queda en superficie.
+     ══════════════════════════════════════════════════════ */
+
+  function calibre(destino, filas, opts) {
+    opts = opts || {};
+    const cont = typeof destino === 'string' ? document.getElementById(destino) : destino;
+    if (!cont) return;
+
+    cont.textContent = '';
+
+    const datos = (filas || []).filter(f => num(f.cubicacion) > 0 || num(f.trozos) > 0);
+    if (!datos.length) {
+      const d = document.createElement('div');
+      d.className = 'gr-vacio';
+      d.textContent = opts.vacio || 'Sin matriz de calibre para la vista filtrada.';
+      cont.appendChild(d);
+      return;
+    }
+
+    const campo = opts.campo || 'cubicacion';
+    const esEficiencia = campo === 'eficiencia';
+
+    const diametros = [...new Set(datos.map(f => num(f.diametro)))].sort((a, b) => a - b);
+    const largos = [...new Set(datos.map(f => num(f.largo)))].sort((a, b) => a - b);
+
+    const mapa = {};
+    datos.forEach(f => { mapa[num(f.diametro) + '|' + num(f.largo)] = f; });
+
+    const valores = datos.map(f => num(f[campo])).filter(v => v > 0);
+    const max = Math.max.apply(null, valores.concat([1]));
+
+    // Cortes por cuantiles: con una escala lineal casi todo cae
+    // en el tramo más claro y la grilla no dice nada.
+    const orden = valores.slice().sort((a, b) => a - b);
+    const q = p => orden[Math.min(orden.length - 1, Math.floor(orden.length * p))] || 0;
+    const cortes = [q(0.2), q(0.4), q(0.6), q(0.8)];
+
+    const nivel = v => {
+      if (!(v > 0)) return 0;
+      for (let i = 0; i < cortes.length; i++) if (v <= cortes[i]) return i + 1;
+      return 5;
+    };
+
+    // En la celda no caben decimales largos: la escala y el tooltip
+    // llevan la precisión.
+    const celdaTexto = v => {
+      if (!(v > 0)) return '';
+      if (esEficiencia) return fmt(v, 2);
+      if (v >= 1000) return (v / 1000).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + 'k';
+      return Math.round(v).toLocaleString('es-CL');
+    };
+
+    const envoltorio = document.createElement('div');
+    envoltorio.className = 'calibre';
+
+    const tabla = document.createElement('table');
+    tabla.className = 'calibre-reja';
+
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+
+    const esquina = document.createElement('th');
+    esquina.className = 'eje-y';
+    esquina.textContent = 'Largo m \\ Ø cm';
+    trh.appendChild(esquina);
+
+    diametros.forEach(d => {
+      const th = document.createElement('th');
+      th.setAttribute('scope', 'col');
+      th.textContent = fmt(d, 0);
+      trh.appendChild(th);
+    });
+
+    const thTotal = document.createElement('th');
+    thTotal.setAttribute('scope', 'col');
+    thTotal.textContent = 'Total';
+    trh.appendChild(thTotal);
+    thead.appendChild(trh);
+    tabla.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    const anima = !sinMovimiento();
+    const unidad = esEficiencia ? ' m³/troza' : campo === 'trozos' ? ' trozos' : ' m³';
+
+    largos.forEach((l, ri) => {
+      const tr = document.createElement('tr');
+
+      const th = document.createElement('th');
+      th.className = 'eje-y';
+      th.setAttribute('scope', 'row');
+      th.textContent = fmt(l, 2);
+      tr.appendChild(th);
+
+      let totalFila = 0;
+      let trozosFila = 0;
+
+      diametros.forEach((d, ci) => {
+        const f = mapa[d + '|' + l];
+        const v = f ? num(f[campo]) : 0;
+
+        if (f) {
+          totalFila += esEficiencia ? num(f.cubicacion) : v;
+          trozosFila += num(f.trozos);
+        }
+
+        const td = document.createElement('td');
+        const n = nivel(v);
+        td.className = 'calibre-celda' + (n ? '' : ' es-vacia') + (anima ? ' anima' : '');
+        if (n) td.setAttribute('data-nivel', n);
+        td.setAttribute('tabindex', '0');
+        td.textContent = celdaTexto(v);
+
+        if (anima) td.style.animationDelay = ((ri * 3 + ci) * 9) + 'ms';
+
+        if (f) {
+          const titulo = 'Ø ' + fmt(d, 0) + ' cm · largo ' + fmt(l, 2) + ' m';
+          const filas2 = [
+            { color: COLOR.mag[Math.max(0, n - 1)], nombre: 'Cubicación', valor: fmt(f.cubicacion, 1) + ' m³' },
+            { nombre: 'Trozos', valor: fmt(f.trozos) },
+            { nombre: 'Eficiencia', valor: fmt(f.eficiencia, 3) + ' m³/troza' }
+          ];
+          td.setAttribute('aria-label', titulo + ': ' + fmt(v, esEficiencia ? 3 : 1) + unidad);
+          td.addEventListener('pointerenter', e => mostrarGlobo(e, titulo, filas2));
+          td.addEventListener('pointermove', ubicarGlobo);
+          td.addEventListener('pointerleave', ocultarGlobo);
+          td.addEventListener('focus', () => {
+            const r = td.getBoundingClientRect();
+            mostrarGlobo({ clientX: r.left + r.width / 2, clientY: r.top }, titulo, filas2);
+          });
+          td.addEventListener('blur', ocultarGlobo);
+        } else {
+          td.setAttribute('aria-label', 'Ø ' + fmt(d, 0) + ' cm, largo ' + fmt(l, 2) + ' m: sin recepciones');
+        }
+
+        tr.appendChild(td);
+      });
+
+      const tdTotal = document.createElement('td');
+      tdTotal.className = 'calibre-celda es-vacia';
+      tdTotal.style.color = COLOR.tinta2;
+      tdTotal.style.fontWeight = '700';
+      tdTotal.textContent = esEficiencia
+        ? (trozosFila ? fmt(totalFila / trozosFila, 2) : '·')
+        : celdaTexto(totalFila);
+      tr.appendChild(tdTotal);
+
+      tbody.appendChild(tr);
+    });
+
+    tabla.appendChild(tbody);
+    envoltorio.appendChild(tabla);
+    cont.appendChild(envoltorio);
+
+    // Escala rotulada: sin ella una grilla de color no se puede leer.
+    const escalaEl = document.createElement('div');
+    escalaEl.className = 'calibre-escala';
+
+    const cap = document.createElement('span');
+    cap.textContent = (campo === 'cubicacion' ? 'Cubicación' : campo === 'trozos' ? 'Trozos' : 'Eficiencia') + ':';
+    escalaEl.appendChild(cap);
+
+    const menos = document.createElement('span');
+    menos.textContent = 'menos';
+    escalaEl.appendChild(menos);
+
+    COLOR.mag.forEach((c, i) => {
+      const i2 = document.createElement('i');
+      i2.style.background = c;
+      i2.title = (i === 0 ? 'hasta ' + fmtCompacto(cortes[0]) :
+                  i === 4 ? 'sobre ' + fmtCompacto(cortes[3]) :
+                  fmtCompacto(cortes[i - 1]) + ' a ' + fmtCompacto(cortes[i]));
+      escalaEl.appendChild(i2);
+    });
+
+    const mas = document.createElement('span');
+    mas.textContent = 'más (hasta ' + fmtCompacto(max) + unidad + ')';
+    escalaEl.appendChild(mas);
+
+    cont.appendChild(escalaEl);
+  }
+
+  /* ── Reajuste al cambiar el ancho ───────────────────── */
+
+  const registro = new Map();
+
+  function registrar(id, pintar) {
+    registro.set(id, pintar);
+  }
+
+  let temporizador = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => registro.forEach(fn => { try { fn(); } catch (e) {} }), 180);
+  });
+
+  return {
+    COLOR, CALIDAD_COLOR, CALIDAD_FORMA,
+    barras, columnas, lineas, apiladas, divergente, chispa, calibre,
+    leyenda, tabla, vacio, registrar,
+    fmt, fmtCompacto, fmtPct, ticksLimpios, sinMovimiento,
+    mostrarGlobo, ocultarGlobo
+  };
+})();
+</script>

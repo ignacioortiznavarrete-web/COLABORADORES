@@ -4,8 +4,8 @@ const CONFIG = {
   PLAN_SHEET_NAME: 'Hoja 2',
   PROJECTION_SHEET_NAME: 'ProyeccionCamiones',
   M3_PER_CAMION: 26,
-  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V18',
-  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V18',
+  CACHE_KEY: 'MASISA_DASHBOARD_SUMMARY_V19',
+  DETAIL_CACHE_KEY: 'MASISA_DASHBOARD_DETALLE_V19',
   CACHE_SECONDS: 21600,
   CACHE_CHUNK_CHARS: 45000, // margen de sobra bajo el límite de 100KB por clave de CacheService, incluso con acentos en UTF-8
   MAX_ROLES_MAPA: 150
@@ -527,7 +527,9 @@ function buildDashboardCore_() {
         x.eficiencia = x.trozos ? x.cubicacion / x.trozos : 0;
         return x;
       })
-      .sort((a, b) => a.diametro - b.diametro || a.largo - b.largo)
+      .sort((a, b) => a.diametro - b.diametro || a.largo - b.largo),
+
+    analitica: buildAnalytics_(detalleIngresos, plan, projection)
   };
 
   return { summary: output, detalle: detalleIngresos };

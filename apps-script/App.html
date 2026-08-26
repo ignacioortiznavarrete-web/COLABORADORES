@@ -1,0 +1,1768 @@
+<script>
+/* ══════════════════════════════════════════════════════
+   APLICACIÓN
+   Carga, filtros, KPIs, gráficos, tablas y mapas.
+   ══════════════════════════════════════════════════════ */
+
+let DATA = null;
+let DETALLE_LISTO = false;
+let ROLES_GIS = [];
+let DIAGNOSTICO_GIS = null;
+let MAPA = null, CAPA_ROLES = null, INDICE_ROLES = {}, LIMITES = [];
+let MAPA_COMUNAS = null, CAPA_COMUNAS = null;
+let ORDEN_CUMPLIMIENTO = 'cubicacion_desc';
+let SOLO_DEFICIT = false;
+let ULTIMOS_VALORES = {};
+
+const IDS_FILTRO = ['fProveedor', 'fPredio', 'fComuna', 'fRol', 'fCalidad', 'fLargo'];
+const PLANTA = { lat: -37.034, lng: -72.426, etiqueta: 'Ruta 146 N° 2015, Cabrero' };
+
+/* ── Formato ───────────────────────────────────────── */
+
+const num = v => Number(v) || 0;
+const fmt  = (v, d) => num(v).toLocaleString('es-CL', { maximumFractionDigits: d === undefined ? 2 : d });
+const fmt0 = v => num(v).toLocaleString('es-CL', { maximumFractionDigits: 0 });
+const fmtPct = (v, d) => (num(v) * 100).toLocaleString('es-CL', { maximumFractionDigits: d === undefined ? 1 : d }) + '%';
+const fmtFirmado = v => (num(v) > 0 ? '+' : num(v) < 0 ? '−' : '') + fmt(Math.abs(num(v)));
+const seguro = v => num(v) || 1;
+
+const limpiar = v => String(v == null ? '' : v).trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const valor = id => limpiar((document.getElementById(id) || {}).value);
+const crudo = id => String(((document.getElementById(id) || {}).value) || '').trim();
+
+function texto(id, contenido) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = contenido;
+}
+
+/* ── Cifras que cuentan hasta su valor ─────────────────
+   El número animándose es la señal de que cambió. Si el
+   movimiento está reducido, se escribe directo.        */
+
+function contarHasta(id, destino, formato) {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  const fin = num(destino);
+  const escribir = v => { el.textContent = formato(v); };
+
+  if (GR.sinMovimiento()) { escribir(fin); ULTIMOS_VALORES[id] = fin; return; }
+
+  const inicio = num(ULTIMOS_VALORES[id]);
+  ULTIMOS_VALORES[id] = fin;
+
+  if (inicio === fin) { escribir(fin); return; }
+
+  const duracion = 620;
+  const t0 = performance.now();
+
+  const paso = ahora => {
+    const p = Math.min(1, (ahora - t0) / duracion);
+    const e = 1 - Math.pow(1 - p, 5);                 // salida quíntica
+    escribir(inicio + (fin - inicio) * e);
+    if (p < 1) requestAnimationFrame(paso);
+  };
+
+  requestAnimationFrame(paso);
+}
+
+/* ── Diálogo y avisos ──────────────────────────────── */
+
+function confirmar(titulo, mensaje, textoOk) {
+  const dlg = document.getElementById('dialogo');
+  document.getElementById('dialogoTitulo').textContent = titulo;
+  document.getElementById('dialogoTexto').textContent = mensaje;
+  document.getElementById('dialogoOk').textContent = textoOk || 'Confirmar';
+
+  return new Promise(resolver => {
+    dlg.addEventListener('close', () => resolver(dlg.returnValue === 'confirmar'), { once: true });
+    dlg.showModal();
+  });
+}
+
+function avisar(mensaje, critico) {
+  const previo = document.getElementById('avisoGlobal');
+  if (previo) previo.remove();
+
+  const d = document.createElement('div');
+  d.className = 'aviso' + (critico ? ' es-critico' : '');
+  d.id = 'avisoGlobal';
+  d.style.marginBottom = 'var(--e4)';
+  d.setAttribute('role', 'alert');
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>';
+  d.appendChild(svg);
+
+  const p = document.createElement('span');
+  p.textContent = mensaje;
+  d.appendChild(p);
+
+  const lienzo = document.querySelector('.lienzo');
+  lienzo.insertBefore(d, lienzo.firstChild);
+}
+
+function progreso(activo) {
+  const b = document.getElementById('progreso');
+  if (b) b.classList.toggle('se-ve', Boolean(activo));
+}
+
+/* ══════════════════════════════════════════════════════
+   CARGA
+   ══════════════════════════════════════════════════════ */
+
+document.addEventListener('DOMContentLoaded', () => {
+  conectarControles();
+  cargarDatos(false);
+});
+
+function cargarDatos(forzar) {
+  progreso(true);
+  DETALLE_LISTO = false;
+  bloquearFiltros(true);
+
+  google.script.run
+    .withSuccessHandler(data => {
+      DATA = data;
+      DATA.detalleIngresos = null;
+
+      texto('selloFecha', data.lastUpdate || 'sin datos');
+
+      // Cada paso se aisla: que falle el mapa no puede dejar la
+      // página en blanco ni cortar la carga del detalle.
+      const paso = (nombre, fn) => {
+        try { fn(); } catch (e) { console.error('Falló ' + nombre, e); }
+      };
+
+      paso('largos', poblarLargos);
+      paso('riel', pintarRiel);
+      paso('tablero', pintarTodo);
+      paso('mapas', iniciarMapas);
+
+      progreso(false);
+
+      // El GIS y el detalle van aparte: no deben retrasar el primer render.
+      if (HAY_MAPAS) {
+        texto('estadoMapa', 'KML/KMZ: cargando en segundo plano…');
+        texto('estadoMapaComunas', 'Comunas: cargando en segundo plano…');
+        setTimeout(cargarGIS, 120);
+      }
+
+      setTimeout(() => cargarDetalle(forzar), 120);
+      if (typeof REUNION !== 'undefined') paso('reunión', REUNION.iniciar);
+    })
+    .withFailureHandler(err => {
+      progreso(false);
+      avisar('No se pudieron cargar los datos: ' + (err && err.message || err), true);
+    })
+    .getDashboardData(forzar);
+}
+
+function cargarDetalle(forzar) {
+  google.script.run
+    .withSuccessHandler(detalle => {
+      DATA.detalleIngresos = detalle || [];
+      DETALLE_LISTO = true;
+      bloquearFiltros(false);
+      poblarLargos();
+      pintarTodo();
+    })
+    .withFailureHandler(err => {
+      bloquearFiltros(false, 'Los filtros no están disponibles. Vuelve a pulsar «Actualizar datos».');
+      console.warn('No se pudo cargar el detalle de ingresos', err);
+    })
+    .getDetalleIngresos(forzar);
+}
+
+function cargarGIS() {
+  google.script.run
+    .withSuccessHandler(respuesta => {
+      const carga = Array.isArray(respuesta)
+        ? { items: respuesta, diagnostics: null }
+        : (respuesta || { items: [], diagnostics: null });
+
+      ROLES_GIS = carga.items || [];
+      DIAGNOSTICO_GIS = carga.diagnostics || null;
+
+      const poligonos = ROLES_GIS.reduce((s, i) => s + ((i.polygons || []).length), 0);
+      texto('estadoMapa', DIAGNOSTICO_GIS
+        ? 'Polígonos: ' + poligonos + ' · con archivo: ' + DIAGNOSTICO_GIS.rolesConArchivo + ' · sin archivo: ' + DIAGNOSTICO_GIS.rolesSinArchivo
+        : 'Polígonos: ' + poligonos);
+
+      pintarCapasRoles();
+      pintarCapasComunas();
+    })
+    .withFailureHandler(err => {
+      texto('estadoMapa', 'KML/KMZ no disponibles');
+      texto('estadoMapaComunas', 'Comunas no disponibles');
+      console.warn('Los datos cargaron, pero el GIS falló', err);
+    })
+    .getRolesMapData();
+}
+
+/* ══════════════════════════════════════════════════════
+   CONTROLES
+   ══════════════════════════════════════════════════════ */
+
+function conectarControles() {
+  document.getElementById('btnActualizar').addEventListener('click', () => cargarDatos(true));
+  document.getElementById('btnExportar').addEventListener('click', exportar);
+  document.getElementById('btnLimpiarFiltros').addEventListener('click', limpiarFiltros);
+
+  const rehacer = rebotar(pintarTodo, 220);
+
+  ['fProveedor', 'fPredio', 'fComuna', 'fRol'].forEach(id =>
+    document.getElementById(id).addEventListener('input', rehacer));
+  ['fCalidad', 'fLargo'].forEach(id =>
+    document.getElementById(id).addEventListener('change', pintarTodo));
+
+  document.getElementById('metricaMapa').addEventListener('change', pintarCapasRoles);
+  document.getElementById('metricaComunas').addEventListener('change', pintarCapasComunas);
+  document.getElementById('calibreCampo').addEventListener('change', () => pintarCalibre());
+
+  document.getElementById('btnSoloDeficit').addEventListener('click', e => {
+    SOLO_DEFICIT = !SOLO_DEFICIT;
+    e.currentTarget.setAttribute('aria-pressed', String(SOLO_DEFICIT));
+    e.currentTarget.textContent = SOLO_DEFICIT ? 'Ver todos' : 'Solo bajo plan';
+    pintarTablaCumplimiento();
+  });
+
+  // Conmutador gráfico / tabla equivalente
+  document.querySelectorAll('[data-tabla-de]').forEach(b => {
+    b.addEventListener('click', () => {
+      const id = b.dataset.tablaDe;
+      const tabla = document.getElementById(id + 'Tabla');
+      const lienzo = document.getElementById(id);
+      const abierto = b.getAttribute('aria-pressed') === 'true';
+
+      b.setAttribute('aria-pressed', String(!abierto));
+      b.textContent = abierto ? 'Ver tabla' : 'Ver gráfico';
+      tabla.classList.toggle('se-ve', !abierto);
+      lienzo.classList.toggle('gr-lienzo', true);
+      lienzo.classList.toggle('se-oculta', !abierto);
+    });
+  });
+
+  conectarNavegacion();
+}
+
+function bloquearFiltros(bloqueado, mensaje) {
+  IDS_FILTRO.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = bloqueado;
+  });
+
+  const estado = document.getElementById('filtrosEstado');
+  if (!estado) return;
+
+  if (bloqueado) {
+    estado.textContent = 'Cargando el detalle para habilitar los filtros…';
+  } else if (mensaje) {
+    estado.textContent = mensaje;
+  } else {
+    actualizarEstadoFiltros();
+  }
+}
+
+function actualizarEstadoFiltros() {
+  const estado = document.getElementById('filtrosEstado');
+  const limpiarBtn = document.getElementById('btnLimpiarFiltros');
+  if (!estado) return;
+
+  const activos = hayFiltros();
+  limpiarBtn.hidden = !activos;
+
+  if (!activos) {
+    const total = (DATA && DATA.detalleIngresos || []).length;
+    estado.textContent = total
+      ? 'Mostrando las ' + fmt0(total) + ' recepciones del mes. Los filtros alcanzan a todo el tablero.'
+      : 'Los filtros alcanzan a todo el tablero.';
+    return;
+  }
+
+  const filas = obtenerFilas().length;
+  estado.textContent = 'Vista filtrada: ' + fmt0(filas) + ' recepciones.';
+}
+
+function limpiarFiltros() {
+  IDS_FILTRO.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  pintarTodo();
+}
+
+function poblarLargos() {
+  const fuente = (DATA && (DATA.detalleIngresos || DATA.recepciones)) || [];
+  const valores = [...new Set(fuente.map(x => String(x.largo || '')))]
+    .filter(v => v && v !== '0')
+    .sort((a, b) => Number(a) - Number(b));
+
+  const sel = document.getElementById('fLargo');
+  const actual = sel.value;
+
+  sel.textContent = '';
+  const cero = document.createElement('option');
+  cero.value = '';
+  cero.textContent = 'Todos';
+  sel.appendChild(cero);
+
+  valores.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = fmt(Number(v), 1) + ' m';
+    sel.appendChild(o);
+  });
+
+  sel.value = actual;
+}
+
+function rebotar(fn, espera) {
+  let t = null;
+  return function () {
+    const args = arguments;
+    clearTimeout(t);
+    t = setTimeout(() => fn.apply(null, args), espera);
+  };
+}
+
+/* ── Navegación por secciones con scroll-spy ───────── */
+
+function conectarNavegacion() {
+  const enlaces = [...document.querySelectorAll('.nav-enlace')];
+
+  enlaces.forEach(b => b.addEventListener('click', () => {
+    const destino = document.getElementById(b.dataset.destino);
+    if (destino) destino.scrollIntoView({ behavior: GR.sinMovimiento() ? 'auto' : 'smooth', block: 'start' });
+  }));
+
+  const secciones = enlaces
+    .map(b => document.getElementById(b.dataset.destino))
+    .filter(Boolean);
+
+  if (!('IntersectionObserver' in window) || !secciones.length) return;
+
+  const observador = new IntersectionObserver(entradas => {
+    entradas.forEach(e => {
+      if (!e.isIntersecting) return;
+      enlaces.forEach(b => b.setAttribute('aria-current', String(b.dataset.destino === e.target.id)));
+    });
+  }, { rootMargin: '-25% 0px -65% 0px', threshold: 0 });
+
+  secciones.forEach(s => observador.observe(s));
+}
+
+/* ══════════════════════════════════════════════════════
+   FILTRADO
+   ══════════════════════════════════════════════════════ */
+
+function obtenerFilas() {
+  const fuente = (DATA && (DATA.detalleIngresos || DATA.recepciones)) || [];
+  const fp = valor('fProveedor'), fPredio = valor('fPredio'), fc = valor('fComuna');
+  const fr = valor('fRol'), fCal = valor('fCalidad');
+  const fLargo = crudo('fLargo');
+
+  return fuente.filter(x => {
+    if (fp && !limpiar(x.proveedor).includes(fp)) return false;
+    if (fPredio && !limpiar(x.predio).includes(fPredio)) return false;
+    if (fc && !limpiar(x.comuna).includes(fc)) return false;
+    if (fr && !limpiar(x.rol || '').includes(fr)) return false;
+    if (fCal && limpiar(x.calidad) !== fCal) return false;
+    if (fLargo && String(x.largo || '') !== fLargo) return false;
+    return true;
+  });
+}
+
+function hayFiltros() {
+  return Boolean(valor('fProveedor') || valor('fPredio') || valor('fComuna') ||
+    valor('fRol') || valor('fCalidad') || crudo('fLargo'));
+}
+
+function hayFiltrosDeFila() {
+  return Boolean(valor('fPredio') || valor('fComuna') || valor('fRol') ||
+    valor('fCalidad') || crudo('fLargo'));
+}
+
+function estadisticas() {
+  const filas = obtenerFilas();
+  const calidades = {};
+  let trozos = 0, cubicacion = 0, diamPond = 0;
+
+  filas.forEach(f => {
+    const t = num(f.trozos), c = num(f.cubicacion), d = num(f.diametroPromedio);
+    const cal = f.calidad || 'SIN CALIDAD';
+
+    trozos += t; cubicacion += c; diamPond += d * t;
+
+    if (!calidades[cal]) calidades[cal] = { calidad: cal, trozos: 0, cubicacion: 0, diamPond: 0 };
+    calidades[cal].trozos += t;
+    calidades[cal].cubicacion += c;
+    calidades[cal].diamPond += d * t;
+  });
+
+  const listaCalidades = Object.values(calidades).map(x => ({
+    calidad: x.calidad,
+    trozos: x.trozos,
+    cubicacion: x.cubicacion,
+    diametroPromedio: x.trozos ? x.diamPond / x.trozos : 0,
+    eficiencia: x.trozos ? x.cubicacion / x.trozos : 0,
+    participacionTrozos: trozos ? x.trozos / trozos : 0,
+    participacionCubicacion: cubicacion ? x.cubicacion / cubicacion : 0
+  }));
+
+  return {
+    filas, trozos, cubicacion,
+    diametroPromedio: trozos ? diamPond / trozos : 0,
+    eficiencia: trozos ? cubicacion / trozos : 0,
+    calidades: ordenarCalidades(listaCalidades)
+  };
+}
+
+function ordenarCalidades(arr) {
+  const orden = { VERDE: 1, MANCHADO: 2, SINIESTRADO: 3 };
+  return [...arr].sort((a, b) =>
+    (orden[limpiar(a.calidad)] || 99) - (orden[limpiar(b.calidad)] || 99) ||
+    String(a.calidad || '').localeCompare(String(b.calidad || '')));
+}
+
+/* ══════════════════════════════════════════════════════
+   ORQUESTACIÓN
+   Al refiltrar, el render anterior se sostiene atenuado:
+   sin esqueleto y sin salto de maquetación.
+   ══════════════════════════════════════════════════════ */
+
+function pintarTodo() {
+  if (!DATA) return;
+
+  actualizarEstadoFiltros();
+
+  if (!DETALLE_LISTO) {
+    // Los totales del mes ya vienen en el resumen: se muestran de
+    // inmediato. Lo que necesita el detalle espera, y lo dice.
+    pintarKPIs(null);
+    marcarPendientes();
+    return;
+  }
+
+  const st = estadisticas();
+
+  pintarKPIs(st);
+  pintarGraficos(st);
+  pintarTablas(st);
+  pintarCapasRoles();
+  pintarCapasComunas();
+}
+
+const DESTINOS_PENDIENTES = [
+  'grCurva', 'grDiario', 'grPareto', 'grDesviacion', 'grEficiencia', 'grCalidadDia',
+  'grCalibre', 'tablaProveedor', 'tablaCalidad', 'tablaRegion', 'tablaGeneral',
+  'tablaCalibre', 'tablaOutliers'
+];
+
+function marcarPendientes() {
+  DESTINOS_PENDIENTES.forEach(id => GR.vacio(id, 'Cargando el detalle de recepciones…'));
+}
+
+/* ══════════════════════════════════════════════════════
+   RIEL DEL MES
+   ══════════════════════════════════════════════════════ */
+
+function pintarRiel() {
+  const k = DATA.kpis || {};
+  const cumpl = num(k.cumplimientoPlan);
+
+  const cifra = document.getElementById('rielCumplimiento');
+  cifra.classList.remove('es-bueno', 'es-aviso', 'es-critico');
+  cifra.classList.add(cumpl >= 1 ? 'es-bueno' : cumpl >= 0.9 ? 'es-aviso' : 'es-critico');
+
+  contarHasta('rielCumplimiento', cumpl, v => fmtPct(v));
+
+  const dif = num(k.diferenciaPlanAFecha);
+  texto('rielGlosa', dif >= 0
+    ? 'El mes va ' + fmt(Math.abs(dif), 0) + ' m³ por delante del plan a esta altura.'
+    : 'Faltan ' + fmt(Math.abs(dif), 0) + ' m³ para estar a la par del plan a esta altura.');
+
+  texto('rielReal', fmt(k.totalCubicacion, 0) + ' m³');
+  texto('rielPlan', fmt(k.planAFecha, 0) + ' m³');
+
+  const elDif = document.getElementById('rielDif');
+  elDif.textContent = fmtFirmado(Math.round(dif)) + ' m³';
+  elDif.style.color = dif >= 0 ? 'var(--bueno)' : 'var(--critico)';
+
+  texto('rielCierre', fmt(k.proyeccionCierreMes, 0) + ' de ' + fmt(k.planCubicacion, 0) + ' m³');
+  texto('rielDias', fmt0(k.diasHabilesTranscurridos) + ' de ' + fmt0(k.diasHabilesMes) +
+    ' · faltan ' + fmt0(k.diasHabilesFaltantes));
+
+  // La pista: el mes completo es el 100% del ancho.
+  const totalDias = num(k.diasHabilesMes) || 1;
+  const transcurridos = num(k.diasHabilesTranscurridos);
+  const planMes = num(k.planCubicacion) || 1;
+
+  const pctTranscurrido = Math.min(100, (transcurridos / totalDias) * 100);
+  const pctReal = Math.min(100, (num(k.totalCubicacion) / planMes) * 100);
+  const pctPlan = Math.min(100, (num(k.planAFecha) / planMes) * 100);
+
+  requestAnimationFrame(() => {
+    document.getElementById('pistaTranscurrido').style.width = pctTranscurrido + '%';
+    document.getElementById('pistaReal').style.width = pctReal + '%';
+    document.getElementById('pistaPlan').style.width = pctPlan + '%';
+
+    const hoy = document.getElementById('pistaHoy');
+    hoy.hidden = false;
+    hoy.style.left = pctTranscurrido + '%';
+    hoy.dataset.etiqueta = 'día ' + fmt0(transcurridos);
+  });
+
+  document.getElementById('pista').setAttribute('aria-label',
+    'Real ' + fmt(k.totalCubicacion, 0) + ' m³ contra plan a la fecha ' + fmt(k.planAFecha, 0) +
+    ' m³, en el día hábil ' + fmt0(transcurridos) + ' de ' + fmt0(totalDias));
+}
+
+/* ══════════════════════════════════════════════════════
+   STAT TILES
+   ══════════════════════════════════════════════════════ */
+
+function pintarKPIs(st) {
+  st = st || (DETALLE_LISTO ? estadisticas() : null);
+
+  const k = DATA.kpis || {};
+  const an = DATA.analitica || {};
+  const filtrado = Boolean(st && hayFiltros());
+
+  const cub = st ? st.cubicacion : num(k.totalCubicacion);
+  const trozos = st ? st.trozos : num(k.totalTrozos);
+  const diam = st ? st.diametroPromedio : num(k.diametroPromedio);
+  const eficiencia = trozos ? cub / trozos : 0;
+
+  contarHasta('kCub', cub, v => fmt(v, 0));
+  texto('kCubNota', filtrado
+    ? 'm³ en la vista filtrada'
+    : 'm³ del mes · plan ' + fmt(k.planCubicacion, 0));
+
+  const ritmo = num(k.diasHabilesTranscurridos) ? cub / num(k.diasHabilesTranscurridos) : 0;
+  contarHasta('kRitmo', ritmo, v => fmt(v, 0));
+  texto('kRitmoNota', 'm³ por día hábil · meta ' + fmt(k.planDiarioHabil, 0));
+
+  contarHasta('kDiam', diam, v => fmt(v, 1));
+  texto('kDiamNota', 'cm, ponderado por trozos');
+
+  contarHasta('kTrozos', trozos, v => fmt(v, 0));
+  texto('kTrozosNota', 'eficiencia ' + fmt(eficiencia, 3) + ' m³/troza');
+
+  // Proveedor líder dentro de la vista actual
+  const porProveedor = {};
+  (st ? st.filas : []).forEach(f => {
+    const p = f.proveedor || 'SIN PROVEEDOR';
+    porProveedor[p] = (porProveedor[p] || 0) + num(f.cubicacion);
+  });
+
+  const lider = st && Object.keys(porProveedor).length
+    ? Object.entries(porProveedor).sort((a, b) => b[1] - a[1])[0]
+    : ((DATA.proveedores || [])[0] ? [DATA.proveedores[0].proveedor, num(DATA.proveedores[0].cubicacion)] : null);
+
+  if (lider && lider[1] > 0) {
+    texto('kLider', lider[0].length > 16 ? lider[0].slice(0, 15) + '…' : lider[0]);
+    document.getElementById('kLider').style.fontSize = lider[0].length > 12 ? '18px' : '';
+    texto('kLiderNota', fmt(lider[1], 0) + ' m³ · ' + fmtPct(cub ? lider[1] / cub : 0) + ' de la vista');
+  } else {
+    texto('kLider', '—');
+    texto('kLiderNota', 'sin datos de proveedores');
+  }
+
+  const conc = an.concentracion || {};
+  texto('kConcentracion', conc.proveedoresPara80 ? fmt0(conc.proveedoresPara80) : '—');
+  texto('kConcentracionNota', conc.proveedoresActivos
+    ? 'de ' + fmt0(conc.proveedoresActivos) + ' activos hacen el 80% · concentración ' + conc.nivel
+    : 'proveedores que hacen el 80%');
+
+  // Siniestrado: condición, no identidad. Va con marca y etiqueta.
+  const sin = (st ? st.calidades : []).filter(c => limpiar(c.calidad) === 'SINIESTRADO')[0];
+  const partSin = sin ? num(sin.participacionCubicacion) : 0;
+  const elSin = document.getElementById('kSiniestrado');
+  elSin.classList.toggle('es-critico', partSin >= 0.15);
+  elSin.classList.toggle('es-aviso', partSin >= 0.05 && partSin < 0.15);
+  contarHasta('kSiniestrado', partSin, v => fmtPct(v));
+  texto('kSiniestradoNota', sin ? fmt(sin.cubicacion, 0) + ' m³ de ' + fmt(cub, 0) : 'sin siniestrado en la vista');
+
+  const out = (an.eficiencia && an.eficiencia.outliers) || [];
+  texto('kOutliers', out.length ? fmt0(an.eficiencia.totalOutliers || out.length) : '0');
+  texto('kOutliersNota', out.length
+    ? 'recepciones a más de 2σ de su clase de diámetro'
+    : 'todas las recepciones dentro de rango');
+
+  pintarChispas(filtrado, an.semanas || []);
+}
+
+// Las chispas muestran las últimas semanas del total. Con un filtro
+// activo contradirían el número que acompañan, así que se retiran.
+function pintarChispas(filtrado, semanas) {
+  const destinos = ['chispaCub', 'chispaRitmo', 'chispaDiam', 'chispaTrozos', 'chispaSiniestrado'];
+
+  if (filtrado || semanas.length < 2) {
+    destinos.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+    return;
+  }
+
+  GR.chispa('chispaCub', semanas.map(s => s.cubicacion), { color: GR.COLOR.serie[0] });
+  GR.chispa('chispaRitmo', semanas.map(s => s.diasHabiles ? s.cubicacion / s.diasHabiles : 0), { color: GR.COLOR.serie[0] });
+  GR.chispa('chispaDiam', semanas.map(s => s.diametroPromedio), { color: GR.COLOR.serie[0] });
+  GR.chispa('chispaTrozos', semanas.map(s => s.trozos), { color: GR.COLOR.serie[0] });
+  GR.chispa('chispaSiniestrado', semanas.map(s => s.participacionSiniestrado), { color: GR.COLOR.critico });
+}
+
+/* ══════════════════════════════════════════════════════
+   GRÁFICOS
+   ══════════════════════════════════════════════════════ */
+
+function pintarGraficos(st) {
+  st = st || estadisticas();
+
+  pintarCurva(st);
+  pintarDiario(st);
+  pintarPareto(st);
+  pintarDesviacion(st);
+  pintarCalibre(st);
+  pintarEficiencia(st);
+  pintarCalidadDia(st);
+}
+
+/* ── Curva acumulada: real contra plan ─────────────── */
+
+function pintarCurva(st) {
+  const k = DATA.kpis || {};
+  const totalDias = num(k.diasHabilesMes);
+  const transcurridos = num(k.diasHabilesTranscurridos);
+  const planDiario = num(k.planDiarioHabil);
+
+  if (!totalDias) return GR.vacio('grCurva', 'Sin plan mensual cargado: no hay contra qué comparar.');
+
+  // Con filtros activos la curva se reconstruye desde las filas visibles.
+  const realPorDia = {};
+  st.filas.forEach(f => {
+    const d = num(f.dia);
+    if (d) realPorDia[d] = (realPorDia[d] || 0) + num(f.cubicacion);
+  });
+
+  const proporcion = num(k.totalCubicacion) ? st.cubicacion / num(k.totalCubicacion) : 1;
+  const planEscalado = planDiario * (hayFiltros() ? proporcion : 1);
+
+  const dias = [], real = [], plan = [], proyeccion = [];
+  let acumReal = 0;
+
+  for (let d = 1; d <= totalDias; d++) {
+    dias.push(d);
+    plan.push(planEscalado * d);
+
+    if (d <= transcurridos) {
+      acumReal += realPorDia[d] || 0;
+      real.push(acumReal);
+      proyeccion.push(d === transcurridos ? acumReal : null);
+    } else {
+      real.push(null);
+      const ritmo = transcurridos ? acumReal / transcurridos : 0;
+      proyeccion.push(acumReal + ritmo * (d - transcurridos));
+    }
+  }
+
+  const series = [
+    { nombre: 'Real acumulado', valores: real, color: GR.COLOR.serie[0], area: true },
+    { nombre: 'Plan acumulado', valores: plan, color: GR.COLOR.lineaFuerte, marcarFin: false },
+    { nombre: 'Proyección al cierre', valores: proyeccion, color: GR.COLOR.serie[2], punteada: true }
+  ];
+
+  const cont = document.getElementById('grCurva');
+  const previa = cont.parentElement.querySelector('.gr-leyenda');
+  if (previa) previa.remove();
+
+  GR.lineas('grCurva', {
+    x: dias, series,
+    alto: 340,
+    nombreY: 'm³ acumulados',
+    nombreX: 'Día hábil del mes',
+    prefijoEtiqueta: 'Día hábil ',
+    formatoY: GR.fmtCompacto,
+    margen: { l: 62, r: 26, t: 22, b: 40 }
+  });
+
+  GR.leyenda(cont, series);
+
+  GR.tabla('grCurvaTabla',
+    ['Día hábil', { texto: 'Real acumulado m³', num: true }, { texto: 'Plan acumulado m³', num: true }, { texto: 'Brecha m³', num: true }],
+    dias.map((d, i) => [
+      d,
+      real[i] === null ? null : fmt(real[i], 0),
+      fmt(plan[i], 0),
+      real[i] === null ? null : fmtFirmado(Math.round(real[i] - plan[i]))
+    ]));
+
+  GR.registrar('grCurva', () => pintarCurva(estadisticas()));
+}
+
+/* ── Entrega por día hábil ─────────────────────────── */
+
+function pintarDiario(st) {
+  const k = DATA.kpis || {};
+  const porDia = {};
+  let maxDia = 0;
+
+  st.filas.forEach(f => {
+    const d = num(f.dia);
+    if (!d) return;
+    porDia[d] = (porDia[d] || 0) + num(f.cubicacion);
+    maxDia = Math.max(maxDia, d);
+  });
+
+  const dias = Math.max(num(k.diasHabilesMes), maxDia);
+  if (!dias) return GR.vacio('grDiario', 'Sin entregas diarias para graficar.');
+
+  const meta = metaDiaria();
+  const datos = [];
+
+  for (let d = 1; d <= dias; d++) {
+    const v = porDia[d] || 0;
+    datos.push({
+      etiqueta: String(d),
+      valor: v,
+      textoValor: fmt(v, 0) + ' m³',
+      // El color separa el día que no llegó a meta: es un estado, no una serie.
+      color: v > 0 && v < meta ? GR.COLOR.aviso : GR.COLOR.serie[0],
+      extra: meta ? [{ nombre: 'Contra meta', valor: fmtFirmado(Math.round(v - meta)) + ' m³' }] : null
+    });
+  }
+
+  GR.columnas('grDiario', {
+    datos, alto: 340,
+    umbral: meta,
+    nombreUmbral: valor('fProveedor') ? 'Meta del proveedor' : 'Meta diaria',
+    nombreSerie: 'Recibido',
+    nombreY: 'm³',
+    nombreX: 'Día hábil del mes',
+    prefijoEtiqueta: 'Día hábil ',
+    margen: { l: 58, r: 22, t: 22, b: 40 }
+  });
+
+  GR.tabla('grDiarioTabla',
+    ['Día hábil', { texto: 'Recibido m³', num: true }, { texto: 'Meta m³', num: true }, { texto: 'Diferencia m³', num: true }],
+    datos.map((d, i) => [d.etiqueta, fmt(d.valor, 0), fmt(meta, 0), fmtFirmado(Math.round(d.valor - meta))]));
+
+  GR.registrar('grDiario', () => pintarDiario(estadisticas()));
+}
+
+function metaDiaria() {
+  const k = DATA.kpis || {};
+  const fp = valor('fProveedor');
+  const dias = num(k.diasHabilesMes);
+
+  if (fp && dias) {
+    const coincide = (DATA.cumplimientoProveedores || []).filter(pasaFiltroPlan);
+    if (coincide.length === 1) return num(coincide[0].plan) / dias;
+  }
+
+  return num(k.planDiarioHabil);
+}
+
+/* ── Pareto de proveedores ─────────────────────────── */
+
+function pintarPareto(st) {
+  const agg = {};
+  let total = 0;
+
+  st.filas.forEach(f => {
+    const p = f.proveedor || 'SIN PROVEEDOR';
+    const c = num(f.cubicacion);
+    agg[p] = (agg[p] || 0) + c;
+    total += c;
+  });
+
+  const orden = Object.entries(agg)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  if (!orden.length) return GR.vacio('grPareto', 'Sin cubicación para graficar.');
+
+  let acum = 0;
+  const completo = orden.map(([p, v]) => {
+    acum += v;
+    return { proveedor: p, cubicacion: v, participacion: total ? v / total : 0, acumulado: total ? acum / total : 0 };
+  });
+
+  const para80 = completo.findIndex(x => x.acumulado >= 0.8) + 1;
+  texto('paretoBajada', para80
+    ? fmt0(para80) + ' de ' + fmt0(completo.length) + ' proveedores explican el 80% del volumen de esta vista. Ahí está el riesgo si uno se cae.'
+    : 'Ordenados de mayor a menor participación.');
+
+  // Solo entran los que caben legibles; el resto se pliega en «Otros»
+  // en vez de generar más categorías.
+  const tope = 10;
+  const visibles = completo.slice(0, tope);
+  const resto = completo.slice(tope);
+
+  const datos = visibles.map(x => ({
+    etiqueta: x.proveedor,
+    valor: x.cubicacion,
+    textoValor: GR.fmtCompacto(x.cubicacion),
+    extra: [
+      { nombre: 'Participación', valor: fmtPct(x.participacion) },
+      { nombre: 'Acumulado', valor: fmtPct(x.acumulado) }
+    ]
+  }));
+
+  if (resto.length) {
+    const suma = resto.reduce((s, x) => s + x.cubicacion, 0);
+    datos.push({
+      etiqueta: 'Otros (' + resto.length + ')',
+      valor: suma,
+      textoValor: GR.fmtCompacto(suma),
+      color: GR.COLOR.lineaFuerte,
+      extra: [{ nombre: 'Participación', valor: fmtPct(total ? suma / total : 0) }]
+    });
+  }
+
+  GR.barras('grPareto', {
+    datos,
+    nombreSerie: 'Cubicación',
+    anchoEtiqueta: 156,
+    grosor: 20
+  });
+
+  GR.tabla('grParetoTabla',
+    ['#', 'Proveedor', { texto: 'm³', num: true }, { texto: 'Participación', num: true }, { texto: 'Acumulado', num: true }],
+    completo.map((x, i) => [i + 1, x.proveedor, fmt(x.cubicacion, 0), fmtPct(x.participacion), fmtPct(x.acumulado)]));
+
+  GR.registrar('grPareto', () => pintarPareto(estadisticas()));
+}
+
+/* ── Desviación contra el plan ─────────────────────── */
+
+function pintarDesviacion(st) {
+  const cumplimiento = construirCumplimiento(st.filas)
+    .filter(x => num(x.planToDate) > 0)
+    .map(x => ({
+      etiqueta: x.proveedor,
+      valor: num(x.cubicacion) - num(x.planToDate),
+      cumplimiento: num(x.cumplimiento),
+      extra: [
+        { nombre: 'Real', valor: fmt(x.cubicacion, 0) + ' m³' },
+        { nombre: 'Plan a fecha', valor: fmt(x.planToDate, 0) + ' m³' },
+        { nombre: 'Cumplimiento', valor: fmtPct(x.cumplimiento) }
+      ]
+    }))
+    .sort((a, b) => a.valor - b.valor);
+
+  if (!cumplimiento.length) {
+    return GR.vacio('grDesviacion', 'Ningún proveedor de la vista tiene plan asignado a la fecha.');
+  }
+
+  // Los extremos son lo que importa: los diez más atrasados y los cinco más adelantados.
+  const datos = cumplimiento.length > 15
+    ? cumplimiento.slice(0, 10).concat(cumplimiento.slice(-5))
+    : cumplimiento;
+
+  GR.divergente('grDesviacion', { datos, nombreCero: 'Plan a la fecha', grosor: 17 });
+
+  GR.tabla('grDesviacionTabla',
+    ['Proveedor', { texto: 'Real m³', num: true }, { texto: 'Plan a fecha m³', num: true }, { texto: 'Diferencia m³', num: true }, { texto: 'Cumplimiento', num: true }],
+    cumplimiento.map(x => [
+      x.etiqueta,
+      x.extra[0].valor.replace(' m³', ''),
+      x.extra[1].valor.replace(' m³', ''),
+      fmtFirmado(Math.round(x.valor)),
+      fmtPct(x.cumplimiento)
+    ]));
+
+  GR.registrar('grDesviacion', () => pintarDesviacion(estadisticas()));
+}
+
+/* ── Matriz de calibre ─────────────────────────────── */
+
+function pintarCalibre(st) {
+  st = st || estadisticas();
+  const campo = document.getElementById('calibreCampo').value;
+
+  // Con filtros activos la matriz se reconstruye desde las filas visibles;
+  // sin filtros usa la que ya viene calculada del servidor.
+  let matriz;
+
+  if (hayFiltros() && DETALLE_LISTO) {
+    const acc = {};
+    st.filas.forEach(f => {
+      const d = num(f.diametroPromedio), l = num(f.largo);
+      if (!d && !l) return;
+      const k = d + '|' + l;
+      if (!acc[k]) acc[k] = { diametro: d, largo: l, trozos: 0, cubicacion: 0 };
+      acc[k].trozos += num(f.trozos);
+      acc[k].cubicacion += num(f.cubicacion);
+    });
+    matriz = Object.values(acc).map(x => {
+      x.eficiencia = x.trozos ? x.cubicacion / x.trozos : 0;
+      return x;
+    });
+  } else {
+    matriz = DATA.matriz || [];
+  }
+
+  GR.calibre('grCalibre', matriz, { campo });
+
+  GR.tabla('tablaCalibre',
+    [{ texto: 'Ø cm', num: true }, { texto: 'Largo m', num: true }, { texto: 'Trozos', num: true },
+     { texto: 'm³', num: true }, { texto: 'm³/troza', num: true }],
+    [...matriz]
+      .sort((a, b) => num(b.cubicacion) - num(a.cubicacion))
+      .slice(0, 200)
+      .map(x => [fmt(x.diametro, 0), fmt(x.largo, 1), fmt0(x.trozos), fmt(x.cubicacion, 1), fmt(x.eficiencia, 3)]));
+
+  GR.registrar('grCalibre', () => pintarCalibre(estadisticas()));
+}
+
+/* ── Distribución de eficiencia y anomalías ────────── */
+
+function pintarEficiencia(st) {
+  const ef = (DATA.analitica || {}).eficiencia || {};
+
+  // El histograma se recalcula sobre la vista filtrada.
+  const valores = st.filas.filter(f => num(f.trozos) > 0).map(f => num(f.eficiencia));
+
+  if (valores.length < 4) {
+    GR.vacio('grEficiencia', 'Se necesitan al menos cuatro recepciones para distribuir la eficiencia.');
+  } else {
+    const min = Math.min.apply(null, valores);
+    const max = Math.max.apply(null, valores);
+    const n = Math.min(12, Math.max(5, Math.ceil(Math.sqrt(valores.length))));
+    const ancho = (max - min) / n || 1;
+
+    const bins = Array.from({ length: n }, (_, i) => ({ desde: min + ancho * i, hasta: min + ancho * (i + 1), cuenta: 0 }));
+    valores.forEach(v => {
+      bins[Math.min(n - 1, Math.max(0, Math.floor((v - min) / ancho)))].cuenta++;
+    });
+
+    const media = valores.reduce((s, v) => s + v, 0) / valores.length;
+
+    GR.columnas('grEficiencia', {
+      datos: bins.map(b => ({
+        etiqueta: fmt(b.desde, 2),
+        valor: b.cuenta,
+        textoValor: fmt0(b.cuenta) + ' recepciones',
+        extra: [{ nombre: 'Rango', valor: fmt(b.desde, 3) + ' a ' + fmt(b.hasta, 3) + ' m³/troza' }]
+      })),
+      alto: 260,
+      nombreSerie: 'Recepciones',
+      nombreY: 'Recepciones',
+      nombreX: 'm³ por troza · promedio ' + fmt(media, 3),
+      prefijoEtiqueta: 'Desde ',
+      formatoY: v => fmt0(v),
+      margen: { l: 48, r: 20, t: 20, b: 42 }
+    });
+
+    GR.tabla('grEficienciaTabla',
+      [{ texto: 'Desde m³/troza', num: true }, { texto: 'Hasta m³/troza', num: true }, { texto: 'Recepciones', num: true }],
+      bins.map(b => [fmt(b.desde, 3), fmt(b.hasta, 3), fmt0(b.cuenta)]));
+  }
+
+  // Las anomalías vienen del servidor, comparadas dentro de su clase de diámetro.
+  const outliers = (ef.outliers || []).filter(o => {
+    const fp = valor('fProveedor'), fc = valor('fComuna'), fCal = valor('fCalidad');
+    if (fp && !limpiar(o.proveedor).includes(fp)) return false;
+    if (fc && !limpiar(o.comuna).includes(fc)) return false;
+    if (fCal && limpiar(o.calidad) !== fCal) return false;
+    return true;
+  });
+
+  if (!outliers.length) {
+    const cont = document.getElementById('tablaOutliers');
+    cont.textContent = '';
+    const d = document.createElement('div');
+    d.className = 'gr-vacio';
+    d.textContent = 'Ninguna recepción se aparta más de dos desviaciones de su clase de diámetro.';
+    cont.appendChild(d);
+    return;
+  }
+
+  GR.tabla('tablaOutliers',
+    ['Proveedor', 'Predio', 'Clase Ø', { texto: 'm³/troza', num: true }, { texto: 'Esperado', num: true }, { texto: 'σ', num: true }],
+    outliers.slice(0, 25).map(o => [
+      o.proveedor, o.predio, o.claseDiametro,
+      fmt(o.eficiencia, 3), fmt(o.eficienciaEsperada, 3),
+      (num(o.z) > 0 ? '+' : '−') + fmt(Math.abs(num(o.z)), 1)
+    ]));
+
+  GR.registrar('grEficiencia', () => pintarEficiencia(estadisticas()));
+}
+
+/* ── Mezcla de calidad por día hábil ───────────────── */
+
+function pintarCalidadDia(st) {
+  const porDia = {};
+  let maxDia = 0;
+
+  st.filas.forEach(f => {
+    const d = num(f.dia);
+    if (!d) return;
+    if (!porDia[d]) porDia[d] = { VERDE: 0, MANCHADO: 0, SINIESTRADO: 0, OTRA: 0 };
+    const cal = limpiar(f.calidad);
+    const destino = porDia[d][cal] !== undefined ? cal : 'OTRA';
+    porDia[d][destino] += num(f.cubicacion);
+    maxDia = Math.max(maxDia, d);
+  });
+
+  if (!maxDia) return GR.vacio('grCalidadDia', 'Sin entregas diarias para separar por calidad.');
+
+  const dias = [];
+  for (let d = 1; d <= maxDia; d++) dias.push(d);
+
+  const tomar = cal => dias.map(d => (porDia[d] && porDia[d][cal]) || 0);
+
+  const series = [
+    { nombre: 'Verde', valores: tomar('VERDE'), color: GR.COLOR.bueno, forma: 'caja' },
+    { nombre: 'Manchado', valores: tomar('MANCHADO'), color: GR.COLOR.aviso, forma: 'caja' },
+    { nombre: 'Siniestrado', valores: tomar('SINIESTRADO'), color: GR.COLOR.critico, forma: 'caja' }
+  ].filter(s => s.valores.some(v => v > 0));
+
+  if (!series.length) return GR.vacio('grCalidadDia', 'Sin calidad registrada en la vista.');
+
+  const cont = document.getElementById('grCalidadDia');
+  const previa = cont.parentElement.querySelector('.gr-leyenda');
+  if (previa) previa.remove();
+
+  GR.apiladas('grCalidadDia', {
+    x: dias, series,
+    alto: 320,
+    nombreY: 'm³',
+    nombreX: 'Día hábil del mes',
+    prefijoEtiqueta: 'Día hábil ',
+    nombreTotal: 'Total del día',
+    margen: { l: 58, r: 22, t: 20, b: 40 }
+  });
+
+  GR.leyenda(cont, series);
+
+  GR.tabla('grCalidadDiaTabla',
+    ['Día hábil'].concat(series.map(s => ({ texto: s.nombre + ' m³', num: true })))
+      .concat([{ texto: 'Siniestrado %', num: true }]),
+    dias.map((d, i) => {
+      const total = series.reduce((s, ser) => s + num(ser.valores[i]), 0);
+      const sin = (series.filter(s => s.nombre === 'Siniestrado')[0] || { valores: [] }).valores[i] || 0;
+      return [d].concat(series.map(s => fmt(s.valores[i], 0))).concat([fmtPct(total ? sin / total : 0)]);
+    }));
+
+  GR.registrar('grCalidadDia', () => pintarCalidadDia(estadisticas()));
+}
+
+/* ══════════════════════════════════════════════════════
+   TABLAS
+   ══════════════════════════════════════════════════════ */
+
+function pintarTablas(st) {
+  st = st || estadisticas();
+
+  pintarTablaCumplimiento(st);
+
+  GR.tabla('tablaCalidad',
+    ['Calidad', { texto: 'Trozos', num: true }, { texto: 'm³', num: true },
+     { texto: '% del volumen', num: true }, { texto: 'Ø promedio', num: true }, { texto: 'm³/troza', num: true }],
+    st.calidades.map(x => [
+      x.calidad, fmt0(x.trozos), fmt(x.cubicacion, 1),
+      fmtPct(x.participacionCubicacion), fmt(x.diametroPromedio, 1), fmt(x.eficiencia, 3)
+    ]));
+
+  GR.tabla('tablaRegion',
+    ['Región', 'Comunas', { texto: 'Trozos', num: true }, { texto: 'm³', num: true },
+     { texto: '% del volumen', num: true }, { texto: 'Ø promedio', num: true }],
+    filasPorRegion(st.filas).map(x => [
+      x.region, x.comunas.join(', '), fmt0(x.trozos), fmt(x.cubicacion, 1),
+      fmtPct(x.cubicacion / seguro(st.cubicacion)), fmt(x.diametroPromedio, 1)
+    ]));
+
+  const recepciones = filasAgrupadas(st.filas);
+  texto('conteoRecepciones', fmt0(recepciones.length) + ' combinaciones' +
+    (recepciones.length > 250 ? ' · se muestran las 250 mayores' : ''));
+
+  GR.tabla('tablaGeneral',
+    ['Proveedor', 'Predio o faena', 'Comuna', 'Calidad', { texto: 'Largo m', num: true },
+     { texto: 'Trozos', num: true }, { texto: 'm³', num: true }, { texto: 'Ø promedio', num: true }],
+    recepciones.slice(0, 250).map(x => [
+      x.proveedor, x.predio, x.comuna, x.calidad, fmt(x.largo, 1),
+      fmt0(x.trozos), fmt(x.cubicacion, 1), fmt(x.diametroPromedio, 1)
+    ]));
+}
+
+function pintarTablaCumplimiento(st) {
+  st = st || estadisticas();
+
+  let filas = construirCumplimiento(st.filas).slice(0, 80);
+  if (SOLO_DEFICIT) filas = filas.filter(x => num(x.diferencia) < -0.01);
+
+  filas = ordenarCumplimiento(filas, ORDEN_CUMPLIMIENTO);
+
+  const cont = document.getElementById('tablaProveedor');
+  cont.textContent = '';
+
+  if (!filas.length) {
+    const d = document.createElement('div');
+    d.className = 'gr-vacio';
+    d.textContent = SOLO_DEFICIT
+      ? 'Ningún proveedor de la vista está bajo su plan a la fecha.'
+      : 'Sin proveedores en la vista filtrada.';
+    cont.appendChild(d);
+    return;
+  }
+
+  const marco = document.createElement('div');
+  marco.className = 'tabla-marco es-alta';
+
+  const t = document.createElement('table');
+  t.className = 'datos';
+
+  const columnas = [
+    { texto: 'Proveedor' },
+    { texto: 'Plan mes', num: true },
+    { texto: 'Plan a fecha', num: true },
+    { texto: 'Real m³', num: true, orden: 'cubicacion' },
+    { texto: 'Cumplimiento', num: true, orden: 'cumpl' },
+    { texto: 'Diferencia', num: true, orden: 'dif' },
+    { texto: 'Ø promedio', num: true }
+  ];
+
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+
+  columnas.forEach(c => {
+    const th = document.createElement('th');
+    th.textContent = c.texto;
+    if (c.num) th.className = 'num';
+
+    if (c.orden) {
+      th.classList.add('ordenable');
+      th.tabIndex = 0;
+      const activo = ORDEN_CUMPLIMIENTO.startsWith(c.orden);
+      th.setAttribute('aria-sort', activo
+        ? (ORDEN_CUMPLIMIENTO.endsWith('desc') ? 'descending' : 'ascending')
+        : 'none');
+
+      const alternar = () => {
+        ORDEN_CUMPLIMIENTO = ORDEN_CUMPLIMIENTO === c.orden + '_desc' ? c.orden + '_asc' : c.orden + '_desc';
+        pintarTablaCumplimiento();
+      };
+      th.addEventListener('click', alternar);
+      th.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternar(); } });
+    }
+
+    trh.appendChild(th);
+  });
+
+  thead.appendChild(trh);
+  t.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  filas.forEach((x, i) => {
+    const puedeAbrir = limpiar(x.proveedor) === 'MASISA SA' && (x.faenas || []).length;
+    const grupo = 'faena-' + i;
+
+    const tr = document.createElement('tr');
+
+    const tdProv = document.createElement('td');
+    tdProv.className = 'fuerte';
+
+    if (puedeAbrir) {
+      const b = document.createElement('button');
+      b.className = 'btn btn-fantasma';
+      b.type = 'button';
+      b.style.padding = '1px 6px';
+      b.style.marginRight = '6px';
+      b.textContent = '+';
+      b.setAttribute('aria-expanded', 'false');
+      b.addEventListener('click', () => {
+        const abierto = b.getAttribute('aria-expanded') === 'true';
+        b.setAttribute('aria-expanded', String(!abierto));
+        b.textContent = abierto ? '+' : '−';
+        tbody.querySelectorAll('tr.' + grupo).forEach(f => { f.hidden = abierto; });
+      });
+      tdProv.appendChild(b);
+    }
+
+    tdProv.appendChild(document.createTextNode(x.proveedor));
+    tr.appendChild(tdProv);
+
+    [fmt(x.plan, 0), fmt(x.planToDate, 0), fmt(x.cubicacion, 0)].forEach(v => {
+      const td = document.createElement('td');
+      td.className = 'num';
+      td.textContent = v;
+      tr.appendChild(td);
+    });
+
+    const tdCumpl = document.createElement('td');
+    tdCumpl.className = 'num';
+    tdCumpl.appendChild(insignia(fmtPct(x.cumplimiento), x.planToDate ? estadoCumplimiento(x.cumplimiento) : 'neutro'));
+    tr.appendChild(tdCumpl);
+
+    const tdDif = document.createElement('td');
+    tdDif.className = 'num';
+    tdDif.textContent = fmtFirmado(Math.round(num(x.diferencia)));
+    tdDif.style.color = num(x.diferencia) >= 0 ? 'var(--bueno)' : 'var(--critico)';
+    tdDif.style.fontWeight = '650';
+    tr.appendChild(tdDif);
+
+    const tdDiam = document.createElement('td');
+    tdDiam.className = 'num';
+    tdDiam.textContent = fmt(x.diametroPromedio, 1);
+    tr.appendChild(tdDiam);
+
+    tbody.appendChild(tr);
+
+    if (puedeAbrir) {
+      (x.faenas || []).forEach(f => {
+        const hija = document.createElement('tr');
+        hija.className = 'fila-hija ' + grupo;
+        hija.hidden = true;
+
+        [
+          '↳ ' + (f.faena || 'SIN FAENA'),
+          fmt(f.plan, 0), fmt(f.planToDate, 0), fmt(f.cubicacion, 0),
+          f.planToDate ? fmtPct(f.cumplimiento) : '—',
+          fmtFirmado(Math.round(num(f.diferencia))),
+          fmt(f.diametroPromedio, 1)
+        ].forEach((v, ci) => {
+          const td = document.createElement('td');
+          if (ci > 0) td.className = 'num';
+          td.textContent = v;
+          hija.appendChild(td);
+        });
+
+        tbody.appendChild(hija);
+      });
+    }
+  });
+
+  // Totales pegados al pie: la suma siempre a la vista.
+  const totales = filas.reduce((a, x) => {
+    a.plan += num(x.plan); a.planToDate += num(x.planToDate); a.cubicacion += num(x.cubicacion);
+    return a;
+  }, { plan: 0, planToDate: 0, cubicacion: 0 });
+
+  const trT = document.createElement('tr');
+  trT.className = 'fila-totales';
+  [
+    'Total · ' + fmt0(filas.length) + ' proveedores',
+    fmt(totales.plan, 0), fmt(totales.planToDate, 0), fmt(totales.cubicacion, 0),
+    totales.planToDate ? fmtPct(totales.cubicacion / totales.planToDate) : '—',
+    fmtFirmado(Math.round(totales.cubicacion - totales.planToDate)),
+    ''
+  ].forEach((v, i) => {
+    const td = document.createElement('td');
+    if (i > 0) td.className = 'num';
+    td.textContent = v;
+    trT.appendChild(td);
+  });
+  tbody.appendChild(trT);
+
+  t.appendChild(tbody);
+  marco.appendChild(t);
+  cont.appendChild(marco);
+}
+
+function insignia(textoValor, estado) {
+  const s = document.createElement('span');
+  s.className = 'insignia es-' + estado;
+  s.textContent = textoValor;
+  return s;
+}
+
+function estadoCumplimiento(v) {
+  const n = num(v);
+  return n >= 1 ? 'bueno' : n >= 0.8 ? 'aviso' : 'critico';
+}
+
+function ordenarCumplimiento(filas, modo) {
+  return [...filas].sort((a, b) => {
+    if (modo === 'cubicacion_asc') return a.cubicacion - b.cubicacion;
+    if (modo === 'cumpl_desc') return b.cumplimiento - a.cumplimiento;
+    if (modo === 'cumpl_asc') return a.cumplimiento - b.cumplimiento;
+    if (modo === 'dif_desc') return b.diferencia - a.diferencia;
+    if (modo === 'dif_asc') return a.diferencia - b.diferencia;
+    return b.cubicacion - a.cubicacion;
+  });
+}
+
+function pasaFiltroPlan(item) {
+  const fp = valor('fProveedor');
+  return !fp || limpiar(item.proveedor).includes(fp) || limpiar(item.nombrePlan).includes(fp);
+}
+
+function construirCumplimiento(filas) {
+  const base = {};
+
+  if (!hayFiltrosDeFila()) {
+    (DATA.cumplimientoProveedores || []).forEach(item => {
+      if (!pasaFiltroPlan(item)) return;
+      base[item.proveedor] = {
+        proveedor: item.proveedor, nombrePlan: item.nombrePlan,
+        plan: num(item.plan), planToDate: num(item.planToDate),
+        faenas: item.faenas || [], trozos: 0, cubicacion: 0,
+        diametroPromedio: 0, cumplimiento: 0, diferencia: 0, diamPond: 0
+      };
+    });
+  }
+
+  (filas || []).forEach(f => {
+    const p = f.proveedor || 'SIN PROVEEDOR';
+    if (!base[p]) {
+      base[p] = { proveedor: p, nombrePlan: '', plan: 0, planToDate: 0, faenas: [], trozos: 0, cubicacion: 0, diametroPromedio: 0, cumplimiento: 0, diferencia: 0, diamPond: 0 };
+    }
+    base[p].trozos += num(f.trozos);
+    base[p].cubicacion += num(f.cubicacion);
+    base[p].diamPond += num(f.diametroPromedio) * num(f.trozos);
+  });
+
+  return Object.values(base)
+    .map(x => {
+      x.diametroPromedio = x.trozos ? x.diamPond / x.trozos : 0;
+      x.cumplimiento = x.planToDate ? x.cubicacion / x.planToDate : 0;
+      x.diferencia = x.cubicacion - x.planToDate;
+      delete x.diamPond;
+      return x;
+    })
+    .filter(x => x.plan || x.cubicacion || x.trozos)
+    .sort((a, b) => (b.plan ? 1 : 0) - (a.plan ? 1 : 0) || b.cubicacion - a.cubicacion);
+}
+
+function filasPorRegion(filas) {
+  const regiones = {};
+
+  (filas || []).forEach(f => {
+    const r = f.region || regionDeComuna(f.comuna);
+    if (!regiones[r]) regiones[r] = { region: r, comunas: [], trozos: 0, cubicacion: 0, diamPond: 0 };
+    regiones[r].comunas.push(f.comuna || 'SIN COMUNA');
+    regiones[r].trozos += num(f.trozos);
+    regiones[r].cubicacion += num(f.cubicacion);
+    regiones[r].diamPond += num(f.diametroPromedio) * num(f.trozos);
+  });
+
+  return Object.values(regiones).map(x => {
+    x.comunas = [...new Set(x.comunas)].sort();
+    x.diametroPromedio = x.trozos ? x.diamPond / x.trozos : 0;
+    return x;
+  }).sort((a, b) => b.cubicacion - a.cubicacion);
+}
+
+function filasAgrupadas(filas) {
+  const out = {};
+
+  (filas || []).forEach(f => {
+    const k = [f.proveedor || '', f.predio || '', f.comuna || '', f.calidad || '', f.largo || ''].join('|');
+    if (!out[k]) {
+      out[k] = {
+        proveedor: f.proveedor || 'SIN PROVEEDOR', predio: f.predio || 'SIN PREDIO',
+        comuna: f.comuna || 'SIN COMUNA', calidad: f.calidad || 'SIN CALIDAD',
+        largo: num(f.largo), trozos: 0, cubicacion: 0, diamPond: 0
+      };
+    }
+    out[k].trozos += num(f.trozos);
+    out[k].cubicacion += num(f.cubicacion);
+    out[k].diamPond += num(f.diametroPromedio) * num(f.trozos);
+  });
+
+  return Object.values(out).map(x => {
+    x.diametroPromedio = x.trozos ? x.diamPond / x.trozos : 0;
+    x.eficiencia = x.trozos ? x.cubicacion / x.trozos : 0;
+    return x;
+  }).sort((a, b) => b.cubicacion - a.cubicacion);
+}
+
+const REGION_POR_COMUNA = {
+  CABRERO: 'Biobío', FLORIDA: 'Biobío', 'LA FLORIDA': 'Biobío', HUALQUI: 'Biobío',
+  LAJA: 'Biobío', 'LOS ANGELES': 'Biobío', PENCO: 'Biobío', QUILLECO: 'Biobío',
+  YUMBEL: 'Biobío', MULCHEN: 'Biobío',
+  CHILLAN: 'Ñuble', 'CHILLAN VIEJO': 'Ñuble', 'SAN FABIAN': 'Ñuble', 'SAN IGNACIO': 'Ñuble',
+  COIHUECO: 'Ñuble', 'EL CARMEN': 'Ñuble', NINHUE: 'Ñuble', PEMUCO: 'Ñuble',
+  PORTEZUELO: 'Ñuble', QUIRIHUE: 'Ñuble',
+  CAUQUENES: 'Maule', PARRAL: 'Maule', RETIRO: 'Maule',
+  LUMACO: 'La Araucanía', 'LOS SAUCES': 'La Araucanía'
+};
+
+function regionDeComuna(v) {
+  return REGION_POR_COMUNA[limpiar(v)] || 'Sin región asignada';
+}
+
+/* ══════════════════════════════════════════════════════
+   MAPAS
+   ══════════════════════════════════════════════════════ */
+
+let HAY_MAPAS = false;
+
+function iniciarMapas() {
+  // Leaflet viene de una CDN. Si la red corporativa la bloquea, los
+  // mapas se rinden solos y el resto del tablero sigue funcionando.
+  if (typeof L === 'undefined') {
+    HAY_MAPAS = false;
+    ['mapa', 'mapaComunas'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.border = '0';
+      GR.vacio(el, 'No se pudo cargar la librería de mapas (Leaflet). El resto del tablero funciona igual.');
+    });
+    texto('estadoMapa', 'Mapas no disponibles');
+    texto('estadoMapaComunas', 'Mapas no disponibles');
+    return;
+  }
+
+  HAY_MAPAS = true;
+
+  if (MAPA) MAPA.remove();
+  MAPA = L.map('mapa', { preferCanvas: true }).setView([-36.7, -72.5], 9);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(MAPA);
+  CAPA_ROLES = L.layerGroup().addTo(MAPA);
+  INDICE_ROLES = {};
+
+  const leyenda = L.control({ position: 'bottomright' });
+  leyenda.onAdd = () => {
+    const div = L.DomUtil.create('div', 'leyenda-mapa');
+    const t = document.createElement('b');
+    t.textContent = 'Intensidad';
+    div.appendChild(t);
+
+    [['Alta', GR.COLOR.mag[4]], ['Media alta', GR.COLOR.mag[3]], ['Media', GR.COLOR.mag[2]], ['Baja', GR.COLOR.mag[1]]]
+      .forEach(([nombre, color]) => {
+        const item = document.createElement('div');
+        item.className = 'leyenda-item';
+        const sw = document.createElement('span');
+        sw.className = 'leyenda-color';
+        sw.style.background = color;
+        item.appendChild(sw);
+        item.appendChild(document.createTextNode(nombre));
+        div.appendChild(item);
+      });
+
+    return div;
+  };
+  leyenda.addTo(MAPA);
+
+  if (MAPA_COMUNAS) MAPA_COMUNAS.remove();
+  MAPA_COMUNAS = L.map('mapaComunas', { preferCanvas: true }).setView([-36.7, -72.5], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(MAPA_COMUNAS);
+  CAPA_COMUNAS = L.layerGroup().addTo(MAPA_COMUNAS);
+}
+
+function calor(v) {
+  if (v > 0.40) return GR.COLOR.mag[4];
+  if (v > 0.25) return GR.COLOR.mag[3];
+  if (v > 0.10) return GR.COLOR.mag[2];
+  return GR.COLOR.mag[1];
+}
+
+function valorMapa(item, metrica) {
+  if (metrica === 'trozos') return num(item.trozos) / seguro(DATA.kpis.totalTrozos);
+  if (metrica === 'eficiencia') return Math.min((num(item.cubicacion) / seguro(num(item.trozos))) / 0.35, 1);
+  return num(item.cubicacion) / seguro(DATA.kpis.totalCubicacion);
+}
+
+function pintarCapasRoles() {
+  if (!MAPA || !CAPA_ROLES || !DATA) return;
+
+  CAPA_ROLES.clearLayers();
+  INDICE_ROLES = {};
+  LIMITES = [];
+
+  if (!ROLES_GIS.length) { pintarListaRoles([], 0); return; }
+
+  const metrica = document.getElementById('metricaMapa').value;
+  const fp = valor('fProveedor'), fPredio = valor('fPredio'), fc = valor('fComuna'), fr = valor('fRol');
+  let poligonos = 0;
+  const visibles = [];
+
+  ROLES_GIS.forEach(item => {
+    if (fp && !limpiar(item.proveedor).includes(fp)) return;
+    if (fPredio && !limpiar(item.predio).includes(fPredio)) return;
+    if (fc && !limpiar(item.comuna).includes(fc)) return;
+    if (fr && !limpiar(item.rol).includes(fr)) return;
+
+    const clave = claveRol(item);
+    const centro = centroDe(item);
+    const distancia = centro ? distanciaKm(centro, PLANTA) : null;
+
+    INDICE_ROLES[clave] = { item, capas: [], limites: [], centro, distancia };
+    visibles.push(item);
+
+    (item.polygons || []).forEach(coords => {
+      if (!coords.length) return;
+
+      const color = calor(valorMapa(item, metrica));
+      const poligono = L.polygon(coords, { color, fillColor: color, fillOpacity: 0.46, weight: 2 });
+
+      poligono.bindPopup(popupRol(item, distancia));
+      poligono.addTo(CAPA_ROLES);
+
+      INDICE_ROLES[clave].capas.push(poligono);
+      INDICE_ROLES[clave].limites.push(...coords);
+      LIMITES.push(...coords);
+      poligonos++;
+    });
+  });
+
+  pintarListaRoles(visibles, poligonos);
+  texto('estadoMapa', 'Polígonos visibles: ' + poligonos + ' · predios: ' + visibles.length);
+  if (LIMITES.length) MAPA.fitBounds(LIMITES, { padding: [20, 20] });
+}
+
+function popupRol(item, distancia) {
+  const d = document.createElement('div');
+  d.style.fontSize = '12px';
+  d.style.lineHeight = '1.55';
+
+  [
+    ['ROL', item.rol], ['Predio', item.predio], ['Proveedor', item.proveedor],
+    ['Comuna', item.comuna], ['Región', item.region || regionDeComuna(item.comuna)],
+    ['Archivo', item.fileName],
+    ['Distancia a planta', distancia ? fmt(distancia, 1) + ' km' : 'sin coordenadas'],
+    ['Área aproximada', fmt(hectareas(item), 1) + ' ha'],
+    ['Cubicación', fmt(item.cubicacion, 1) + ' m³'],
+    ['Trozos', fmt0(item.trozos)],
+    ['Eficiencia', fmt(num(item.cubicacion) / seguro(num(item.trozos)), 3) + ' m³/troza']
+  ].forEach(([k, v]) => {
+    const linea = document.createElement('div');
+    const b = document.createElement('b');
+    b.textContent = k + ': ';
+    linea.appendChild(b);
+    linea.appendChild(document.createTextNode(String(v == null || v === '' ? '—' : v)));
+    d.appendChild(linea);
+  });
+
+  return d;
+}
+
+function pintarListaRoles(items, poligonos) {
+  const cabeza = document.getElementById('listaRolCabeza');
+  const lista = document.getElementById('listaRol');
+  if (!cabeza || !lista) return;
+
+  cabeza.textContent = 'Predios: ' + fmt0(items.length) + ' · polígonos: ' + fmt0(poligonos);
+  lista.textContent = '';
+
+  if (!items.length) {
+    const d = document.createElement('div');
+    d.className = 'rol-vacio';
+    d.textContent = ROLES_GIS.length
+      ? 'Ningún predio KML o KMZ coincide con los filtros actuales.'
+      : 'Cargando predios KML/KMZ desde Drive…';
+    lista.appendChild(d);
+    return;
+  }
+
+  items.forEach(item => {
+    const clave = claveRol(item);
+    const registro = INDICE_ROLES[clave];
+
+    const b = document.createElement('button');
+    b.className = 'rol-item';
+    b.type = 'button';
+    b.setAttribute('aria-pressed', 'false');
+
+    const titulo = document.createElement('div');
+    titulo.className = 'rol-predio';
+    titulo.textContent = item.predio || 'SIN PREDIO';
+    b.appendChild(titulo);
+
+    const meta = document.createElement('div');
+    meta.className = 'rol-meta';
+
+    [
+      ['ROL', item.rol], ['Proveedor', item.proveedor],
+      ['Región', item.region || regionDeComuna(item.comuna)],
+      ['Distancia', registro && registro.distancia ? fmt(registro.distancia, 1) + ' km' : 'sin coordenadas'],
+      ['Superficie', fmt(hectareas(item), 1) + ' ha'],
+      ['Volumen', fmt(item.cubicacion, 1) + ' m³ · ' + fmt0(item.trozos) + ' trozos']
+    ].forEach(([k, v]) => {
+      const s = document.createElement('span');
+      const bb = document.createElement('b');
+      bb.textContent = k + ': ';
+      s.appendChild(bb);
+      s.appendChild(document.createTextNode(String(v == null || v === '' ? '—' : v)));
+      meta.appendChild(s);
+    });
+
+    b.appendChild(meta);
+    b.addEventListener('click', () => enfocarRol(clave, b));
+    lista.appendChild(b);
+  });
+}
+
+function enfocarRol(clave, boton) {
+  const registro = INDICE_ROLES[clave];
+  if (!registro || !registro.limites.length || !MAPA) return;
+
+  document.querySelectorAll('.rol-item[aria-pressed="true"]').forEach(e => e.setAttribute('aria-pressed', 'false'));
+  if (boton) boton.setAttribute('aria-pressed', 'true');
+
+  MAPA.fitBounds(registro.limites, { padding: [35, 35], maxZoom: 15 });
+  if (registro.capas.length) registro.capas[0].openPopup();
+}
+
+function pintarCapasComunas() {
+  if (!MAPA_COMUNAS || !CAPA_COMUNAS || !DATA) return;
+
+  CAPA_COMUNAS.clearLayers();
+
+  if (!ROLES_GIS.length) { texto('estadoMapaComunas', 'Comunas: sin datos GIS'); return; }
+
+  const metrica = document.getElementById('metricaComunas').value;
+  const comunas = agruparComunas();
+  const valores = comunas.map(x => valorComuna(x, metrica));
+  const max = Math.max.apply(null, valores.concat([1]));
+  const limites = [];
+
+  comunas.forEach(item => {
+    const v = valorComuna(item, metrica);
+    const radio = 8 + (v / max) * 26;
+    const color = calor(v / max);
+
+    const marcador = L.circleMarker([item.lat, item.lng], {
+      radius: radio, color, fillColor: color, fillOpacity: 0.55, weight: 2
+    });
+
+    const d = document.createElement('div');
+    d.style.fontSize = '12px';
+    d.style.lineHeight = '1.55';
+    [
+      ['Comuna', item.comuna], ['Región', item.region],
+      ['Predios GIS', fmt0(item.predios)],
+      ['Cubicación', fmt(item.cubicacion, 1) + ' m³'],
+      ['Trozos', fmt0(item.trozos)],
+      ['Promedio por predio', fmt(item.cubicacion / seguro(item.predios), 1) + ' m³']
+    ].forEach(([k, v2]) => {
+      const linea = document.createElement('div');
+      const b = document.createElement('b');
+      b.textContent = k + ': ';
+      linea.appendChild(b);
+      linea.appendChild(document.createTextNode(String(v2)));
+      d.appendChild(linea);
+    });
+
+    marcador.bindPopup(d);
+    marcador.addTo(CAPA_COMUNAS);
+    limites.push([item.lat, item.lng]);
+  });
+
+  texto('estadoMapaComunas', 'Comunas visibles: ' + comunas.length);
+  if (limites.length) MAPA_COMUNAS.fitBounds(limites, { padding: [35, 35], maxZoom: 11 });
+}
+
+function agruparComunas() {
+  const fp = valor('fProveedor'), fPredio = valor('fPredio'), fc = valor('fComuna'), fr = valor('fRol');
+  const out = {};
+
+  ROLES_GIS.forEach(item => {
+    if (fp && !limpiar(item.proveedor).includes(fp)) return;
+    if (fPredio && !limpiar(item.predio).includes(fPredio)) return;
+    if (fc && !limpiar(item.comuna || 'SIN COMUNA').includes(fc)) return;
+    if (fr && !limpiar(item.rol).includes(fr)) return;
+
+    const puntos = todosLosPuntos(item.polygons || []);
+    if (!puntos.length) return;
+
+    const centro = puntoPromedio(puntos);
+    const clave = limpiar(item.comuna || 'SIN COMUNA');
+
+    if (!out[clave]) {
+      out[clave] = {
+        comuna: item.comuna || 'SIN COMUNA',
+        region: item.region || regionDeComuna(item.comuna),
+        cubicacion: 0, trozos: 0, predios: 0, latSuma: 0, lngSuma: 0
+      };
+    }
+
+    out[clave].cubicacion += num(item.cubicacion);
+    out[clave].trozos += num(item.trozos);
+    out[clave].predios += 1;
+    out[clave].latSuma += centro.lat;
+    out[clave].lngSuma += centro.lng;
+  });
+
+  return Object.values(out).map(x => ({
+    ...x,
+    lat: x.latSuma / seguro(x.predios),
+    lng: x.lngSuma / seguro(x.predios)
+  })).sort((a, b) => b.cubicacion - a.cubicacion);
+}
+
+function valorComuna(item, metrica) {
+  if (metrica === 'trozos') return num(item.trozos);
+  if (metrica === 'predios') return num(item.predios);
+  return num(item.cubicacion);
+}
+
+const claveRol = item => limpiar(item.rol) + '|' + limpiar(item.fileName);
+const todosLosPuntos = pols => pols.reduce((p, x) => p.concat(x || []), []);
+
+function puntoPromedio(puntos) {
+  const s = puntos.reduce((a, c) => { a.lat += num(c[0]); a.lng += num(c[1]); return a; }, { lat: 0, lng: 0 });
+  return { lat: s.lat / seguro(puntos.length), lng: s.lng / seguro(puntos.length) };
+}
+
+function centroDe(item) {
+  const p = todosLosPuntos(item.polygons || []);
+  return p.length ? puntoPromedio(p) : null;
+}
+
+const radianes = v => num(v) * Math.PI / 180;
+
+function distanciaKm(a, b) {
+  if (!a || !b) return null;
+  const R = 6371;
+  const dLat = radianes(b.lat - a.lat), dLng = radianes(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(radianes(a.lat)) * Math.cos(radianes(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+const METROS_POR_GRADO = (Math.PI / 180) * 6371000;
+
+function areaAnillo(anillo) {
+  if (!anillo || anillo.length < 3) return 0;
+  const mpl = METROS_POR_GRADO * Math.cos(radianes(anillo[0][0]));
+  let suma = 0;
+  for (let i = 0; i < anillo.length; i++) {
+    const a = anillo[i], b = anillo[(i + 1) % anillo.length];
+    suma += (num(a[1]) * mpl) * (num(b[0]) * METROS_POR_GRADO) - (num(b[1]) * mpl) * (num(a[0]) * METROS_POR_GRADO);
+  }
+  return Math.abs(suma) / 2 / 10000;
+}
+
+const hectareas = item => (item.polygons || []).reduce((t, a) => t + areaAnillo(a), 0);
+
+/* ══════════════════════════════════════════════════════
+   EXPORTACIÓN
+   ══════════════════════════════════════════════════════ */
+
+function descargarCSV(nombre, filas) {
+  const csv = filas.map(f => f.map(c => {
+    const s = String(c == null ? '' : c);
+    return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(';')).join('\r\n');
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportar() {
+  if (!DATA) return;
+
+  const st = estadisticas();
+  const filas = [['Proveedor', 'Predio', 'Comuna', 'Region', 'Calidad', 'Largo m', 'Trozos', 'Cubicacion m3', 'Diametro cm', 'm3 por troza']];
+
+  filasAgrupadas(st.filas).forEach(x => filas.push([
+    x.proveedor, x.predio, x.comuna, regionDeComuna(x.comuna), x.calidad,
+    fmt(x.largo, 1), x.trozos, fmt(x.cubicacion, 2), fmt(x.diametroPromedio, 1), fmt(x.eficiencia, 3)
+  ]));
+
+  descargarCSV('recepciones' + (hayFiltros() ? '_filtrado' : '') + '.csv', filas);
+}
+</script>
