@@ -319,14 +319,59 @@ Se filtra por *crítico · atención · oportunidad*.
 
 ---
 
-## Apuntes de reunión
+## Apuntes: la vista de la reunión
 
 El acuerdo que no queda escrito se convierte en *"me parece que
 quedamos en"* tres semanas después, y ahí ya no hay conversación
 posible.
 
-En la página, la sección **Apuntes de reunión** escribe directo en la
-hoja `Apuntes`: fecha, tema, asunto, participantes, apuntes, acuerdos,
+**Apuntes** es la tercera vista, junto a *Suministro* y *Mapeos*. No es
+un formulario en blanco: **te hace las preguntas**, y no siempre las
+mismas.
+
+### La pauta la decide el mes
+
+Preguntar por el stock el día que el problema es la cancha llena es
+perder el tiempo de todos. Por eso la pauta se arma según cómo viene el
+mes, mirando la proyección al cierre contra el plan:
+
+| Situación | Cuándo | Qué pregunta |
+|---|---|---|
+| **Llega más de lo planificado** | Proyección ≥ 108% del plan | Si hay cancha para lo que sobra, a quién bajarle volumen y cómo decírselo, si se aprovecha para renegociar precio a la baja, si el plan del mes siguiente se ajusta |
+| **En línea** | Entre 95% y 108% | Si alguien avisó que baja, qué se hace con la diferencia del cierre, si el plan siguiente ya está conversado |
+| **Falta para llegar** | Proyección ≤ 95% | De dónde salen las TS que faltan, quién puede subir y a qué costo, si se autoriza pagar sobre el precio medio, si se abre proveedor nuevo, y qué se hace en planta si no se cierra |
+| **Sin plan comparable** | No hay plan del mes vigente | Si está cargado el plan, cuál es la meta y quién la comprometió |
+
+Cada pregunta trae **su dato al lado**. «¿Quién puede subir esta
+semana?» va acompañada del ritmo requerido contra el ritmo actual, para
+no tener que buscarlo.
+
+### Los otros dos bloques
+
+**Seguimiento de la reunión anterior** — los apuntes que quedaron sin
+cerrar vuelven a aparecer con su acuerdo escrito. Sin esto un acuerdo
+se repite tres semanas seguidas sin que nadie note que nunca se
+cumplió.
+
+**Proveedor por proveedor** — sale del plan de acción, en el mismo
+orden de prioridad. Cada caso trae su pregunta: al que *viene a la
+baja* se le pregunta el motivo y hasta cuándo dura; al que va *bajo su
+plan*, a cuánto por semana se compromete y desde cuándo; al que está
+*sobre plan*, si se le sube el plan del mes siguiente.
+
+Lo que no es pregunta de reunión no aparece: *sin precio homologado* se
+arregla en la hoja, no conversando.
+
+### Cerrar la reunión
+
+Lo respondido se vuelca al apunte **con la pregunta delante**: dentro
+de un mes la respuesta suelta no se entiende. Lo que escribas a mano en
+«Apuntes» manda y la pauta se agrega debajo.
+
+Las respuestas sobreviven a cambiar de vista mientras no cierres: media
+reunión no se pierde por ir a mirar un gráfico.
+
+La ficha guarda fecha, tema, asunto, participantes, apuntes, acuerdos,
 responsable, compromiso y estado.
 
 **La semana se calcula sola** a partir de la fecha, en formato ISO

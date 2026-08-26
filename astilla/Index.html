@@ -591,6 +591,142 @@
     .tabla-mandos .campo-buscar { flex: 1 1 200px; min-width: 170px; }
 
     /* ---------------------------------------------------------------
+       PAUTA DE REUNIÓN
+       --------------------------------------------------------------- */
+
+    .situacion {
+      padding: 15px 17px;
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      background: var(--surface);
+      margin-bottom: 18px;
+    }
+
+    .situacion.es-exceso {
+      border-color: rgba(169, 108, 42, .38);
+      background: var(--madera-soft);
+    }
+
+    .situacion.es-deficit {
+      border-color: rgba(163, 56, 42, .45);
+      background: var(--ladrillo-soft);
+    }
+
+    .situacion.es-linea {
+      border-color: rgba(30, 122, 80, .32);
+      background: var(--verde-soft);
+    }
+
+    .situacion-marca {
+      font-family: var(--mono);
+      font-size: 10.5px; font-weight: 600;
+      letter-spacing: .1em; text-transform: uppercase;
+      color: var(--ink-2); margin-bottom: 6px;
+    }
+
+    .es-exceso .situacion-marca { color: var(--madera); }
+    .es-deficit .situacion-marca { color: var(--ladrillo); }
+    .es-linea .situacion-marca { color: var(--verde); }
+
+    .situacion-titular {
+      font-family: var(--display);
+      font-size: clamp(16px, 1.8vw, 20px);
+      font-weight: 600; letter-spacing: -.012em;
+      margin: 0 0 5px; color: var(--ink);
+      text-wrap: balance;
+    }
+
+    .situacion-pie {
+      margin: 0; font-size: 13px; color: var(--ink-2);
+      max-width: 72ch;
+    }
+
+    .pauta { display: grid; gap: 22px; }
+
+    .pauta-bloque { display: grid; gap: 11px; }
+
+    .pauta-bloque h3 {
+      font-family: var(--mono);
+      font-size: 10.5px; font-weight: 600;
+      letter-spacing: .12em; text-transform: uppercase;
+      color: var(--ink-3);
+      margin: 0; padding-bottom: 7px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .pregunta {
+      padding: 13px 15px;
+      border: 1px solid var(--rule);
+      border-radius: 9px;
+      background: var(--paper);
+    }
+
+    .pregunta.es-critico { border-color: rgba(163, 56, 42, .38); }
+    .pregunta.es-atencion { border-color: rgba(169, 108, 42, .32); }
+
+    .pregunta-quien {
+      display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: 4px 9px; margin-bottom: 5px;
+      font-family: var(--display);
+      font-size: 13.5px; font-weight: 600;
+      letter-spacing: -.005em; color: var(--ink);
+    }
+
+    .pregunta-caso {
+      font-family: var(--mono); font-size: 10px;
+      font-weight: 500; letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+      background: var(--surface-2); color: var(--ink-2);
+    }
+
+    .es-critico .pregunta-caso {
+      background: var(--ladrillo-soft); color: var(--ladrillo);
+    }
+
+    .es-atencion .pregunta-caso {
+      background: var(--madera-soft); color: var(--madera);
+    }
+
+    .pregunta label {
+      display: block;
+      font-size: 14.5px; font-weight: 500;
+      color: var(--ink); margin-bottom: 5px;
+      max-width: 74ch; text-wrap: pretty;
+    }
+
+    .pregunta-dato,
+    .pregunta-ayuda {
+      margin: 0 0 6px; font-size: 12.5px;
+      color: var(--ink-2); max-width: 76ch; line-height: 1.5;
+    }
+
+    .pregunta-dato {
+      font-family: var(--mono); font-size: 11.5px;
+      color: var(--ink-3);
+    }
+
+    .pregunta textarea {
+      width: 100%;
+      min-height: 52px;
+      padding: 8px 10px;
+      font-family: var(--body);
+      font-size: 13px; line-height: 1.5;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--paper);
+      resize: vertical; outline: 0;
+      transition: border-color .16s var(--ease), box-shadow .16s var(--ease);
+    }
+
+    .pregunta textarea:hover { border-color: var(--ink-3); }
+
+    .pregunta textarea:focus {
+      border-color: var(--verde-2);
+      box-shadow: 0 0 0 3px rgba(30, 122, 80, .12);
+    }
+
+    /* ---------------------------------------------------------------
        APUNTES DE REUNIÓN
        --------------------------------------------------------------- */
 
@@ -1679,6 +1815,17 @@
           </svg>
           Mapeos
         </button>
+        <button class="pestana" id="pesApuntes" role="tab"
+                aria-selected="false" aria-controls="vistaApuntes"
+                onclick="verVista('apuntes')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round"
+               stroke-linejoin="round">
+            <path d="M6 3h9l4 4v14H6z"/>
+            <path d="M15 3v4h4M9.5 12h6M9.5 16h4"/>
+          </svg>
+          Apuntes
+        </button>
       </div>
 
       <div class="barra-fin">
@@ -2043,86 +2190,6 @@
           <div id="listaAccion" class="acciones"></div>
         </article>
 
-        <article class="panel" id="panelApuntes">
-          <div class="panel-cab">
-            <div>
-              <h2>Apuntes de reunión</h2>
-              <p class="panel-nota">
-                Una ficha por reunión, con fecha, tema y asunto. La semana
-                se calcula sola, así que la reunión sigue siendo la de esa
-                semana aunque se corra de día.
-              </p>
-            </div>
-            <div class="conteo" id="conteoApuntes">—</div>
-          </div>
-
-          <div class="apuntes-marco">
-            <form class="apunte-form" id="apunteForm" autocomplete="off">
-              <input type="hidden" id="apId">
-
-              <div class="apunte-fila">
-                <div class="campo">
-                  <label for="apFecha">Fecha</label>
-                  <input id="apFecha" type="date" required>
-                </div>
-                <div class="campo">
-                  <label for="apTema">Tema</label>
-                  <select id="apTema"></select>
-                </div>
-                <div class="campo campo-ancho">
-                  <label for="apAsunto">Asunto</label>
-                  <input id="apAsunto" type="text" maxlength="180" required
-                         placeholder="Precio nitens con Promasa">
-                </div>
-              </div>
-
-              <div class="campo">
-                <label for="apParticipantes">Participantes</label>
-                <input id="apParticipantes" type="text" maxlength="180"
-                       placeholder="Quiénes estuvieron">
-              </div>
-
-              <div class="campo">
-                <label for="apApuntes">Apuntes</label>
-                <textarea id="apApuntes" rows="5"
-                          placeholder="Lo que se dijo."></textarea>
-              </div>
-
-              <div class="campo">
-                <label for="apAcuerdos">Acuerdos</label>
-                <textarea id="apAcuerdos" rows="3"
-                          placeholder="Lo que quedó comprometido."></textarea>
-              </div>
-
-              <div class="apunte-fila">
-                <div class="campo">
-                  <label for="apResponsable">Responsable</label>
-                  <input id="apResponsable" type="text" maxlength="90">
-                </div>
-                <div class="campo">
-                  <label for="apCompromiso">Compromiso</label>
-                  <input id="apCompromiso" type="date">
-                </div>
-                <div class="campo">
-                  <label for="apEstado">Estado</label>
-                  <select id="apEstado"></select>
-                </div>
-              </div>
-
-              <div class="apunte-botones">
-                <button type="submit" class="boton boton-firme"
-                        id="apGuardar">Guardar apunte</button>
-                <button type="button" class="boton" id="apNuevo"
-                        hidden>Nuevo</button>
-              </div>
-
-              <div class="recado" id="apRecado"></div>
-            </form>
-
-            <div class="apuntes-lista" id="apuntesLista"></div>
-          </div>
-        </article>
-
         <article class="panel">
           <div class="panel-cab">
             <div>
@@ -2262,6 +2329,122 @@
         </article>
       </div>
     </section>
+
+    <!-- ========================= APUNTES ========================= -->
+
+    <section id="vistaApuntes" role="tabpanel"
+             aria-labelledby="pesApuntes" hidden>
+      <div class="portada portada-apuntes">
+        <div>
+          <h2 class="titulo-vista">Reunión de la semana</h2>
+          <p class="portada-nota">
+            Responde lo de abajo y ciérralo. Lo que no queda escrito se
+            convierte en «me parece que quedamos en» tres semanas después.
+          </p>
+        </div>
+      </div>
+
+      <div class="pila">
+
+        <article class="panel" id="panelPauta">
+          <div class="panel-cab">
+            <div>
+              <h2>Pauta de esta reunión</h2>
+              <p class="panel-nota">
+                Las preguntas salen de cómo viene el mes. No son las
+                mismas cuando sobra astilla que cuando falta.
+              </p>
+            </div>
+            <div class="conteo" id="conteoPauta">—</div>
+          </div>
+
+          <div id="situacion" class="situacion"></div>
+          <div id="pauta" class="pauta"></div>
+        </article>
+
+        <article class="panel" id="panelApuntes">
+          <div class="panel-cab">
+            <div>
+              <h2>Cerrar la reunión</h2>
+              <p class="panel-nota">
+                Lo que se responde arriba queda escrito en la hoja
+                <code>Apuntes</code>. La semana se calcula sola, así que
+                la reunión sigue siendo la de esa semana aunque se corra
+                de día.
+              </p>
+            </div>
+            <div class="conteo" id="conteoApuntes">—</div>
+          </div>
+
+          <div class="apuntes-marco">
+            <form class="apunte-form" id="apunteForm" autocomplete="off">
+              <input type="hidden" id="apId">
+
+              <div class="apunte-fila">
+                <div class="campo">
+                  <label for="apFecha">Fecha</label>
+                  <input id="apFecha" type="date" required>
+                </div>
+                <div class="campo">
+                  <label for="apTema">Tema</label>
+                  <select id="apTema"></select>
+                </div>
+                <div class="campo campo-ancho">
+                  <label for="apAsunto">Asunto</label>
+                  <input id="apAsunto" type="text" maxlength="180" required
+                         placeholder="Precio nitens con Promasa">
+                </div>
+              </div>
+
+              <div class="campo">
+                <label for="apParticipantes">Participantes</label>
+                <input id="apParticipantes" type="text" maxlength="180"
+                       placeholder="Quiénes estuvieron">
+              </div>
+
+              <div class="campo">
+                <label for="apApuntes">Apuntes</label>
+                <textarea id="apApuntes" rows="6"
+                          placeholder="Lo que se dijo."></textarea>
+              </div>
+
+              <div class="campo">
+                <label for="apAcuerdos">Acuerdos</label>
+                <textarea id="apAcuerdos" rows="3"
+                          placeholder="Lo que quedó comprometido."></textarea>
+              </div>
+
+              <div class="apunte-fila">
+                <div class="campo">
+                  <label for="apResponsable">Responsable</label>
+                  <input id="apResponsable" type="text" maxlength="90">
+                </div>
+                <div class="campo">
+                  <label for="apCompromiso">Compromiso</label>
+                  <input id="apCompromiso" type="date">
+                </div>
+                <div class="campo">
+                  <label for="apEstado">Estado</label>
+                  <select id="apEstado"></select>
+                </div>
+              </div>
+
+              <div class="apunte-botones">
+                <button type="submit" class="boton boton-firme"
+                        id="apGuardar">Guardar apunte</button>
+                <button type="button" class="boton" id="apNuevo"
+                        hidden>Nuevo</button>
+              </div>
+
+              <div class="recado" id="apRecado"></div>
+            </form>
+
+            <div class="apuntes-lista" id="apuntesLista"></div>
+          </div>
+        </article>
+
+      </div>
+    </section>
   </main>
 
   <div id="globo" role="tooltip" aria-hidden="true"></div>
@@ -2309,7 +2492,7 @@
     var RUTAS = null;
     var RUTA = { id: '', nombre: '', fecha: '', hora: '', paradas: [] };
     var TRAZO = null;
-    var CONTEXTO = { suministro: '', mapeos: '' };
+    var CONTEXTO = { suministro: '', mapeos: '', apuntes: '' };
 
     var SUAVE = !window.matchMedia(
       '(prefers-reduced-motion: reduce)'
@@ -2331,27 +2514,43 @@
        VISTAS
        ================================================================= */
 
-    function verVista(cual) {
-      VISTA = cual;
-      var esSum = cual === 'suministro';
+    var VISTAS = Object.freeze({
+      suministro: { seccion: 'vistaSuministro', pestana: 'pesSuministro' },
+      mapeos: { seccion: 'vistaMapeos', pestana: 'pesMapeos' },
+      apuntes: { seccion: 'vistaApuntes', pestana: 'pesApuntes' }
+    });
 
-      document.getElementById('vistaSuministro').hidden = !esSum;
-      document.getElementById('vistaMapeos').hidden = esSum;
-      document.getElementById('pesSuministro')
-        .setAttribute('aria-selected', String(esSum));
-      document.getElementById('pesMapeos')
-        .setAttribute('aria-selected', String(!esSum));
+    function verVista(cual) {
+      if (!VISTAS[cual]) { cual = 'suministro'; }
+
+      VISTA = cual;
+
+      Object.keys(VISTAS).forEach(function(nombre) {
+        var activa = nombre === cual;
+        var seccion = document.getElementById(VISTAS[nombre].seccion);
+        var pestana = document.getElementById(VISTAS[nombre].pestana);
+
+        if (seccion) { seccion.hidden = !activa; }
+        if (pestana) {
+          pestana.setAttribute('aria-selected', String(activa));
+        }
+      });
 
       setText('contexto',
         CONTEXTO[cual] || 'Control de suministro');
 
       window.scrollTo({ top: 0, behavior: SUAVE ? 'smooth' : 'auto' });
 
-      if (!esSum) {
+      if (cual === 'mapeos') {
         if (!MAPEOS_PEDIDOS) { cargarMapeos(); }
         setTimeout(function() {
           if (MAPA) { MAPA.invalidateSize(); }
         }, 60);
+      }
+
+      if (cual === 'apuntes') {
+        if (!APUNTES_PEDIDOS) { cargarApuntes(); }
+        dibujarPauta();
       }
 
       observarPaneles();
@@ -2572,6 +2771,7 @@
       dibujarTablaPrecios(CURRENT_PRICING, CURRENT_METRICS);
       dibujarTablaProveedor(CURRENT_PROVIDERS);
       dibujarAcciones();
+      dibujarPauta();
       dibujarDetalle(CURRENT_ROWS);
       dibujarGraficos();
       observarPaneles();
@@ -5220,11 +5420,443 @@
     }
 
 /* =====================================================================
+ * PAUTA DE LA REUNIÓN
+ *
+ * Las preguntas no son siempre las mismas: cuando sobra astilla lo que
+ * hay que resolver es dónde ponerla y a quién frenar, y cuando falta es
+ * de dónde sacarla. Una pauta fija te hace preguntar por el stock el
+ * día que el problema es la cancha llena.
+ * ===================================================================== */
+
+    var SITUACIONES = Object.freeze({
+      exceso: {
+        nombre: 'Llega más de lo planificado',
+        pie: 'El riesgo es la cancha y el capital inmovilizado, no el ' +
+          'abastecimiento.'
+      },
+      linea: {
+        nombre: 'En línea con el plan',
+        pie: 'La reunión es de mantención: proteger lo que ya funciona.'
+      },
+      deficit: {
+        nombre: 'Falta para llegar al plan',
+        pie: 'El riesgo es quedarse sin astilla antes de fin de mes.'
+      },
+      sinPlan: {
+        nombre: 'Sin plan comparable',
+        pie: 'Sin plan del mes vigente no hay contra qué medir el ' +
+          'cumplimiento.'
+      }
+    });
+
+    /**
+     * Exceso, déficit o en línea, según la proyección al cierre.
+     */
+    function situacionDelMes(m) {
+      if (!m || !m.planValid || !m.planPeriod) { return 'sinPlan'; }
+
+      var razon = m.projection / m.planPeriod;
+
+      if (razon >= 1.08) { return 'exceso'; }
+      if (razon <= 0.95) { return 'deficit'; }
+
+      return 'linea';
+    }
+
+    /**
+     * Preguntas del mes según la situación. Cada una lleva su dato al
+     * lado: preguntar "¿cuánto falta?" cuando la pantalla ya lo dice es
+     * hacer perder el tiempo a todos.
+     */
+    function preguntasDelMes(m, situacion) {
+      var falta = m.planPeriod - m.projection;
+      var sobra = m.projection - m.planPeriod;
+
+      if (situacion === 'exceso') {
+        return [
+          {
+            clave: 'exc-cancha',
+            pregunta: '¿Hay cancha para las ' + formatTs(sobra) +
+              ' que sobran al cierre?',
+            ayuda: 'Si no la hay, la decisión es frenar compra, no ' +
+              'recibirla y ver después.'
+          },
+          {
+            clave: 'exc-frenar',
+            pregunta: '¿A quién se le baja volumen, y cómo se le dice?',
+            ayuda: 'Bajarle al que cobra más caro cuesta menos que ' +
+              'bajarle al que siempre cumple. Ese orden hay que decidirlo, ' +
+              'no improvisarlo.'
+          },
+          {
+            clave: 'exc-precio',
+            pregunta: '¿Se aprovecha para renegociar precio a la baja?',
+            ayuda: 'Con la cancha llena, el poder de negociación cambia ' +
+              'de lado. Es la ventana para revisar los precios sobre el ' +
+              'promedio.'
+          },
+          {
+            clave: 'exc-siguiente',
+            pregunta: '¿El plan del mes siguiente se ajusta o se mantiene?',
+            ayuda: 'Si el exceso viene de un plan corto, corregir el plan ' +
+              'evita repetir la conversación en 30 días.'
+          }
+        ];
+      }
+
+      if (situacion === 'deficit') {
+        return [
+          {
+            clave: 'def-origen',
+            pregunta: '¿De dónde salen las ' + formatTs(falta) +
+              ' que faltan para el cierre?',
+            ayuda: 'Nombre y cantidad por proveedor. "Vamos a apurar" no ' +
+              'es una respuesta que se pueda revisar la semana siguiente.'
+          },
+          {
+            clave: 'def-quien',
+            pregunta: '¿Quién puede subir esta semana y a qué costo?',
+            ayuda: 'El ritmo requerido es ' +
+              (m.required ? formatTs(m.required) : '—') +
+              ' por día hábil contra ' +
+              (m.pace ? formatTs(m.pace) : '—') + ' del ritmo actual.'
+          },
+          {
+            clave: 'def-precio',
+            pregunta: '¿Se autoriza pagar sobre el precio medio para ' +
+              'cerrar la brecha?',
+            ayuda: 'El promedio ponderado va en ' +
+              (m.avgPrice === null ? '—' : formatPrice(m.avgPrice)) +
+              '/TS. Conviene fijar el techo antes de la llamada, no ' +
+              'durante.'
+          },
+          {
+            clave: 'def-nuevo',
+            pregunta: '¿Se abre proveedor nuevo esta semana?',
+            ayuda: 'Un aserradero nuevo no despacha el mismo día. Si el ' +
+              'déficit es de este mes, esto es para el siguiente.'
+          },
+          {
+            clave: 'def-consumo',
+            pregunta: 'Si no se cierra la brecha, ¿qué se hace en planta?',
+            ayuda: 'Bajar consumo, cambiar mezcla o comprar afuera. ' +
+              'Decidirlo ahora sale más barato que decidirlo el día 28.'
+          }
+        ];
+      }
+
+      if (situacion === 'linea') {
+        return [
+          {
+            clave: 'lin-riesgo',
+            pregunta: '¿Alguien avisó que baja la próxima semana?',
+            ayuda: 'Ir en línea no protege de nada: basta que caiga el ' +
+              'primero de la lista para quedar abajo.'
+          },
+          {
+            clave: 'lin-cierre',
+            pregunta: '¿Qué se hace con la diferencia del cierre?',
+            ayuda: 'Proyección ' + formatTs(m.projection) + ' contra plan ' +
+              formatTs(m.planPeriod) + '.'
+          },
+          {
+            clave: 'lin-siguiente',
+            pregunta: '¿El plan del mes siguiente ya está conversado?',
+            ayuda: 'El mes tranquilo es cuando se arma el siguiente.'
+          }
+        ];
+      }
+
+      return [
+        {
+          clave: 'sp-plan',
+          pregunta: '¿Está cargado el plan del mes en la hoja Plan?',
+          ayuda: 'Sin plan del mes vigente no hay cumplimiento, desvío ' +
+            'ni proyección: la pantalla solo puede mostrar lo que entró.'
+        },
+        {
+          clave: 'sp-meta',
+          pregunta: '¿Cuál es la meta del mes y quién la comprometió?',
+          ayuda: 'Anotarla aquí sirve mientras la hoja se pone al día.'
+        }
+      ];
+    }
+
+    /**
+     * Preguntas por proveedor: salen del plan de acción, para que la
+     * reunión siga el mismo orden de prioridad que la pantalla.
+     */
+    var PREGUNTA_POR_CASO = Object.freeze({
+      'Dejó de despachar': {
+        pregunta: '¿Qué dijo cuando lo llamaste, y vuelve o lo reemplazamos?',
+        ayuda: 'Stock, precio, camiones o compromiso con otro comprador. ' +
+          'El motivo cambia la respuesta.'
+      },
+      'Viene a la baja': {
+        pregunta: '¿Cuál es el motivo de la caída y hasta cuándo dura?',
+        ayuda: 'Una parada de mantención se espera; un cambio de ' +
+          'comprador se pelea.'
+      },
+      'Bajo su plan': {
+        pregunta: '¿A cuánto por semana se compromete, y desde cuándo?',
+        ayuda: 'Una cifra y una fecha. Sin eso no hay nada que revisar ' +
+          'la semana entrante.'
+      },
+      'Comprometido y sin entregar': {
+        pregunta: '¿Sigue vigente el compromiso o se reasigna el volumen?',
+        ayuda: 'Reasignar a fin de mes ya no alcanza a cambiar el cierre.'
+      },
+      'Precio sobre el promedio y bajo plan': {
+        pregunta: '¿Se revisa el precio a la baja o se redistribuye el ' +
+          'volumen?',
+        ayuda: 'Las dos son legítimas. Lo que no lo es, es dejarlo igual.'
+      },
+      'Barato y cumpliendo': {
+        pregunta: '¿Cuánto volumen adicional puede tomar, y a qué precio?',
+        ayuda: 'Cada TS que tome él baja el costo medio del mes.'
+      },
+      'Sobre su plan': {
+        pregunta: '¿Se le sube el plan del mes siguiente?',
+        ayuda: 'Es la moneda que valora un aserradero: volumen ' +
+          'comprometido.'
+      },
+      'Sin confirmar en SAP': {
+        pregunta: '¿Se verificó la recepción con romana?',
+        ayuda: 'Si SAP no lo registra, el volumen del mes está inflado.'
+      },
+      'Despacha a saltos': {
+        pregunta: '¿Qué frecuencia fija se acuerda?',
+        ayuda: 'Las llegadas en bloque saturan la descarga y dejan días ' +
+          'sin abastecimiento.'
+      },
+      'Dependencia concentrada': {
+        pregunta: '¿Qué aserradero se visita esta semana?',
+        ayuda: 'La alternativa hay que tenerla antes de necesitarla.'
+      }
+    });
+
+    function preguntasPorProveedor() {
+      var vistos = {};
+      var out = [];
+
+      (ACCIONES || []).forEach(function(a) {
+        var plantilla = PREGUNTA_POR_CASO[a.caso];
+
+        // "Sin precio homologado" y "Brecha total del mes" no son
+        // preguntas de reunión: uno se arregla en la hoja y el otro ya
+        // está arriba.
+        if (!plantilla) { return; }
+
+        var clave = a.proveedor + '|' + a.caso;
+
+        if (vistos[clave]) { return; }
+
+        vistos[clave] = true;
+
+        out.push({
+          clave: 'prov-' + normalizar(clave).replace(/[^a-z0-9]+/g, '-'),
+          proveedor: a.proveedor,
+          caso: a.caso,
+          severidad: a.severidad,
+          pregunta: plantilla.pregunta,
+          ayuda: plantilla.ayuda,
+          dato: a.porque
+        });
+      });
+
+      return out;
+    }
+
+    /**
+     * Lo que quedó abierto la reunión anterior. Sin esto, un acuerdo se
+     * repite tres semanas seguidas sin que nadie note que nunca se
+     * cumplió.
+     */
+    function preguntasDeSeguimiento() {
+      if (!APUNTES || !APUNTES.rows) { return []; }
+
+      return APUNTES.rows
+        .filter(function(a) {
+          return a.estado !== 'Cerrado' && a.acuerdos;
+        })
+        .slice(0, 4)
+        .map(function(a) {
+          return {
+            clave: 'seg-' + a.id,
+            proveedor: a.fechaLabel + ' · ' + (a.asunto || ''),
+            pregunta: '¿Se cumplió lo que quedó acordado?',
+            ayuda: a.acuerdos +
+              (a.responsable ? ' (Responsable: ' + a.responsable + ')' : ''),
+            dato: ''
+          };
+        });
+    }
+
+    function pautaDeReunion() {
+      if (!CURRENT_METRICS) { return null; }
+
+      var m = CURRENT_METRICS;
+      var situacion = situacionDelMes(m);
+
+      var titular = m.planValid && m.planPeriod
+        ? 'Proyección ' + formatTs(m.projection) + ' contra un plan de ' +
+          formatTs(m.planPeriod) + ' · ' +
+          formatPercent(m.projection / m.planPeriod)
+        : 'Entraron ' + formatTs(m.total) + ' en el rango elegido';
+
+      return {
+        situacion: situacion,
+        etiqueta: SITUACIONES[situacion].nombre,
+        pie: SITUACIONES[situacion].pie,
+        titular: titular,
+        bloques: [
+          {
+            titulo: 'El mes',
+            preguntas: preguntasDelMes(m, situacion)
+          },
+          {
+            titulo: 'Seguimiento de la reunión anterior',
+            preguntas: preguntasDeSeguimiento()
+          },
+          {
+            titulo: 'Proveedor por proveedor',
+            preguntas: preguntasPorProveedor()
+          }
+        ].filter(function(b) { return b.preguntas.length; })
+      };
+    }
+
+/* =====================================================================
  * APUNTES DE REUNIÓN
  * ===================================================================== */
 
     var APUNTES = null;
     var APUNTES_PEDIDOS = false;
+
+    var RESPUESTAS = {};
+
+    function dibujarPauta() {
+      var caja = document.getElementById('pauta');
+      var cabecera = document.getElementById('situacion');
+
+      if (!caja || !cabecera) { return; }
+
+      var pauta = pautaDeReunion();
+
+      if (!pauta) {
+        cabecera.innerHTML = '';
+        caja.innerHTML = vacio('Cargando los datos del mes…');
+        setText('conteoPauta', '—');
+        return;
+      }
+
+      var total = pauta.bloques.reduce(function(t, b) {
+        return t + b.preguntas.length;
+      }, 0);
+
+      setText('conteoPauta',
+        total + (total === 1 ? ' pregunta' : ' preguntas'));
+
+      cabecera.className = 'situacion es-' + pauta.situacion;
+
+      cabecera.innerHTML =
+        '<div class="situacion-marca">' + esc(pauta.etiqueta) + '</div>' +
+        '<p class="situacion-titular">' + esc(pauta.titular) + '</p>' +
+        '<p class="situacion-pie">' + esc(pauta.pie) + '</p>';
+
+      CONTEXTO.apuntes = pauta.etiqueta + ' · ' + total + ' preguntas';
+
+      if (VISTA === 'apuntes') { setText('contexto', CONTEXTO.apuntes); }
+
+      caja.innerHTML = pauta.bloques.map(function(bloque) {
+        return '<section class="pauta-bloque">' +
+          '<h3>' + esc(bloque.titulo) + '</h3>' +
+          bloque.preguntas.map(function(q) {
+            return '<div class="pregunta' +
+                (q.severidad ? ' es-' + q.severidad : '') + '">' +
+              (q.proveedor
+                ? '<div class="pregunta-quien">' +
+                  esc(shortProvider(q.proveedor)) +
+                  (q.caso
+                    ? '<span class="pregunta-caso">' + esc(q.caso) + '</span>'
+                    : '') +
+                  '</div>'
+                : '') +
+              '<label for="q-' + esc(q.clave) + '">' +
+                esc(q.pregunta) + '</label>' +
+              (q.dato
+                ? '<p class="pregunta-dato">' + esc(q.dato) + '</p>'
+                : '') +
+              (q.ayuda
+                ? '<p class="pregunta-ayuda">' + esc(q.ayuda) + '</p>'
+                : '') +
+              '<textarea id="q-' + esc(q.clave) + '" rows="2" ' +
+                'data-clave="' + esc(q.clave) + '" ' +
+                'data-pregunta="' + esc(q.pregunta) + '" ' +
+                'data-quien="' + esc(q.proveedor || '') + '">' +
+                esc(RESPUESTAS[q.clave] || '') + '</textarea>' +
+            '</div>';
+          }).join('') +
+        '</section>';
+      }).join('');
+    }
+
+    function montarPauta() {
+      var caja = document.getElementById('pauta');
+
+      if (!caja) { return; }
+
+      // Se guarda en memoria mientras se escribe: cambiar de vista o
+      // recalcular la pauta no puede borrar media reunión.
+      caja.addEventListener('input', function(ev) {
+        var campo = ev.target.closest('textarea[data-clave]');
+
+        if (campo) {
+          RESPUESTAS[campo.getAttribute('data-clave')] = campo.value;
+          marcarPautaSinCerrar();
+        }
+      });
+    }
+
+    function marcarPautaSinCerrar() {
+      var boton = document.getElementById('apGuardar');
+
+      if (boton && !document.getElementById('apId').value) {
+        boton.textContent = 'Cerrar la reunión';
+      }
+    }
+
+    /**
+     * Vuelca las respuestas de la pauta al campo de apuntes, con la
+     * pregunta delante: dentro de un mes la respuesta suelta no se
+     * entiende.
+     */
+    function volcarPauta() {
+      var campos = document.querySelectorAll(
+        '#pauta textarea[data-clave]'
+      );
+
+      var lineas = [];
+
+      Array.prototype.forEach.call(campos, function(campo) {
+        var valor = campo.value.trim();
+
+        if (!valor) { return; }
+
+        var quien = campo.getAttribute('data-quien');
+
+        lineas.push(
+          (quien ? quien + ' — ' : '') +
+          campo.getAttribute('data-pregunta')
+        );
+        lineas.push(valor);
+        lineas.push('');
+      });
+
+      return lineas.join('\n').trim();
+    }
+
+
 
     function montarApuntes() {
       var form = document.getElementById('apunteForm');
@@ -5267,6 +5899,7 @@
         fecha.value = hoyISO();
       }
 
+      montarPauta();
       cargarApuntes();
     }
 
@@ -5438,8 +6071,16 @@
         .withSuccessHandler(function(res) {
           APUNTES = res;
           if (boton) { boton.disabled = false; }
+          var eraNuevo = !valorApunte('apId');
+
           limpiarApunte();
           pintarApuntes();
+
+          if (eraNuevo) {
+            RESPUESTAS = {};
+            dibujarPauta();
+          }
+
           recadoApunte('bien', 'Apunte guardado.');
         })
         .withFailureHandler(function(err) {
@@ -5452,12 +6093,29 @@
           tema: valorApunte('apTema'),
           asunto: valorApunte('apAsunto'),
           participantes: valorApunte('apParticipantes'),
-          apuntes: valorApunte('apApuntes'),
+          apuntes: cuerpoApuntes(),
           acuerdos: valorApunte('apAcuerdos'),
           responsable: valorApunte('apResponsable'),
           compromiso: valorApunte('apCompromiso'),
           estado: valorApunte('apEstado')
         });
+    }
+
+    /**
+     * Lo escrito a mano manda; lo de la pauta se agrega debajo.
+     */
+    function cuerpoApuntes() {
+      var manual = valorApunte('apApuntes').trim();
+
+      // Al editar un apunte viejo la pauta no corresponde: sus
+      // respuestas son de la reunión de hoy, no de aquella.
+      if (valorApunte('apId')) { return manual; }
+
+      var pauta = volcarPauta();
+
+      if (!pauta) { return manual; }
+
+      return manual ? manual + '\n\n' + pauta : pauta;
     }
 
     function editarApunte(id) {
