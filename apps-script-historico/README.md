@@ -46,6 +46,7 @@ viajes detectó, y qué columnas opcionales encontró.
 | — | Presets de periodo (último mes, últimos 3/6/12, año en curso, año anterior) |
 | — | Exportación a CSV de la vista y del plan de acción |
 | — | Cada gráfico se descarga como PNG, y un botón arma una presentación de Google Slides con todos |
+| — | Tocar un mes despliega ese mes desglosado por proveedor, sin salir del Resumen |
 | — | Tema claro y oscuro |
 
 ### Datos que antes se ignoraban
@@ -159,6 +160,30 @@ Foco de teclado visible en todos los controles (aclarado sobre la cabecera
 oscura), sin desplazamiento horizontal en 390 px, y `prefers-reduced-motion`
 respetado: las transiciones se anulan sin que ningún contenido dependa de una
 animación para aparecer.
+
+---
+
+## Abrir un mes por proveedor
+
+En el gráfico mensual del Resumen, **tocar la barra de un mes despliega ese mes
+desglosado por proveedor** justo debajo, sin quitar el gráfico de la vista: hace
+falta seguir viendo el mes dentro de su serie mientras se mira quién lo compone.
+Los nombres de mes de la tabla «Detalle mensual» abren el mismo detalle, así que
+también se llega con teclado.
+
+El detalle trae la regla del propio mes (real, plan, cumplimiento y brecha) y una
+tabla por proveedor con m³, participación del mes, plan, brecha, cumplimiento,
+variación contra el mismo mes del año anterior, viajes y carga media. Está
+ordenada por volumen.
+
+La barra de cada fila mide **participación en el mes**, la misma medida que la
+columna de al lado; la marca de meta aparece cuando el plan de ese proveedor cabe
+en esa escala. Si el plan queda fuera, la columna Brecha dice por cuánto.
+
+Se cierra tocando el mismo mes otra vez, con el botón «Cerrar detalle» o con
+`Esc`. Si cambias el periodo y el mes abierto deja de estar dentro, se cierra
+solo. El botón «Ver este mes en Proveedores» acota el periodo a ese mes y salta a
+la pestaña de proveedores, que es donde está el análisis completo.
 
 ---
 

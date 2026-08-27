@@ -439,6 +439,44 @@
     .warnbox b{display:block;color:var(--ink);font-weight:600;margin-bottom:1px}
     .warnbox>span{color:var(--warn-ink);font-size:13px;line-height:1.25}
 
+    /* ---------- DETALLE DE UN MES ----------
+       Se despliega bajo el gráfico mensual sin quitarlo de la vista: hace falta
+       seguir viendo el mes en su serie mientras se mira quién lo compone. */
+    .drill{
+      margin-top:14px;padding-top:14px;border-top:1px solid var(--line);
+      animation:drillIn var(--t-mid) var(--ease) both;
+    }
+    @keyframes drillIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+
+    .drill-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+    .drill-title{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;min-width:0}
+    .drill-title h4{margin:0;font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+    .drill-title .sub{font-size:11.5px;color:var(--muted);font-weight:500}
+    .drill-acts{display:flex;gap:6px;flex-shrink:0}
+    .drill-acts button{
+      background:var(--surface3);color:var(--ink2);padding:5px 10px;font-size:11.5px;
+      border-radius:var(--radius-xs);font-weight:600;
+    }
+    .drill-acts button:hover{background:var(--line);color:var(--ink)}
+
+    /* la regla del mes, en pequeño: el mismo gesto que preside el Resumen */
+    .drill-rule{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+    .drill-rule .riel{position:relative;flex:1 1 260px;height:10px;border-radius:3px;background:var(--surface3);box-shadow:inset 0 0 0 1px var(--line)}
+    .drill-rule .riel i{position:absolute;top:0;bottom:0;left:0;border-radius:2px 3px 3px 2px}
+    .drill-rule .riel u{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--plan);border-radius:1px}
+    .drill-rule .cifras{display:flex;gap:16px;flex-wrap:wrap}
+    .drill-rule .cifras span{font-size:11px;color:var(--muted);font-weight:500}
+    .drill-rule .cifras b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink2);margin-left:5px}
+
+    /* enlace del mes dentro de la tabla de detalle mensual */
+    .mes-link{
+      background:transparent;color:var(--ink);font-weight:500;font-size:12px;padding:0;
+      text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px;
+      border-radius:2px;
+    }
+    .mes-link:hover{background:transparent;color:var(--real-ink);text-decoration-color:var(--real-ink)}
+    .mes-link.on{color:var(--real-ink);font-weight:600;text-decoration-color:var(--real-ink)}
+
     /* ---------- TABLAS ---------- */
     .tw{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--surface)}
     .tw.short{max-height:340px}
@@ -748,6 +786,7 @@
         <h3>Cubicación mensual · ingresado, plan y periodo de comparación <span id="mMeta" class="meta"></span></h3>
         <div id="chMensual" class="chart tall"></div>
         <div class="note" id="notaMensual"></div>
+        <div class="drill" id="drillMes" hidden></div>
       </div>
 
       <div class="card">
@@ -1000,6 +1039,7 @@ var V = null;            // vista calculada con los filtros actuales
 var CHARTS_OK = false;
 var MS = {};             // instancias de multiselect
 var MASISA_OPEN = false;
+var MES_ABIERTO = null;   // mes desplegado bajo el gráfico mensual
 
 var ST = {
   tab: 'resumen',
@@ -1058,6 +1098,10 @@ function arrancar(){
   reload(false);
 }
 window.addEventListener('resize', debounce(function(){ if(B && CHARTS_OK){ ST.rendered = {}; renderTabCharts(); } }, 260));
+
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && MES_ABIERTO) cerrarDrill();
+});
 
 document.addEventListener('click', function(e){
   Object.keys(MS).forEach(function(id){
@@ -1569,7 +1613,7 @@ function accum(A, i, c){
   var p = A.byProv[pi];
   if(!p){
     p = A.byProv[pi] = { cub:0, qty:0, diaW:0, preds:{}, nPreds:0, viajes:{}, nViajes:0,
-                         dias:{}, nDias:0, byMonth:{}, lastYmd:0 };
+                         dias:{}, nDias:0, byMonth:{}, byMonthVia:{}, lastYmd:0 };
   }
   p.cub += cub; p.qty += q; p.diaW += c.dia[i] * q;
   if(!p.preds[pri]){ p.preds[pri] = 1; p.nPreds++; }
@@ -1577,6 +1621,10 @@ function accum(A, i, c){
   if(!p.dias[c.ymd[i]]){ p.dias[c.ymd[i]] = 1; p.nDias++; }
   if(c.ymd[i] > p.lastYmd) p.lastYmd = c.ymd[i];
   add(p.byMonth, mk, cub);
+
+  var pv = p.byMonthVia[mk];
+  if(!pv) pv = p.byMonthVia[mk] = { set:{}, n:0 };
+  if(!pv.set[c.via[i]]){ pv.set[c.via[i]] = 1; pv.n++; }
 
   var pr = A.byPred[pri];
   if(!pr) pr = A.byPred[pri] = { cub:0, qty:0, com:ci, provs:{}, nViajes:0, viajes:{} };
@@ -1700,7 +1748,7 @@ function monthCoverage(d1, d2, anios, meses, prorratear){
  */
 function planScope(f, cov){
   var res = {
-    total:0, byMonth:{}, byProv:{}, byProvPred:{},
+    total:0, byMonth:{}, byProv:{}, byProvMes:{}, byProvPred:{},
     comparable:true, motivos:[], meses:0
   };
 
@@ -1741,6 +1789,7 @@ function planScope(f, cov){
     res.total += v;
     res.byMonth[e.mesKey] = (res.byMonth[e.mesKey] || 0) + v;
     res.byProv[e.prov] = (res.byProv[e.prov] || 0) + v;
+    res.byProvMes[e.prov + '||' + e.mesKey] = (res.byProvMes[e.prov + '||' + e.mesKey] || 0) + v;
 
     if(e.pred){
       var k = e.prov + '||' + e.pred;
@@ -1889,7 +1938,10 @@ function renderAll(){
   renderProveedoresKPIs();
   renderOperacionKPIs();
 
+  if(MES_ABIERTO && V.mesesPeriodo.indexOf(MES_ABIERTO) === -1) MES_ABIERTO = null;
+
   renderMesTable();
+  renderDrill();
   renderComunaTable();
   renderHeat();
   renderVarTables();
@@ -2185,10 +2237,11 @@ function empty(id, msg){
 
 /* Cada gráfico deja aquí su PNG para poder llevarlo a un slide. */
 var CHARTS = {};
+var CHART_OBJ = {};
 
 function drawOn(id, tipo, filas, opciones){
   var el = document.getElementById(id);
-  if(!el) return;
+  if(!el) return null;
 
   el.innerHTML = '';
 
@@ -2207,7 +2260,9 @@ function drawOn(id, tipo, filas, opciones){
     }
   }catch(e){ /* mock o versión sin eventos */ }
 
+  CHART_OBJ[id] = chart;
   chart.draw(dt, opciones);
+  return chart;
 }
 
 function tituloDeGrafico(id){
@@ -2302,11 +2357,11 @@ function drawMensual(){
   if(hayPlan){ series[idx] = { type:'line', color:pal.plan, lineWidth:2, pointSize:0, lineDashStyle:[3,3] }; idx++; }
   series[idx] = { type:'line', color:pal.base, lineWidth:2, pointSize:6 };
 
-  setHtml('mMeta', meses.length + ' meses · ' +
+  setHtml('mMeta', 'Toca un mes para desplegar sus proveedores · ' +
     (hayPlan ? 'la barra se pinta según su distancia al plan: verde cumple, ámbar 90-100%, rojo bajo 90% · línea punteada = plan · ' : '') +
     'línea azul = mismo mes del año anterior');
 
-  drawOn('chMensual', 'ComboChart', [head].concat(filas), chartOpts({
+  var chart = drawOn('chMensual', 'ComboChart', [head].concat(filas), chartOpts({
     seriesType: 'bars',
     series: series,
     colors: hayPlan ? [pal.real, pal.plan, pal.base] : [pal.real, pal.base],
@@ -2315,6 +2370,19 @@ function drawMensual(){
     hAxis: { slantedText: meses.length > 14, slantedTextAngle:45 },
     chartArea: { width:'86%', height:'68%' }
   }));
+
+  // Tocar un mes abre su detalle por proveedor bajo el propio gráfico.
+  try{
+    if(chart && google.visualization.events){
+      google.visualization.events.addListener(chart, 'select', function(){
+        var sel = chart.getSelection();
+        if(!sel || !sel.length || sel[0].row == null) return;
+        abrirDrill(meses[sel[0].row]);
+      });
+    }
+  }catch(err){ /* sin eventos no hay drill, el resto sigue igual */ }
+
+  if(MES_ABIERTO) marcarMesEnGrafico();
 
   var e = V.est, r = V.reg, texto = [];
 
@@ -2401,6 +2469,185 @@ function drawComunas(){
 </script>
 
 <script>
+/* =========================================================
+   DETALLE DE UN MES POR PROVEEDOR
+   Se abre desde el gráfico mensual o desde la tabla de detalle.
+   ========================================================= */
+function abrirDrill(mesKey){
+  if(!V || !mesKey) return;
+  if(V.mesesPeriodo.indexOf(mesKey) === -1) return;
+
+  MES_ABIERTO = (MES_ABIERTO === mesKey) ? null : mesKey;
+
+  renderDrill();
+  renderMesTable();
+  marcarMesEnGrafico();
+
+  if(MES_ABIERTO){
+    var caja = document.getElementById('drillMes');
+    if(caja && caja.scrollIntoView) caja.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  }
+}
+
+function cerrarDrill(silencioso){
+  MES_ABIERTO = null;
+  if(silencioso) return;
+  renderDrill();
+  renderMesTable();
+  marcarMesEnGrafico();
+}
+
+function marcarMesEnGrafico(){
+  var chart = CHART_OBJ['chMensual'];
+  if(!chart || !chart.setSelection) return;
+
+  try{
+    var fila = V.mesesPeriodo.indexOf(MES_ABIERTO);
+    chart.setSelection(fila > -1 ? [{ row:fila, column:1 }] : []);
+  }catch(err){ /* el tipo de gráfico puede no admitir selección */ }
+}
+
+/** Salta a la pestaña Proveedores con el periodo acotado al mes abierto. */
+function verMesEnProveedores(){
+  if(!MES_ABIERTO) return;
+
+  var p = MES_ABIERTO.split('-');
+  var y = +p[0], m = +p[1];
+
+  val('fIni', dateToISO(new Date(y, m - 1, 1)));
+  val('fFin', dateToISO(new Date(y, m, 0)));
+
+  ST.preset = '';
+  markPresets();
+  cerrarDrill(true);
+  renderAll();
+  setTab('proveedores');
+}
+
+function renderDrill(){
+  var caja = document.getElementById('drillMes');
+  if(!caja) return;
+
+  if(!MES_ABIERTO){
+    caja.hidden = true;
+    caja.innerHTML = '';
+    return;
+  }
+
+  var mk = MES_ABIERTO;
+  var ing = V.P.byMonth[mk] || 0;
+  var plan = V.plan.byMonth[mk] || 0;
+  var det = V.P.byMonthDet[mk];
+
+  var filas = filasProveedorMes(mk);
+  var pct = plan ? ing / plan : null;
+  var marca = pct === null ? 'var(--neutral)' : (pct >= 1 ? 'var(--pos)' : pct >= .9 ? 'var(--warn)' : 'var(--neg)');
+  var tinta = pct === null ? 'var(--muted)' : (pct >= 1 ? 'var(--pos-ink)' : pct >= .9 ? 'var(--warn-ink)' : 'var(--neg-ink)');
+
+  var encabezado =
+    '<div class=\'drill-head\'>' +
+      '<div class=\'drill-title\'>' +
+        '<h4>' + esc(mesLabel(mk)) + ' por proveedor</h4>' +
+        '<span class=\'sub\'>' + fmt0(filas.length) + (filas.length === 1 ? ' proveedor' : ' proveedores') +
+          (det ? ' · ' + fmt0(det.nViajes) + ' viajes · ' + fmt0(det.nDias) + ' días con recepción' : '') +
+        '</span>' +
+      '</div>' +
+      '<div class=\'drill-acts\'>' +
+        '<button type=\'button\' onclick=\'verMesEnProveedores()\'>Ver este mes en Proveedores</button>' +
+        '<button type=\'button\' onclick=\'cerrarDrill()\'>Cerrar detalle</button>' +
+      '</div>' +
+    '</div>';
+
+  var regla =
+    '<div class=\'drill-rule\'>' +
+      '<div class=\'riel\'>' +
+        '<i style=\'width:' + (plan ? Math.max(0, Math.min(ing / plan, TRACK_MAX)) / TRACK_MAX * 100 : (ing ? 100 : 0)) + '%;background:' + marca + '\'></i>' +
+        (plan ? '<u style=\'left:' + (100 / TRACK_MAX) + '%\'></u>' : '') +
+      '</div>' +
+      '<div class=\'cifras\'>' +
+        '<span>Real<b>' + fmt(ing) + ' m³</b></span>' +
+        (plan ? '<span>Plan<b>' + fmt(plan) + ' m³</b></span>' : '') +
+        (plan ? '<span>Cumplimiento<b style=\'color:' + tinta + '\'>' + fmtPct(pct) + '</b></span>' : '') +
+        (plan ? '<span>Brecha<b style=\'color:' + tinta + '\'>' + fmtSigned(ing - plan) + ' m³</b></span>' : '') +
+      '</div>' +
+    '</div>';
+
+  var cuerpo;
+
+  if(!filas.length){
+    cuerpo = '<div class=\'empty\'>' + esc(mesLabel(mk)) +
+             ' no registra ingresos ni plan con los filtros actuales. Amplía el filtro para ver el detalle.</div>';
+  } else {
+    // La barra mide participación en el mes, igual que la columna de al lado;
+    // escalarla contra el plan haría que barra y porcentaje se contradijeran.
+    // La marca de meta aparece cuando el plan cabe en esa escala.
+    var maxIng = Math.max.apply(null, filas.map(function(f){ return f.ing; })) || 1;
+
+    var rows = filas.map(function(f){
+      return [
+        esc(f.nombre),
+        barCell(f.ing, maxIng, f.plan),
+        fmtPct(ing ? f.ing / ing : 0),
+        f.plan ? fmt(f.plan) : '–',
+        f.plan ? diffCell(f.ing - f.plan) : '–',
+        f.plan ? cumplPill(f.ing / f.plan) : '–',
+        f.base ? signedPctCell((f.ing - f.base) / f.base) : (f.ing ? '<span class=\'tag top\'>nuevo</span>' : '–'),
+        f.viajes ? fmt0(f.viajes) : '–',
+        f.viajes ? fmt1(f.ing / f.viajes) : '–'
+      ];
+    });
+
+    var tot = [
+      '<b>Total</b>', '<b>' + fmt(ing) + '</b>', '100,0%',
+      plan ? '<b>' + fmt(plan) + '</b>' : '–',
+      plan ? diffCell(ing - plan) : '–',
+      plan ? cumplPill(pct) : '–',
+      '–',
+      det ? fmt0(det.nViajes) : '–',
+      det && det.nViajes ? fmt1(ing / det.nViajes) : '–'
+    ];
+
+    cuerpo = tabla(
+      ['Proveedor','m³ del mes','% del mes','Plan m³','Brecha m³','Cumpl.','vs mismo mes año ant.','Viajes','m³/viaje'],
+      rows, [1,2,3,4,5,6,7,8], tot
+    );
+  }
+
+  caja.hidden = false;
+  caja.innerHTML = encabezado + regla + '<div class=\'tw short\'>' + cuerpo + '</div>';
+}
+
+/** Une ingreso, plan, mismo mes del año anterior y viajes, por proveedor. */
+function filasProveedorMes(mk){
+  var anterior = mesAnioAnterior(mk);
+  var mapa = {};
+
+  function ent(nombre){
+    if(!mapa[nombre]) mapa[nombre] = { nombre:nombre, ing:0, plan:0, base:0, viajes:0 };
+    return mapa[nombre];
+  }
+
+  Object.keys(V.P.byProv).forEach(function(i){
+    var p = V.P.byProv[i];
+    var v = p.byMonth[mk] || 0;
+    if(!v) return;
+
+    var e = ent(B.dicts.prov[i]);
+    e.ing = v;
+    e.viajes = p.byMonthVia[mk] ? p.byMonthVia[mk].n : 0;
+    e.base = (V.provMes[i] && V.provMes[i][anterior]) || 0;
+  });
+
+  Object.keys(V.plan.byProvMes).forEach(function(k){
+    var partes = k.split('||');
+    if(partes[1] !== mk) return;
+    ent(partes[0]).plan = V.plan.byProvMes[k];
+  });
+
+  return Object.keys(mapa).map(function(n){ return mapa[n]; })
+    .sort(function(a,b){ return b.ing - a.ing || b.plan - a.plan; });
+}
+
 /* =========================================================
    COMPARATIVO
    ========================================================= */
@@ -3691,7 +3938,9 @@ function renderMesTable(){
     prev = ing;
 
     return [
-      mesLabel(m),
+      '<button type="button" class="mes-link' + (MES_ABIERTO === m ? ' on' : '') + '"' +
+        ' onclick="abrirDrill(\'' + m + '\')" title="Ver el detalle de este mes por proveedor">' +
+        mesLabel(m) + '</button>',
       fmt(ing),
       plan ? fmt(plan) : '–',
       plan ? diffCell(ing - plan) : '–',
