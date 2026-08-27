@@ -331,28 +331,70 @@
     .delta.flat{background:var(--surface3);color:var(--muted);font-family:var(--sans);font-weight:500}
 
     /* ---------- LA REGLA: real contra meta ----------
-       El único gesto llamativo de la página, y encierra la única
-       pregunta que importa: ¿llegamos al plan? */
-    .track{grid-column:span 2;background:var(--surface);padding:12px 14px 11px;display:flex;flex-direction:column;min-width:0}
+       El unico gesto llamativo de la pagina. Es un instrumento de lectura:
+       riel graduado cada 25% del plan, aguja en la meta y relleno redondeado
+       en el extremo del dato. */
+    .track{
+      grid-column:span 2;background:var(--surface);
+      padding:13px 16px 12px;display:flex;flex-direction:column;min-width:0;
+    }
     .track-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+    .track-top b{
+      font-family:var(--mono);font-size:clamp(21px,1.75vw,29px);
+      font-weight:600;letter-spacing:-.03em;line-height:1;
+    }
     .track-top .lab{font-size:11.5px;color:var(--muted);font-weight:500}
-    .track-top b{font-family:var(--mono);font-size:clamp(20px,1.6vw,27px);font-weight:600;letter-spacing:-.02em}
+
     .track-rail{
-      position:relative;height:9px;margin:11px 0 8px;border-radius:2px;
+      position:relative;height:13px;margin:18px 0 0;border-radius:4px;
       background:var(--surface3);box-shadow:inset 0 0 0 1px var(--line);
     }
+
     .track-fill{
-      position:absolute;inset:0 auto 0 0;border-radius:2px;width:0;
+      position:absolute;top:0;bottom:0;left:0;width:0;
+      border-radius:3px 4px 4px 3px;
       transition:width var(--t-slow) var(--ease-expo),background-color var(--t-mid) var(--ease);
     }
-    .track-goal{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--plan);border-radius:1px}
-    .track-goal::after{
-      content:"meta";position:absolute;top:-13px;left:50%;transform:translateX(-50%);
-      font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+
+    /* graduaciones cada 25% del plan (el riel llega al 125%) */
+    .track-ticks{position:absolute;inset:0;pointer-events:none}
+    .track-ticks i{
+      position:absolute;top:3px;bottom:3px;width:1px;
+      background:var(--line2);opacity:.85;
     }
-    .track-foot{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted);font-weight:500;margin-top:auto}
-    .track-foot b{font-family:var(--mono);font-weight:600;color:var(--ink2)}
-    .track-foot .gap{font-family:var(--mono);font-weight:600}
+
+    .track-goal{
+      position:absolute;top:-7px;bottom:-3px;width:2px;
+      background:var(--plan);border-radius:1px;
+    }
+    .track-goal::before{
+      content:"";position:absolute;top:-1px;left:50%;transform:translateX(-50%);
+      border:4px solid transparent;border-top-color:var(--plan);
+    }
+    .track-goal-lab{
+      position:absolute;top:-19px;transform:translateX(-50%);pointer-events:none;
+      font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:.09em;
+      color:var(--muted);white-space:nowrap;
+    }
+
+    .track-foot{
+      display:flex;justify-content:space-between;align-items:flex-end;gap:12px;
+      margin-top:auto;padding-top:12px;
+    }
+    .track-foot .cifra{display:flex;flex-direction:column;gap:2px;min-width:0}
+    .track-foot .cifra em{
+      font-style:normal;font-size:10px;font-weight:600;letter-spacing:.07em;
+      text-transform:uppercase;color:var(--muted);
+    }
+    .track-foot b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink2)}
+    .track-foot .gap b{font-size:13.5px}
+    .track-foot .gap{text-align:right}
+
+    /* sin plan cargado el riel no dice nada: se retira */
+    .track.sin-plan .track-rail,
+    .track.sin-plan .track-foot .cifra.plan,
+    .track.sin-plan .track-foot .gap{display:none}
+    .track.sin-plan .track-foot{padding-top:14px}
 
     /* ---------- TARJETAS ---------- */
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -370,6 +412,12 @@
     }
     h3 .meta{color:var(--muted);font-size:11px;font-weight:500;display:flex;align-items:center;gap:7px;letter-spacing:0}
     h3 select{width:auto;min-width:148px;padding:4px 7px;font-size:11.5px;border-radius:var(--radius-xs)}
+
+    .chart-dl{
+      background:transparent;color:var(--muted);border:1px solid var(--line);
+      border-radius:var(--radius-xs);padding:2px 7px;font-size:11px;font-weight:600;line-height:1.45;
+    }
+    .chart-dl:hover{background:var(--surface3);color:var(--ink);border-color:var(--line2)}
 
     .chart{height:320px;width:100%}
     .chart.tall{height:400px}
@@ -594,7 +642,8 @@
 
     <div class="actions">
       <button class="ghost" onclick="toggleTheme()" id="btnTheme" title="Cambiar tema">◐ Tema</button>
-      <button class="ghost" onclick="exportarVista()" title="Descargar la vista actual en CSV">⤓ Exportar CSV</button>
+      <button class="ghost" onclick="exportarVista()" title="Descargar la vista actual en CSV">⤓ CSV</button>
+      <button class="ghost" onclick="exportarSlides()" title="Crear una presentación de Google Slides con los gráficos">▤ Slides</button>
       <button class="ghost" onclick="clearFilters()">Limpiar filtros</button>
       <button onclick="reload(true)">↻ Recargar datos</button>
     </div>
@@ -675,12 +724,14 @@
         </div>
         <div class="track-rail">
           <div class="track-fill" id="trackFill"></div>
+          <div class="track-ticks" aria-hidden="true"><i style="left:20%"></i><i style="left:40%"></i><i style="left:60%"></i></div>
           <div class="track-goal" id="trackGoal" style="left:80%"></div>
+          <span class="track-goal-lab" id="trackGoalLab" style="left:80%">META</span>
         </div>
         <div class="track-foot">
-          <span>Real <b id="kCubReal">–</b></span>
-          <span>Plan <b id="kPlan">–</b></span>
-          <span class="gap" id="kBrecha">–</span>
+          <span class="cifra"><em>Real</em><b id="kCubReal">–</b></span>
+          <span class="cifra plan"><em>Plan</em><b id="kPlan">–</b></span>
+          <span class="cifra gap"><em>Brecha</em><b id="kBrecha">–</b></span>
         </div>
       </div>
       <div class="kpi"><div class="lab">Cubicación ingresada</div><div id="kCub" class="val">–</div><div id="kCubDelta"></div><div id="kPeriodo" class="hint">periodo</div></div>
@@ -1953,23 +2004,26 @@ function renderResumenKPIs(){
 var TRACK_MAX = 1.25;
 
 function renderTrack(real, plan){
+  var caja = document.getElementById('trackPlan');
   var fill = document.getElementById('trackFill');
   var goal = document.getElementById('trackGoal');
+  var goalLab = document.getElementById('trackGoalLab');
+  var brecha = document.getElementById('kBrecha');
 
   setText('kCubReal', fmt(real) + ' m³');
 
   if(!plan){
-    setText('kCumpl', 'sin plan');
-    document.getElementById('kCumpl').style.color = 'var(--muted)';
+    caja.classList.add('sin-plan');
+    setText('kCumpl', fmt(real) + ' m³');
+    document.getElementById('kCumpl').style.color = 'var(--ink)';
     setText('kPlan', '–');
-    setHtml('kBrecha', '<span style="color:var(--muted)">no hay plan cargado para este periodo</span>');
     fill.style.width = '0%';
-    goal.style.display = 'none';
     return;
   }
 
-  goal.style.display = '';
+  caja.classList.remove('sin-plan');
   goal.style.left = (100 / TRACK_MAX) + '%';
+  goalLab.style.left = (100 / TRACK_MAX) + '%';
 
   var pct = real / plan;
   var marca = pct >= 1 ? 'var(--pos)' : pct >= .9 ? 'var(--warn)' : 'var(--neg)';
@@ -1984,8 +2038,8 @@ function renderTrack(real, plan){
 
   setText('kPlan', fmt(plan) + ' m³' + (V.plan.comparable ? '' : ' (ref.)'));
 
-  var brecha = real - plan;
-  setHtml('kBrecha', '<span style="color:' + tinta + '">' + fmtSigned(brecha) + ' m³</span>');
+  brecha.textContent = fmtSigned(real - plan) + ' m³';
+  brecha.style.color = tinta;
 }
 
 function deltaBadge(actual, base, sufijo){
@@ -2129,12 +2183,87 @@ function empty(id, msg){
   if(el) el.innerHTML = '<div class="empty">' + esc(msg || 'Sin datos para los filtros actuales.') + '</div>';
 }
 
+/* Cada gráfico deja aquí su PNG para poder llevarlo a un slide. */
+var CHARTS = {};
+
 function drawOn(id, tipo, filas, opciones){
   var el = document.getElementById(id);
   if(!el) return;
+
   el.innerHTML = '';
+
   var dt = google.visualization.arrayToDataTable(filas);
-  new google.visualization[tipo](el).draw(dt, opciones);
+  var chart = new google.visualization[tipo](el);
+
+  // getImageURI() solo devuelve algo una vez que el gráfico terminó de dibujarse.
+  try{
+    if(google.visualization.events && typeof chart.getImageURI === 'function'){
+      google.visualization.events.addListener(chart, 'ready', function(){
+        try{
+          CHARTS[id] = { uri: chart.getImageURI(), titulo: tituloDeGrafico(id) };
+          montarBotonPNG(id);
+        }catch(e){ /* algunos tipos no exponen la imagen; se ignora */ }
+      });
+    }
+  }catch(e){ /* mock o versión sin eventos */ }
+
+  chart.draw(dt, opciones);
+}
+
+function tituloDeGrafico(id){
+  var el = document.getElementById(id);
+  var card = el && el.closest ? el.closest('.card') : null;
+  var h3 = card ? card.querySelector('h3') : null;
+  if(!h3) return id;
+
+  var texto = '';
+  [].slice.call(h3.childNodes).forEach(function(n){
+    if(n.nodeType === 3) texto += n.textContent;
+  });
+
+  return texto.trim() || id;
+}
+
+function montarBotonPNG(id){
+  var el = document.getElementById(id);
+  var card = el && el.closest ? el.closest('.card') : null;
+  var h3 = card ? card.querySelector('h3') : null;
+  if(!h3 || h3.querySelector('.chart-dl')) return;
+
+  var meta = h3.querySelector('.meta');
+  if(!meta){
+    meta = document.createElement('span');
+    meta.className = 'meta';
+    h3.appendChild(meta);
+  }
+
+  var btn = document.createElement('button');
+  btn.className = 'chart-dl';
+  btn.type = 'button';
+  btn.textContent = '⤓ PNG';
+  btn.title = 'Descargar este gráfico como imagen';
+  btn.onclick = function(){ descargarPNG(id); };
+  meta.appendChild(btn);
+}
+
+function descargarPNG(id){
+  var g = CHARTS[id];
+  if(!g || !g.uri){ showErr('Ese gráfico todavía no terminó de dibujarse.'); return; }
+
+  var nombre = (g.titulo || id).replace(/[^\wáéíóúñÁÉÍÓÚÑ ·-]/g, '').trim().replace(/\s+/g, '-');
+
+  try{
+    var a = document.createElement('a');
+    a.href = g.uri;
+    a.download = nombre + '.png';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){ a.parentNode.removeChild(a); }, 1200);
+  }catch(err){
+    var w = window.open();
+    if(w) w.document.write('<img src="' + g.uri + '" alt="' + esc(g.titulo || id) + '">');
+    else showErr('El navegador bloqueó la descarga. Permite ventanas emergentes.');
+  }
 }
 
 /* =========================================================
@@ -3807,6 +3936,125 @@ function exportarVista(){
   descargarCSV('dashboard-forestal-' + isoDe(V.f.d1) + '_' + isoDe(V.f.d2) + '.csv', lineas.join('\n'));
 
   function n(v){ return String(Number(v || 0).toFixed(2)).replace('.', ','); }
+}
+
+/* =========================================================
+   EXPORTAR A GOOGLE SLIDES
+   ========================================================= */
+
+/* Orden de los gráficos en la presentación: el mismo de las pestañas. */
+var ORDEN_SLIDES = [
+  'chMensual','chReg','chCal','chPred','chCom',
+  'chAnios','chEstacional','chVarProv','chYtd',
+  'chPareto',
+  'chDiam','chLargo','chCalMes','chHora','chDow','chTurno','chEstado','chViajes','chCarga'
+];
+
+var TABS = ['resumen','comparativo','proveedores','operacion','accion'];
+
+function exportarSlides(){
+  if(!B || !V){ showErr('Espera a que carguen los datos.'); return; }
+
+  if(!CHARTS_OK){
+    showErr('Los gráficos no cargaron (Google Charts no está disponible), así que no hay imágenes que exportar.');
+    return;
+  }
+
+  var tabPrevio = ST.tab;
+  var i = 0;
+
+  showLoad(true, 'Dibujando los gráficos de todas las pestañas…');
+
+  // Un gráfico solo se puede capturar si llegó a dibujarse, y solo se dibuja
+  // cuando su pestaña está visible: hay que recorrerlas todas.
+  (function siguiente(){
+    if(i >= TABS.length){
+      setTab(tabPrevio);
+      setTimeout(enviarSlides, 600);
+      return;
+    }
+    setTab(TABS[i++]);
+    setTimeout(siguiente, 850);
+  })();
+}
+
+function enviarSlides(){
+  var imagenes = ORDEN_SLIDES
+    .filter(function(id){ return CHARTS[id] && CHARTS[id].uri; })
+    .map(function(id){ return { id:id, titulo:CHARTS[id].titulo, uri:CHARTS[id].uri }; });
+
+  if(!imagenes.length){
+    showLoad(false);
+    showErr('No se pudo capturar ningún gráfico. Prueba recargando los datos.');
+    return;
+  }
+
+  showLoad(true, 'Creando la presentación con ' + imagenes.length + ' gráficos… puede tardar un momento.');
+
+  google.script.run
+    .withSuccessHandler(function(url){
+      showLoad(false);
+      if(!url){ showErr('La presentación se creó pero no devolvió enlace.'); return; }
+      var w = window.open(url, '_blank');
+      if(!w) showErr('Presentación creada. Ábrela aquí: ' + url);
+    })
+    .withFailureHandler(function(err){
+      showLoad(false);
+      showErr('No se pudo crear la presentación: ' + ((err && err.message) || err));
+    })
+    .crearPresentacion({
+      titulo: 'Ingresos forestales · ' + isoDe(V.f.d1) + ' a ' + isoDe(V.f.d2),
+      periodo: isoDe(V.f.d1) + ' → ' + isoDe(V.f.d2) + ' · ' + V.mesesPeriodo.length + ' meses',
+      comparacion: V.cmp ? (isoDe(V.cmp.d1) + ' → ' + isoDe(V.cmp.d2) + ' (' + V.cmp.etiqueta + ')') : 'sin comparación',
+      filtros: filtrosEnTexto(),
+      metricas: metricasEnTexto(),
+      imagenes: imagenes
+    });
+}
+
+function filtrosEnTexto(){
+  var defs = [
+    ['fAnio','Año'], ['fMesCal','Mes'], ['fProv','Proveedor'], ['fReg','Región'],
+    ['fCom','Comuna'], ['fPred','Predio'], ['fCal','Calidad'], ['fLargo','Largo'],
+    ['fTur','Turno'], ['fEst','Estado'], ['fProd','Producto']
+  ];
+
+  var out = defs.filter(function(d){ return MS[d[0]] && MS[d[0]].values.length; })
+    .map(function(d){
+      var v = MS[d[0]].values;
+      var txt = v.length <= 3
+        ? v.map(function(x){ return d[0] === 'fMesCal' ? MESES_LARGO[+x-1] : x; }).join(', ')
+        : v.length + ' valores';
+      return d[1] + ': ' + txt;
+    });
+
+  var dmin = val('fDiaMin'), dmax = val('fDiaMax');
+  if(dmin || dmax) out.push('Diámetro: ' + (dmin || '0') + ' a ' + (dmax || '∞') + ' cm');
+
+  return out.length ? out.join(' · ') : 'Sin filtros de dimensión';
+}
+
+function metricasEnTexto(){
+  var out = ['Ingresado: ' + fmt(V.P.cub) + ' m³'];
+
+  if(V.plan.total){
+    out.push('Plan: ' + fmt(V.plan.total) + ' m³');
+    out.push('Cumplimiento: ' + fmtPct(V.P.cub / V.plan.total));
+    out.push('Brecha: ' + fmtSigned(V.P.cub - V.plan.total) + ' m³');
+  }
+
+  if(V.hayComparacion && V.C.cub){
+    out.push('Variación vs base: ' + fmtSignedPct((V.P.cub - V.C.cub) / V.C.cub));
+  }
+
+  if(V.est.n){
+    out.push('Promedio mensual: ' + fmt(V.est.mean) + ' m³');
+    out.push('Variabilidad (CV): ' + fmtPct(V.est.cv));
+  }
+
+  out.push('Proveedores activos: ' + fmt0(Object.keys(V.P.provSeen).length));
+
+  return out;
 }
 
 function exportarInsights(){

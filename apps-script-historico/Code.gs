@@ -865,6 +865,116 @@ function decompress_(b64) {
 }
 
 /*******************************************************
+ * EXPORTAR A GOOGLE SLIDES
+ * El cliente captura cada grafico como PNG con
+ * getImageURI() y aqui se arma la presentacion.
+ *******************************************************/
+
+function crearPresentacion(payload) {
+  if (!payload || !payload.imagenes || !payload.imagenes.length) {
+    throw new Error('No llegaron gráficos que insertar.');
+  }
+
+  const titulo = String(payload.titulo || 'Ingresos forestales').slice(0, 120);
+  const pres = SlidesApp.create(titulo);
+
+  const ANCHO = pres.getPageWidth();
+  const ALTO = pres.getPageHeight();
+  const MARGEN = 40;
+
+  // --- portada ---
+  const portada = pres.getSlides()[0];
+  setPlaceholder_(portada, SlidesApp.PlaceholderType.TITLE, titulo);
+  setPlaceholder_(portada, SlidesApp.PlaceholderType.SUBTITLE,
+    'Periodo ' + (payload.periodo || '') +
+    '\nComparación: ' + (payload.comparacion || 'sin comparación') +
+    '\n' + (payload.filtros || ''));
+
+  // --- resumen de cifras ---
+  if (payload.metricas && payload.metricas.length) {
+    const resumen = pres.appendSlide(SlidesApp.PredefinedLayout.TITLE_AND_BODY);
+    setPlaceholder_(resumen, SlidesApp.PlaceholderType.TITLE, 'Resumen del periodo');
+    setPlaceholder_(resumen, SlidesApp.PlaceholderType.BODY, payload.metricas.join('\n'));
+  }
+
+  // --- un gráfico por lámina ---
+  let insertados = 0;
+
+  payload.imagenes.forEach(function (img) {
+    const partes = String(img && img.uri || '').split(',');
+    if (partes.length < 2) return;
+
+    let blob;
+    try {
+      blob = Utilities.newBlob(Utilities.base64Decode(partes[1]), 'image/png',
+                               (img.id || 'grafico') + '.png');
+    } catch (err) {
+      Logger.log('Imagen ilegible (' + img.id + '): ' + err);
+      return;
+    }
+
+    const slide = pres.appendSlide(SlidesApp.PredefinedLayout.TITLE_ONLY);
+    setPlaceholder_(slide, SlidesApp.PlaceholderType.TITLE, String(img.titulo || img.id || ''));
+
+    const pic = slide.insertImage(blob);
+    const w0 = pic.getWidth(), h0 = pic.getHeight();
+
+    const maxW = ANCHO - MARGEN * 2;
+    const maxH = ALTO - 150;
+    const escala = Math.min(maxW / w0, maxH / h0);
+
+    pic.setWidth(w0 * escala)
+       .setHeight(h0 * escala)
+       .setLeft((ANCHO - w0 * escala) / 2)
+       .setTop(105);
+
+    ponerPie_(slide, ANCHO, ALTO, payload.periodo, payload.filtros);
+    insertados++;
+  });
+
+  if (!insertados) {
+    throw new Error('Ninguna de las imágenes recibidas se pudo decodificar.');
+  }
+
+  pres.saveAndClose();
+  return pres.getUrl();
+}
+
+/** Escribe en un marcador de posición; si la plantilla no lo trae, no falla. */
+function setPlaceholder_(slide, tipo, texto) {
+  try {
+    const ph = slide.getPlaceholder(tipo);
+    if (ph) {
+      ph.asShape().getText().setText(texto);
+      return;
+    }
+  } catch (err) {
+    Logger.log('No se pudo escribir el marcador ' + tipo + ': ' + err);
+  }
+
+  // Sin marcador disponible se inserta una caja de texto arriba.
+  try {
+    slide.insertTextBox(texto, 40, 30, slide.getParentPresentation().getPageWidth() - 80, 50);
+  } catch (err2) {
+    Logger.log('Tampoco se pudo insertar la caja de texto: ' + err2);
+  }
+}
+
+function ponerPie_(slide, ancho, alto, periodo, filtros) {
+  try {
+    const pie = slide.insertTextBox(
+      [periodo || '', filtros || ''].filter(String).join('  ·  '),
+      40, alto - 34, ancho - 80, 22
+    );
+    const estilo = pie.getText().getTextStyle();
+    estilo.setFontSize(8);
+    estilo.setForegroundColor('#7a7a7a');
+  } catch (err) {
+    Logger.log('No se pudo poner el pie: ' + err);
+  }
+}
+
+/*******************************************************
  * DIAGNOSTICO (util desde el editor de Apps Script)
  *******************************************************/
 

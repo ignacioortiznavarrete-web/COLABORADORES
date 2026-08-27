@@ -45,6 +45,7 @@ viajes detectó, y qué columnas opcionales encontró.
 | Filtros de selección única | Multi-selección con buscador en todos los filtros, más año, mes calendario, turno, estado, producto y rango de diámetro |
 | — | Presets de periodo (último mes, últimos 3/6/12, año en curso, año anterior) |
 | — | Exportación a CSV de la vista y del plan de acción |
+| — | Cada gráfico se descarga como PNG, y un botón arma una presentación de Google Slides con todos |
 | — | Tema claro y oscuro |
 
 ### Datos que antes se ignoraban
@@ -123,11 +124,18 @@ corporativa que bloquee Google Fonts el tablero se ve igual de ordenado.
 
 ### La regla
 
-El primer elemento del Resumen es una regla: riel único, relleno según lo
-recibido, marca de meta al 100% y la brecha en m³. Reemplaza a tres tarjetas
-sueltas (plan, cumplimiento, brecha) porque las tres respondían la misma
-pregunta. El mismo gesto se repite dentro de la tabla de proveedores: cada barra
-lleva su marca de meta, así que la fila se lee igual que el encabezado.
+El primer elemento del Resumen es una regla graduada, no una barra de progreso.
+El riel llega al 125% del plan y lleva marcas cada 25%, así que se puede leer el
+cumplimiento sin mirar el número; la aguja marca la meta y el relleno se redondea
+solo en el extremo del dato. Debajo van las tres cifras que importan (real, plan
+y brecha) etiquetadas, con la brecha coloreada según el estado.
+
+Reemplaza a tres tarjetas sueltas porque las tres respondían la misma pregunta.
+El mismo gesto se repite dentro de la tabla de proveedores: cada barra lleva su
+marca de meta, así que la fila se lee igual que el encabezado.
+
+Sin plan cargado el riel desaparece en vez de quedar vacío: la celda pasa a
+mostrar los m³ recibidos y nada más.
 
 ### Gráficos
 
@@ -151,6 +159,36 @@ Foco de teclado visible en todos los controles (aclarado sobre la cabecera
 oscura), sin desplazamiento horizontal en 390 px, y `prefers-reduced-motion`
 respetado: las transiciones se anulan sin que ningún contenido dependa de una
 animación para aparecer.
+
+---
+
+## Llevar los gráficos a una presentación
+
+Dos caminos, según lo que necesites.
+
+**Un gráfico suelto.** Cada tarjeta tiene un botón `⤓ PNG` en su encabezado.
+Descarga esa imagen y la pegas donde quieras.
+
+**Todo de una vez.** El botón `▤ Slides` de la cabecera recorre las cinco
+pestañas, captura los gráficos que tengan datos y arma una presentación de Google
+Slides: portada con el periodo, la base de comparación y los filtros aplicados,
+una lámina de resumen con las cifras clave, y después una lámina por gráfico con
+su título y el periodo al pie. Al terminar abre la presentación en una pestaña
+nueva. Queda en tu **Mi unidad**.
+
+Un par de cosas que conviene saber:
+
+- La captura usa `getImageURI()` de Google Charts, que solo entrega la imagen una
+  vez que el gráfico terminó de dibujarse. Por eso el botón recorre las pestañas
+  antes de exportar; verás el tablero cambiar de pestaña durante unos segundos.
+- Solo se exportan los gráficos con datos: los que quedaron vacíos por el filtro
+  no ocupan una lámina.
+- **La primera vez pedirá un permiso nuevo** (crear y editar presentaciones de
+  Google Slides), porque el script ahora usa `SlidesApp`. Si el tablero está
+  publicado como aplicación web, hay que volver a implementarlo para que tome el
+  permiso.
+- Las imágenes viajan como PNG en base64 dentro de la llamada al servidor, así
+  que con muchos gráficos la creación tarda unos segundos.
 
 ---
 
