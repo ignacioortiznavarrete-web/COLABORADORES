@@ -2055,6 +2055,9 @@ function renderResumenKPIs(){
  */
 var TRACK_MAX = 1.25;
 
+/* Tope de meses con cifra sobre el gráfico antes de que se encimen. */
+var ETIQUETAS_MAX_MESES = 20;
+
 function renderTrack(real, plan){
   var caja = document.getElementById('trackPlan');
   var fill = document.getElementById('trackFill');
@@ -2331,9 +2334,25 @@ function drawMensual(){
   var pal = palette();
   var hayPlan = V.plan.total > 0;
 
+  // Con muchos meses las cifras se encimarían: primero se acortan y,
+  // pasado el límite, se retiran y queda el tooltip.
+  var etiquetar = meses.length <= ETIQUETAS_MAX_MESES;
+  var corto = meses.length > 12;
+
+  function etiqueta(v){
+    if(!etiquetar || !v) return '';
+    return corto ? fmtCorto(v) : fmt(v);
+  }
+
+  // La cifra del ingresado va en blanco dentro de la barra. Si la barra es
+  // demasiado baja Google la saca fuera y el blanco desaparece contra el fondo,
+  // así que bajo ese umbral la cifra se omite y queda en el tooltip.
+  var maxIng = Math.max.apply(null, meses.map(function(m){ return V.P.byMonth[m] || 0; })) || 1;
+  var MIN_BARRA_ETIQUETADA = .08;
+
   // El plan es una meta, no un competidor: va como línea, no como barra rival.
-  var head = ['Mes', 'Ingresado', {role:'style'}, {role:'tooltip', type:'string'}];
-  if(hayPlan) head.push('Plan');
+  var head = ['Mes', 'Ingresado', {role:'style'}, {role:'annotation'}, {role:'tooltip', type:'string'}];
+  if(hayPlan) head.push('Plan', {role:'annotation'});
   head.push('Mismo mes año anterior');
 
   var filas = meses.map(function(m){
@@ -2346,20 +2365,50 @@ function drawMensual(){
       (plan ? ' · plan ' + fmt(plan) + ' m³ · ' + fmtPct(ing/plan) : '') +
       (anterior ? ' · año anterior ' + fmt(anterior) + ' m³' : '');
 
-    var f = [mesLabel(m), ing, colorDesvio(ing, plan), tip];
-    if(hayPlan) f.push(plan);
+    var f = [
+      mesLabel(m), ing, colorDesvio(ing, plan),
+      ing / maxIng >= MIN_BARRA_ETIQUETADA ? etiqueta(ing) : '',
+      tip
+    ];
+    if(hayPlan) f.push(plan, etiqueta(plan));
     f.push(anterior);
     return f;
   });
 
+  var superficie = cssVar('--chart-surface');
+
   var series = {};
+
+  // La cifra del ingresado va dentro de la barra: las tres tintas de estado
+  // (verde, ámbar, rojo) superan 4.5:1 contra blanco.
+  series[0] = {
+    annotations: {
+      alwaysOutside: false,
+      stem: { color:'transparent', length:3 },
+      textStyle: { fontSize:10, bold:true, color:'#ffffff', auraColor:'none' }
+    }
+  };
+
   var idx = 1;
-  if(hayPlan){ series[idx] = { type:'line', color:pal.plan, lineWidth:2, pointSize:0, lineDashStyle:[3,3] }; idx++; }
+
+  if(hayPlan){
+    series[idx] = {
+      type:'line', color:pal.plan, lineWidth:2, pointSize:4, lineDashStyle:[3,3],
+      annotations: {
+        alwaysOutside: true,
+        stem: { color:'transparent', length:7 },
+        textStyle: { fontSize:10, bold:true, color:pal.plan, auraColor:superficie }
+      }
+    };
+    idx++;
+  }
+
   series[idx] = { type:'line', color:pal.base, lineWidth:2, pointSize:6 };
 
   setHtml('mMeta', 'Toca un mes para desplegar sus proveedores · ' +
     (hayPlan ? 'la barra se pinta según su distancia al plan: verde cumple, ámbar 90-100%, rojo bajo 90% · línea punteada = plan · ' : '') +
-    'línea azul = mismo mes del año anterior');
+    'línea azul = mismo mes del año anterior' +
+    (etiquetar ? '' : ' · sobre ' + ETIQUETAS_MAX_MESES + ' meses las cifras quedan en el tooltip'));
 
   var chart = drawOn('chMensual', 'ComboChart', [head].concat(filas), chartOpts({
     seriesType: 'bars',
@@ -4472,6 +4521,13 @@ function esc(s){
 function fmt(v){  return Number(v || 0).toLocaleString('es-CL', {maximumFractionDigits:0}); }
 function fmt0(v){ return Number(v || 0).toLocaleString('es-CL', {maximumFractionDigits:0}); }
 function fmt1(v){ return Number(v || 0).toLocaleString('es-CL', {minimumFractionDigits:1, maximumFractionDigits:1}); }
+/* Cifra corta para etiquetas dentro del gráfico: 24.324 -> 24,3k */
+function fmtCorto(v){
+  var n = Number(v || 0);
+  if(Math.abs(n) < 1000) return fmt(n);
+  return (n / 1000).toLocaleString('es-CL', {maximumFractionDigits:1}) + 'k';
+}
+
 function fmt2(v){ return Number(v || 0).toLocaleString('es-CL', {minimumFractionDigits:2, maximumFractionDigits:2}); }
 
 function fmtPct(v){

@@ -150,6 +150,12 @@ mostrar los m³ recibidos y nada más.
   fuera del gráfico.
 - El plan dejó de ser una barra que compite con lo ingresado y pasó a ser una
   **línea de meta**; la barra de cada mes se pinta según su distancia al plan.
+- En el gráfico mensual cada mes muestra su cifra: los m³ ingresados en blanco
+  dentro de la barra y los m³ de plan sobre su punto de la línea. Sobre 12 meses
+  las cifras se acortan (`24,3k`) y sobre 20 se retiran, porque se encimarían;
+  ambos límites están en `ETIQUETAS_MAX_MESES`. Una barra que no alcanza el 8%
+  de la más alta tampoco lleva cifra: ahí Google la sacaría fuera de la barra y
+  el texto blanco desaparecería contra el fondo.
 - Los años son una secuencia, no categorías: en las series por año el más
   reciente va en verde y grueso, y los anteriores se apagan hacia el fondo.
 - La matriz año × mes usa una rampa secuencial de un solo tono.
