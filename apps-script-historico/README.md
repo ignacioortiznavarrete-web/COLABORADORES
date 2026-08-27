@@ -131,9 +131,14 @@ lleva su marca de meta, así que la fila se lee igual que el encabezado.
 
 ### Gráficos
 
-- **Ningún gráfico de doble eje.** Los Pareto (proveedores y clases diamétricas)
-  ponen barras y acumulado en una sola escala 0-100%; viajes y carga media, que
-  son medidas distintas, se separaron en dos gráficos.
+- **Ningún gráfico de doble eje.** El Pareto de proveedores pone barras y
+  acumulado en una sola escala 0-100%; viajes y carga media, que son medidas
+  distintas, se separaron en dos gráficos.
+- La **distribución diamétrica** muestra m³ por clase, sin línea de acumulado, y
+  llega hasta 48 cm (`DIAM_MAX_GRAFICO` en `Index.html`). Las clases mayores son
+  marginales y solo estiraban el eje; siguen contando en el diámetro medio, la
+  mediana y los porcentajes de la nota, y ahí se indica cuánto volumen quedó
+  fuera del gráfico.
 - El plan dejó de ser una barra que compite con lo ingresado y pasó a ser una
   **línea de meta**; la barra de cada mes se pinta según su distancia al plan.
 - Los años son una secuencia, no categorías: en las series por año el más

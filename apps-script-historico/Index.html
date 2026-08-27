@@ -849,7 +849,7 @@
 
     <div class="grid">
       <div class="card full">
-        <h3>Distribución diamétrica <span class="meta">m³ por clase de diámetro y acumulado</span></h3>
+        <h3>Distribución diamétrica <span class="meta">m³ por clase de diámetro, hasta 48 cm</span></h3>
         <div id="chDiam" class="chart tall"></div>
         <div class="note" id="notaDiam"></div>
       </div>
@@ -2909,52 +2909,58 @@ function renderOperacionKPIs(){
   setText('oPredios', fmt0(Object.keys(P.predSeen).length));
 }
 
+/* Sobre este diámetro las clases son marginales y solo estiran el eje. */
+var DIAM_MAX_GRAFICO = 48;
+
 function drawDiametro(){
   var claves = Object.keys(V.P.byDiam).map(Number).filter(function(d){ return d > 0; })
     .sort(function(a,b){ return a-b; });
 
   if(!claves.length) return empty('chDiam');
 
+  // El total se calcula sobre todas las clases: los porcentajes siguen
+  // refiriéndose al volumen completo aunque el gráfico se corte antes.
   var total = claves.reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0) || 1;
-  var pal = palette();
-  var acc = 0;
 
-  var filas = claves.map(function(d){
-    acc += V.P.byDiam[d];
+  var visibles = claves.filter(function(d){ return d <= DIAM_MAX_GRAFICO; });
+  if(!visibles.length) return empty('chDiam', 'No hay clases bajo ' + DIAM_MAX_GRAFICO + ' cm en este periodo.');
+
+  var filas = visibles.map(function(d){
     return [
       String(d),
-      V.P.byDiam[d] / total * 100,
-      d + ' cm: ' + fmt(V.P.byDiam[d]) + ' m³ (' + fmtPct(V.P.byDiam[d]/total) + ')',
-      acc / total * 100
+      V.P.byDiam[d],
+      d + ' cm: ' + fmt(V.P.byDiam[d]) + ' m³ (' + fmtPct(V.P.byDiam[d] / total) + ' del volumen)'
     ];
   });
 
-  drawOn('chDiam', 'ComboChart',
-    [['Diámetro (cm)', '% del volumen', {role:'tooltip', type:'string'}, '% acumulado']].concat(filas),
+  drawOn('chDiam', 'ColumnChart',
+    [['Diámetro (cm)', 'm³', {role:'tooltip', type:'string'}]].concat(filas),
     chartOpts({
-      seriesType: 'bars',
-      series: { 1:{ type:'line', color:pal.plan, lineWidth:2, pointSize:3 } },
-      colors: [pal.real, pal.plan],
-      vAxis: { title:'% del volumen', minValue:0, maxValue:100, format:"#'%'" },
+      colors: [palette().real],
+      legend: { position:'none' },
+      vAxis: { title:'m³' },
       bar: { groupWidth:'78%' },
-      chartArea: { width:'84%', height:'70%' }
+      chartArea: { width:'86%', height:'72%' }
     }));
 
   // Mediana ponderada por volumen: la mitad del volumen está bajo este diámetro.
-  var mitad = total/2, corrido = 0, mediana = claves[0];
+  var mitad = total / 2, corrido = 0, mediana = claves[0];
   for(var i=0;i<claves.length;i++){
     corrido += V.P.byDiam[claves[i]];
     if(corrido >= mitad){ mediana = claves[i]; break; }
   }
 
-  var finos = claves.filter(function(d){ return d < 20; }).reduce(function(s,d){ return s + V.P.byDiam[d]; }, 0);
-  var gruesos = claves.filter(function(d){ return d >= 30; }).reduce(function(s,d){ return s + V.P.byDiam[d]; }, 0);
+  var finos = claves.filter(function(d){ return d < 20; }).reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0);
+  var gruesos = claves.filter(function(d){ return d >= 30; }).reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0);
+  var fuera = claves.filter(function(d){ return d > DIAM_MAX_GRAFICO; })
+                    .reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0);
+
   var prom = V.P.qty ? V.P.diaW / V.P.qty : 0;
   var promC = V.C.qty ? V.C.diaW / V.C.qty : 0;
 
   var texto = '<b>Diámetro medio ponderado</b> ' + fmt1(prom) + ' cm · <b>mediana de volumen</b> ' + mediana + ' cm. ' +
-              '<b>' + fmtPct(total ? finos/total : 0) + '</b> del volumen viene bajo 20 cm y ' +
-              '<b>' + fmtPct(total ? gruesos/total : 0) + '</b> sobre 30 cm.';
+              '<b>' + fmtPct(finos / total) + '</b> del volumen viene bajo 20 cm y ' +
+              '<b>' + fmtPct(gruesos / total) + '</b> sobre 30 cm.';
 
   if(V.hayComparacion && promC){
     var dd = prom - promC;
@@ -2963,7 +2969,13 @@ function drawDiametro(){
       (dd < -.5 ? 'Una caída sostenida del diámetro golpea el rendimiento de planta: conviene revisar qué predios están entrando.' : '');
   }
 
-  setHtml('notaDiam', texto);
+  if(fuera){
+    texto += ' El gráfico llega hasta ' + DIAM_MAX_GRAFICO + ' cm: quedan fuera ' + fmt(fuera) +
+             ' m³ (' + fmtPct(fuera / total) + ' del volumen) en clases mayores, ' +
+             'que sí están incluidos en las cifras de arriba.';
+  }
+
+  setHtml('notaDiam', texto.replace(/\s+/g, ' ').trim());
 }
 
 function drawLargo(){
