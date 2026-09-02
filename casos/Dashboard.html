@@ -30,11 +30,8 @@
   --s3: #b0730c;
   --s1-claro: #e893ba;
   --gris-dato: #c9b4bd;
-  --critico: #d03b3b;
-  --alerta: #fab219;
-  --serio: #ec835a;
-  --bien: #0ca30c;
-  --lavado-critico: rgba(208, 59, 59, .055);
+  --tarde: #7a4a2e;
+  --lavado-tarde: rgba(122, 74, 46, .07);
   --foco: #d2377e;
   --z-tooltip: 60;
   --z-barra: 30;
@@ -58,7 +55,8 @@
     --s3: #c2871c;
     --s1-claro: #b03470;
     --gris-dato: #5c4d53;
-    --lavado-critico: rgba(208, 59, 59, .11);
+    --tarde: #e0a98c;
+    --lavado-tarde: rgba(224, 169, 140, .10);
     --foco: #d8478a;
   }
 }
@@ -80,7 +78,8 @@
   --s3: #c2871c;
   --s1-claro: #b03470;
   --gris-dato: #5c4d53;
-  --lavado-critico: rgba(208, 59, 59, .11);
+  --tarde: #e0a98c;
+  --lavado-tarde: rgba(224, 169, 140, .10);
   --foco: #d8478a;
 }
 
@@ -189,7 +188,7 @@ button, select, input { font: inherit; color: inherit; }
 }
 .dato__et { font-size: 13px; color: var(--tinta-2); }
 .dato__val { font-size: 15px; font-weight: 500; letter-spacing: -.01em; }
-.dato__val--riesgo { color: var(--critico); }
+.dato__val--riesgo { color: var(--tarde); }
 
 /* --- Paneles ------------------------------------------------------------- */
 .rejilla { display: grid; gap: 18px; }
@@ -244,9 +243,9 @@ button, select, input { font: inherit; color: inherit; }
 
 /* --- Tira de espera (elemento firma) ------------------------------------- */
 .tira { position: relative; }
-.tira__zona-riesgo { fill: var(--lavado-critico); }
-.tira__umbral { stroke: var(--critico); stroke-width: 1; }
-.tira__et-umbral { fill: var(--critico); font-size: 11px; font-family: Geist, system-ui, sans-serif !important; }
+.tira__zona-riesgo { fill: var(--lavado-tarde); }
+.tira__umbral { stroke: var(--tarde); stroke-width: 1; }
+.tira__et-umbral { fill: var(--tarde); font-size: 11px; font-family: Geist, system-ui, sans-serif !important; }
 
 /* --- Tooltip ------------------------------------------------------------- */
 .tooltip {
@@ -770,12 +769,12 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
       if (!cubos.has(k)) cubos.set(k, []);
       cubos.get(k).push(c);
     });
-    var critico = css('--critico'), s1 = css('--s1'), i = 0, cimas = new Map();
+    var tarde = css('--tarde'), s1 = css('--s1'), i = 0, cimas = new Map();
     cubos.forEach(function (lista, k) {
       var cx = k * paso, gc = el('g', { class: 'fila-dato' });
       lista.slice(0, cupo).forEach(function (c, j) {
         var r = barra(cx - anM / 2, base - (j + 1) * (alM + sep) + sep, anM, alM, anM / 2, 'plano');
-        gc.appendChild(pinta(r, c.espera > 90 ? critico : s1, 'an-y', i * 7 + j * 30));
+        gc.appendChild(pinta(r, c.espera > 90 ? tarde : s1, 'an-y', i * 7 + j * 30));
       });
       if (lista.length > cupo) gc.appendChild(texto(cx, base - cupo * (alM + sep) - 4, '+' + (lista.length - cupo), 'val-tx', { 'text-anchor': 'middle' }));
       var hit = el('rect', { x: cx - 9, y: mt, width: 18, height: base - mt, class: 'marca-hit' });
@@ -785,7 +784,7 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
         ? 'Caso ' + lista[0].n + ' · ' + esp + ' días esperando'
         : lista.length + ' casos · ' + (esp === esp2 ? esp + ' días' : esp + '–' + esp2 + ' días') + ' esperando';
       var filas = lista.slice(0, 4).map(function (c) {
-        return { et: recorta(c.cli, 26), val: c.espera + ' d', color: c.espera > 90 ? critico : s1 };
+        return { et: recorta(c.cli, 26), val: c.espera + ' d', color: c.espera > 90 ? tarde : s1 };
       });
       if (lista.length === 1) filas.push({ et: recorta(lista[0].due, 26), val: recorta(lista[0].est, 22) });
       if (lista.length > 4) filas.push({ et: 'y ' + (lista.length - 4) + ' más', val: '' });
@@ -1130,7 +1129,7 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
         if (i === 5) {
           var punto = document.createElement('span');
           punto.className = 'punto';
-          punto.style.background = c.espera > 90 ? css('--critico') : (c.espera > 60 ? css('--alerta') : css('--s1'));
+          punto.style.background = c.espera > 90 ? css('--tarde') : css('--s1');
           td.appendChild(punto);
         }
         td.appendChild(document.createTextNode(col.txt ? col.txt(c) : col.v(c)));

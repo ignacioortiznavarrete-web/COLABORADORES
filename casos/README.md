@@ -127,7 +127,10 @@ node casos/preview/construir.js mis-datos.json salida.html
   claro y oscuro, y el tablero sigue el tema del sistema con un botón para forzar
   uno u otro. El rosa es el color de serie, no un adorno: se eligió midiendo. Ojo
   si se cambia la paleta a mano — rosa y verde azulado, por ejemplo, se ven
-  idénticos con daltonismo (ΔE 2,8), y por eso el segundo color es azul.
+  idénticos con daltonismo (ΔE 2,8), y por eso el segundo color es azul. El
+  umbral de los 90 días va en café (`--tarde`): oscuro en modo claro, café con
+  leche en oscuro, porque sobre fondo negro un café oscuro no alcanza contraste
+  y uno claro se confunde con el ámbar de la línea de pendientes.
 - La entrada de los gráficos corre una sola vez, al cargar. Al filtrar solo se
   funden con su nueva forma, para que mover un filtro no dispare toda la
   coreografía otra vez.
