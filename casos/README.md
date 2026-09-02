@@ -130,7 +130,11 @@ node casos/preview/construir.js mis-datos.json salida.html
   idénticos con daltonismo (ΔE 2,8), y por eso el segundo color es azul. El
   umbral de los 90 días va en café (`--tarde`): oscuro en modo claro, café con
   leche en oscuro, porque sobre fondo negro un café oscuro no alcanza contraste
-  y uno claro se confunde con el ámbar de la línea de pendientes.
+  y uno claro se confunde con el morado de la línea de pendientes.
+- La línea de pendientes va en morado y por eso salió de la leyenda compartida:
+  sobre fondo oscuro ningún morado se distingue del azul de los cierres (ΔE 1,7
+  con protanopia). Es la única serie de su propio sub-gráfico, con el rótulo
+  pegado al trazo, así que no tiene que competir con nadie.
 - La entrada de los gráficos corre una sola vez, al cargar. Al filtrar solo se
   funden con su nueva forma, para que mover un filtro no dispare toda la
   coreografía otra vez.

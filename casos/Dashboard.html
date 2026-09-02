@@ -27,7 +27,7 @@
   --panel-sombra: 0 1px 2px rgba(120, 40, 75, .06), 0 10px 26px -16px rgba(120, 40, 75, .30);
   --s1: #d2377e;
   --s2: #2a78d6;
-  --s3: #b0730c;
+  --s3: #6b3fa0;
   --s1-claro: #e893ba;
   --gris-dato: #c9b4bd;
   --tarde: #7a4a2e;
@@ -52,7 +52,7 @@
     --panel-sombra: none;
     --s1: #d8478a;
     --s2: #3987e5;
-    --s3: #c2871c;
+    --s3: #9b6fd8;
     --s1-claro: #b03470;
     --gris-dato: #5c4d53;
     --tarde: #e0a98c;
@@ -75,7 +75,7 @@
   --panel-sombra: none;
   --s1: #d8478a;
   --s2: #3987e5;
-  --s3: #c2871c;
+  --s3: #9b6fd8;
   --s1-claro: #b03470;
   --gris-dato: #5c4d53;
   --tarde: #e0a98c;
@@ -414,7 +414,6 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
         <div class="leyenda">
           <span class="leyenda__it"><span class="llave" style="background:var(--s1)"></span>Casos abiertos</span>
           <span class="leyenda__it"><span class="llave" style="background:var(--s2)"></span>Casos cerrados</span>
-          <span class="leyenda__it"><span class="llave llave--linea" style="background:var(--s3)"></span>Pendientes al cierre del mes</span>
         </div>
         <svg id="g-flujo" class="grafico" role="img" aria-labelledby="p-flujo"></svg>
         <div class="tabla-caja" id="t-flujo" hidden></div>
@@ -857,6 +856,9 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     g.appendChild(texto(ml - 7, Y(maxCol) + 4, fmt(maxCol), 'eje-tx', { 'text-anchor': 'end' }));
     g.appendChild(texto(ml - 7, Y(-maxCol) + 4, fmt(maxCol), 'eje-tx', { 'text-anchor': 'end' }));
     g.appendChild(el('line', { x1: ml, y1: y0, x2: L.an - mr, y2: y0, class: 'base' }));
+
+    g.appendChild(el('line', { x1: ml, y1: yB - 13, x2: ml + 14, y2: yB - 13, stroke: css('--s3'), 'stroke-width': 2, 'stroke-linecap': 'round' }));
+    g.appendChild(texto(ml + 20, yB - 9, 'Pendientes al cierre del mes', 'et-tx'));
 
     var areaD = '', lineaD = '';
     llaves.forEach(function (k, i) {
