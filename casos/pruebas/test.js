@@ -33,7 +33,7 @@ const fila = (hoja, r) => hoja.getRange(r, 1, 1, hoja.getMaxColumns()).getValues
 seccion('La hoja ya trae los encabezados (como está hoy la Planilla Yasna)');
 
 let ss = nuevaPlanilla();
-let hoja = ss.insertSheet('Casos', [
+let hoja = ss.insertSheet('BD', [
   ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario del caso',
     'año(llenarlo atravez de appscript on open)',
     'hoy(se llena atravez del on open app script)',
@@ -68,7 +68,7 @@ ok(global.__menu.items.length === 1 && global.__menu.items[0][1] === 'actualizar
 seccion('La hoja NO tiene las columnas: hay que insertarlas y correr el resto');
 
 ss = nuevaPlanilla();
-hoja = ss.insertSheet('Casos', [
+hoja = ss.insertSheet('BD', [
   ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario del caso', 'Nombre de la cuenta', 'Asunto'],
   ['1350', '26/12/2023', '26/12/2023', 'Matias Sumonte', 'Mexichem Costa Rica', 'Cerrado'],
   ['1224', '30/12/2023', '23/1/2024', 'Matias Sumonte', 'EAST COAST MILLWORK', 'Cerrado']
@@ -97,7 +97,7 @@ ok(fila(hoja, 2)[7] === 'Mexichem Costa Rica' && fila(hoja, 2)[4] === 2023, 'los
 seccion('Restos de una corrida anterior debajo de los casos');
 
 ss = nuevaPlanilla();
-hoja = ss.insertSheet('Casos', [
+hoja = ss.insertSheet('BD', [
   ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario', 'Año', 'Hoy', 'Días casos abiertos', 'Asunto'],
   ['1350', '26/12/2023', '26/12/2023', 'Matias Sumonte', 2023, new Date(2020, 0, 1), 7, 'Cerrado'],
   ['', '', '', '', 2023, new Date(2020, 0, 1), 7, ''],
@@ -115,7 +115,7 @@ ok(fila(hoja, 3).slice(4, 7).join('') === '' && fila(hoja, 4).slice(4, 7).join('
 seccion('Hojas más angostas que la columna E');
 
 ss = nuevaPlanilla();
-hoja = ss.insertSheet('Casos', [
+hoja = ss.insertSheet('BD', [
   ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario del caso'],
   ['1350', '26/12/2023', '26/12/2023', 'Matias Sumonte']
 ]);
@@ -123,6 +123,28 @@ actualizarCasos();
 ok(hoja.getMaxColumns() === 7, 'agrega las columnas al final si la hoja llegaba solo hasta la D');
 ok(fila(hoja, 1).slice(4, 7).join('|') === 'Año|Hoy|Días casos abiertos', 'encabezados en E, F y G');
 ok(fila(hoja, 2)[4] === 2023 && fila(hoja, 2)[6] === diasHasta(26, 12, 2023), 'y los valores');
+
+// ---------------------------------------------------------------------------
+seccion('Elige la hoja por su nombre (BD)');
+
+ss = nuevaPlanilla();
+const otra = ss.insertSheet('Resumen', [['no me toques']]);
+hoja = ss.insertSheet('BD', [
+  ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario del caso', 'Asunto'],
+  ['1350', '26/12/2023', '26/12/2023', 'Matias Sumonte', 'Cerrado']
+]);
+actualizarCasos();
+
+ok(fila(hoja, 1).slice(4, 7).join('|') === 'Año|Hoy|Días casos abiertos',
+  'trabaja sobre BD aunque no sea la primera hoja de la planilla');
+ok(fila(hoja, 2)[4] === 2023 && esHoy(fila(hoja, 2)[5]), 'y la llena');
+ok(otra.getMaxColumns() === 1 && fila(otra, 1)[0] === 'no me toques', 'no toca las otras hojas');
+
+ss = nuevaPlanilla();
+ss.insertSheet('Otro nombre', [['Número del caso']]);
+let error = '';
+try { actualizarCasos(); } catch (e) { error = String(e.message || e); }
+ok(error.indexOf('BD') !== -1, 'si le cambian el nombre a la hoja, avisa cuál falta: ' + error);
 
 // ---------------------------------------------------------------------------
 seccion('Formatos de fecha que puede tener la columna B');

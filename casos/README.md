@@ -1,7 +1,7 @@
 # casos — Año / Hoy / Días abiertos en la Planilla Yasna
 
 Apps Script sobre la planilla **Planilla Yasna**
-(`1FfRbv_jkU17hfGLlyQ7N-0RZmsCrW1txtroOFDmc41Y`).
+(`1FfRbv_jkU17hfGLlyQ7N-0RZmsCrW1txtroOFDmc41Y`), hoja **BD**.
 
 Cada vez que se abre la planilla, el script deja tres columnas a partir de la **E**:
 
@@ -66,7 +66,7 @@ Todo está arriba del archivo, en `CFG_CASOS`:
 
 ```js
 var CFG_CASOS = {
-  NOMBRE_HOJA: '',              // vacío = la primera hoja de la planilla
+  NOMBRE_HOJA: 'BD',            // nombre de la pestaña; vacío = la primera hoja
   COL_FECHA_APERTURA: 2,        // 2 = B
   COL_INICIO: 5,                // 5 = E, donde se insertan las tres columnas
   ENCABEZADOS: ['Año', 'Hoy', 'Días casos abiertos'],
@@ -77,6 +77,9 @@ var CFG_CASOS = {
 };
 ```
 
+- **`NOMBRE_HOJA`** es el nombre de la pestaña. Si se la vuelven a renombrar, el
+  script avisa (`No existe la hoja "BD" en esta planilla.`, en *Ejecuciones* del
+  editor) en vez de escribir en la hoja equivocada: basta con corregir esta línea.
 - **`CLAVES`** es con qué empieza el encabezado para dar la columna por existente.
   Se compara en minúsculas y sin tildes, así que `año(llenarlo atravez de
   appscript on open)` cuenta como la columna `Año`. Las tres tienen que calzar
@@ -114,7 +117,7 @@ var CFG_CASOS = {
 node casos/pruebas/test.js
 ```
 
-Simulan la hoja real —con y sin las columnas— y comprueban que las columnas se
+Simulan la hoja BD —con y sin las columnas— y comprueban que las columnas se
 inserten corriendo el resto a la derecha, que el año y los días salgan de la
 apertura y no del cierre, que la columna *Hoy* se reescriba entera (pisando
 valores viejos y limpiando los restos de abajo), que correr el script dos veces

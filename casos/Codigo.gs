@@ -22,8 +22,8 @@
  */
 
 var CFG_CASOS = {
-  /** Nombre de la hoja. Vacío = la primera hoja de la planilla. */
-  NOMBRE_HOJA: '',
+  /** Nombre de la pestaña. Vacío = la primera hoja de la planilla. */
+  NOMBRE_HOJA: 'BD',
   /** Columna con la fecha de apertura. 2 = B. */
   COL_FECHA_APERTURA: 2,
   /** Dónde se insertan las tres columnas si no existen. 5 = E. */
