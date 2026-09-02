@@ -22,7 +22,9 @@ Si ya están —como pasa hoy en la planilla, que tiene los encabezados
 les deja el nombre limpio y solo actualiza los valores. Correrlo dos veces no
 duplica columnas.
 
-Todo el código es un solo archivo: **`Codigo.gs`**.
+Además arma un **tablero de análisis** con esos mismos datos: `Dashboard.html`.
+
+El código son dos archivos: **`Codigo.gs`** (la lógica) y **`Dashboard.html`** (el tablero).
 
 ---
 
@@ -57,6 +59,71 @@ quedan llenas. De ahí en adelante se actualiza solo cada vez que se abre.
 
 Si prefieres actualizarlas sin cerrar la planilla:
 **Casos › Actualizar año / hoy / días**.
+
+---
+
+## El tablero
+
+**Casos › Abrir tablero**, o el enlace de la aplicación web si la publicas. Lee la
+hoja BD en el momento, no guarda copia de nada y responde cinco preguntas:
+
+| Pregunta | Cómo la responde |
+| :-- | :-- |
+| ¿Cuánto lleva esperando cada caso abierto? | Una marca por caso sobre el eje de días, con la línea de los 90 y el más antiguo rotulado |
+| ¿Entran más de los que cerramos? | Aperturas y cierres por mes, y la cola pendiente al cierre de cada mes |
+| ¿Dónde se concentran? | Clientes ordenados por reclamos, con el peso de los 5 primeros |
+| ¿Por qué reclaman? | Subcategoría y causa comercial, con el error de precio destacado |
+| ¿Cuánto tardamos y quién los tiene? | Mediana y p90 de días hasta el cierre, y los abiertos por responsable |
+
+Abajo queda la cola de trabajo: los casos abiertos ordenables por cualquier columna.
+
+Los filtros de arriba (año, estado, subcategoría, causa, búsqueda) reordenan todo
+lo de abajo, incluidas las frases de hallazgo, que se recalculan solas: el tablero
+dice en palabras lo que está mostrando. Cada gráfico tiene su botón **Tabla** con
+los mismos números en texto.
+
+### Instalarlo
+
+1. En el editor de Apps Script: **Archivo › + › HTML**. Ponle de nombre
+   `Dashboard` (Google le agrega el `.html` solo).
+2. Borra lo que traiga y pega el contenido de **`Dashboard.html`** de esta carpeta.
+3. Guarda y vuelve a abrir la planilla: aparece **Casos › Abrir tablero**.
+
+Para tener un enlace que se pueda compartir sin entrar a la planilla:
+**Implementar › Nueva implementación › Aplicación web**, ejecutando como tú y con
+el acceso que corresponda. Esa URL abre el mismo tablero.
+
+### Verlo fuera de Google
+
+```
+node casos/preview/construir.js
+```
+
+Escribe `casos/preview/tablero-demo.html`, que se abre con doble clic. Usa
+`datos-ejemplo.json`, que tiene la forma y los números de la planilla real con los
+nombres de clientes y personas enmascarados: los datos de clientes no viven en el
+repositorio. Para verlo con los datos de verdad, pásale tu propio JSON:
+
+```
+node casos/preview/construir.js mis-datos.json salida.html
+```
+
+`Dashboard.html` no tiene nada de Google adentro: espera encontrar el texto
+`__DATOS__` y cambiarlo por el JSON de los casos. Eso es exactamente lo que hace
+`doGet` en el servidor, así que el archivo del tablero es uno solo.
+
+### Detalles del tablero
+
+- Todo el cálculo pasa en el navegador: el servidor solo manda las filas. Con el
+  tamaño actual (391 casos, unos 100 KB de JSON) va instantáneo; si la hoja
+  creciera a decenas de miles de filas habría que agregar del lado del servidor.
+- Los colores de los gráficos están validados para daltonismo y contraste en modo
+  claro y oscuro, y el tablero sigue el tema del sistema con un botón para forzar
+  uno u otro.
+- **Falta el monto.** El 92% de los casos termina en nota de crédito, pero la base
+  no trae cuánto. Sin esa columna se pueden contar reclamos, no pesarlos. Agregar
+  el monto de la NC a la hoja convierte este tablero en uno de margen; el tablero
+  lo dice al pie para que no se olvide.
 
 ---
 
@@ -117,7 +184,9 @@ var CFG_CASOS = {
 node casos/pruebas/test.js
 ```
 
-Simulan la hoja BD —con y sin las columnas— y comprueban que las columnas se
+También comprueban lo que el tablero recibe de la hoja: que "Estado" no se lo
+lleve "Estado caso", que las fechas de texto salgan en ISO y que las filas vacías
+no se cuelen. Simulan la hoja BD —con y sin las columnas— y comprueban que las columnas se
 inserten corriendo el resto a la derecha, que el año y los días salgan de la
 apertura y no del cierre, que la columna *Hoy* se reescriba entera (pisando
 valores viejos y limpiando los restos de abajo), que correr el script dos veces

@@ -20,6 +20,16 @@ class Sheet {
   getName() { return this.nombre; }
   getMaxColumns() { return this.maxColumns; }
 
+  getLastColumn() {
+    let ultima = 0;
+    this.data.forEach(fila => {
+      for (let i = fila.length - 1; i >= 0; i--) {
+        if (fila[i] !== '' && fila[i] != null) { ultima = Math.max(ultima, i + 1); break; }
+      }
+    });
+    return ultima;
+  }
+
   getLastRow() {
     let ultima = 0;
     this.data.forEach((f, i) => { if (f.some(v => v !== '' && v != null)) ultima = i + 1; });
@@ -121,7 +131,12 @@ class Spreadsheet {
 /** Instala los globales que usa Codigo.gs y devuelve una planilla vacía. */
 function nuevaPlanilla() {
   const ss = new Spreadsheet();
-  const menu = { items: [], addItem(t, f) { this.items.push([t, f]); return this; }, addToUi() { return this; } };
+  const menu = {
+    items: [],
+    addItem(t, f) { this.items.push([t, f]); return this; },
+    addSeparator() { return this; },
+    addToUi() { return this; }
+  };
 
   global.SpreadsheetApp = {
     getActiveSpreadsheet: () => ss,

@@ -62,7 +62,8 @@ ok(fila(hoja, 4)[4] === '' && fila(hoja, 4)[6] === '',
   'sin fecha de apertura: año y días quedan vacíos, pero Hoy igual se escribe');
 ok(hoja.formatos['2,5'] === '0' && hoja.formatos['2,6'] === 'dd/mm/yyyy',
   'aplica formato: año sin separador de miles, hoy como fecha');
-ok(global.__menu.items.length === 1 && global.__menu.items[0][1] === 'actualizarCasos', 'onOpen deja el menú');
+ok(global.__menu.items.map(function (i) { return i[1]; }).join(',') === 'abrirTablero,actualizarCasos',
+  'onOpen deja el menú con el tablero y la actualización');
 
 // ---------------------------------------------------------------------------
 seccion('La hoja NO tiene las columnas: hay que insertarlas y correr el resto');
@@ -163,6 +164,38 @@ seccion('Cuenta de días');
 ok(diasEntre_(aFecha_('26/12/2023'), aFecha_('02/09/2026')) === 981, 'del 26/12/2023 al 02/09/2026 hay 981 días');
 ok(diasEntre_(aFecha_('26/12/2023'), aFecha_('26/12/2023')) === 0, 'mismo día: 0');
 ok(diasEntre_(aFecha_('01/03/2024'), aFecha_('01/01/2024')) === -60, 'apertura a futuro: negativo');
+
+// ---------------------------------------------------------------------------
+seccion('Datos que el tablero recibe de la hoja');
+
+ss = nuevaPlanilla();
+hoja = ss.insertSheet('BD', [
+  ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario del caso',
+    'año(llenarlo atravez de appscript on open)', 'hoy', 'dias casos abiertos',
+    'Nombre de la cuenta', 'Asunto', 'Estado', 'Origen del caso', 'Subcategoría',
+    'Requerimiento del Cliente', 'Causa Comercial', 'Estado caso'],
+  ['2627', '7/1/2025', '22/1/2025', 'Yasna Esparza', '', '', '', 'Shinnihon Seikan',
+    'Hongos blancos', 'Cerrado', 'Interno', 'Producto', 'Emisión NC por valor', '', 'Cerrados'],
+  ['3854', new Date(2025, 11, 29), '', 'En aprobación', '', '', '', '',
+    'Sin cerrar', 'Pendiente aprobación', 'Interno', 'Comercial', 'Emisión NC por valor', 'Error de precio', 'Abiertos'],
+  ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+]);
+
+const mapa = mapaDeColumnas_(hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0]);
+ok(mapa.est === 9, 'la columna "Estado" gana por nombre exacto, no se la lleva "Estado caso"');
+ok(mapa.ap === 1 && mapa.ci === 2, 'ubica las dos fechas');
+ok(mapa.cau === 13 && mapa.sub === 11, 'ubica causa comercial y subcategoría');
+
+const paquete = datosDelTablero_();
+ok(paquete.hoja === 'BD' && /^\d{4}-\d{2}-\d{2}$/.test(paquete.hoy), 'devuelve la hoja y el día de hoy en ISO');
+ok(paquete.casos.length === 2, 'descarta la fila vacía del final');
+ok(paquete.casos[0].ap === '2025-01-07' && paquete.casos[0].ci === '2025-01-22',
+  'convierte las fechas de texto a ISO');
+ok(paquete.casos[1].ap === '2025-12-29' && paquete.casos[1].ci === '',
+  'una fecha de verdad también sale en ISO; sin cierre queda vacío');
+ok(paquete.casos[1].cau === 'Error de precio' && paquete.casos[1].cli === '',
+  'trae la causa comercial y no inventa cliente cuando falta');
+ok(paquete.casos[0].est === 'Cerrado', 'el estado que llega es el de la columna Estado');
 
 console.log(fallos ? '\n' + fallos + ' prueba(s) fallaron' : '\nTodo bien');
 process.exit(fallos ? 1 : 0);

@@ -55,6 +55,8 @@ var CFG_CASOS = {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Casos')
+    .addItem('Abrir tablero', 'abrirTablero')
+    .addSeparator()
     .addItem('Actualizar año / hoy / días', 'actualizarCasos')
     .addToUi();
 
@@ -276,4 +278,113 @@ function normalizar_(valor) {
     .replace(/ñ/g, 'n')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// ===========================================================================
+// TABLERO
+//
+// Dashboard.html es una página completa que no sabe nada de Google: espera
+// encontrar el texto __DATOS__ y lo cambia por el JSON de la hoja. El mismo
+// archivo se usa tal cual para las vistas previas fuera de Sheets.
+// ===========================================================================
+
+/** Columnas que el tablero necesita y encabezados con los que se reconocen. */
+var COLUMNAS_TABLERO = [
+  { llave: 'n', busca: ['numero del caso', 'numero de caso', 'n° del caso'] },
+  { llave: 'ap', busca: ['fecha de apertura'], fecha: true },
+  { llave: 'ci', busca: ['fecha de cierre'], fecha: true },
+  { llave: 'due', busca: ['propietario del caso', 'propietario'] },
+  { llave: 'cli', busca: ['nombre de la cuenta', 'cliente'] },
+  { llave: 'est', busca: ['estado'] },
+  { llave: 'ori', busca: ['origen del caso', 'origen'] },
+  { llave: 'sub', busca: ['subcategoria'] },
+  { llave: 'req', busca: ['requerimiento del cliente', 'requerimiento'] },
+  { llave: 'cau', busca: ['causa comercial'] },
+  { llave: 'asu', busca: ['asunto'] }
+];
+
+/** Menú "Casos": abre el tablero en un cuadro sobre la planilla. */
+function abrirTablero() {
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(paginaTablero_()).setWidth(1600).setHeight(1000),
+    'Reclamos de exportación'
+  );
+}
+
+/** Aplicación web: el mismo tablero con enlace propio para compartir. */
+function doGet() {
+  return HtmlService.createHtmlOutput(paginaTablero_())
+    .setTitle('Reclamos de exportación')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function paginaTablero_() {
+  // El reemplazo va con función para que un "$" en los datos no se interprete
+  // como referencia de String.replace.
+  var json = JSON.stringify(datosDelTablero_()).replace(/</g, '\\u003c');
+  return HtmlService.createHtmlOutputFromFile('Dashboard').getContent()
+    .replace('__DATOS__', function () { return json; });
+}
+
+/** Lee la hoja y arma el paquete que consume el tablero. */
+function datosDelTablero_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var hoja = hojaDeCasos_(ss);
+  var paquete = { hoy: iso_(hoyEn_(ss.getSpreadsheetTimeZone())), hoja: hoja.getName(), casos: [] };
+  var filas = hoja.getLastRow() - 1;
+  if (filas < 1) return paquete;
+
+  var valores = hoja.getRange(1, 1, filas + 1, hoja.getLastColumn()).getValues();
+  var indices = mapaDeColumnas_(valores[0]);
+  for (var f = 1; f <= filas; f++) {
+    var caso = casoDeFila_(valores[f], indices);
+    if (caso) paquete.casos.push(caso);
+  }
+  return paquete;
+}
+
+function casoDeFila_(fila, indices) {
+  var caso = {}, vacio = true;
+  for (var i = 0; i < COLUMNAS_TABLERO.length; i++) {
+    var col = COLUMNAS_TABLERO[i], pos = indices[col.llave], valor = (pos === undefined) ? '' : fila[pos];
+    if (col.fecha) {
+      var fecha = aFecha_(valor);
+      caso[col.llave] = fecha ? iso_(fecha) : '';
+    } else {
+      caso[col.llave] = String(valor == null ? '' : valor).trim().slice(0, 140);
+    }
+    if (caso[col.llave]) vacio = false;
+  }
+  return vacio ? null : caso;
+}
+
+/**
+ * Encuentra cada columna por su encabezado: primero el nombre exacto y solo
+ * después por prefijo, para que "Estado" no se lo lleve "Estado caso" ni los
+ * encabezados con notas al lado se queden fuera.
+ */
+function mapaDeColumnas_(cabeceras) {
+  var norma = cabeceras.map(normalizar_), mapa = {};
+  COLUMNAS_TABLERO.forEach(function (col) {
+    col.busca.forEach(function (nombre) {
+      if (mapa[col.llave] !== undefined) return;
+      var i = norma.indexOf(nombre);
+      if (i !== -1) mapa[col.llave] = i;
+    });
+  });
+  COLUMNAS_TABLERO.forEach(function (col) {
+    col.busca.forEach(function (nombre) {
+      if (mapa[col.llave] !== undefined) return;
+      for (var i = 0; i < norma.length; i++) {
+        if (norma[i].indexOf(nombre) === 0) { mapa[col.llave] = i; return; }
+      }
+    });
+  });
+  return mapa;
+}
+
+function iso_(fecha) {
+  return fecha.getFullYear() + '-' +
+    ('0' + (fecha.getMonth() + 1)).slice(-2) + '-' +
+    ('0' + fecha.getDate()).slice(-2);
 }

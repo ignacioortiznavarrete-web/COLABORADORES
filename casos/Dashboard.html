@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reclamos de exportación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* ---------------------------------------------------------------------------
+   Tokens. Paleta de datos validada (CVD + contraste) en claro y oscuro.
+   Los colores de estado son fijos: nunca cambian entre modos.
+   ------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --plano: #f1f1ee;
+  --sup: #fcfcfb;
+  --sup-2: #f6f6f3;
+  --tinta: #0b0b0b;
+  --tinta-2: #52514e;
+  --tinta-3: #7c7a74;
+  --linea: #e1e0d9;
+  --eje: #c3c2b7;
+  --borde: rgba(11, 11, 11, .13);
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s1-claro: #86b6ef;
+  --gris-dato: #b8b7b0;
+  --critico: #d03b3b;
+  --alerta: #fab219;
+  --serio: #ec835a;
+  --bien: #0ca30c;
+  --lavado-critico: rgba(208, 59, 59, .055);
+  --foco: #2a78d6;
+  --z-tooltip: 60;
+  --z-barra: 30;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --plano: #0d0d0d;
+    --sup: #1a1a19;
+    --sup-2: #232322;
+    --tinta: #ffffff;
+    --tinta-2: #c3c2b7;
+    --tinta-3: #94928b;
+    --linea: #2c2c2a;
+    --eje: #383835;
+    --borde: rgba(255, 255, 255, .14);
+    --s1: #3987e5;
+    --s2: #d95926;
+    --s3: #199e70;
+    --s1-claro: #184f95;
+    --gris-dato: #56554f;
+    --lavado-critico: rgba(208, 59, 59, .11);
+    --foco: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plano: #0d0d0d;
+  --sup: #1a1a19;
+  --sup-2: #232322;
+  --tinta: #ffffff;
+  --tinta-2: #c3c2b7;
+  --tinta-3: #94928b;
+  --linea: #2c2c2a;
+  --eje: #383835;
+  --borde: rgba(255, 255, 255, .14);
+  --s1: #3987e5;
+  --s2: #d95926;
+  --s3: #199e70;
+  --s1-claro: #184f95;
+  --gris-dato: #56554f;
+  --lavado-critico: rgba(208, 59, 59, .11);
+  --foco: #3987e5;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--plano);
+  color: var(--tinta);
+  font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, ul, figure { margin: 0; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: 4px; }
+.num { font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+.tab { font-variant-numeric: tabular-nums; }
+.oculto-visual {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.envoltura { max-width: 1340px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 34px); }
+
+/* --- Barra superior ------------------------------------------------------ */
+.barra {
+  position: sticky; top: 0; z-index: var(--z-barra);
+  background: color-mix(in srgb, var(--plano) 92%, transparent);
+  border-bottom: 1px solid var(--borde);
+}
+@supports not (background: color-mix(in srgb, red 50%, blue)) {
+  .barra { background: var(--plano); }
+}
+.barra__fila {
+  display: flex; align-items: baseline; gap: 14px;
+  padding: 16px 0 14px;
+}
+.marca { display: flex; align-items: baseline; gap: 10px; }
+.marca__glifo {
+  width: 11px; height: 11px; border-radius: 2px;
+  background: var(--s1); flex: none; transform: translateY(-1px);
+}
+.marca__nombre { font-size: 15px; font-weight: 600; letter-spacing: -.012em; }
+.marca__sub { font-size: 12.5px; color: var(--tinta-3); }
+.barra__der { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+.boton {
+  background: none; border: 1px solid var(--borde); border-radius: 7px;
+  padding: 5px 11px; font-size: 12.5px; color: var(--tinta-2); cursor: pointer;
+  transition: background .18s cubic-bezier(.16,1,.3,1), color .18s;
+}
+.boton:hover { background: var(--sup-2); color: var(--tinta); }
+.boton:active { transform: translateY(1px); }
+
+/* --- Fila de filtros ----------------------------------------------------- */
+.filtros {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding-bottom: 14px;
+}
+.campo { display: flex; align-items: center; gap: 6px; }
+.campo > label { font-size: 12px; color: var(--tinta-3); }
+.campo select, .buscador input {
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 7px;
+  padding: 5px 9px; font-size: 12.5px; max-width: 210px;
+}
+.buscador { position: relative; }
+.buscador input { width: 190px; }
+.buscador input::placeholder { color: var(--tinta-3); }
+.filtros__cuenta {
+  margin-left: auto; font-size: 12.5px; color: var(--tinta-3);
+}
+.filtros__cuenta b { color: var(--tinta); font-weight: 500; }
+
+/* --- Cabecera de sección ------------------------------------------------- */
+.seccion { padding: 34px 0 0; }
+.seccion__cab { max-width: 74ch; margin-bottom: 18px; }
+.pregunta {
+  font-size: clamp(19px, 2.1vw, 22px); font-weight: 500; letter-spacing: -.018em;
+  text-wrap: balance;
+}
+.hallazgo {
+  margin-top: 7px; font-size: 14px; color: var(--tinta-2); max-width: 68ch;
+  text-wrap: pretty;
+}
+.hallazgo b { color: var(--tinta); font-weight: 500; }
+
+/* --- Portada: cifra + tira de espera ------------------------------------- */
+.portada {
+  display: grid; grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: clamp(24px, 4vw, 56px); align-items: start;
+  padding: clamp(26px, 4vw, 44px) 0 34px;
+}
+.cifra { font-size: clamp(52px, 7vw, 72px); font-weight: 500; letter-spacing: -.035em; line-height: .92; }
+.cifra__pie { margin-top: 8px; font-size: 14.5px; color: var(--tinta-2); }
+.datos-clave { margin-top: 22px; border-top: 1px solid var(--borde); }
+.dato {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--borde);
+}
+.dato__et { font-size: 13px; color: var(--tinta-2); }
+.dato__val { font-size: 15px; font-weight: 500; letter-spacing: -.01em; }
+.dato__val--riesgo { color: var(--critico); }
+
+/* --- Paneles ------------------------------------------------------------- */
+.rejilla { display: grid; gap: 18px; }
+.rejilla--41 { grid-template-columns: 1.45fr 1fr; }
+.rejilla--14 { grid-template-columns: 1fr 1.15fr; }
+.panel {
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 12px;
+  padding: 20px 20px 16px; min-width: 0;
+}
+.panel__cab { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.panel__tit { font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
+.panel__nota { font-size: 12.5px; color: var(--tinta-3); }
+.panel__acc { margin-left: auto; display: flex; gap: 6px; }
+.panel__pie { margin-top: 10px; font-size: 12.5px; color: var(--tinta-2); }
+
+/* --- Leyenda ------------------------------------------------------------- */
+.leyenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 2px 0 12px; }
+.leyenda__it { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--tinta-2); }
+.llave { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.llave--linea { height: 2px; width: 15px; border-radius: 1px; }
+
+/* --- Gráficos ------------------------------------------------------------ */
+.grafico { width: 100%; display: block; overflow: visible; }
+.grafico text { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.eje-tx { fill: var(--tinta-3); font-size: 10.5px; }
+.et-tx { fill: var(--tinta-2); font-size: 11.5px; font-family: Geist, system-ui, sans-serif !important; }
+.val-tx { fill: var(--tinta); font-size: 11.5px; font-weight: 500; }
+.malla { stroke: var(--linea); stroke-width: 1; }
+.base { stroke: var(--eje); stroke-width: 1; }
+.marca-hit { fill: transparent; cursor: default; }
+.marca-hit:hover + .realce, .marca-hit:focus-visible + .realce { opacity: 1; }
+.realce { opacity: 0; pointer-events: none; transition: opacity .12s; }
+
+@keyframes crecerY { from { transform: scaleY(0); } }
+@keyframes crecerX { from { transform: scaleX(0); } }
+.an-y { transform-box: fill-box; transform-origin: center bottom; animation: crecerY .5s cubic-bezier(.16,1,.3,1) both; }
+.an-x { transform-box: fill-box; transform-origin: left center; animation: crecerX .55s cubic-bezier(.16,1,.3,1) both; }
+
+/* --- Tira de espera (elemento firma) ------------------------------------- */
+.tira { position: relative; }
+.tira__zona-riesgo { fill: var(--lavado-critico); }
+.tira__umbral { stroke: var(--critico); stroke-width: 1; }
+.tira__et-umbral { fill: var(--critico); font-size: 11px; font-family: Geist, system-ui, sans-serif !important; }
+
+/* --- Tooltip ------------------------------------------------------------- */
+.tooltip {
+  position: fixed; z-index: var(--z-tooltip); pointer-events: none; opacity: 0;
+  transform: translate(-50%, -100%); transition: opacity .12s;
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 8px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .13);
+  padding: 8px 10px; min-width: 150px; max-width: 280px;
+}
+.tooltip[data-visible="1"] { opacity: 1; }
+.tooltip__tit { font-size: 12.5px; font-weight: 500; margin-bottom: 5px; }
+.tooltip__fila { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--tinta-2); }
+.tooltip__fila + .tooltip__fila { margin-top: 3px; }
+.tooltip__val { margin-left: auto; color: var(--tinta); font-weight: 500; }
+.tooltip__llave { width: 12px; height: 2px; border-radius: 1px; flex: none; transform: translateY(-3px); }
+
+/* --- Tablas -------------------------------------------------------------- */
+.tabla-caja { overflow-x: auto; margin-top: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--linea); white-space: nowrap; }
+th { color: var(--tinta-3); font-weight: 500; font-size: 11.5px; }
+td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.orden { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; font: inherit; }
+.orden[aria-sort="descending"], .orden[aria-sort="ascending"] { color: var(--tinta); }
+.punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+
+/* --- Estados vacío / error ----------------------------------------------- */
+.vacio {
+  border: 1px dashed var(--borde); border-radius: 12px; padding: 44px 24px;
+  text-align: center; color: var(--tinta-2); margin-top: 20px;
+}
+.vacio__tit { font-size: 16px; color: var(--tinta); font-weight: 500; margin-bottom: 6px; }
+.vacio .boton { margin-top: 14px; }
+
+/* --- Pie ----------------------------------------------------------------- */
+.pie {
+  margin-top: 44px; padding: 22px 0 40px; border-top: 1px solid var(--borde);
+  display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start;
+  font-size: 12.5px; color: var(--tinta-3);
+}
+.pie__aviso { max-width: 62ch; color: var(--tinta-2); }
+.pie__aviso b { color: var(--tinta); font-weight: 500; }
+
+@media (max-width: 980px) {
+  .rejilla--41, .rejilla--14 { grid-template-columns: 1fr; }
+  .portada { grid-template-columns: 1fr; gap: 22px; }
+  .pie { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .filtros__cuenta { margin-left: 0; width: 100%; }
+  .buscador input { width: 100%; }
+  .campo select { max-width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
+}
+</style>
+</head>
+<body>
+<script id="datos" type="application/json">__DATOS__</script>
+
+<header class="barra">
+  <div class="envoltura">
+    <div class="barra__fila">
+      <div class="marca">
+        <span class="marca__glifo" aria-hidden="true"></span>
+        <h1 class="marca__nombre">Reclamos de exportación</h1>
+      </div>
+      <span class="marca__sub" id="periodo">—</span>
+      <div class="barra__der">
+        <button class="boton" id="btn-tema" type="button" aria-pressed="false">Modo oscuro</button>
+      </div>
+    </div>
+    <div class="filtros" role="group" aria-label="Filtros del tablero">
+      <div class="campo">
+        <label for="f-anio">Año</label>
+        <select id="f-anio"><option value="">Todos</option></select>
+      </div>
+      <div class="campo">
+        <label for="f-estado">Estado</label>
+        <select id="f-estado">
+          <option value="">Todos</option>
+          <option value="abierto">Abiertos</option>
+          <option value="cerrado">Cerrados</option>
+        </select>
+      </div>
+      <div class="campo">
+        <label for="f-sub">Subcategoría</label>
+        <select id="f-sub"><option value="">Todas</option></select>
+      </div>
+      <div class="campo">
+        <label for="f-causa">Causa comercial</label>
+        <select id="f-causa"><option value="">Todas</option></select>
+      </div>
+      <div class="campo buscador">
+        <label class="oculto-visual" for="f-texto">Buscar</label>
+        <input id="f-texto" type="search" placeholder="Cliente, caso o asunto" autocomplete="off">
+      </div>
+      <button class="boton" id="btn-limpiar" type="button" hidden>Quitar filtros</button>
+      <p class="filtros__cuenta" id="cuenta" aria-live="polite"></p>
+    </div>
+  </div>
+</header>
+
+<main id="tablero">
+  <section class="seccion" aria-labelledby="p-cola">
+    <div class="envoltura">
+      <div class="seccion__cab">
+        <h2 class="pregunta" id="p-cola">¿Cuánto lleva esperando cada caso abierto?</h2>
+        <p class="hallazgo" id="h-cola"></p>
+      </div>
+      <div class="portada">
+        <div>
+          <p class="cifra" id="cifra">—</p>
+          <p class="cifra__pie" id="cifra-pie">casos abiertos</p>
+          <div class="datos-clave" id="datos-clave"></div>
+        </div>
+        <figure class="tira">
+          <div class="panel__cab">
+            <h3 class="panel__tit">Un caso, una marca</h3>
+            <span class="panel__nota">cada marca es un caso · eje en días esperando</span>
+            <div class="panel__acc">
+              <button class="boton" type="button" data-tabla="t-cola" aria-expanded="false">Tabla</button>
+            </div>
+          </div>
+          <div class="leyenda">
+            <span class="leyenda__it"><span class="llave" style="background:var(--s1)"></span>Dentro de 90 días</span>
+            <span class="leyenda__it"><span class="llave" style="background:var(--critico)"></span>Sobre 90 días</span>
+          </div>
+          <svg id="g-cola" class="grafico" role="img" aria-labelledby="p-cola"></svg>
+          <div class="tabla-caja" id="t-cola" hidden></div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion" aria-labelledby="p-flujo">
+    <div class="envoltura">
+      <div class="seccion__cab">
+        <h2 class="pregunta" id="p-flujo">¿Entran más reclamos de los que alcanzamos a cerrar?</h2>
+        <p class="hallazgo" id="h-flujo"></p>
+      </div>
+      <div class="panel">
+        <div class="panel__cab">
+          <h3 class="panel__tit">Entrada y salida por mes</h3>
+          <div class="panel__acc">
+            <button class="boton" type="button" data-tabla="t-flujo" aria-expanded="false">Tabla</button>
+          </div>
+        </div>
+        <div class="leyenda">
+          <span class="leyenda__it"><span class="llave" style="background:var(--s1)"></span>Casos abiertos</span>
+          <span class="leyenda__it"><span class="llave" style="background:var(--s2)"></span>Casos cerrados</span>
+          <span class="leyenda__it"><span class="llave llave--linea" style="background:var(--s3)"></span>Pendientes al cierre del mes</span>
+        </div>
+        <svg id="g-flujo" class="grafico" role="img" aria-labelledby="p-flujo"></svg>
+        <div class="tabla-caja" id="t-flujo" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion" aria-labelledby="p-donde">
+    <div class="envoltura">
+      <div class="seccion__cab">
+        <h2 class="pregunta" id="p-donde">¿Dónde se concentran y por qué reclaman?</h2>
+        <p class="hallazgo" id="h-donde"></p>
+      </div>
+      <div class="rejilla rejilla--41">
+        <div class="panel">
+          <div class="panel__cab">
+            <h3 class="panel__tit">Clientes con más reclamos</h3>
+            <span class="panel__nota" id="nota-clientes"></span>
+            <div class="panel__acc">
+              <button class="boton" type="button" data-tabla="t-clientes" aria-expanded="false">Tabla</button>
+            </div>
+          </div>
+          <svg id="g-clientes" class="grafico" role="img" aria-label="Clientes con más reclamos"></svg>
+          <p class="panel__pie" id="pie-clientes"></p>
+          <div class="tabla-caja" id="t-clientes" hidden></div>
+        </div>
+        <div class="panel">
+          <div class="panel__cab">
+            <h3 class="panel__tit">Motivo del reclamo</h3>
+            <div class="panel__acc">
+              <button class="boton" type="button" data-tabla="t-causas" aria-expanded="false">Tabla</button>
+            </div>
+          </div>
+          <p class="panel__nota">Subcategoría</p>
+          <svg id="g-sub" class="grafico" role="img" aria-label="Casos por subcategoría"></svg>
+          <p class="panel__nota" style="margin-top:14px">Causa comercial declarada</p>
+          <svg id="g-causa" class="grafico" role="img" aria-label="Casos por causa comercial"></svg>
+          <div class="tabla-caja" id="t-causas" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion" aria-labelledby="p-tiempo">
+    <div class="envoltura">
+      <div class="seccion__cab">
+        <h2 class="pregunta" id="p-tiempo">¿Cuánto tardamos en cerrar, y quién tiene la pelota?</h2>
+        <p class="hallazgo" id="h-tiempo"></p>
+      </div>
+      <div class="rejilla rejilla--14">
+        <div class="panel">
+          <div class="panel__cab">
+            <h3 class="panel__tit">Días hasta el cierre</h3>
+            <div class="panel__acc">
+              <button class="boton" type="button" data-tabla="t-velocidad" aria-expanded="false">Tabla</button>
+            </div>
+          </div>
+          <div class="leyenda">
+            <span class="leyenda__it"><span class="llave" style="background:var(--s1-claro)"></span>Mitad de los casos (mediana)</span>
+            <span class="leyenda__it"><span class="llave" style="background:var(--s1)"></span>9 de cada 10 (p90)</span>
+          </div>
+          <svg id="g-velocidad" class="grafico" role="img" aria-label="Días hasta el cierre por subcategoría"></svg>
+          <div class="tabla-caja" id="t-velocidad" hidden></div>
+        </div>
+        <div class="panel">
+          <div class="panel__cab">
+            <h3 class="panel__tit">Casos abiertos por responsable</h3>
+            <span class="panel__nota">quién los tiene hoy</span>
+            <div class="panel__acc">
+              <button class="boton" type="button" data-tabla="t-duenos" aria-expanded="false">Tabla</button>
+            </div>
+          </div>
+          <svg id="g-duenos" class="grafico" role="img" aria-label="Casos abiertos por responsable"></svg>
+          <div class="tabla-caja" id="t-duenos" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="seccion" aria-labelledby="p-lista">
+    <div class="envoltura">
+      <div class="seccion__cab">
+        <h2 class="pregunta" id="p-lista">La cola de trabajo</h2>
+        <p class="hallazgo" id="h-lista"></p>
+      </div>
+      <div class="panel">
+        <div class="tabla-caja" id="t-abiertos"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="pie">
+  <div class="envoltura" style="display:contents">
+    <p class="pie__aviso">
+      <b>Lo que este tablero todavía no puede responder:</b> el 92% de los casos termina
+      en una nota de crédito, pero la base no trae el monto. Sin esa columna se puede
+      contar reclamos, no pesarlos: dos casos de error de precio pueden valer mil dólares
+      o cien mil. Agregar el monto de la NC a la hoja convierte este tablero en uno de
+      margen, y es la única columna que falta para lograrlo.
+    </p>
+    <p id="fuente">Fuente: hoja <b>BD</b> · Salesforce</p>
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------------
+  // Datos. El servidor reemplaza __DATOS__ por el JSON de la hoja BD.
+  // ---------------------------------------------------------------------
+  var CRUDO = null;
+  try {
+    var bruto = document.getElementById('datos').textContent.trim();
+    if (bruto && bruto.charAt(0) === '{') CRUDO = JSON.parse(bruto);
+  } catch (e) { CRUDO = null; }
+
+  if (!CRUDO || !CRUDO.casos) {
+    document.getElementById('tablero').innerHTML =
+      '<div class="envoltura"><div class="vacio"><p class="vacio__tit">Este archivo no trae los datos</p>' +
+      '<p>El tablero se arma con la hoja BD. Ábrelo desde la planilla, en <b>Casos › Abrir tablero</b>, ' +
+      'o desde el enlace de la aplicación web publicada.</p></div></div>';
+    return;
+  }
+
+  var HOY = aFecha(CRUDO.hoy) || new Date();
+  var CASOS = CRUDO.casos.map(function (c) {
+    var ap = aFecha(c.ap), ci = aFecha(c.ci);
+    var cerrado = (c.est || '').toLowerCase().indexOf('cerrado') === 0 || !!ci;
+    return {
+      n: c.n || '', cli: c.cli || 'Sin cliente', due: c.due || 'Sin asignar',
+      est: c.est || '', ori: c.ori || '', sub: c.sub || 'Sin subcategoría',
+      req: c.req || '', cau: c.cau || '', asu: c.asu || '',
+      ap: ap, ci: ci, cerrado: cerrado,
+      anio: ap ? String(ap.getFullYear()) : '',
+      mes: ap ? clave(ap) : '',
+      espera: (ap && !cerrado) ? dias(ap, HOY) : null,
+      resol: (ap && ci) ? dias(ap, ci) : null
+    };
+  });
+
+  // ---------------------------------------------------------------------
+  // Utilidades
+  // ---------------------------------------------------------------------
+  function aFecha(t) {
+    if (!t) return null;
+    var p = String(t).split('-');
+    if (p.length !== 3) return null;
+    var d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function dias(a, b) { return Math.round((b - a) / 86400000); }
+  function clave(f) { return f.getFullYear() + '-' + ('0' + (f.getMonth() + 1)).slice(-2); }
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  function etiquetaMes(k) { var p = k.split('-'); return MESES[+p[1] - 1]; }
+  var nf = new Intl.NumberFormat('es-CL');
+  function fmt(n) { return nf.format(Math.round(n)); }
+  function pct(x) { return (Math.round(x * 1000) / 10).toString().replace('.', ',') + '%'; }
+  function fechaCorta(f) { return f ? ('0' + f.getDate()).slice(-2) + '-' + ('0' + (f.getMonth() + 1)).slice(-2) + '-' + f.getFullYear() : '—'; }
+  function percentil(v, q) { if (!v.length) return 0; var s = v.slice().sort(function (a, b) { return a - b; }); return s[Math.min(s.length - 1, Math.floor(s.length * q))]; }
+  function promedio(v) { return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : 0; }
+  function contar(arr, f) {
+    var m = new Map();
+    arr.forEach(function (x) { var k = f(x); m.set(k, (m.get(k) || 0) + 1); });
+    return Array.from(m, function (e) { return { k: e[0], n: e[1] }; }).sort(function (a, b) { return b.n - a.n; });
+  }
+  function recorta(t, max) { return t.length > max ? t.slice(0, max - 1) + '…' : t; }
+  function q(sel) { return document.querySelector(sel); }
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
+  var NS = 'http://www.w3.org/2000/svg';
+  function el(tag, at) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in at) if (at[k] !== null && at[k] !== undefined) e.setAttribute(k, at[k]);
+    return e;
+  }
+  function texto(x, y, t, clase, extra) {
+    var e = el('text', Object.assign({ x: x, y: y, class: clase || 'eje-tx' }, extra || {}));
+    e.textContent = t;
+    return e;
+  }
+  /** Barra con las esquinas del extremo redondeadas y la base recta. */
+  function barra(x, y, an, al, r, lado) {
+    r = Math.max(0, Math.min(r, an / 2, al));
+    var p;
+    if (lado === 'arriba') p = 'M' + x + ',' + (y + al) + 'V' + (y + r) + 'q0,-' + r + ' ' + r + ',-' + r + 'h' + (an - 2 * r) + 'q' + r + ',0 ' + r + ',' + r + 'V' + (y + al) + 'Z';
+    else if (lado === 'abajo') p = 'M' + x + ',' + y + 'V' + (y + al - r) + 'q0,' + r + ' ' + r + ',' + r + 'h' + (an - 2 * r) + 'q' + r + ',0 ' + r + ',-' + r + 'V' + y + 'Z';
+    else p = 'M' + x + ',' + y + 'h' + (an - r) + 'q' + r + ',0 ' + r + ',' + r + 'v' + (al - 2 * r) + 'q0,' + r + ' -' + r + ',' + r + 'H' + x + 'Z';
+    return el('path', { d: p });
+  }
+  function lienzo(id, alto) {
+    var svg = document.getElementById(id);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var an = Math.max(280, svg.clientWidth || svg.parentNode.clientWidth || 600);
+    svg.setAttribute('viewBox', '0 0 ' + an + ' ' + alto);
+    svg.setAttribute('height', alto);
+    return { svg: svg, an: an, alto: alto };
+  }
+
+  // ---------------------------------------------------------------------
+  // Tooltip
+  // ---------------------------------------------------------------------
+  var tip = document.getElementById('tooltip');
+  function verTip(ev, titulo, filas) {
+    while (tip.firstChild) tip.removeChild(tip.firstChild);
+    var t = document.createElement('p');
+    t.className = 'tooltip__tit';
+    t.textContent = titulo;
+    tip.appendChild(t);
+    filas.forEach(function (f) {
+      var fila = document.createElement('p');
+      fila.className = 'tooltip__fila';
+      if (f.color) {
+        var ll = document.createElement('span');
+        ll.className = 'tooltip__llave';
+        ll.style.background = f.color;
+        fila.appendChild(ll);
+      }
+      var et = document.createElement('span');
+      et.textContent = f.et;
+      fila.appendChild(et);
+      var val = document.createElement('span');
+      val.className = 'tooltip__val';
+      val.textContent = f.val;
+      fila.appendChild(val);
+      tip.appendChild(fila);
+    });
+    var r = tip.getBoundingClientRect();
+    var x = Math.min(Math.max(ev.clientX, r.width / 2 + 8), window.innerWidth - r.width / 2 - 8);
+    tip.style.left = x + 'px';
+    tip.style.top = Math.max(r.height + 12, ev.clientY - 12) + 'px';
+    tip.setAttribute('data-visible', '1');
+  }
+  function ocultarTip() { tip.removeAttribute('data-visible'); }
+  function conTip(nodo, titulo, filas) {
+    nodo.addEventListener('pointermove', function (ev) { verTip(ev, titulo, filas); });
+    nodo.addEventListener('pointerleave', ocultarTip);
+    nodo.addEventListener('focus', function (ev) {
+      var b = nodo.getBoundingClientRect();
+      verTip({ clientX: b.left + b.width / 2, clientY: b.top }, titulo, filas);
+    });
+    nodo.addEventListener('blur', ocultarTip);
+    nodo.setAttribute('tabindex', '0');
+    nodo.setAttribute('role', 'img');
+    nodo.setAttribute('aria-label', titulo + '. ' + filas.map(function (f) { return f.et + ': ' + f.val; }).join('. '));
+  }
+
+  // ---------------------------------------------------------------------
+  // Tablas
+  // ---------------------------------------------------------------------
+  function tabla(destino, cols, filas) {
+    var caja = document.getElementById(destino);
+    while (caja.firstChild) caja.removeChild(caja.firstChild);
+    var t = document.createElement('table');
+    var thead = document.createElement('thead'), tr = document.createElement('tr');
+    cols.forEach(function (c) {
+      var th = document.createElement('th');
+      if (c.num) th.className = 'n';
+      th.textContent = c.t;
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    t.appendChild(thead);
+    var tb = document.createElement('tbody');
+    filas.forEach(function (f) {
+      var fr = document.createElement('tr');
+      f.forEach(function (v, i) {
+        var td = document.createElement('td');
+        if (cols[i].num) td.className = 'n';
+        td.textContent = v;
+        fr.appendChild(td);
+      });
+      tb.appendChild(fr);
+    });
+    t.appendChild(tb);
+    caja.appendChild(t);
+  }
+
+  // ---------------------------------------------------------------------
+  // La tira de espera: cada caso abierto es una marca, puesta en los días
+  // que lleva esperando. La altura de una columna son casos empatados.
+  // ---------------------------------------------------------------------
+  function pintaCola(abiertos) {
+    var alto = 146, mt = 13, mb = 27, ml = 12, mr = 14;
+    var L = lienzo('g-cola', alto), base = alto - mb;
+    var maxDato = abiertos.reduce(function (a, c) { return Math.max(a, c.espera || 0); }, 0);
+    var maxD = Math.max(120, Math.ceil((maxDato + 12) / 30) * 30);
+    var ancho = L.an - ml - mr;
+    var X = function (d) { return ml + (d / maxD) * ancho; };
+    var g = el('g', {});
+    L.svg.appendChild(g);
+
+    if (maxD > 90) g.appendChild(el('rect', { x: X(90), y: mt, width: X(maxD) - X(90), height: base - mt, class: 'tira__zona-riesgo' }));
+    for (var d = 0; d <= maxD; d += 30) {
+      g.appendChild(el('line', { x1: X(d), y1: mt, x2: X(d), y2: base, class: 'malla' }));
+      g.appendChild(texto(X(d), base + 15, d, 'eje-tx', { 'text-anchor': d === 0 ? 'start' : 'middle' }));
+    }
+    g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
+    if (maxD > 90) {
+      g.appendChild(el('line', { x1: X(90), y1: mt - 4, x2: X(90), y2: base, class: 'tira__umbral' }));
+      g.appendChild(texto(X(90) + 5, mt + 4, '90 días', 'tira__et-umbral'));
+    }
+
+    if (!abiertos.length) {
+      g.appendChild(texto(L.an / 2, base / 2, 'Sin casos abiertos en este filtro', 'et-tx', { 'text-anchor': 'middle' }));
+      tabla('t-cola', [{ t: 'Caso' }], []);
+      return;
+    }
+
+    var paso = 9, anM = 7, alM = 13, sep = 2, cupo = Math.floor((base - mt) / (alM + sep));
+    var cubos = new Map();
+    abiertos.slice().sort(function (a, b) { return a.espera - b.espera; }).forEach(function (c) {
+      var k = Math.round(X(c.espera) / paso);
+      if (!cubos.has(k)) cubos.set(k, []);
+      cubos.get(k).push(c);
+    });
+    var critico = css('--critico'), s1 = css('--s1'), i = 0, cimas = new Map();
+    cubos.forEach(function (lista, k) {
+      var cx = k * paso, gc = el('g', {});
+      lista.slice(0, cupo).forEach(function (c, j) {
+        var r = barra(cx - anM / 2, base - (j + 1) * (alM + sep) + sep, anM, alM, 2, 'plano');
+        r.setAttribute('fill', c.espera > 90 ? critico : s1);
+        r.setAttribute('class', 'an-y');
+        r.style.animationDelay = (i * 6) + 'ms';
+        gc.appendChild(r);
+      });
+      if (lista.length > cupo) gc.appendChild(texto(cx, base - cupo * (alM + sep) - 4, '+' + (lista.length - cupo), 'val-tx', { 'text-anchor': 'middle' }));
+      var hit = el('rect', { x: cx - 9, y: mt, width: 18, height: base - mt, class: 'marca-hit' });
+      var realce = el('rect', { x: cx - anM / 2 - 2, y: base - Math.min(lista.length, cupo) * (alM + sep) - 2, width: anM + 4, height: Math.min(lista.length, cupo) * (alM + sep) + 4, rx: 4, fill: 'none', stroke: css('--tinta-3'), 'stroke-width': 1, class: 'realce' });
+      var esp = lista[0].espera, esp2 = lista[lista.length - 1].espera;
+      var titulo = lista.length === 1
+        ? 'Caso ' + lista[0].n + ' · ' + esp + ' días esperando'
+        : lista.length + ' casos · ' + (esp === esp2 ? esp + ' días' : esp + '–' + esp2 + ' días') + ' esperando';
+      var filas = lista.slice(0, 4).map(function (c) {
+        return { et: recorta(c.cli, 26), val: c.espera + ' d', color: c.espera > 90 ? critico : s1 };
+      });
+      if (lista.length === 1) filas.push({ et: recorta(lista[0].due, 26), val: recorta(lista[0].est, 22) });
+      if (lista.length > 4) filas.push({ et: 'y ' + (lista.length - 4) + ' más', val: '' });
+      gc.appendChild(hit);
+      gc.appendChild(realce);
+      conTip(hit, titulo, filas);
+      g.appendChild(gc);
+      cimas.set(k, base - Math.min(lista.length, cupo) * (alM + sep));
+      i++;
+    });
+
+    // Etiqueta solo el extremo: es el caso que hay que mirar, y el resto del
+    // campo se queda callado.
+    var peor = abiertos.reduce(function (a, c) { return (!a || c.espera > a.espera) ? c : a; }, null);
+    if (peor && abiertos.length > 3) {
+      var kx = Math.round(X(peor.espera) / paso), px = kx * paso;
+      var cima = cimas.has(kx) ? cimas.get(kx) : base;
+      var derecha = px > L.an * 0.55;
+      g.appendChild(el('line', { x1: px, y1: mt + 15, x2: px, y2: cima - 4, stroke: css('--eje'), 'stroke-width': 1 }));
+      g.appendChild(texto(px + (derecha ? -7 : 7), mt + 11, fmt(peor.espera) + ' días · ' + recorta(peor.cli, 22),
+        'et-tx', { 'text-anchor': derecha ? 'end' : 'start' }));
+    }
+
+    tabla('t-cola',
+      [{ t: 'Caso' }, { t: 'Cliente' }, { t: 'Responsable' }, { t: 'Estado' }, { t: 'Días esperando', num: true }],
+      abiertos.slice().sort(function (a, b) { return b.espera - a.espera; })
+        .map(function (c) { return [c.n, c.cli, c.due, c.est, fmt(c.espera)]; }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Flujo mensual: columnas que entran y salen, más la cola pendiente.
+  // Dos gráficos apilados que comparten el eje de meses (nunca dos escalas
+  // en un mismo eje).
+  // ---------------------------------------------------------------------
+  function pintaFlujo(datos) {
+    var altoA = 128, altoB = 74, hueco = 30, ejeAlto = 34;
+    var alto = altoA + hueco + altoB + ejeAlto;
+    var L = lienzo('g-flujo', alto);
+    var ml = 34, mr = 16, ancho = L.an - ml - mr;
+
+    var abre = new Map(), cierra = new Map(), llaves = [];
+    datos.forEach(function (c) {
+      if (c.ap) abre.set(c.mes, (abre.get(c.mes) || 0) + 1);
+      if (c.ci) { var k = clave(c.ci); cierra.set(k, (cierra.get(k) || 0) + 1); }
+    });
+    var todas = Array.from(new Set(Array.from(abre.keys()).concat(Array.from(cierra.keys())))).sort();
+    if (!todas.length) { tabla('t-flujo', [{ t: 'Mes' }], []); return; }
+    var ini = todas[0].split('-'), fin = todas[todas.length - 1].split('-');
+    var cur = new Date(+ini[0], +ini[1] - 1, 1), tope = new Date(+fin[0], +fin[1] - 1, 1);
+    while (cur <= tope) { llaves.push(clave(cur)); cur.setMonth(cur.getMonth() + 1); }
+
+    var cola = [], acum = 0;
+    llaves.forEach(function (k) { acum += (abre.get(k) || 0) - (cierra.get(k) || 0); cola.push(acum); });
+    var maxCol = Math.max(1, Math.max.apply(null, llaves.map(function (k) { return Math.max(abre.get(k) || 0, cierra.get(k) || 0); })));
+    var maxCola = Math.max(1, Math.max.apply(null, cola));
+
+    var banda = ancho / llaves.length;
+    var anC = Math.max(3, Math.min(15, banda * 0.34));
+    var y0 = 8 + altoA / 2, semi = altoA / 2 - 10;
+    var Y = function (v) { return y0 - (v / maxCol) * semi; };
+    var yB = 8 + altoA + hueco, YB = function (v) { return yB + altoB - (v / maxCola) * (altoB - 8); };
+    var g = el('g', {});
+    L.svg.appendChild(g);
+
+    [maxCol, maxCol / 2].forEach(function (v) {
+      [1, -1].forEach(function (s) {
+        g.appendChild(el('line', { x1: ml, y1: Y(v * s), x2: L.an - mr, y2: Y(v * s), class: 'malla' }));
+      });
+    });
+    g.appendChild(texto(ml - 7, Y(maxCol) + 4, fmt(maxCol), 'eje-tx', { 'text-anchor': 'end' }));
+    g.appendChild(texto(ml - 7, Y(-maxCol) + 4, fmt(maxCol), 'eje-tx', { 'text-anchor': 'end' }));
+    g.appendChild(el('line', { x1: ml, y1: y0, x2: L.an - mr, y2: y0, class: 'base' }));
+
+    var areaD = '', lineaD = '';
+    llaves.forEach(function (k, i) {
+      var cx = ml + banda * (i + 0.5), xa = cx - anC - 1, xb = cx + 1;
+      var a = abre.get(k) || 0, c = cierra.get(k) || 0;
+      if (a) {
+        var r1 = barra(xa, Y(a), anC, y0 - Y(a), 4, 'arriba');
+        r1.setAttribute('fill', css('--s1')); r1.setAttribute('class', 'an-y');
+        r1.style.animationDelay = (i * 14) + 'ms';
+        g.appendChild(r1);
+      }
+      if (c) {
+        var r2 = barra(xb, y0, anC, y0 - Y(c), 4, 'abajo');
+        r2.setAttribute('fill', css('--s2')); r2.setAttribute('class', 'an-y');
+        r2.style.transformOrigin = 'center top';
+        r2.style.animationDelay = (i * 14) + 'ms';
+        g.appendChild(r2);
+      }
+      var px = cx, py = YB(cola[i]);
+      lineaD += (i ? 'L' : 'M') + px + ',' + py;
+      areaD += (i ? 'L' : 'M' + px + ',' + (yB + altoB) + 'L') + px + ',' + py;
+    });
+    areaD += 'L' + (ml + banda * (llaves.length - 0.5)) + ',' + (yB + altoB) + 'Z';
+    g.appendChild(el('path', { d: areaD, fill: css('--s3'), 'fill-opacity': .1 }));
+    g.appendChild(el('path', { d: lineaD, fill: 'none', stroke: css('--s3'), 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    var ux = ml + banda * (llaves.length - 0.5), uy = YB(cola[cola.length - 1]);
+    g.appendChild(el('circle', { cx: ux, cy: uy, r: 4, fill: css('--s3'), stroke: css('--sup'), 'stroke-width': 2 }));
+    g.appendChild(texto(ux - 8, uy - 8, fmt(cola[cola.length - 1]) + ' pendientes', 'val-tx', { 'text-anchor': 'end' }));
+    g.appendChild(texto(ml - 7, yB + 10, fmt(maxCola), 'eje-tx', { 'text-anchor': 'end' }));
+
+    var salto = banda < 26 ? Math.ceil(26 / banda) : 1, yEje = yB + altoB + 15;
+    llaves.forEach(function (k, i) {
+      var cx = ml + banda * (i + 0.5);
+      if (i % salto === 0) g.appendChild(texto(cx, yEje, etiquetaMes(k), 'eje-tx', { 'text-anchor': 'middle' }));
+      if (k.slice(5) === '01' || i === 0) g.appendChild(texto(cx, yEje + 14, k.slice(0, 4), 'et-tx', { 'text-anchor': 'middle' }));
+      var hit = el('rect', { x: ml + banda * i, y: 8, width: banda, height: yB + altoB - 8, class: 'marca-hit' });
+      var realce = el('line', { x1: cx, y1: 8, x2: cx, y2: yB + altoB, stroke: css('--tinta-3'), 'stroke-width': 1, class: 'realce' });
+      g.appendChild(hit); g.appendChild(realce);
+      conTip(hit, etiquetaMes(k) + ' ' + k.slice(0, 4), [
+        { et: 'Abiertos', val: fmt(abre.get(k) || 0), color: css('--s1') },
+        { et: 'Cerrados', val: fmt(cierra.get(k) || 0), color: css('--s2') },
+        { et: 'Pendientes', val: fmt(cola[i]), color: css('--s3') }
+      ]);
+    });
+
+    tabla('t-flujo', [{ t: 'Mes' }, { t: 'Abiertos', num: true }, { t: 'Cerrados', num: true }, { t: 'Pendientes', num: true }],
+      llaves.map(function (k, i) { return [etiquetaMes(k) + ' ' + k.slice(0, 4), fmt(abre.get(k) || 0), fmt(cierra.get(k) || 0), fmt(cola[i])]; }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Barras horizontales reutilizables (una sola serie: magnitud, un color)
+  // ---------------------------------------------------------------------
+  function barrasH(id, filas, opts) {
+    opts = opts || {};
+    var altoFila = opts.altoFila || 25, anB = opts.anB || 13;
+    var alto = Math.max(28, filas.length * altoFila + 6);
+    var L = lienzo(id, alto);
+    var anEt = Math.min(opts.anEt || 168, Math.max(78, L.an * 0.36));
+    var anVal = 44, ancho = Math.max(24, L.an - anEt - anVal);
+    var max = Math.max(1, filas.reduce(function (a, f) { return Math.max(a, f.n); }, 0));
+    var g = el('g', {});
+    L.svg.appendChild(g);
+    if (!filas.length) {
+      g.appendChild(texto(0, 18, opts.vacio || 'Sin datos con este filtro', 'et-tx'));
+      return;
+    }
+    var cortar = Math.max(8, Math.floor(anEt / 6.2));
+    filas.forEach(function (f, i) {
+      var y = i * altoFila + 4, an = (f.n / max) * ancho;
+      g.appendChild(texto(0, y + anB - 2, recorta(f.k, cortar), 'et-tx'));
+      var r = barra(anEt, y, Math.max(2, an), anB, 4, 'derecha');
+      r.setAttribute('fill', f.color || css('--s1'));
+      r.setAttribute('class', 'an-x');
+      r.style.animationDelay = (i * 26) + 'ms';
+      g.appendChild(r);
+      g.appendChild(texto(anEt + Math.max(2, an) + 7, y + anB - 2, fmt(f.n), 'val-tx'));
+      var hit = el('rect', { x: 0, y: y - 3, width: L.an, height: anB + 6, class: 'marca-hit' });
+      g.appendChild(hit);
+      conTip(hit, f.k, f.tip || [{ et: 'Casos', val: fmt(f.n) }]);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Días hasta el cierre: mediana -> p90 por subcategoría (dumbbell)
+  // ---------------------------------------------------------------------
+  function pintaVelocidad(cerrados) {
+    var grupos = [{ k: 'Todos', v: cerrados }];
+    contar(cerrados, function (c) { return c.sub; }).forEach(function (s) {
+      grupos.push({ k: s.k, v: cerrados.filter(function (c) { return c.sub === s.k; }) });
+    });
+    grupos = grupos.filter(function (gr) { return gr.v.length >= 3; }).slice(0, 5);
+    var alto = Math.max(40, grupos.length * 34 + 26);
+    var L = lienzo('g-velocidad', alto);
+    var anEt = Math.min(96, L.an * 0.26), mr = 58;
+    var ancho = Math.max(30, L.an - anEt - mr);
+    var g = el('g', {});
+    L.svg.appendChild(g);
+    if (!grupos.length) {
+      g.appendChild(texto(0, 18, 'No hay casos cerrados con este filtro', 'et-tx'));
+      tabla('t-velocidad', [{ t: 'Grupo' }], []);
+      return;
+    }
+    var max = 1;
+    grupos.forEach(function (gr) { max = Math.max(max, percentil(gr.v.map(function (c) { return c.resol; }), 0.9)); });
+    max = Math.ceil(max / 30) * 30;
+    var X = function (d) { return anEt + (d / max) * ancho; };
+    for (var d = 0; d <= max; d += (max > 180 ? 60 : 30)) {
+      g.appendChild(el('line', { x1: X(d), y1: 0, x2: X(d), y2: grupos.length * 34, class: 'malla' }));
+      g.appendChild(texto(X(d), grupos.length * 34 + 15, d, 'eje-tx', { 'text-anchor': 'middle' }));
+    }
+    grupos.forEach(function (gr, i) {
+      var vals = gr.v.map(function (c) { return c.resol; });
+      var p50 = percentil(vals, 0.5), p90 = percentil(vals, 0.9), y = i * 34 + 20;
+      g.appendChild(texto(0, y + 4, recorta(gr.k, 14), 'et-tx'));
+      g.appendChild(el('line', { x1: X(p50), y1: y, x2: X(p90), y2: y, stroke: css('--gris-dato'), 'stroke-width': 2, 'stroke-linecap': 'round' }));
+      g.appendChild(el('circle', { cx: X(p90), cy: y, r: 5, fill: css('--s1'), stroke: css('--sup'), 'stroke-width': 2 }));
+      g.appendChild(el('circle', { cx: X(p50), cy: y, r: 5, fill: css('--s1-claro'), stroke: css('--sup'), 'stroke-width': 2 }));
+      g.appendChild(texto(X(p50), y - 11, fmt(p50), 'val-tx', { 'text-anchor': 'middle' }));
+      g.appendChild(texto(X(p90) + 10, y + 4, fmt(p90) + ' d', 'val-tx'));
+      var hit = el('rect', { x: 0, y: y - 15, width: L.an, height: 30, class: 'marca-hit' });
+      g.appendChild(hit);
+      conTip(hit, gr.k, [
+        { et: 'Casos cerrados', val: fmt(gr.v.length) },
+        { et: 'Mediana', val: fmt(p50) + ' días', color: css('--s1-claro') },
+        { et: 'p90', val: fmt(p90) + ' días', color: css('--s1') },
+        { et: 'Promedio', val: fmt(promedio(vals)) + ' días' }
+      ]);
+    });
+    tabla('t-velocidad', [{ t: 'Grupo' }, { t: 'Cerrados', num: true }, { t: 'Mediana', num: true }, { t: 'p90', num: true }, { t: 'Promedio', num: true }],
+      grupos.map(function (gr) {
+        var v = gr.v.map(function (c) { return c.resol; });
+        return [gr.k, fmt(gr.v.length), fmt(percentil(v, 0.5)), fmt(percentil(v, 0.9)), fmt(promedio(v))];
+      }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Paneles de concentración y carga
+  // ---------------------------------------------------------------------
+  function pintaClientes(datos) {
+    var cuenta = contar(datos, function (c) { return c.cli; });
+    var total = datos.length || 1, acum = 0, filas = [];
+    cuenta.slice(0, 10).forEach(function (c) {
+      acum += c.n;
+      var abiertos = datos.filter(function (x) { return x.cli === c.k && !x.cerrado; }).length;
+      filas.push({
+        k: c.k, n: c.n, tip: [
+          { et: 'Casos', val: fmt(c.n), color: css('--s1') },
+          { et: 'Del total', val: pct(c.n / total) },
+          { et: 'Acumulado', val: pct(acum / total) },
+          { et: 'Abiertos hoy', val: fmt(abiertos) }
+        ]
+      });
+    });
+    barrasH('g-clientes', filas, { anEt: 176, vacio: 'Sin clientes con este filtro' });
+    var resto = cuenta.slice(10), suma = resto.reduce(function (a, c) { return a + c.n; }, 0);
+    escribe('pie-clientes', resto.length
+      ? ['Los otros ', { b: fmt(resto.length) + ' clientes' }, ' suman ', { b: fmt(suma) + ' casos' }, ' (' + pct(suma / total) + ').']
+      : ['']);
+    var top5 = cuenta.slice(0, 5).reduce(function (a, c) { return a + c.n; }, 0);
+    q('#nota-clientes').textContent = cuenta.length
+      ? fmt(cuenta.length) + ' clientes · los 5 primeros son ' + pct(top5 / total)
+      : '';
+    tabla('t-clientes', [{ t: 'Cliente' }, { t: 'Casos', num: true }, { t: 'Del total', num: true }, { t: 'Acumulado', num: true }],
+      (function () { var a = 0; return cuenta.map(function (c) { a += c.n; return [c.k, fmt(c.n), pct(c.n / total), pct(a / total)]; }); })());
+  }
+
+  function pintaCausas(datos) {
+    var total = datos.length || 1;
+    var subs = contar(datos, function (c) { return c.sub; }).map(function (s) {
+      return { k: s.k, n: s.n, tip: [{ et: 'Casos', val: fmt(s.n), color: css('--s1') }, { et: 'Del total', val: pct(s.n / total) }] };
+    });
+    barrasH('g-sub', subs, { anEt: 110, altoFila: 24 });
+
+    var base = datos.filter(function (c) { return c.cau || c.sub === 'Comercial'; });
+    var causas = contar(base, function (c) { return c.cau || 'Sin causa declarada'; }).map(function (c) {
+      var esPrecio = c.k.toLowerCase().indexOf('error de precio') === 0;
+      return {
+        k: c.k, n: c.n, color: esPrecio ? css('--s1') : css('--gris-dato'),
+        tip: [{ et: 'Casos comerciales', val: fmt(c.n) }, { et: 'De los comerciales', val: pct(c.n / (base.length || 1)) }]
+      };
+    });
+    barrasH('g-causa', causas, { anEt: 148, altoFila: 24, vacio: 'Ningún caso comercial en este filtro' });
+    tabla('t-causas', [{ t: 'Corte' }, { t: 'Grupo' }, { t: 'Casos', num: true }],
+      subs.map(function (s) { return ['Subcategoría', s.k, fmt(s.n)]; })
+        .concat(causas.map(function (c) { return ['Causa comercial', c.k, fmt(c.n)]; })));
+  }
+
+  function pintaDuenos(abiertos) {
+    var filas = contar(abiertos, function (c) { return c.due; }).slice(0, 8).map(function (d) {
+      var suyos = abiertos.filter(function (c) { return c.due === d.k; });
+      var viejo = suyos.reduce(function (a, c) { return Math.max(a, c.espera); }, 0);
+      return {
+        k: d.k, n: d.n, tip: [
+          { et: 'Casos abiertos', val: fmt(d.n), color: css('--s1') },
+          { et: 'El más antiguo', val: fmt(viejo) + ' días' },
+          { et: 'Sobre 90 días', val: fmt(suyos.filter(function (c) { return c.espera > 90; }).length) }
+        ]
+      };
+    });
+    barrasH('g-duenos', filas, { anEt: 150, vacio: 'Sin casos abiertos con este filtro' });
+    tabla('t-duenos', [{ t: 'Responsable' }, { t: 'Casos abiertos', num: true }],
+      contar(abiertos, function (c) { return c.due; }).map(function (d) { return [d.k, fmt(d.n)]; }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Cola de trabajo: tabla ordenable de los casos abiertos
+  // ---------------------------------------------------------------------
+  var orden = { col: 5, dir: -1 };
+  function pintaLista(abiertos) {
+    var cols = [
+      { t: 'Caso', v: function (c) { return c.n; } },
+      { t: 'Cliente', v: function (c) { return c.cli; } },
+      { t: 'Responsable', v: function (c) { return c.due; } },
+      { t: 'Estado', v: function (c) { return c.est; } },
+      { t: 'Abierto', v: function (c) { return c.ap ? c.ap.getTime() : 0; }, txt: function (c) { return fechaCorta(c.ap); } },
+      { t: 'Días esperando', num: true, v: function (c) { return c.espera; }, txt: function (c) { return fmt(c.espera); } }
+    ];
+    var filas = abiertos.slice().sort(function (a, b) {
+      var va = cols[orden.col].v(a), vb = cols[orden.col].v(b);
+      if (va === vb) return b.espera - a.espera;
+      return (va > vb ? 1 : -1) * orden.dir;
+    });
+    var caja = q('#t-abiertos');
+    while (caja.firstChild) caja.removeChild(caja.firstChild);
+    if (!filas.length) {
+      var p = document.createElement('p');
+      p.className = 'panel__nota';
+      p.textContent = 'No quedan casos abiertos con este filtro.';
+      caja.appendChild(p);
+      return;
+    }
+    var t = document.createElement('table'), thead = document.createElement('thead'), tr = document.createElement('tr');
+    cols.forEach(function (c, i) {
+      var th = document.createElement('th');
+      if (c.num) th.className = 'n';
+      var b = document.createElement('button');
+      b.className = 'orden';
+      b.type = 'button';
+      b.textContent = c.t + (orden.col === i ? (orden.dir === 1 ? ' ↑' : ' ↓') : '');
+      b.setAttribute('aria-sort', orden.col === i ? (orden.dir === 1 ? 'ascending' : 'descending') : 'none');
+      b.addEventListener('click', function () {
+        if (orden.col === i) orden.dir *= -1; else { orden.col = i; orden.dir = i === 5 ? -1 : 1; }
+        pintaLista(abiertos);
+      });
+      th.appendChild(b);
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+    t.appendChild(thead);
+    var tb = document.createElement('tbody');
+    filas.forEach(function (c) {
+      var fr = document.createElement('tr');
+      cols.forEach(function (col, i) {
+        var td = document.createElement('td');
+        if (col.num) td.className = 'n';
+        if (i === 5) {
+          var punto = document.createElement('span');
+          punto.className = 'punto';
+          punto.style.background = c.espera > 90 ? css('--critico') : (c.espera > 60 ? css('--alerta') : css('--s1'));
+          td.appendChild(punto);
+        }
+        td.appendChild(document.createTextNode(col.txt ? col.txt(c) : col.v(c)));
+        fr.appendChild(td);
+      });
+      tb.appendChild(fr);
+    });
+    t.appendChild(tb);
+    caja.appendChild(t);
+  }
+
+  // ---------------------------------------------------------------------
+  // Cifras y hallazgos: el tablero dice en palabras lo que muestra
+  // ---------------------------------------------------------------------
+  function escribe(id, partes) {
+    var n = document.getElementById(id);
+    while (n.firstChild) n.removeChild(n.firstChild);
+    partes.forEach(function (p) {
+      if (typeof p === 'string') { n.appendChild(document.createTextNode(p)); return; }
+      var b = document.createElement('b');
+      b.textContent = p.b;
+      n.appendChild(b);
+    });
+  }
+
+  function pintaResumen(datos, abiertos) {
+    var esperas = abiertos.map(function (c) { return c.espera; });
+    var p50 = percentil(esperas, 0.5), viejo = esperas.length ? Math.max.apply(null, esperas) : 0;
+    var sobre90 = abiertos.filter(function (c) { return c.espera > 90; }).length;
+    var cerrados = datos.filter(function (c) { return c.cerrado; }).length;
+
+    q('#cifra').textContent = fmt(abiertos.length);
+    q('#cifra-pie').textContent = abiertos.length === 1 ? 'caso abierto al ' + fechaCorta(HOY) : 'casos abiertos al ' + fechaCorta(HOY);
+
+    var caja = q('#datos-clave');
+    while (caja.firstChild) caja.removeChild(caja.firstChild);
+    [
+      { et: 'Mediana de espera', val: abiertos.length ? fmt(p50) + ' días' : '—' },
+      { et: 'Sobre 90 días', val: fmt(sobre90) + (sobre90 === 1 ? ' caso' : ' casos'), riesgo: sobre90 > 0 },
+      { et: 'El más antiguo', val: abiertos.length ? fmt(viejo) + ' días' : '—' },
+      { et: 'Cerrados del total', val: datos.length ? pct(cerrados / datos.length) : '—' }
+    ].forEach(function (d) {
+      var fila = document.createElement('div');
+      fila.className = 'dato';
+      var a = document.createElement('span');
+      a.className = 'dato__et';
+      a.textContent = d.et;
+      var b = document.createElement('span');
+      b.className = 'dato__val num tab' + (d.riesgo ? ' dato__val--riesgo' : '');
+      b.textContent = d.val;
+      fila.appendChild(a);
+      fila.appendChild(b);
+      caja.appendChild(fila);
+    });
+
+    if (abiertos.length) {
+      escribe('h-cola', ['Quedan ', { b: fmt(abiertos.length) + ' casos' }, ' esperando respuesta. La mitad lleva más de ',
+        { b: fmt(p50) + ' días' }, ', ', { b: fmt(sobre90) }, ' ya pasaron los 90 y el más antiguo suma ', { b: fmt(viejo) + ' días' }, '.']);
+    } else {
+      escribe('h-cola', ['No hay casos abiertos con este filtro.']);
+    }
+    escribe('h-lista', [abiertos.length ? 'Los casos abiertos, del que más lleva esperando al que menos. Ordena por cualquier columna.' : 'Nada pendiente con este filtro.']);
+  }
+
+  function hallazgoFlujo(datos) {
+    var abre = new Map(), cierra = new Map();
+    datos.forEach(function (c) {
+      if (c.ap) abre.set(c.mes, (abre.get(c.mes) || 0) + 1);
+      if (c.ci) { var k = clave(c.ci); cierra.set(k, (cierra.get(k) || 0) + 1); }
+    });
+    var llaves = Array.from(new Set(Array.from(abre.keys()).concat(Array.from(cierra.keys())))).sort();
+    if (!llaves.length) { escribe('h-flujo', ['Sin movimiento con este filtro.']); return; }
+    var ult = llaves.slice(-12);
+    var entra = ult.reduce(function (a, k) { return a + (abre.get(k) || 0); }, 0);
+    var sale = ult.reduce(function (a, k) { return a + (cierra.get(k) || 0); }, 0);
+    var dif = entra - sale;
+    escribe('h-flujo', ['En los últimos ', { b: ult.length + ' meses' }, ' entraron ', { b: fmt(entra) + ' reclamos' },
+      ' y se cerraron ', { b: fmt(sale) }, '. ',
+      dif > 0 ? 'La cola creció en ' + fmt(dif) + ': se cierra menos de lo que entra.'
+        : dif < 0 ? 'La cola bajó en ' + fmt(-dif) + ': se cerró más de lo que entró.'
+          : 'La cola quedó igual: entra tanto como sale.']);
+  }
+
+  function hallazgoDonde(datos) {
+    var cuenta = contar(datos, function (c) { return c.cli; });
+    if (!cuenta.length) { escribe('h-donde', ['Sin casos con este filtro.']); return; }
+    var total = datos.length;
+    var top5 = cuenta.slice(0, 5).reduce(function (a, c) { return a + c.n; }, 0);
+    var repiten = cuenta.filter(function (c) { return c.n > 1; }).length;
+    var com = datos.filter(function (c) { return c.sub === 'Comercial'; });
+    var precio = com.filter(function (c) { return c.cau.toLowerCase().indexOf('error de precio') === 0; }).length;
+    var partes = ['Los 5 clientes con más reclamos concentran ', { b: pct(top5 / total) }, ' del total y ',
+      { b: fmt(repiten) + ' de ' + fmt(cuenta.length) }, ' clientes reclaman más de una vez.'];
+    if (com.length && precio) {
+      partes.push(' De los ', { b: fmt(com.length) + ' casos comerciales' }, ', ', { b: fmt(precio) },
+        ' son por error de precio: ', { b: pct(precio / com.length) }, ' de la causa comercial es una lista de precios mal aplicada.');
+    }
+    escribe('h-donde', partes);
+  }
+
+  function hallazgoTiempo(datos, abiertos) {
+    var cerrados = datos.filter(function (c) { return c.resol !== null; });
+    if (!cerrados.length) { escribe('h-tiempo', ['Sin casos cerrados con este filtro.']); return; }
+    var v = cerrados.map(function (c) { return c.resol; });
+    var p50 = percentil(v, 0.5), p90 = percentil(v, 0.9), prom = promedio(v);
+    var porSub = contar(cerrados, function (c) { return c.sub; }).map(function (s) {
+      var vs = cerrados.filter(function (c) { return c.sub === s.k; }).map(function (c) { return c.resol; });
+      return { k: s.k, p50: percentil(vs, 0.5), n: vs.length };
+    }).filter(function (s) { return s.n >= 3; }).sort(function (a, b) { return b.p50 - a.p50; });
+    var partes = ['La mitad de los casos se cierra en ', { b: fmt(p50) + ' días' }, ', pero 1 de cada 10 pasa de ',
+      { b: fmt(p90) }, '. El promedio (', { b: fmt(prom) }, ') va muy por encima de la mediana: unos pocos casos larguísimos lo arrastran.'];
+    if (porSub.length > 1) partes.push(' ' + porSub[0].k + ' es el corte más lento (mediana ' + fmt(porSub[0].p50) + ' días).');
+    var enAprob = abiertos.filter(function (c) { return c.est.toLowerCase().indexOf('pendiente aprob') === 0; }).length;
+    if (enAprob) partes.push(' Hoy hay ' + fmt(enAprob) + ' casos frenados esperando aprobación interna.');
+    escribe('h-tiempo', partes);
+  }
+
+  // ---------------------------------------------------------------------
+  // Filtros, dibujo y eventos
+  // ---------------------------------------------------------------------
+  var F = { anio: '', estado: '', sub: '', causa: '', texto: '' };
+
+  function llenaSelect(id, valores) {
+    var s = document.getElementById(id);
+    valores.forEach(function (v) {
+      var o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      s.appendChild(o);
+    });
+  }
+
+  function filtrar() {
+    var t = F.texto.trim().toLowerCase();
+    return CASOS.filter(function (c) {
+      if (F.anio && c.anio !== F.anio) return false;
+      if (F.estado === 'abierto' && c.cerrado) return false;
+      if (F.estado === 'cerrado' && !c.cerrado) return false;
+      if (F.sub && c.sub !== F.sub) return false;
+      if (F.causa && (c.cau || 'Sin causa declarada') !== F.causa) return false;
+      if (t && (c.cli + ' ' + c.n + ' ' + c.asu + ' ' + c.due).toLowerCase().indexOf(t) === -1) return false;
+      return true;
+    });
+  }
+
+  var vacio = null;
+  function estadoVacio(mostrar) {
+    if (!vacio) {
+      vacio = document.createElement('div');
+      vacio.className = 'envoltura';
+      vacio.innerHTML = '<div class="vacio"><p class="vacio__tit">Ningún caso calza con estos filtros</p>' +
+        '<p>Prueba con un año distinto, o quita el texto de búsqueda.</p></div>';
+      var b = document.createElement('button');
+      b.className = 'boton';
+      b.type = 'button';
+      b.textContent = 'Quitar filtros';
+      b.addEventListener('click', limpiar);
+      vacio.firstChild.appendChild(b);
+      q('#tablero').appendChild(vacio);
+    }
+    vacio.hidden = !mostrar;
+    Array.prototype.forEach.call(document.querySelectorAll('#tablero > section'), function (s) { s.hidden = mostrar; });
+  }
+
+  function limpiar() {
+    F = { anio: '', estado: '', sub: '', causa: '', texto: '' };
+    q('#f-anio').value = ''; q('#f-estado').value = ''; q('#f-sub').value = '';
+    q('#f-causa').value = ''; q('#f-texto').value = '';
+    render();
+  }
+
+  function render() {
+    var datos = filtrar();
+    var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
+    var hayFiltro = !!(F.anio || F.estado || F.sub || F.causa || F.texto);
+    q('#btn-limpiar').hidden = !hayFiltro;
+    escribe('cuenta', [{ b: fmt(datos.length) }, ' de ' + fmt(CASOS.length) + ' casos']);
+    estadoVacio(datos.length === 0);
+    if (!datos.length) return;
+
+    pintaResumen(datos, abiertos);
+    pintaCola(abiertos);
+    pintaFlujo(datos);
+    hallazgoFlujo(datos);
+    pintaClientes(datos);
+    pintaCausas(datos);
+    hallazgoDonde(datos);
+    pintaVelocidad(datos.filter(function (c) { return c.resol !== null; }));
+    pintaDuenos(abiertos);
+    hallazgoTiempo(datos, abiertos);
+    pintaLista(abiertos);
+  }
+
+  // Tema. Los gráficos leen los tokens al dibujarse, así que hay que repintar.
+  var raiz = document.documentElement;
+  function aplicaTema(modo) {
+    if (modo) raiz.setAttribute('data-theme', modo); else raiz.removeAttribute('data-theme');
+    var oscuro = modo === 'dark' || (!modo && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var b = q('#btn-tema');
+    b.textContent = oscuro ? 'Modo claro' : 'Modo oscuro';
+    b.setAttribute('aria-pressed', oscuro ? 'true' : 'false');
+  }
+  try {
+    var guardado = localStorage.getItem('tablero-casos-tema');
+    if (guardado === 'dark' || guardado === 'light') aplicaTema(guardado); else aplicaTema(null);
+  } catch (e) { aplicaTema(null); }
+
+  q('#btn-tema').addEventListener('click', function () {
+    var oscuroAhora = q('#btn-tema').getAttribute('aria-pressed') === 'true';
+    var modo = oscuroAhora ? 'light' : 'dark';
+    aplicaTema(modo);
+    try { localStorage.setItem('tablero-casos-tema', modo); } catch (e) { /* modo privado */ }
+    render();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tabla]'), function (b) {
+    b.addEventListener('click', function () {
+      var caja = document.getElementById(b.getAttribute('data-tabla'));
+      var abierta = !caja.hidden;
+      caja.hidden = abierta;
+      b.setAttribute('aria-expanded', abierta ? 'false' : 'true');
+      b.textContent = abierta ? 'Tabla' : 'Ocultar tabla';
+    });
+  });
+
+  ['f-anio', 'f-estado', 'f-sub', 'f-causa'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function (e) {
+      F[id.slice(2)] = e.target.value;
+      render();
+    });
+  });
+  var reloj = null;
+  q('#f-texto').addEventListener('input', function (e) {
+    clearTimeout(reloj);
+    var v = e.target.value;
+    reloj = setTimeout(function () { F.texto = v; render(); }, 180);
+  });
+  var relojTam = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(relojTam);
+    relojTam = setTimeout(render, 170);
+  });
+
+  // Arranque
+  llenaSelect('f-anio', Array.from(new Set(CASOS.map(function (c) { return c.anio; }).filter(Boolean))).sort());
+  llenaSelect('f-sub', contar(CASOS, function (c) { return c.sub; }).map(function (s) { return s.k; }));
+  llenaSelect('f-causa', contar(CASOS, function (c) { return c.cau || 'Sin causa declarada'; }).map(function (c) { return c.k; }));
+
+  var fechas = CASOS.map(function (c) { return c.ap; }).filter(Boolean).sort(function (a, b) { return a - b; });
+  if (fechas.length) {
+    q('#periodo').textContent = fmt(CASOS.length) + ' casos · ' + MESES[fechas[0].getMonth()] + ' ' + fechas[0].getFullYear() +
+      ' a ' + MESES[fechas[fechas.length - 1].getMonth()] + ' ' + fechas[fechas.length - 1].getFullYear();
+  }
+  if (CRUDO.hoja) q('#fuente').innerHTML = '';
+  escribe('fuente', ['Fuente: hoja ', { b: CRUDO.hoja || 'BD' }, ' · Salesforce · leído el ' + fechaCorta(HOY)]);
+
+  render();
+})();
+</script>
+</body>
+</html>
