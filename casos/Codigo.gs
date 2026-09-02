@@ -293,10 +293,13 @@ var COLUMNAS_TABLERO = [
   { llave: 'n', busca: ['numero del caso', 'numero de caso', 'n° del caso'] },
   { llave: 'ap', busca: ['fecha de apertura'], fecha: true },
   { llave: 'ci', busca: ['fecha de cierre'], fecha: true },
+  // Columna P: es la que decide si un caso está abierto o cerrado.
+  { llave: 'cer', busca: ['cerrado'], bool: true },
   { llave: 'due', busca: ['propietario del caso', 'propietario'] },
   { llave: 'cli', busca: ['nombre de la cuenta', 'cliente'] },
   { llave: 'est', busca: ['estado'] },
   { llave: 'ori', busca: ['origen del caso', 'origen'] },
+  { llave: 'tip', busca: ['tipo'] },
   { llave: 'sub', busca: ['subcategoria'] },
   { llave: 'req', busca: ['requerimiento del cliente', 'requerimiento'] },
   { llave: 'cau', busca: ['causa comercial'] },
@@ -350,6 +353,8 @@ function casoDeFila_(fila, indices) {
     if (col.fecha) {
       var fecha = aFecha_(valor);
       caso[col.llave] = fecha ? iso_(fecha) : '';
+    } else if (col.bool) {
+      caso[col.llave] = siONo_(valor);
     } else {
       caso[col.llave] = String(valor == null ? '' : valor).trim().slice(0, 140);
     }
@@ -381,6 +386,15 @@ function mapaDeColumnas_(cabeceras) {
     });
   });
   return mapa;
+}
+
+/** VERDADERO / FALSO de la hoja a 'si' / 'no'. Vacío si la celda no se entiende. */
+function siONo_(valor) {
+  if (typeof valor === 'boolean') return valor ? 'si' : 'no';
+  var t = normalizar_(valor);
+  if (t === 'verdadero' || t === 'true' || t === 'si' || t === '1' || t === 'x') return 'si';
+  if (t === 'falso' || t === 'false' || t === 'no' || t === '0') return 'no';
+  return '';
 }
 
 function iso_(fecha) {

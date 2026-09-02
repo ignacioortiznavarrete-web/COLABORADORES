@@ -6,7 +6,7 @@
 <title>Reclamos de exportación</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <style>
 /* ---------------------------------------------------------------------------
    Tokens. Paleta de datos validada (CVD + contraste) en claro y oscuro.
@@ -14,74 +14,81 @@
    ------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
-  --plano: #f1f1ee;
-  --sup: #fcfcfb;
-  --sup-2: #f6f6f3;
-  --tinta: #0b0b0b;
-  --tinta-2: #52514e;
-  --tinta-3: #7c7a74;
-  --linea: #e1e0d9;
-  --eje: #c3c2b7;
-  --borde: rgba(11, 11, 11, .13);
-  --s1: #2a78d6;
-  --s2: #eb6834;
-  --s3: #1baf7a;
-  --s1-claro: #86b6ef;
-  --gris-dato: #b8b7b0;
+  --plano: #f7f0f3;
+  --sup: #fffbfc;
+  --sup-2: #fbf2f6;
+  --tinta: #1a0e14;
+  --tinta-2: #5c4a52;
+  --tinta-3: #7e6871;
+  --linea: #eddde4;
+  --eje: #dcc4ce;
+  --borde: rgba(26, 14, 20, .12);
+  --panel-borde: transparent;
+  --panel-sombra: 0 1px 2px rgba(120, 40, 75, .06), 0 10px 26px -16px rgba(120, 40, 75, .30);
+  --s1: #d2377e;
+  --s2: #2a78d6;
+  --s3: #b0730c;
+  --s1-claro: #e893ba;
+  --gris-dato: #c9b4bd;
   --critico: #d03b3b;
   --alerta: #fab219;
   --serio: #ec835a;
   --bien: #0ca30c;
   --lavado-critico: rgba(208, 59, 59, .055);
-  --foco: #2a78d6;
+  --foco: #d2377e;
   --z-tooltip: 60;
   --z-barra: 30;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --plano: #0d0d0d;
-    --sup: #1a1a19;
-    --sup-2: #232322;
+    --plano: #0e0a0c;
+    --sup: #1b1719;
+    --sup-2: #251e22;
     --tinta: #ffffff;
-    --tinta-2: #c3c2b7;
-    --tinta-3: #94928b;
-    --linea: #2c2c2a;
-    --eje: #383835;
+    --tinta-2: #cfc0c6;
+    --tinta-3: #a08f96;
+    --linea: #2e2629;
+    --eje: #3d3236;
     --borde: rgba(255, 255, 255, .14);
-    --s1: #3987e5;
-    --s2: #d95926;
-    --s3: #199e70;
-    --s1-claro: #184f95;
-    --gris-dato: #56554f;
+    --panel-borde: rgba(255, 255, 255, .12);
+    --panel-sombra: none;
+    --s1: #d8478a;
+    --s2: #3987e5;
+    --s3: #c2871c;
+    --s1-claro: #b03470;
+    --gris-dato: #5c4d53;
     --lavado-critico: rgba(208, 59, 59, .11);
-    --foco: #3987e5;
+    --foco: #d8478a;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --plano: #0d0d0d;
-  --sup: #1a1a19;
-  --sup-2: #232322;
+  --plano: #0e0a0c;
+  --sup: #1b1719;
+  --sup-2: #251e22;
   --tinta: #ffffff;
-  --tinta-2: #c3c2b7;
-  --tinta-3: #94928b;
-  --linea: #2c2c2a;
-  --eje: #383835;
+  --tinta-2: #cfc0c6;
+  --tinta-3: #a08f96;
+  --linea: #2e2629;
+  --eje: #3d3236;
   --borde: rgba(255, 255, 255, .14);
-  --s1: #3987e5;
-  --s2: #d95926;
-  --s3: #199e70;
-  --s1-claro: #184f95;
-  --gris-dato: #56554f;
+  --panel-borde: rgba(255, 255, 255, .12);
+  --panel-sombra: none;
+  --s1: #d8478a;
+  --s2: #3987e5;
+  --s3: #c2871c;
+  --s1-claro: #b03470;
+  --gris-dato: #5c4d53;
   --lavado-critico: rgba(208, 59, 59, .11);
-  --foco: #3987e5;
+  --foco: #d8478a;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 body {
   margin: 0;
   background: var(--plano);
+  transition: background-color .3s cubic-bezier(.16, 1, .3, 1);
   color: var(--tinta);
   font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 14px;
@@ -114,15 +121,19 @@ button, select, input { font: inherit; color: inherit; }
 }
 .marca { display: flex; align-items: baseline; gap: 10px; }
 .marca__glifo {
-  width: 11px; height: 11px; border-radius: 2px;
+  width: 10px; height: 10px; border-radius: 50%;
   background: var(--s1); flex: none; transform: translateY(-1px);
 }
-.marca__nombre { font-size: 15px; font-weight: 600; letter-spacing: -.012em; }
+.marca__nombre {
+  font-family: Fraunces, Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+  font-size: 18px; font-weight: 500; letter-spacing: -.008em;
+}
 .marca__sub { font-size: 12.5px; color: var(--tinta-3); }
 .barra__der { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
 .boton {
-  background: none; border: 1px solid var(--borde); border-radius: 7px;
+  background: none; border: 1px solid var(--borde); border-radius: 999px;
   padding: 5px 11px; font-size: 12.5px; color: var(--tinta-2); cursor: pointer;
   transition: background .18s cubic-bezier(.16,1,.3,1), color .18s;
 }
@@ -137,7 +148,7 @@ button, select, input { font: inherit; color: inherit; }
 .campo { display: flex; align-items: center; gap: 6px; }
 .campo > label { font-size: 12px; color: var(--tinta-3); }
 .campo select, .buscador input {
-  background: var(--sup); border: 1px solid var(--borde); border-radius: 7px;
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 999px;
   padding: 5px 9px; font-size: 12.5px; max-width: 210px;
 }
 .buscador { position: relative; }
@@ -152,8 +163,10 @@ button, select, input { font: inherit; color: inherit; }
 .seccion { padding: 34px 0 0; }
 .seccion__cab { max-width: 74ch; margin-bottom: 18px; }
 .pregunta {
-  font-size: clamp(19px, 2.1vw, 22px); font-weight: 500; letter-spacing: -.018em;
-  text-wrap: balance;
+  font-family: Fraunces, Georgia, "Times New Roman", serif;
+  font-optical-sizing: auto;
+  font-size: clamp(22px, 2.5vw, 27px); font-weight: 400; letter-spacing: -.014em;
+  line-height: 1.22; text-wrap: balance;
 }
 .hallazgo {
   margin-top: 7px; font-size: 14px; color: var(--tinta-2); max-width: 68ch;
@@ -183,8 +196,10 @@ button, select, input { font: inherit; color: inherit; }
 .rejilla--41 { grid-template-columns: 1.45fr 1fr; }
 .rejilla--14 { grid-template-columns: 1fr 1.15fr; }
 .panel {
-  background: var(--sup); border: 1px solid var(--borde); border-radius: 12px;
+  background: var(--sup); border: 1px solid var(--panel-borde); border-radius: 14px;
+  box-shadow: var(--panel-sombra);
   padding: 20px 20px 16px; min-width: 0;
+  transition: background-color .3s cubic-bezier(.16, 1, .3, 1);
 }
 .panel__cab { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
 .panel__tit { font-size: 14.5px; font-weight: 600; letter-spacing: -.01em; }
@@ -212,8 +227,20 @@ button, select, input { font: inherit; color: inherit; }
 
 @keyframes crecerY { from { transform: scaleY(0); } }
 @keyframes crecerX { from { transform: scaleX(0); } }
-.an-y { transform-box: fill-box; transform-origin: center bottom; animation: crecerY .5s cubic-bezier(.16,1,.3,1) both; }
-.an-x { transform-box: fill-box; transform-origin: left center; animation: crecerX .55s cubic-bezier(.16,1,.3,1) both; }
+@keyframes fundir { from { opacity: 0; } }
+@keyframes filaEntra { from { opacity: 0; transform: translateY(6px); } }
+.an-y { transform-box: fill-box; transform-origin: center bottom; animation: crecerY .52s cubic-bezier(.16,1,.3,1) both; }
+.an-x { transform-box: fill-box; transform-origin: left center; animation: crecerX .58s cubic-bezier(.16,1,.3,1) both; }
+/* Al filtrar no se repite la entrada: el gráfico solo se funde con su nueva forma. */
+.fundido { animation: fundir .24s cubic-bezier(.16,1,.3,1) both; }
+
+/* Una fila entera responde al cursor, no solo los píxeles pintados. */
+.pinta { transition: filter .16s cubic-bezier(.16,1,.3,1); }
+.fila-dato:hover .pinta, .fila-dato:focus-within .pinta { filter: brightness(1.07) saturate(1.04); }
+:root[data-theme="dark"] .fila-dato:hover .pinta { filter: brightness(1.22); }
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .fila-dato:hover .pinta { filter: brightness(1.22); }
+}
 
 /* --- Tira de espera (elemento firma) ------------------------------------- */
 .tira { position: relative; }
@@ -246,6 +273,19 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
 .orden[aria-sort="descending"], .orden[aria-sort="ascending"] { color: var(--tinta); }
 .punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
 
+/* --- Cola de trabajo plegada --------------------------------------------- */
+.cola__marco { position: relative; }
+.cola__velo {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 76px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--sup) 88%);
+}
+.cola__pie {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding-top: 14px; margin-top: 2px; border-top: 1px solid var(--linea);
+}
+.cola__cuenta { font-size: 12.5px; color: var(--tinta-3); }
+tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
+
 /* --- Estados vacío / error ----------------------------------------------- */
 .vacio {
   border: 1px dashed var(--borde); border-radius: 12px; padding: 44px 24px;
@@ -256,9 +296,12 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
 
 /* --- Pie ----------------------------------------------------------------- */
 .pie {
-  margin-top: 44px; padding: 22px 0 40px; border-top: 1px solid var(--borde);
-  display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start;
+  margin-top: 44px; border-top: 1px solid var(--borde);
   font-size: 12.5px; color: var(--tinta-3);
+}
+.pie__rejilla {
+  display: grid; grid-template-columns: 1fr auto; gap: 18px 32px; align-items: start;
+  padding-top: 22px; padding-bottom: 40px;
 }
 .pie__aviso { max-width: 62ch; color: var(--tinta-2); }
 .pie__aviso b { color: var(--tinta); font-weight: 500; }
@@ -266,7 +309,7 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
 @media (max-width: 980px) {
   .rejilla--41, .rejilla--14 { grid-template-columns: 1fr; }
   .portada { grid-template-columns: 1fr; gap: 22px; }
-  .pie { grid-template-columns: 1fr; }
+  .pie__rejilla { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .filtros__cuenta { margin-left: 0; width: 100%; }
@@ -307,6 +350,10 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
         </select>
       </div>
       <div class="campo">
+        <label for="f-tipo">Tipo</label>
+        <select id="f-tipo"><option value="">Todos</option></select>
+      </div>
+      <div class="campo">
         <label for="f-sub">Subcategoría</label>
         <select id="f-sub"><option value="">Todas</option></select>
       </div>
@@ -344,10 +391,6 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
             <div class="panel__acc">
               <button class="boton" type="button" data-tabla="t-cola" aria-expanded="false">Tabla</button>
             </div>
-          </div>
-          <div class="leyenda">
-            <span class="leyenda__it"><span class="llave" style="background:var(--s1)"></span>Dentro de 90 días</span>
-            <span class="leyenda__it"><span class="llave" style="background:var(--critico)"></span>Sobre 90 días</span>
           </div>
           <svg id="g-cola" class="grafico" role="img" aria-labelledby="p-cola"></svg>
           <div class="tabla-caja" id="t-cola" hidden></div>
@@ -459,14 +502,21 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
         <p class="hallazgo" id="h-lista"></p>
       </div>
       <div class="panel">
-        <div class="tabla-caja" id="t-abiertos"></div>
+        <div class="cola__marco">
+          <div class="tabla-caja" id="t-abiertos"></div>
+          <div class="cola__velo" id="velo-cola" hidden></div>
+        </div>
+        <div class="cola__pie">
+          <button class="boton" type="button" id="btn-cola" aria-expanded="false" aria-controls="t-abiertos"></button>
+          <span class="cola__cuenta" id="cuenta-cola"></span>
+        </div>
       </div>
     </div>
   </section>
 </main>
 
 <footer class="pie">
-  <div class="envoltura" style="display:contents">
+  <div class="envoltura pie__rejilla">
     <p class="pie__aviso">
       <b>Lo que este tablero todavía no puede responder:</b> el 92% de los casos termina
       en una nota de crédito, pero la base no trae el monto. Sin esa columna se puede
@@ -504,10 +554,15 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
   var HOY = aFecha(CRUDO.hoy) || new Date();
   var CASOS = CRUDO.casos.map(function (c) {
     var ap = aFecha(c.ap), ci = aFecha(c.ci);
-    var cerrado = (c.est || '').toLowerCase().indexOf('cerrado') === 0 || !!ci;
+    // La columna "Cerrado" de la hoja manda: VERDADERO es cerrado, FALSO abierto.
+    // El estado y la fecha de cierre solo se usan si esa celda viene en blanco.
+    var cerrado = c.cer === 'si' ? true
+      : c.cer === 'no' ? false
+        : ((c.est || '').toLowerCase().indexOf('cerrado') === 0 || !!ci);
     return {
       n: c.n || '', cli: c.cli || 'Sin cliente', due: c.due || 'Sin asignar',
-      est: c.est || '', ori: c.ori || '', sub: c.sub || 'Sin subcategoría',
+      est: c.est || '', ori: c.ori || '', tip: c.tip || 'Sin tipo',
+      sub: c.sub || 'Sin subcategoría',
       req: c.req || '', cau: c.cau || '', asu: c.asu || '',
       ap: ap, ci: ci, cerrado: cerrado,
       anio: ap ? String(ap.getFullYear()) : '',
@@ -546,6 +601,9 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
   function q(sel) { return document.querySelector(sel); }
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
 
+  var quietud = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var primeraVez = true;
+
   var NS = 'http://www.w3.org/2000/svg';
   function el(tag, at) {
     var e = document.createElementNS(NS, tag);
@@ -566,9 +624,26 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     else p = 'M' + x + ',' + y + 'h' + (an - r) + 'q' + r + ',0 ' + r + ',' + r + 'v' + (al - 2 * r) + 'q0,' + r + ' -' + r + ',' + r + 'H' + x + 'Z';
     return el('path', { d: p });
   }
+  /** Pinta una marca y, solo en la primera carga, le da su entrada. */
+  function pinta(nodo, color, entrada, retraso) {
+    nodo.setAttribute('fill', color);
+    var clases = 'pinta';
+    if (primeraVez && !quietud && entrada) {
+      clases += ' ' + entrada;
+      nodo.style.animationDelay = (retraso || 0) + 'ms';
+    }
+    nodo.setAttribute('class', clases);
+    return nodo;
+  }
+
   function lienzo(id, alto) {
     var svg = document.getElementById(id);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+    if (!primeraVez && !quietud) {
+      svg.classList.remove('fundido');
+      void svg.getBoundingClientRect();
+      svg.classList.add('fundido');
+    }
     var an = Math.max(280, svg.clientWidth || svg.parentNode.clientWidth || 600);
     svg.setAttribute('viewBox', '0 0 ' + an + ' ' + alto);
     svg.setAttribute('height', alto);
@@ -674,9 +749,12 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
       g.appendChild(texto(X(d), base + 15, d, 'eje-tx', { 'text-anchor': d === 0 ? 'start' : 'middle' }));
     }
     g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
+    var pasados = abiertos.filter(function (c) { return c.espera > 90; }).length;
     if (maxD > 90) {
       g.appendChild(el('line', { x1: X(90), y1: mt - 4, x2: X(90), y2: base, class: 'tira__umbral' }));
-      g.appendChild(texto(X(90) + 5, mt + 4, '90 días', 'tira__et-umbral'));
+      g.appendChild(texto(X(90) + 5, mt + 4,
+        pasados ? '90 días · ' + fmt(pasados) + (pasados === 1 ? ' caso más allá' : ' casos más allá') : '90 días',
+        'tira__et-umbral'));
     }
 
     if (!abiertos.length) {
@@ -694,13 +772,10 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     });
     var critico = css('--critico'), s1 = css('--s1'), i = 0, cimas = new Map();
     cubos.forEach(function (lista, k) {
-      var cx = k * paso, gc = el('g', {});
+      var cx = k * paso, gc = el('g', { class: 'fila-dato' });
       lista.slice(0, cupo).forEach(function (c, j) {
-        var r = barra(cx - anM / 2, base - (j + 1) * (alM + sep) + sep, anM, alM, 2, 'plano');
-        r.setAttribute('fill', c.espera > 90 ? critico : s1);
-        r.setAttribute('class', 'an-y');
-        r.style.animationDelay = (i * 6) + 'ms';
-        gc.appendChild(r);
+        var r = barra(cx - anM / 2, base - (j + 1) * (alM + sep) + sep, anM, alM, anM / 2, 'plano');
+        gc.appendChild(pinta(r, c.espera > 90 ? critico : s1, 'an-y', i * 7 + j * 30));
       });
       if (lista.length > cupo) gc.appendChild(texto(cx, base - cupo * (alM + sep) - 4, '+' + (lista.length - cupo), 'val-tx', { 'text-anchor': 'middle' }));
       var hit = el('rect', { x: cx - 9, y: mt, width: 18, height: base - mt, class: 'marca-hit' });
@@ -788,19 +863,14 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     llaves.forEach(function (k, i) {
       var cx = ml + banda * (i + 0.5), xa = cx - anC - 1, xb = cx + 1;
       var a = abre.get(k) || 0, c = cierra.get(k) || 0;
-      if (a) {
-        var r1 = barra(xa, Y(a), anC, y0 - Y(a), 4, 'arriba');
-        r1.setAttribute('fill', css('--s1')); r1.setAttribute('class', 'an-y');
-        r1.style.animationDelay = (i * 14) + 'ms';
-        g.appendChild(r1);
-      }
+      var par = el('g', { class: 'fila-dato' });
+      if (a) par.appendChild(pinta(barra(xa, Y(a), anC, y0 - Y(a), 4, 'arriba'), css('--s1'), 'an-y', i * 16));
       if (c) {
-        var r2 = barra(xb, y0, anC, y0 - Y(c), 4, 'abajo');
-        r2.setAttribute('fill', css('--s2')); r2.setAttribute('class', 'an-y');
+        var r2 = pinta(barra(xb, y0, anC, y0 - Y(c), 4, 'abajo'), css('--s2'), 'an-y', i * 16);
         r2.style.transformOrigin = 'center top';
-        r2.style.animationDelay = (i * 14) + 'ms';
-        g.appendChild(r2);
+        par.appendChild(r2);
       }
+      g.appendChild(par);
       var px = cx, py = YB(cola[i]);
       lineaD += (i ? 'L' : 'M') + px + ',' + py;
       areaD += (i ? 'L' : 'M' + px + ',' + (yB + altoB) + 'L') + px + ',' + py;
@@ -852,16 +922,15 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     var cortar = Math.max(8, Math.floor(anEt / 6.2));
     filas.forEach(function (f, i) {
       var y = i * altoFila + 4, an = (f.n / max) * ancho;
-      g.appendChild(texto(0, y + anB - 2, recorta(f.k, cortar), 'et-tx'));
-      var r = barra(anEt, y, Math.max(2, an), anB, 4, 'derecha');
-      r.setAttribute('fill', f.color || css('--s1'));
-      r.setAttribute('class', 'an-x');
-      r.style.animationDelay = (i * 26) + 'ms';
-      g.appendChild(r);
-      g.appendChild(texto(anEt + Math.max(2, an) + 7, y + anB - 2, fmt(f.n), 'val-tx'));
+      var fila = el('g', { class: 'fila-dato' });
+      fila.appendChild(texto(0, y + anB - 2, recorta(f.k, cortar), 'et-tx'));
+      fila.appendChild(pinta(barra(anEt, y, Math.max(2, an), anB, anB / 2, 'derecha'),
+        f.color || css('--s1'), 'an-x', i * 30));
+      fila.appendChild(texto(anEt + Math.max(2, an) + 7, y + anB - 2, fmt(f.n), 'val-tx'));
       var hit = el('rect', { x: 0, y: y - 3, width: L.an, height: anB + 6, class: 'marca-hit' });
-      g.appendChild(hit);
+      fila.appendChild(hit);
       conTip(hit, f.k, f.tip || [{ et: 'Casos', val: fmt(f.n) }]);
+      g.appendChild(fila);
     });
   }
 
@@ -896,14 +965,18 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     grupos.forEach(function (gr, i) {
       var vals = gr.v.map(function (c) { return c.resol; });
       var p50 = percentil(vals, 0.5), p90 = percentil(vals, 0.9), y = i * 34 + 20;
-      g.appendChild(texto(0, y + 4, recorta(gr.k, 14), 'et-tx'));
-      g.appendChild(el('line', { x1: X(p50), y1: y, x2: X(p90), y2: y, stroke: css('--gris-dato'), 'stroke-width': 2, 'stroke-linecap': 'round' }));
-      g.appendChild(el('circle', { cx: X(p90), cy: y, r: 5, fill: css('--s1'), stroke: css('--sup'), 'stroke-width': 2 }));
-      g.appendChild(el('circle', { cx: X(p50), cy: y, r: 5, fill: css('--s1-claro'), stroke: css('--sup'), 'stroke-width': 2 }));
-      g.appendChild(texto(X(p50), y - 11, fmt(p50), 'val-tx', { 'text-anchor': 'middle' }));
-      g.appendChild(texto(X(p90) + 10, y + 4, fmt(p90) + ' d', 'val-tx'));
+      var fila = el('g', { class: 'fila-dato' });
+      fila.appendChild(texto(0, y + 4, recorta(gr.k, 14), 'et-tx'));
+      var barraP = el('line', { x1: X(p50), y1: y, x2: X(p90), y2: y, stroke: css('--gris-dato'), 'stroke-width': 2, 'stroke-linecap': 'round', class: 'pinta' });
+      if (primeraVez && !quietud) { barraP.setAttribute('class', 'pinta an-x'); barraP.style.animationDelay = (i * 40) + 'ms'; }
+      fila.appendChild(barraP);
+      fila.appendChild(pinta(el('circle', { cx: X(p90), cy: y, r: 5, stroke: css('--sup'), 'stroke-width': 2 }), css('--s1')));
+      fila.appendChild(pinta(el('circle', { cx: X(p50), cy: y, r: 5, stroke: css('--sup'), 'stroke-width': 2 }), css('--s1-claro')));
+      fila.appendChild(texto(X(p50), y - 11, fmt(p50), 'val-tx', { 'text-anchor': 'middle' }));
+      fila.appendChild(texto(X(p90) + 10, y + 4, fmt(p90) + ' d', 'val-tx'));
       var hit = el('rect', { x: 0, y: y - 15, width: L.an, height: 30, class: 'marca-hit' });
-      g.appendChild(hit);
+      fila.appendChild(hit);
+      g.appendChild(fila);
       conTip(hit, gr.k, [
         { et: 'Casos cerrados', val: fmt(gr.v.length) },
         { et: 'Mediana', val: fmt(p50) + ' días', color: css('--s1-claro') },
@@ -990,7 +1063,7 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
   // ---------------------------------------------------------------------
   // Cola de trabajo: tabla ordenable de los casos abiertos
   // ---------------------------------------------------------------------
-  var orden = { col: 5, dir: -1 };
+  var orden = { col: 5, dir: -1 }, colaAbierta = false, abiertosAhora = [], TOPE_COLA = 8;
   function pintaLista(abiertos) {
     var cols = [
       { t: 'Caso', v: function (c) { return c.n; } },
@@ -1005,15 +1078,29 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
       if (va === vb) return b.espera - a.espera;
       return (va > vb ? 1 : -1) * orden.dir;
     });
-    var caja = q('#t-abiertos');
+    abiertosAhora = abiertos;
+    var caja = q('#t-abiertos'), velo = q('#velo-cola'), btn = q('#btn-cola');
     while (caja.firstChild) caja.removeChild(caja.firstChild);
     if (!filas.length) {
       var p = document.createElement('p');
       p.className = 'panel__nota';
       p.textContent = 'No quedan casos abiertos con este filtro.';
       caja.appendChild(p);
+      velo.hidden = true;
+      btn.hidden = true;
+      q('#cuenta-cola').textContent = '';
       return;
     }
+    var tope = colaAbierta ? filas.length : Math.min(TOPE_COLA, filas.length);
+    var hayMas = filas.length > TOPE_COLA;
+    velo.hidden = !(hayMas && !colaAbierta);
+    btn.hidden = !hayMas;
+    btn.textContent = colaAbierta ? 'Ver menos' : 'Ver los ' + fmt(filas.length) + ' casos';
+    btn.setAttribute('aria-expanded', colaAbierta ? 'true' : 'false');
+    q('#cuenta-cola').textContent = hayMas
+      ? 'Se muestran ' + fmt(tope) + ' de ' + fmt(filas.length) + ', del que más lleva esperando al que menos'
+      : fmt(filas.length) + (filas.length === 1 ? ' caso abierto' : ' casos abiertos');
+    filas = filas.slice(0, tope);
     var t = document.createElement('table'), thead = document.createElement('thead'), tr = document.createElement('tr');
     cols.forEach(function (c, i) {
       var th = document.createElement('th');
@@ -1033,8 +1120,10 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     thead.appendChild(tr);
     t.appendChild(thead);
     var tb = document.createElement('tbody');
-    filas.forEach(function (c) {
+    filas.forEach(function (c, fi) {
       var fr = document.createElement('tr');
+      if (quietud) fr.style.animation = 'none';
+      else fr.style.animationDelay = Math.min(fi, 12) * 18 + 'ms';
       cols.forEach(function (col, i) {
         var td = document.createElement('td');
         if (col.num) td.className = 'n';
@@ -1067,13 +1156,26 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     });
   }
 
+  var cifraPrevia = 0;
+  function animaCifra(destino) {
+    var nodo = q('#cifra');
+    if (quietud || destino === cifraPrevia) { nodo.textContent = fmt(destino); cifraPrevia = destino; return; }
+    var desde = cifraPrevia, t0 = performance.now(), dur = 620;
+    (function paso(t) {
+      var k = Math.min(1, (t - t0) / dur);
+      nodo.textContent = fmt(desde + (destino - desde) * (1 - Math.pow(1 - k, 4)));
+      if (k < 1) requestAnimationFrame(paso);
+    })(t0);
+    cifraPrevia = destino;
+  }
+
   function pintaResumen(datos, abiertos) {
     var esperas = abiertos.map(function (c) { return c.espera; });
     var p50 = percentil(esperas, 0.5), viejo = esperas.length ? Math.max.apply(null, esperas) : 0;
     var sobre90 = abiertos.filter(function (c) { return c.espera > 90; }).length;
     var cerrados = datos.filter(function (c) { return c.cerrado; }).length;
 
-    q('#cifra').textContent = fmt(abiertos.length);
+    animaCifra(abiertos.length);
     q('#cifra-pie').textContent = abiertos.length === 1 ? 'caso abierto al ' + fechaCorta(HOY) : 'casos abiertos al ' + fechaCorta(HOY);
 
     var caja = q('#datos-clave');
@@ -1162,7 +1264,7 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
   // ---------------------------------------------------------------------
   // Filtros, dibujo y eventos
   // ---------------------------------------------------------------------
-  var F = { anio: '', estado: '', sub: '', causa: '', texto: '' };
+  var F = { anio: '', estado: '', tipo: '', sub: '', causa: '', texto: '' };
 
   function llenaSelect(id, valores) {
     var s = document.getElementById(id);
@@ -1180,6 +1282,7 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
       if (F.anio && c.anio !== F.anio) return false;
       if (F.estado === 'abierto' && c.cerrado) return false;
       if (F.estado === 'cerrado' && !c.cerrado) return false;
+      if (F.tipo && c.tip !== F.tipo) return false;
       if (F.sub && c.sub !== F.sub) return false;
       if (F.causa && (c.cau || 'Sin causa declarada') !== F.causa) return false;
       if (t && (c.cli + ' ' + c.n + ' ' + c.asu + ' ' + c.due).toLowerCase().indexOf(t) === -1) return false;
@@ -1207,16 +1310,16 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
   }
 
   function limpiar() {
-    F = { anio: '', estado: '', sub: '', causa: '', texto: '' };
-    q('#f-anio').value = ''; q('#f-estado').value = ''; q('#f-sub').value = '';
-    q('#f-causa').value = ''; q('#f-texto').value = '';
+    F = { anio: '', estado: '', tipo: '', sub: '', causa: '', texto: '' };
+    q('#f-anio').value = ''; q('#f-estado').value = ''; q('#f-tipo').value = '';
+    q('#f-sub').value = ''; q('#f-causa').value = ''; q('#f-texto').value = '';
     render();
   }
 
   function render() {
     var datos = filtrar();
     var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
-    var hayFiltro = !!(F.anio || F.estado || F.sub || F.causa || F.texto);
+    var hayFiltro = !!(F.anio || F.estado || F.tipo || F.sub || F.causa || F.texto);
     q('#btn-limpiar').hidden = !hayFiltro;
     escribe('cuenta', [{ b: fmt(datos.length) }, ' de ' + fmt(CASOS.length) + ' casos']);
     estadoVacio(datos.length === 0);
@@ -1233,6 +1336,7 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     pintaDuenos(abiertos);
     hallazgoTiempo(datos, abiertos);
     pintaLista(abiertos);
+    primeraVez = false;
   }
 
   // Tema. Los gráficos leen los tokens al dibujarse, así que hay que repintar.
@@ -1267,12 +1371,18 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
     });
   });
 
-  ['f-anio', 'f-estado', 'f-sub', 'f-causa'].forEach(function (id) {
+  ['f-anio', 'f-estado', 'f-tipo', 'f-sub', 'f-causa'].forEach(function (id) {
     document.getElementById(id).addEventListener('change', function (e) {
       F[id.slice(2)] = e.target.value;
       render();
     });
   });
+  q('#btn-cola').addEventListener('click', function () {
+    colaAbierta = !colaAbierta;
+    pintaLista(abiertosAhora);
+    if (!colaAbierta) q('#btn-cola').scrollIntoView({ block: 'nearest', behavior: quietud ? 'auto' : 'smooth' });
+  });
+
   var reloj = null;
   q('#f-texto').addEventListener('input', function (e) {
     clearTimeout(reloj);
@@ -1287,7 +1397,15 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
 
   // Arranque
   llenaSelect('f-anio', Array.from(new Set(CASOS.map(function (c) { return c.anio; }).filter(Boolean))).sort());
+  var tipos = contar(CASOS, function (c) { return c.tip; }).map(function (t) { return t.k; });
+  llenaSelect('f-tipo', tipos);
   llenaSelect('f-sub', contar(CASOS, function (c) { return c.sub; }).map(function (s) { return s.k; }));
+  // El título dice lo que hay cargado: si la hoja trae un solo tipo, lo nombra.
+  if (tipos.length === 1 && tipos[0] !== 'Sin tipo') {
+    q('.marca__nombre').textContent = 'Reclamos de ' + tipos[0].toLowerCase();
+  } else if (tipos.length > 1) {
+    q('.marca__nombre').textContent = 'Reclamos de clientes';
+  }
   llenaSelect('f-causa', contar(CASOS, function (c) { return c.cau || 'Sin causa declarada'; }).map(function (c) { return c.k; }));
 
   var fechas = CASOS.map(function (c) { return c.ap; }).filter(Boolean).sort(function (a, b) { return a - b; });

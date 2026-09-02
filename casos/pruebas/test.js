@@ -172,19 +172,23 @@ ss = nuevaPlanilla();
 hoja = ss.insertSheet('BD', [
   ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Propietario del caso',
     'año(llenarlo atravez de appscript on open)', 'hoy', 'dias casos abiertos',
-    'Nombre de la cuenta', 'Asunto', 'Estado', 'Origen del caso', 'Subcategoría',
-    'Requerimiento del Cliente', 'Causa Comercial', 'Estado caso'],
+    'Nombre de la cuenta', 'Asunto', 'Estado', 'Origen del caso', 'Abierto', 'Cerrado',
+    'Tipo', 'Subcategoría', 'Requerimiento del Cliente', 'Causa Comercial', 'Estado caso'],
   ['2627', '7/1/2025', '22/1/2025', 'Yasna Esparza', '', '', '', 'Shinnihon Seikan',
-    'Hongos blancos', 'Cerrado', 'Interno', 'Producto', 'Emisión NC por valor', '', 'Cerrados'],
+    'Hongos blancos', 'Cerrado', 'Interno', 'FALSO', 'VERDADERO',
+    'Exportaciones', 'Producto', 'Emisión NC por valor', '', 'Cerrados'],
   ['3854', new Date(2025, 11, 29), '', 'En aprobación', '', '', '', '',
-    'Sin cerrar', 'Pendiente aprobación', 'Interno', 'Comercial', 'Emisión NC por valor', 'Error de precio', 'Abiertos'],
-  ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
+    'Sin cerrar', 'Pendiente aprobación', 'Interno', true, false,
+    'Mercado local', 'Comercial', 'Emisión NC por valor', 'Error de precio', 'Abiertos'],
+  ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']
 ]);
 
 const mapa = mapaDeColumnas_(hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0]);
 ok(mapa.est === 9, 'la columna "Estado" gana por nombre exacto, no se la lleva "Estado caso"');
 ok(mapa.ap === 1 && mapa.ci === 2, 'ubica las dos fechas');
-ok(mapa.cau === 13 && mapa.sub === 11, 'ubica causa comercial y subcategoría');
+ok(mapa.cer === 12, '"Cerrado" es la columna P: no se la lleva "Fecha de cierre" ni "Abierto"');
+ok(mapa.tip === 13 && mapa.sub === 14, 'ubica Tipo (columna R) y Subcategoría');
+ok(mapa.cau === 16, 'ubica causa comercial');
 
 const paquete = datosDelTablero_();
 ok(paquete.hoja === 'BD' && /^\d{4}-\d{2}-\d{2}$/.test(paquete.hoy), 'devuelve la hoja y el día de hoy en ISO');
@@ -196,6 +200,12 @@ ok(paquete.casos[1].ap === '2025-12-29' && paquete.casos[1].ci === '',
 ok(paquete.casos[1].cau === 'Error de precio' && paquete.casos[1].cli === '',
   'trae la causa comercial y no inventa cliente cuando falta');
 ok(paquete.casos[0].est === 'Cerrado', 'el estado que llega es el de la columna Estado');
+ok(paquete.casos[0].cer === 'si' && paquete.casos[1].cer === 'no',
+  'VERDADERO/FALSO en texto y como casilla real llegan igual: si / no');
+ok(paquete.casos[0].tip === 'Exportaciones' && paquete.casos[1].tip === 'Mercado local',
+  'el tipo viaja para poder filtrar por él');
+ok(siONo_('Verdadero') === 'si' && siONo_(false) === 'no' && siONo_('') === '' && siONo_('quizás') === '',
+  'la casilla se lee en texto, en booleano, y no inventa cuando viene rara');
 
 console.log(fallos ? '\n' + fallos + ' prueba(s) fallaron' : '\nTodo bien');
 process.exit(fallos ? 1 : 0);

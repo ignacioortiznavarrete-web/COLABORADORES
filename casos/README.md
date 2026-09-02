@@ -75,12 +75,18 @@ hoja BD en el momento, no guarda copia de nada y responde cinco preguntas:
 | ¿Por qué reclaman? | Subcategoría y causa comercial, con el error de precio destacado |
 | ¿Cuánto tardamos y quién los tiene? | Mediana y p90 de días hasta el cierre, y los abiertos por responsable |
 
-Abajo queda la cola de trabajo: los casos abiertos ordenables por cualquier columna.
+Abajo queda la cola de trabajo: los casos abiertos, ordenables por cualquier
+columna. Llega plegada en 8 filas, con **Ver los N casos** para abrirla entera.
 
-Los filtros de arriba (año, estado, subcategoría, causa, búsqueda) reordenan todo
-lo de abajo, incluidas las frases de hallazgo, que se recalculan solas: el tablero
-dice en palabras lo que está mostrando. Cada gráfico tiene su botón **Tabla** con
-los mismos números en texto.
+Los filtros de arriba (año, estado, tipo, subcategoría, causa, búsqueda) reordenan
+todo lo de abajo, incluidas las frases de hallazgo, que se recalculan solas: el
+tablero dice en palabras lo que está mostrando. Cada gráfico tiene su botón
+**Tabla** con los mismos números en texto.
+
+**Abierto o cerrado lo decide la columna `Cerrado` (P)**: VERDADERO es cerrado,
+FALSO abierto. Solo si esa celda viene en blanco el tablero mira el estado y la
+fecha de cierre. El filtro **Tipo** sale de la columna `Tipo` (R), y si la hoja
+trae un solo tipo, el título de arriba lo nombra.
 
 ### Instalarlo
 
@@ -119,7 +125,12 @@ node casos/preview/construir.js mis-datos.json salida.html
   creciera a decenas de miles de filas habría que agregar del lado del servidor.
 - Los colores de los gráficos están validados para daltonismo y contraste en modo
   claro y oscuro, y el tablero sigue el tema del sistema con un botón para forzar
-  uno u otro.
+  uno u otro. El rosa es el color de serie, no un adorno: se eligió midiendo. Ojo
+  si se cambia la paleta a mano — rosa y verde azulado, por ejemplo, se ven
+  idénticos con daltonismo (ΔE 2,8), y por eso el segundo color es azul.
+- La entrada de los gráficos corre una sola vez, al cargar. Al filtrar solo se
+  funden con su nueva forma, para que mover un filtro no dispare toda la
+  coreografía otra vez.
 - **Falta el monto.** El 92% de los casos termina en nota de crédito, pero la base
   no trae cuánto. Sin esa columna se pueden contar reclamos, no pesarlos. Agregar
   el monto de la NC a la hoja convierte este tablero en uno de margen; el tablero
