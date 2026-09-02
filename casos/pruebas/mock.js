@@ -85,6 +85,16 @@ class Range {
     return this;
   }
 
+  clearContent() {
+    for (let i = 0; i < this.nf; i++) {
+      for (let j = 0; j < this.nc; j++) {
+        this.hoja._fila(this.r + i)[this.c - 1 + j] = '';
+        delete this.hoja.formulas[(this.r + i) + ',' + (this.c + j)];
+      }
+    }
+    return this;
+  }
+
   setNumberFormat(formato) {
     for (let i = 0; i < this.nf; i++) {
       for (let j = 0; j < this.nc; j++) {

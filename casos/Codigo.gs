@@ -4,9 +4,13 @@
  *
  * Al abrir la planilla se dejan tres columnas a partir de la E:
  *
- *   E  Año                  el año de la fecha de cierre (columna C)
+ *   E  Año                  el año de la fecha de apertura (columna B)
  *   F  Hoy                  la fecha del día en que se ejecuta el script
- *   G  Días casos abiertos  días entre la fecha de cierre y hoy
+ *   G  Días casos abiertos  días entre la fecha de apertura y hoy
+ *
+ * Las tres se reescriben COMPLETAS en cada ejecución, fila por fila hasta la
+ * última que tenga datos, y se borra lo que haya quedado más abajo de una
+ * ejecución anterior.
  *
  * Si esas tres columnas todavía no están, se INSERTAN en la E y todo lo que
  * había desde la E hacia adelante se corre a la derecha: no se pisa ningún
@@ -20,8 +24,8 @@
 var CFG_CASOS = {
   /** Nombre de la hoja. Vacío = la primera hoja de la planilla. */
   NOMBRE_HOJA: '',
-  /** Columna con la fecha de cierre. 3 = C. */
-  COL_FECHA_CIERRE: 3,
+  /** Columna con la fecha de apertura. 2 = B. */
+  COL_FECHA_APERTURA: 2,
   /** Dónde se insertan las tres columnas si no existen. 5 = E. */
   COL_INICIO: 5,
   /** Encabezados que quedan escritos en la fila 1. */
@@ -35,7 +39,7 @@ var CFG_CASOS = {
   FORMATO_FECHA: 'dd/mm/yyyy',
   /**
    * false: se escriben valores fijos, calculados en el momento de ejecutar.
-   * true : se escriben fórmulas (=HOY(), =AÑO(C2), =HOY()-C2) que la planilla
+   * true : se escriben fórmulas (=HOY(), =AÑO(B2), =HOY()-B2) que la planilla
    *        recalcula sola. Ojo: con muchas filas, HOY() es volátil y la hoja
    *        se pone más lenta.
    */
@@ -64,7 +68,7 @@ function onOpen() {
   }
 }
 
-/** Inserta (si hace falta) y llena las columnas Año / Hoy / Días. */
+/** Inserta (si hace falta) y rellena las columnas Año / Hoy / Días. */
 function actualizarCasos() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja = hojaDeCasos_(ss);
@@ -86,14 +90,14 @@ function hojaDeCasos_(ss) {
 
 /**
  * Deja las tres columnas listas y devuelve dónde quedaron:
- *   { col: columna donde empieza el bloque, colCierre: columna de la fecha de cierre }
+ *   { col: columna donde empieza el bloque, colApertura: columna de la fecha de apertura }
  *
  * Si el bloque no existe se inserta en CFG_CASOS.COL_INICIO y el resto de las
  * columnas se corre hacia la derecha.
  */
 function prepararColumnas_(hoja) {
   var n = CFG_CASOS.ENCABEZADOS.length;
-  var colCierre = CFG_CASOS.COL_FECHA_CIERRE;
+  var colApertura = CFG_CASOS.COL_FECHA_APERTURA;
   var col = buscarBloque_(hoja, n);
 
   if (col === -1) {
@@ -103,12 +107,12 @@ function prepararColumnas_(hoja) {
       hoja.insertColumnsAfter(hoja.getMaxColumns(), col + n - 1 - hoja.getMaxColumns());
     } else {
       hoja.insertColumnsBefore(col, n);
-      if (colCierre >= col) colCierre += n;
+      if (colApertura >= col) colApertura += n;
     }
   }
 
   hoja.getRange(1, col, 1, n).setValues([CFG_CASOS.ENCABEZADOS]);
-  return { col: col, colCierre: colCierre };
+  return { col: col, colApertura: colApertura };
 }
 
 /**
@@ -133,22 +137,28 @@ function buscarBloque_(hoja, n) {
   return -1;
 }
 
-/** Escribe las tres columnas de la fila 2 hacia abajo. Devuelve cuántas filas llenó. */
+/**
+ * Reescribe las tres columnas enteras, de la fila 2 hasta la última con datos.
+ * Devuelve cuántas filas llenó.
+ */
 function escribirColumnas_(hoja, destino, hoy) {
-  var filas = hoja.getLastRow() - 1;
+  var n = CFG_CASOS.ENCABEZADOS.length;
+  var col = destino.col;
+  var ultima = ultimaFilaDeCasos_(hoja, col, n);
+
+  limpiarSobrantes_(hoja, col, n, ultima);
+  var filas = ultima - 1;
   if (filas < 1) return 0;
 
-  var col = destino.col;
-
   if (CFG_CASOS.USAR_FORMULAS) {
-    // RC3 = misma fila, columna C: la fórmula sirve igual para todas las filas.
-    var ref = 'RC' + destino.colCierre;
+    // RC2 = misma fila, columna B: la fórmula sirve igual para todas las filas.
+    var ref = 'RC' + destino.colApertura;
     hoja.getRange(2, col, filas, 1).setFormulaR1C1('=IF(' + ref + '="","",YEAR(' + ref + '))');
     hoja.getRange(2, col + 1, filas, 1).setFormulaR1C1('=TODAY()');
     hoja.getRange(2, col + 2, filas, 1).setFormulaR1C1('=IF(' + ref + '="","",TODAY()-' + ref + ')');
   } else {
-    hoja.getRange(2, col, filas, CFG_CASOS.ENCABEZADOS.length)
-      .setValues(valoresDeCasos_(hoja, destino.colCierre, filas, hoy));
+    hoja.getRange(2, col, filas, n)
+      .setValues(valoresDeCasos_(hoja, destino.colApertura, filas, hoy));
   }
 
   hoja.getRange(2, col, filas, 1).setNumberFormat('0');                      // año: 2023, no 2.023
@@ -157,17 +167,57 @@ function escribirColumnas_(hoja, destino, hoy) {
   return filas;
 }
 
-/** Arma la matriz [año, hoy, días] de cada fila a partir de la fecha de cierre. */
-function valoresDeCasos_(hoja, colCierre, filas, hoy) {
-  var cierres = hoja.getRange(2, colCierre, filas, 1).getValues();
+/** Arma la matriz [año, hoy, días] de cada fila a partir de la fecha de apertura. */
+function valoresDeCasos_(hoja, colApertura, filas, hoy) {
+  var aperturas = hoja.getRange(2, colApertura, filas, 1).getValues();
   var salida = [];
   for (var i = 0; i < filas; i++) {
-    var cierre = aFecha_(cierres[i][0]);
-    salida.push(cierre
-      ? [cierre.getFullYear(), hoy, diasEntre_(cierre, hoy)]
+    var apertura = aFecha_(aperturas[i][0]);
+    salida.push(apertura
+      ? [apertura.getFullYear(), hoy, diasEntre_(apertura, hoy)]
       : ['', hoy, '']);
   }
   return salida;
+}
+
+/**
+ * Última fila con datos de casos. Se miran solo las columnas que NO son del
+ * script: si contáramos la columna "Hoy", que el script llena, la hoja seguiría
+ * creciendo sola aunque ya no queden casos abajo.
+ */
+function ultimaFilaDeCasos_(hoja, col, n) {
+  var filas = hoja.getLastRow() - 1;
+  if (filas < 1) return 1;
+
+  var bloques = [];
+  if (col > 1) bloques.push(hoja.getRange(2, 1, filas, col - 1).getValues());
+  var derecha = hoja.getMaxColumns() - (col + n - 1);
+  if (derecha > 0) bloques.push(hoja.getRange(2, col + n, filas, derecha).getValues());
+
+  var ultima = 1;
+  for (var b = 0; b < bloques.length; b++) {
+    var valores = bloques[b];
+    for (var i = valores.length - 1; i + 2 > ultima; i--) {
+      if (tieneAlgo_(valores[i])) {
+        ultima = i + 2;
+        break;
+      }
+    }
+  }
+  return ultima;
+}
+
+/** Borra lo que el script haya dejado más abajo de la última fila con casos. */
+function limpiarSobrantes_(hoja, col, n, ultima) {
+  var sobran = hoja.getLastRow() - ultima;
+  if (sobran > 0) hoja.getRange(ultima + 1, col, sobran, n).clearContent();
+}
+
+function tieneAlgo_(fila) {
+  for (var i = 0; i < fila.length; i++) {
+    if (fila[i] !== '' && fila[i] != null) return true;
+  }
+  return false;
 }
 
 /** La fecha de hoy, sin hora, en la zona horaria de la planilla. */
@@ -176,9 +226,9 @@ function hoyEn_(zona) {
   return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
 }
 
-/** Días completos entre las dos fechas. Negativo si el cierre es a futuro. */
-function diasEntre_(cierre, hoy) {
-  return Math.round((hoy.getTime() - cierre.getTime()) / 86400000);
+/** Días completos entre las dos fechas. Negativo si la apertura es a futuro. */
+function diasEntre_(apertura, hoy) {
+  return Math.round((hoy.getTime() - apertura.getTime()) / 86400000);
 }
 
 /**
