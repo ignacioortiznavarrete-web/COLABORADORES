@@ -69,7 +69,7 @@ hoja BD en el momento, no guarda copia de nada y responde cinco preguntas:
 
 | Pregunta | Cómo la responde |
 | :-- | :-- |
-| ¿Cuánto lleva esperando cada caso abierto? | Una marca por caso sobre el eje de días, con la línea de los 90 y el más antiguo rotulado |
+| ¿Cuánto lleva esperando cada caso abierto? | Con pocos casos, una marca por caso sobre el eje de días; con muchos, un histograma por tramo de espera. Siempre con la línea de los 90 y el más antiguo rotulado |
 | ¿Entran más de los que cerramos? | Aperturas y cierres por mes, y la cola pendiente al cierre de cada mes |
 | ¿Dónde se concentran? | Clientes ordenados por reclamos, con el peso de los 5 primeros |
 | ¿Por qué reclaman? | Subcategoría y causa comercial, con el error de precio destacado |
@@ -222,6 +222,12 @@ node casos/preview/construir.js mis-datos.json salida.html
 - Fuera de Google (vista previa o copia estática) el estado se puede cambiar y
   el tablero reacciona, pero avisa que no se escribió en ninguna planilla: no
   hay dónde.
+- **El primer gráfico cambia de forma según cuántos casos haya.** Una marca por
+  caso se lee muy bien con decenas, pero con cientos las columnas topan contra el
+  alto del gráfico y se desbordan. Cuando eso pasaría, el mismo gráfico se dibuja
+  como histograma —casos por tramo de espera, en tramos que parten justo en los
+  90 días— y el título y la nota lo dicen. No hay que configurar nada: se mide
+  antes de dibujar.
 - **La tipografía se cambia en un solo lugar.** Arriba de `Dashboard.html`, en
   `:root`, hay tres variables y ninguna otra regla nombra una fuente:
 
