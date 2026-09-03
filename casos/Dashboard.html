@@ -34,6 +34,7 @@
   --s1: #d2377e;
   --s2: #2a78d6;
   --s3: #6b3fa0;
+  --s4: #b0730c;
   --s1-claro: #e893ba;
   --gris-dato: #c9b4bd;
   --tarde: #7a4a2e;
@@ -59,7 +60,9 @@
     --s1: #d8478a;
     --s2: #3987e5;
     --s3: #9b6fd8;
-    --s1-claro: #b03470;
+    --s4: #c2871c;
+    --s4: #c2871c;
+  --s1-claro: #b03470;
     --gris-dato: #5c4d53;
     --tarde: #e0a98c;
     --lavado-tarde: rgba(224, 169, 140, .10);
@@ -327,6 +330,20 @@ button, select, input { font: inherit; color: inherit; }
 .leyenda__it { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--tinta-2); }
 .llave { width: 11px; height: 11px; border-radius: 3px; flex: none; }
 .llave--linea { height: 2px; width: 15px; border-radius: 1px; }
+
+/* --- Pestañas de análisis ------------------------------------------------- */
+.pestanas { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.pestana {
+  background: none; border: 1px solid var(--borde); border-radius: 999px;
+  padding: 6px 15px; font-size: 13px; color: var(--tinta-2); cursor: pointer;
+  transition: background .2s cubic-bezier(.16, 1, .3, 1), color .2s, border-color .2s;
+}
+.pestana:hover { border-color: var(--s1); color: var(--tinta); }
+.pestana[aria-selected="true"] { background: var(--s1); border-color: var(--s1); color: #fff; }
+.pestana:active { transform: translateY(1px); }
+.hoja { display: grid; gap: 18px; animation: fundir .26s cubic-bezier(.16, 1, .3, 1) both; }
+.rejilla--2 { grid-template-columns: 1fr 1fr; }
+@media (max-width: 980px) { .rejilla--2 { grid-template-columns: 1fr; } }
 
 /* --- Gráficos ------------------------------------------------------------ */
 .grafico { width: 100%; display: block; overflow: visible; }
@@ -656,6 +673,165 @@ tr[data-guardando="1"] { opacity: .55; }
           <svg id="g-duenos" class="grafico" role="img" aria-label="Casos abiertos por responsable"></svg>
           <div class="tabla-caja" id="t-duenos" hidden></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="seccion" aria-labelledby="p-analisis">
+    <div class="envoltura">
+      <div class="seccion__cab">
+        <h2 class="pregunta" id="p-analisis">Análisis a fondo</h2>
+        <p class="hallazgo" id="h-analisis"></p>
+      </div>
+      <div class="pestanas" role="tablist" aria-label="Cortes de análisis">
+        <button class="pestana" type="button" role="tab" id="tab-pricing" aria-controls="hoja-pricing" aria-selected="true">Pricing</button>
+        <button class="pestana" type="button" role="tab" id="tab-respuesta" aria-controls="hoja-respuesta" aria-selected="false">Respuesta</button>
+        <button class="pestana" type="button" role="tab" id="tab-clientes" aria-controls="hoja-clientes" aria-selected="false">Clientes</button>
+      </div>
+      <div class="hoja" id="hoja-pricing" role="tabpanel" aria-labelledby="tab-pricing">
+          <div class="panel">
+            <div class="panel__cab">
+              <h3 class="panel__tit">Error de precio, mes a mes</h3>
+            <span class="panel__nota" id="nota-pg1"></span>
+              <div class="panel__acc">
+                <button class="boton" type="button" data-tabla="t-pg1" aria-expanded="false">Tabla</button>
+              </div>
+            </div>
+            <svg id="g-pg1" class="grafico" role="img" aria-label="Error de precio, mes a mes"></svg>
+            <div class="tabla-caja" id="t-pg1" hidden></div>
+          </div>
+          <div class="rejilla rejilla--2">
+            <div class="panel">
+              <div class="panel__cab">
+                <h3 class="panel__tit">Clientes con más error de precio</h3>
+              <span class="panel__nota" id="nota-pg2"></span>
+                <div class="panel__acc">
+                  <button class="boton" type="button" data-tabla="t-pg2" aria-expanded="false">Tabla</button>
+                </div>
+              </div>
+              <svg id="g-pg2" class="grafico" role="img" aria-label="Clientes con más error de precio"></svg>
+              <div class="tabla-caja" id="t-pg2" hidden></div>
+            </div>
+            <div class="panel">
+              <div class="panel__cab">
+                <h3 class="panel__tit">Qué pide el cliente</h3>
+              <span class="panel__nota" id="nota-pg3"></span>
+                <div class="panel__acc">
+                  <button class="boton" type="button" data-tabla="t-pg3" aria-expanded="false">Tabla</button>
+                </div>
+              </div>
+              <svg id="g-pg3" class="grafico" role="img" aria-label="Qué pide el cliente"></svg>
+              <div class="tabla-caja" id="t-pg3" hidden></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel__cab">
+              <h3 class="panel__tit">Causa comercial por año</h3>
+            <span class="panel__nota" id="nota-pg4"></span>
+              <div class="panel__acc">
+                <button class="boton" type="button" data-tabla="t-pg4" aria-expanded="false">Tabla</button>
+              </div>
+            </div>
+            <svg id="g-pg4" class="grafico" role="img" aria-label="Causa comercial por año"></svg>
+            <div class="tabla-caja" id="t-pg4" hidden></div>
+          </div>
+      </div>
+      <div class="hoja" id="hoja-respuesta" role="tabpanel" aria-labelledby="tab-respuesta" hidden>
+          <div class="panel">
+            <div class="panel__cab">
+              <h3 class="panel__tit">Cuánto tarda un cierre</h3>
+            <span class="panel__nota" id="nota-rs1"></span>
+              <div class="panel__acc">
+                <button class="boton" type="button" data-tabla="t-rs1" aria-expanded="false">Tabla</button>
+              </div>
+            </div>
+            <svg id="g-rs1" class="grafico" role="img" aria-label="Cuánto tarda un cierre"></svg>
+            <div class="tabla-caja" id="t-rs1" hidden></div>
+          </div>
+          <div class="rejilla rejilla--2">
+            <div class="panel">
+              <div class="panel__cab">
+                <h3 class="panel__tit">Por dónde entra el caso</h3>
+              <span class="panel__nota" id="nota-rs2"></span>
+                <div class="panel__acc">
+                  <button class="boton" type="button" data-tabla="t-rs2" aria-expanded="false">Tabla</button>
+                </div>
+              </div>
+              <svg id="g-rs2" class="grafico" role="img" aria-label="Por dónde entra el caso"></svg>
+              <div class="tabla-caja" id="t-rs2" hidden></div>
+            </div>
+            <div class="panel">
+              <div class="panel__cab">
+                <h3 class="panel__tit">La cola por responsable y antigüedad</h3>
+              <span class="panel__nota" id="nota-rs3"></span>
+                <div class="panel__acc">
+                  <button class="boton" type="button" data-tabla="t-rs3" aria-expanded="false">Tabla</button>
+                </div>
+              </div>
+              <svg id="g-rs3" class="grafico" role="img" aria-label="La cola por responsable y antigüedad"></svg>
+              <div class="tabla-caja" id="t-rs3" hidden></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel__cab">
+              <h3 class="panel__tit">Por tipo de caso</h3>
+            <span class="panel__nota" id="nota-rs4"></span>
+              <div class="panel__acc">
+                <button class="boton" type="button" data-tabla="t-rs4" aria-expanded="false">Tabla</button>
+              </div>
+            </div>
+            <svg id="g-rs4" class="grafico" role="img" aria-label="Por tipo de caso"></svg>
+            <div class="tabla-caja" id="t-rs4" hidden></div>
+          </div>
+      </div>
+      <div class="hoja" id="hoja-clientes" role="tabpanel" aria-labelledby="tab-clientes" hidden>
+          <div class="rejilla rejilla--2">
+            <div class="panel">
+              <div class="panel__cab">
+                <h3 class="panel__tit">Cuántos casos por cliente</h3>
+              <span class="panel__nota" id="nota-cl1"></span>
+                <div class="panel__acc">
+                  <button class="boton" type="button" data-tabla="t-cl1" aria-expanded="false">Tabla</button>
+                </div>
+              </div>
+              <svg id="g-cl1" class="grafico" role="img" aria-label="Cuántos casos por cliente"></svg>
+              <div class="tabla-caja" id="t-cl1" hidden></div>
+            </div>
+            <div class="panel">
+              <div class="panel__cab">
+                <h3 class="panel__tit">Con cliente y sin cliente</h3>
+              <span class="panel__nota" id="nota-cl2"></span>
+                <div class="panel__acc">
+                  <button class="boton" type="button" data-tabla="t-cl2" aria-expanded="false">Tabla</button>
+                </div>
+              </div>
+              <svg id="g-cl2" class="grafico" role="img" aria-label="Con cliente y sin cliente"></svg>
+              <div class="tabla-caja" id="t-cl2" hidden></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel__cab">
+              <h3 class="panel__tit">Concentración de los reclamos</h3>
+            <span class="panel__nota" id="nota-cl3"></span>
+              <div class="panel__acc">
+                <button class="boton" type="button" data-tabla="t-cl3" aria-expanded="false">Tabla</button>
+              </div>
+            </div>
+            <svg id="g-cl3" class="grafico" role="img" aria-label="Concentración de los reclamos"></svg>
+            <div class="tabla-caja" id="t-cl3" hidden></div>
+          </div>
+          <div class="panel">
+            <div class="panel__cab">
+              <h3 class="panel__tit">Quién acumula más espera</h3>
+            <span class="panel__nota" id="nota-cl4"></span>
+              <div class="panel__acc">
+                <button class="boton" type="button" data-tabla="t-cl4" aria-expanded="false">Tabla</button>
+              </div>
+            </div>
+            <svg id="g-cl4" class="grafico" role="img" aria-label="Quién acumula más espera"></svg>
+            <div class="tabla-caja" id="t-cl4" hidden></div>
+          </div>
       </div>
     </div>
   </section>
@@ -1161,7 +1337,7 @@ tr[data-guardando="1"] { opacity: .55; }
     var alto = Math.max(28, filas.length * altoFila + 6);
     var L = lienzo(id, alto);
     var anEt = Math.min(opts.anEt || 168, Math.max(78, L.an * 0.36));
-    var anVal = 44, ancho = Math.max(24, L.an - anEt - anVal);
+    var anVal = opts.anVal || 52, ancho = Math.max(24, L.an - anEt - anVal);
     var max = Math.max(1, filas.reduce(function (a, f) { return Math.max(a, f.n); }, 0));
     var g = el('g', {});
     L.svg.appendChild(g);
@@ -1177,6 +1353,9 @@ tr[data-guardando="1"] { opacity: .55; }
       fila.appendChild(pinta(barra(anEt, y, Math.max(2, an), anB, anB / 2, 'derecha'),
         f.color || css('--s1'), 'an-x', i * 30));
       fila.appendChild(texto(anEt + Math.max(2, an) + 7, y + anB - 2, fmt(f.n), 'val-tx'));
+      if (f.extra) {
+        fila.appendChild(texto(anEt + Math.max(2, an) + 14 + String(fmt(f.n)).length * 7, y + anB - 2, f.extra, 'et-tx'));
+      }
       var hit = el('rect', { x: 0, y: y - 3, width: L.an, height: anB + 6, class: 'marca-hit' });
       fila.appendChild(hit);
       conTip(hit, f.k, f.tip || [{ et: 'Casos', val: fmt(f.n) }]);
@@ -1640,6 +1819,485 @@ tr[data-guardando="1"] { opacity: .55; }
   }
 
   // ---------------------------------------------------------------------
+  // Piezas que comparten las pestañas de análisis
+  // ---------------------------------------------------------------------
+  function leyendaSvg(g, x, y, items) {
+    var cx = x;
+    items.forEach(function (it) {
+      g.appendChild(el('rect', { x: cx, y: y - 9, width: 10, height: 10, rx: 3, fill: it.color }));
+      g.appendChild(texto(cx + 15, y, it.et, 'et-tx'));
+      cx += 15 + it.et.length * 6.4 + 16;
+    });
+  }
+
+  /** Columnas apiladas sobre categorías (meses, casi siempre). */
+  function columnasApiladas(id, cats, series, opts) {
+    opts = opts || {};
+    var alto = opts.alto || 210, mt = 34, mb = 34, ml = 32, mr = 14;
+    var L = lienzo(id, alto), base = alto - mb;
+    var g = el('g', {});
+    L.svg.appendChild(g);
+    if (!cats.length) {
+      g.appendChild(texto(0, 24, opts.vacio || 'Sin datos con este filtro', 'et-tx'));
+      return;
+    }
+    leyendaSvg(g, ml, 12, series);
+    var max = Math.max(1, cats.reduce(function (a, c) {
+      return Math.max(a, c.partes.reduce(function (x, y) { return x + y; }, 0));
+    }, 0));
+    var banda = (L.an - ml - mr) / cats.length;
+    var anC = Math.max(3, Math.min(26, banda * 0.62));
+    var Y = function (v) { return base - (v / max) * (base - mt); };
+    [max, Math.round(max / 2)].forEach(function (v) {
+      if (!v) return;
+      g.appendChild(el('line', { x1: ml, y1: Y(v), x2: L.an - mr, y2: Y(v), class: 'malla' }));
+      g.appendChild(texto(ml - 7, Y(v) + 4, fmt(v), 'eje-tx', { 'text-anchor': 'end' }));
+    });
+    g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
+    var salto = banda < 30 ? Math.ceil(30 / banda) : 1;
+    cats.forEach(function (c, i) {
+      var cx = ml + banda * (i + 0.5), acumulado = 0, grupo = el('g', { class: 'fila-dato' });
+      c.partes.forEach(function (v, j) {
+        if (!v) return;
+        var y0 = Y(acumulado + v), y1 = Y(acumulado);
+        var r = barra(cx - anC / 2, y0, anC, Math.max(1, y1 - y0 - (j ? 2 : 0)), j === c.partes.length - 1 ? 4 : 0, 'arriba');
+        grupo.appendChild(pinta(r, series[j].color, 'an-y', i * 14));
+        acumulado += v;
+      });
+      var hit = el('rect', { x: ml + banda * i, y: mt - 12, width: banda, height: base - mt + 12, class: 'marca-hit' });
+      grupo.appendChild(hit);
+      var filas = series.map(function (se, j) { return { et: se.et, val: fmt(c.partes[j]), color: se.color }; });
+      if (opts.pie) filas.push({ et: opts.pie, val: acumulado ? pct(c.partes[0] / acumulado) : '—' });
+      conTip(hit, c.k, filas);
+      g.appendChild(grupo);
+      if (i % salto === 0) g.appendChild(texto(cx, base + 15, c.corta || c.k, 'eje-tx', { 'text-anchor': 'middle' }));
+      if (c.anio) g.appendChild(texto(cx, base + 29, c.anio, 'et-tx', { 'text-anchor': 'middle' }));
+    });
+  }
+
+  /** Barras horizontales apiladas: una fila por categoría. */
+  function barrasApiladas(id, filas, series, opts) {
+    opts = opts || {};
+    var altoFila = 26, anB = 14, mt = 22;
+    var alto = Math.max(46, filas.length * altoFila + mt + 6);
+    var L = lienzo(id, alto);
+    var anEt = Math.min(opts.anEt || 150, Math.max(78, L.an * 0.34));
+    var anVal = opts.anVal || 56, ancho = Math.max(24, L.an - anEt - anVal);
+    var g = el('g', {});
+    L.svg.appendChild(g);
+    if (!filas.length) {
+      g.appendChild(texto(0, mt + 12, opts.vacio || 'Sin datos con este filtro', 'et-tx'));
+      return;
+    }
+    leyendaSvg(g, 0, 10, series);
+    var max = Math.max(1, filas.reduce(function (a, f) {
+      return Math.max(a, f.partes.reduce(function (x, y) { return x + y; }, 0));
+    }, 0));
+    var cortar = Math.max(8, Math.floor(anEt / 6.2));
+    filas.forEach(function (f, i) {
+      var y = mt + i * altoFila, x = anEt, total = 0, grupo = el('g', { class: 'fila-dato' });
+      grupo.appendChild(texto(0, y + anB - 2, recorta(f.k, cortar), 'et-tx'));
+      f.partes.forEach(function (v, j) {
+        if (!v) return;
+        var an = (v / max) * ancho;
+        var r = barra(x, y, Math.max(1, an - 2), anB, j === f.partes.length - 1 ? anB / 2 : 0, 'derecha');
+        grupo.appendChild(pinta(r, series[j].color, 'an-x', i * 26));
+        x += an;
+        total += v;
+      });
+      grupo.appendChild(texto(x + 7, y + anB - 2, fmt(total), 'val-tx'));
+      var hit = el('rect', { x: 0, y: y - 3, width: L.an, height: anB + 6, class: 'marca-hit' });
+      grupo.appendChild(hit);
+      conTip(hit, f.k, series.map(function (se, j) {
+        return { et: se.et, val: fmt(f.partes[j]) + (total ? ' · ' + pct(f.partes[j] / total) : ''), color: se.color };
+      }));
+      g.appendChild(grupo);
+    });
+  }
+
+  /** Tramos "redondos" para un histograma: pocos, parejos y de números claros. */
+  function pasoBonito(tope) {
+    var candidatos = [1, 2, 3, 5, 6, 9, 10, 15, 18, 30, 45, 90];
+    for (var i = 0; i < candidatos.length; i++) {
+      if (tope / candidatos[i] <= 30) return candidatos[i];
+    }
+    return Math.max(30, Math.ceil(tope / 30 / 30) * 30);
+  }
+
+  /** Histograma de una lista de números, con la mediana y el p90 marcados. */
+  function histograma(id, valores, opts) {
+    opts = opts || {};
+    var alto = opts.alto || 210, mt = 30, mb = 32, ml = 32, mr = 16;
+    var L = lienzo(id, alto), base = alto - mb;
+    var g = el('g', {});
+    L.svg.appendChild(g);
+    if (!valores.length) {
+      g.appendChild(texto(0, 24, opts.vacio || 'Sin datos con este filtro', 'et-tx'));
+      return;
+    }
+    var p50 = percentil(valores, 0.5), p90 = percentil(valores, 0.9);
+    var tope = Math.max(1, Math.ceil(percentil(valores, 0.98) / 30) * 30);
+    var paso = pasoBonito(tope);
+    var tramos = [];
+    for (var d = 0; d < tope; d += paso) tramos.push({ desde: d, hasta: d + paso, n: 0 });
+    valores.forEach(function (v) { tramos[Math.min(tramos.length - 1, Math.floor(v / paso))].n++; });
+    var maxN = tramos.reduce(function (a, t) { return Math.max(a, t.n); }, 1);
+    var X = function (v) { return ml + (v / tope) * (L.an - ml - mr); };
+    var Y = function (n) { return base - (n / maxN) * (base - mt); };
+    [maxN, Math.round(maxN / 2)].forEach(function (n) {
+      if (!n) return;
+      g.appendChild(el('line', { x1: ml, y1: Y(n), x2: L.an - mr, y2: Y(n), class: 'malla' }));
+      g.appendChild(texto(ml - 7, Y(n) + 4, fmt(n), 'eje-tx', { 'text-anchor': 'end' }));
+    });
+    g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
+    var anB = Math.max(2, X(paso) - X(0) - 2);
+    tramos.forEach(function (t, j) {
+      if (!t.n) return;
+      var grupo = el('g', { class: 'fila-dato' });
+      grupo.appendChild(pinta(barra(X(t.desde) + 1, Y(t.n), anB, base - Y(t.n), Math.min(4, anB / 2), 'arriba'),
+        t.desde >= p90 ? css('--tarde') : css('--s1'), 'an-y', j * 12));
+      var hit = el('rect', { x: X(t.desde), y: mt - 10, width: anB + 2, height: base - mt + 10, class: 'marca-hit' });
+      grupo.appendChild(hit);
+      conTip(hit, 'De ' + t.desde + ' a ' + (t.hasta - 1) + ' días', [
+        { et: 'Casos', val: fmt(t.n), color: css('--s1') },
+        { et: 'Del total', val: pct(t.n / valores.length) }
+      ]);
+      g.appendChild(grupo);
+    });
+    [{ v: p50, et: 'mediana ' + fmt(p50) + ' d' }, { v: p90, et: 'p90 ' + fmt(p90) + ' d' }].forEach(function (m, i) {
+      if (m.v > tope) return;
+      g.appendChild(el('line', { x1: X(m.v), y1: mt - 12, x2: X(m.v), y2: base, stroke: css('--tinta-3'), 'stroke-width': 1 }));
+      g.appendChild(texto(X(m.v) + 5, mt - 4 + i * 0, m.et, 'et-tx'));
+    });
+    for (var e = 0; e <= tope; e += (tope > 240 ? 60 : 30)) {
+      g.appendChild(texto(X(e), base + 15, e, 'eje-tx', { 'text-anchor': e === 0 ? 'start' : 'middle' }));
+    }
+  }
+
+  /** Curva simple: puntos {x, y} ya en unidades del dato. */
+  function curva(id, puntos, opts) {
+    opts = opts || {};
+    var alto = opts.alto || 200, mt = 24, mb = 32, ml = 40, mr = 18;
+    var L = lienzo(id, alto), base = alto - mb;
+    var g = el('g', {});
+    L.svg.appendChild(g);
+    if (puntos.length < 2) {
+      g.appendChild(texto(0, 24, opts.vacio || 'Sin datos suficientes', 'et-tx'));
+      return;
+    }
+    var maxX = puntos[puntos.length - 1].x, maxY = 1;
+    var X = function (v) { return ml + (v / maxX) * (L.an - ml - mr); };
+    var Y = function (v) { return base - (v / maxY) * (base - mt); };
+    [1, 0.5].forEach(function (v) {
+      g.appendChild(el('line', { x1: ml, y1: Y(v), x2: L.an - mr, y2: Y(v), class: 'malla' }));
+      g.appendChild(texto(ml - 7, Y(v) + 4, pct(v), 'eje-tx', { 'text-anchor': 'end' }));
+    });
+    g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
+    var d = '', area = 'M' + X(puntos[0].x) + ',' + base;
+    puntos.forEach(function (pt, i) {
+      d += (i ? 'L' : 'M') + X(pt.x) + ',' + Y(pt.y);
+      area += 'L' + X(pt.x) + ',' + Y(pt.y);
+    });
+    area += 'L' + X(maxX) + ',' + base + 'Z';
+    g.appendChild(el('path', { d: area, fill: css('--s1'), 'fill-opacity': .1 }));
+    g.appendChild(el('path', { d: d, fill: 'none', stroke: css('--s1'), 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    (opts.hitos || []).forEach(function (h) {
+      var pt = puntos[Math.min(puntos.length, h) - 1];
+      if (!pt) return;
+      g.appendChild(el('circle', { cx: X(pt.x), cy: Y(pt.y), r: 4, fill: css('--s1'), stroke: css('--sup'), 'stroke-width': 2 }));
+      g.appendChild(texto(X(pt.x), Y(pt.y) - 10, h + ' → ' + pct(pt.y), 'val-tx', { 'text-anchor': 'middle' }));
+    });
+    var pasoX = Math.max(1, Math.round(maxX / 8));
+    for (var e = 0; e <= maxX; e += pasoX) {
+      g.appendChild(texto(X(e), base + 15, e, 'eje-tx', { 'text-anchor': e === 0 ? 'start' : 'middle' }));
+    }
+    g.appendChild(texto(L.an - mr, base + 15, 'clientes', 'eje-tx', { 'text-anchor': 'end' }));
+  }
+
+  function esPrecio(c) { return (c.cau || '').toLowerCase().indexOf('error de precio') === 0; }
+  function medianaResol(lista) {
+    var v = lista.map(function (c) { return c.resol; }).filter(function (x) { return x !== null; });
+    return v.length ? percentil(v, 0.5) : null;
+  }
+
+  // ---------------------------------------------------------------------
+  // Pestaña Pricing
+  // ---------------------------------------------------------------------
+  function pintaPricing(datos) {
+    var com = datos.filter(function (c) { return c.sub === 'Comercial'; });
+    var precio = com.filter(esPrecio);
+
+    var meses = new Map();
+    com.forEach(function (c) {
+      if (!c.mes) return;
+      if (!meses.has(c.mes)) meses.set(c.mes, [0, 0]);
+      meses.get(c.mes)[esPrecio(c) ? 0 : 1]++;
+    });
+    var presentes = Array.from(meses.keys()).sort(), llaves = [];
+    if (presentes.length) {
+      var ini = presentes[0].split('-'), fin = presentes[presentes.length - 1].split('-');
+      var cur = new Date(+ini[0], +ini[1] - 1, 1), tope = new Date(+fin[0], +fin[1] - 1, 1);
+      while (cur <= tope) {
+        var k = clave(cur);
+        if (!meses.has(k)) meses.set(k, [0, 0]);
+        llaves.push(k);
+        cur.setMonth(cur.getMonth() + 1);
+      }
+    }
+    columnasApiladas('g-pg1', llaves.map(function (k) {
+      return {
+        k: etiquetaMes(k) + ' ' + k.slice(0, 4), corta: etiquetaMes(k),
+        anio: k.slice(5) === '01' ? k.slice(0, 4) : '', partes: meses.get(k)
+      };
+    }), [
+      { et: 'Error de precio', color: css('--s1') },
+      { et: 'Otras causas', color: css('--gris-dato') }
+    ], { pie: 'Peso del error de precio', vacio: 'Sin casos comerciales con este filtro' });
+    q('#nota-pg1').textContent = com.length
+      ? fmt(precio.length) + ' de ' + fmt(com.length) + ' casos comerciales (' + pct(precio.length / com.length) + ')'
+      : '';
+    tabla('t-pg1', [{ t: 'Mes' }, { t: 'Error de precio', num: true }, { t: 'Otras causas', num: true }],
+      llaves.map(function (k) { return [etiquetaMes(k) + ' ' + k.slice(0, 4), fmt(meses.get(k)[0]), fmt(meses.get(k)[1])]; }));
+
+    var porCli = contar(precio, function (c) { return c.cli; });
+    barrasH('g-pg2', porCli.slice(0, 10).map(function (o) {
+      var suyos = precio.filter(function (c) { return c.cli === o.k; });
+      var med = medianaResol(suyos);
+      return {
+        k: o.k, n: o.n, extra: med === null ? '' : 'mediana ' + fmt(med) + ' d',
+        tip: [
+          { et: 'Casos por error de precio', val: fmt(o.n), color: css('--s1') },
+          { et: 'De todos sus casos', val: pct(o.n / Math.max(1, datos.filter(function (c) { return c.cli === o.k; }).length)) },
+          { et: 'Abiertos hoy', val: fmt(suyos.filter(function (c) { return !c.cerrado; }).length) }
+        ]
+      };
+    }), { anEt: 170, anVal: 118, vacio: 'Ningún caso por error de precio con este filtro' });
+    q('#nota-pg2').textContent = porCli.length ? fmt(porCli.length) + ' clientes afectados' : '';
+    tabla('t-pg2', [{ t: 'Cliente' }, { t: 'Casos', num: true }], porCli.map(function (o) { return [o.k, fmt(o.n)]; }));
+
+    var req = contar(datos, function (c) { return c.req || 'Sin requerimiento'; });
+    barrasH('g-pg3', req.map(function (o) {
+      return { k: o.k, n: o.n, tip: [{ et: 'Casos', val: fmt(o.n), color: css('--s1') }, { et: 'Del total', val: pct(o.n / Math.max(1, datos.length)) }] };
+    }), { anEt: 176 });
+    var nc = datos.filter(function (c) { return (c.req || '').toLowerCase().indexOf('emisión nc') === 0; }).length;
+    q('#nota-pg3').textContent = datos.length ? pct(nc / datos.length) + ' termina en nota de crédito' : '';
+    tabla('t-pg3', [{ t: 'Requerimiento' }, { t: 'Casos', num: true }], req.map(function (o) { return [o.k, fmt(o.n)]; }));
+
+    var anios = Array.from(new Set(datos.map(function (c) { return c.anio; }).filter(Boolean))).sort().slice(-3);
+    var causas = contar(com, function (c) { return c.cau || 'Sin causa declarada'; });
+    var colores = [css('--s1'), css('--s2'), css('--s4')];
+    barrasApiladas('g-pg4', causas.map(function (o) {
+      return { k: o.k, partes: anios.map(function (a) { return com.filter(function (c) { return (c.cau || 'Sin causa declarada') === o.k && c.anio === a; }).length; }) };
+    }), anios.map(function (a, i) { return { et: a, color: colores[i % 3] }; }), { anEt: 160, vacio: 'Sin casos comerciales con este filtro' });
+    q('#nota-pg4').textContent = 'sobre ' + fmt(com.length) + ' casos comerciales';
+    tabla('t-pg4', [{ t: 'Causa' }].concat(anios.map(function (a) { return { t: a, num: true }; })),
+      causas.map(function (o) {
+        return [o.k].concat(anios.map(function (a) { return fmt(com.filter(function (c) { return (c.cau || 'Sin causa declarada') === o.k && c.anio === a; }).length); }));
+      }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Pestaña Respuesta
+  // ---------------------------------------------------------------------
+  function pintaRespuesta(datos) {
+    var cerrados = datos.filter(function (c) { return c.resol !== null; });
+    histograma('g-rs1', cerrados.map(function (c) { return c.resol; }), { vacio: 'Sin casos cerrados con este filtro' });
+    q('#nota-rs1').textContent = cerrados.length
+      ? fmt(cerrados.length) + ' casos cerrados · promedio ' + fmt(promedio(cerrados.map(function (c) { return c.resol; }))) + ' días'
+      : '';
+    tabla('t-rs1', [{ t: 'Caso' }, { t: 'Cliente' }, { t: 'Días hasta el cierre', num: true }],
+      cerrados.slice().sort(function (a, b) { return b.resol - a.resol; }).slice(0, 60)
+        .map(function (c) { return [c.n, c.cli, fmt(c.resol)]; }));
+
+    var origenes = contar(datos, function (c) { return c.ori || 'Sin origen'; });
+    barrasH('g-rs2', origenes.map(function (o) {
+      var suyos = datos.filter(function (c) { return (c.ori || 'Sin origen') === o.k; });
+      var med = medianaResol(suyos);
+      return {
+        k: o.k, n: o.n, extra: med === null ? '' : 'mediana ' + fmt(med) + ' d',
+        tip: [
+          { et: 'Casos', val: fmt(o.n), color: css('--s1') },
+          { et: 'Mediana de cierre', val: med === null ? '—' : fmt(med) + ' días' },
+          { et: 'Abiertos hoy', val: fmt(suyos.filter(function (c) { return !c.cerrado; }).length) }
+        ]
+      };
+    }), { anEt: 132, anVal: 118 });
+    q('#nota-rs2').textContent = 'quién levanta el caso, y cuánto tarda en cerrarse';
+    tabla('t-rs2', [{ t: 'Origen' }, { t: 'Casos', num: true }, { t: 'Mediana', num: true }],
+      origenes.map(function (o) {
+        var med = medianaResol(datos.filter(function (c) { return (c.ori || 'Sin origen') === o.k; }));
+        return [o.k, fmt(o.n), med === null ? '—' : fmt(med)];
+      }));
+
+    var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
+    var duenos = contar(abiertos, function (c) { return c.due; }).slice(0, 8);
+    barrasApiladas('g-rs3', duenos.map(function (d) {
+      var suyos = abiertos.filter(function (c) { return c.due === d.k; });
+      return {
+        k: d.k, partes: [
+          suyos.filter(function (c) { return c.espera <= 30; }).length,
+          suyos.filter(function (c) { return c.espera > 30 && c.espera <= 90; }).length,
+          suyos.filter(function (c) { return c.espera > 90; }).length
+        ]
+      };
+    }), [
+      { et: 'Hasta 30 días', color: css('--s1-claro') },
+      { et: '31 a 90', color: css('--s1') },
+      { et: 'Más de 90', color: css('--tarde') }
+    ], { anEt: 150, vacio: 'Sin casos abiertos con este filtro' });
+    q('#nota-rs3').textContent = abiertos.length ? fmt(abiertos.length) + ' casos abiertos' : '';
+    tabla('t-rs3', [{ t: 'Responsable' }, { t: 'Hasta 30', num: true }, { t: '31 a 90', num: true }, { t: 'Más de 90', num: true }],
+      duenos.map(function (d) {
+        var suyos = abiertos.filter(function (c) { return c.due === d.k; });
+        return [d.k, fmt(suyos.filter(function (c) { return c.espera <= 30; }).length),
+          fmt(suyos.filter(function (c) { return c.espera > 30 && c.espera <= 90; }).length),
+          fmt(suyos.filter(function (c) { return c.espera > 90; }).length)];
+      }));
+
+    var tipos = contar(datos, function (c) { return c.tip; });
+    barrasH('g-rs4', tipos.map(function (t) {
+      var suyos = datos.filter(function (c) { return c.tip === t.k; });
+      var med = medianaResol(suyos);
+      var cerradosT = suyos.filter(function (c) { return c.cerrado; }).length;
+      return {
+        k: t.k, n: t.n,
+        extra: pct(cerradosT / t.n) + ' cerrado' + (med === null ? '' : ' · mediana ' + fmt(med) + ' d'),
+        tip: [
+          { et: 'Casos', val: fmt(t.n), color: css('--s1') },
+          { et: 'Cerrados', val: fmt(cerradosT) + ' · ' + pct(cerradosT / t.n) },
+          { et: 'Mediana de cierre', val: med === null ? '—' : fmt(med) + ' días' },
+          { et: 'Error de precio', val: fmt(suyos.filter(esPrecio).length) }
+        ]
+      };
+    }), { anEt: 150, anVal: 210 });
+    q('#nota-rs4').textContent = tipos.length === 1 ? 'la hoja trae un solo tipo de caso' : fmt(tipos.length) + ' tipos en la hoja';
+    tabla('t-rs4', [{ t: 'Tipo' }, { t: 'Casos', num: true }, { t: 'Cerrados', num: true }, { t: 'Mediana', num: true }],
+      tipos.map(function (t) {
+        var suyos = datos.filter(function (c) { return c.tip === t.k; });
+        var med = medianaResol(suyos);
+        return [t.k, fmt(t.n), fmt(suyos.filter(function (c) { return c.cerrado; }).length), med === null ? '—' : fmt(med)];
+      }));
+  }
+
+  // ---------------------------------------------------------------------
+  // Pestaña Clientes
+  // ---------------------------------------------------------------------
+  function pintaClientes(datos) {
+    var conNombre = datos.filter(function (c) { return c.cli !== 'Sin cliente'; });
+    var cuenta = contar(conNombre, function (c) { return c.cli; });
+
+    var tramos = [
+      { k: '1 caso', min: 1, max: 1 }, { k: '2 casos', min: 2, max: 2 },
+      { k: '3 a 5', min: 3, max: 5 }, { k: '6 a 10', min: 6, max: 10 }, { k: 'Más de 10', min: 11, max: 1e9 }
+    ];
+    barrasH('g-cl1', tramos.map(function (t) {
+      var cli = cuenta.filter(function (o) { return o.n >= t.min && o.n <= t.max; });
+      var casos = cli.reduce(function (a, o) { return a + o.n; }, 0);
+      return {
+        k: t.k, n: cli.length,
+        extra: casos ? fmt(casos) + ' casos' : '',
+        tip: [
+          { et: 'Clientes', val: fmt(cli.length), color: css('--s1') },
+          { et: 'Casos que explican', val: fmt(casos) + (datos.length ? ' · ' + pct(casos / datos.length) : '') }
+        ]
+      };
+    }), { anEt: 110, anVal: 108, vacio: 'Sin clientes con este filtro' });
+    var repiten = cuenta.filter(function (o) { return o.n > 1; }).length;
+    q('#nota-cl1').textContent = cuenta.length
+      ? fmt(repiten) + ' de ' + fmt(cuenta.length) + ' reclaman más de una vez' : '';
+    tabla('t-cl1', [{ t: 'Tramo' }, { t: 'Clientes', num: true }, { t: 'Casos', num: true }],
+      tramos.map(function (t) {
+        var cli = cuenta.filter(function (o) { return o.n >= t.min && o.n <= t.max; });
+        return [t.k, fmt(cli.length), fmt(cli.reduce(function (a, o) { return a + o.n; }, 0))];
+      }));
+
+    var sin = datos.filter(function (c) { return c.cli === 'Sin cliente'; });
+    barrasH('g-cl2', [
+      { k: 'Con cliente', n: conNombre.length, color: css('--s1'), extra: etiquetaMediana(conNombre) },
+      { k: 'Sin cliente', n: sin.length, color: css('--gris-dato'), extra: etiquetaMediana(sin) }
+    ], { anEt: 110, anVal: 118 });
+    q('#nota-cl2').textContent = datos.length
+      ? pct(sin.length / datos.length) + ' de los casos no tiene cliente anotado' : '';
+    tabla('t-cl2', [{ t: 'Grupo' }, { t: 'Casos', num: true }, { t: 'Abiertos', num: true }],
+      [['Con cliente', fmt(conNombre.length), fmt(conNombre.filter(function (c) { return !c.cerrado; }).length)],
+      ['Sin cliente', fmt(sin.length), fmt(sin.filter(function (c) { return !c.cerrado; }).length)]]);
+
+    var total = conNombre.length, acum = 0, puntos = [];
+    cuenta.forEach(function (o, i) { acum += o.n; puntos.push({ x: i + 1, y: total ? acum / total : 0 }); });
+    curva('g-cl3', puntos, { hitos: [5, 10, 20, 50] });
+    q('#nota-cl3').textContent = cuenta.length
+      ? fmt(cuenta.length) + ' clientes, ordenados de más a menos reclamos' : '';
+    tabla('t-cl3', [{ t: 'Clientes' }, { t: 'Casos acumulados', num: true }, { t: 'Del total', num: true }],
+      [5, 10, 20, 50, cuenta.length].filter(function (n, i, a) { return n && a.indexOf(n) === i && n <= cuenta.length; })
+        .map(function (n) {
+          var suma = cuenta.slice(0, n).reduce(function (a, o) { return a + o.n; }, 0);
+          return ['Los ' + fmt(n) + ' primeros', fmt(suma), pct(suma / Math.max(1, total))];
+        }));
+
+    var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
+    var espera = new Map();
+    abiertos.forEach(function (c) {
+      if (!espera.has(c.cli)) espera.set(c.cli, { dias: 0, n: 0 });
+      var e = espera.get(c.cli);
+      e.dias += c.espera;
+      e.n++;
+    });
+    var lista = Array.from(espera, function (e) { return { k: e[0], n: e[1].dias, casos: e[1].n }; })
+      .sort(function (a, b) { return b.n - a.n; }).slice(0, 10);
+    barrasH('g-cl4', lista.map(function (o) {
+      return {
+        k: o.k, n: o.n, extra: fmt(o.casos) + (o.casos === 1 ? ' caso' : ' casos'),
+        tip: [
+          { et: 'Días de espera acumulados', val: fmt(o.n), color: css('--s1') },
+          { et: 'Casos abiertos', val: fmt(o.casos) },
+          { et: 'Espera media', val: fmt(o.n / o.casos) + ' días' }
+        ]
+      };
+    }), { anEt: 176, anVal: 108, vacio: 'Sin casos abiertos con este filtro' });
+    q('#nota-cl4').textContent = 'días de espera sumados de sus casos abiertos';
+    tabla('t-cl4', [{ t: 'Cliente' }, { t: 'Días acumulados', num: true }, { t: 'Casos abiertos', num: true }],
+      lista.map(function (o) { return [o.k, fmt(o.n), fmt(o.casos)]; }));
+  }
+
+  function etiquetaMediana(lista) {
+    var med = medianaResol(lista);
+    return med === null ? '' : 'mediana ' + fmt(med) + ' d';
+  }
+
+  var HOJAS = { pricing: pintaPricing, respuesta: pintaRespuesta, clientes: pintaClientes };
+  var hojaActiva = 'pricing', datosAhora = [];
+
+  function pintaAnalisis(datos) {
+    datosAhora = datos;
+    HOJAS[hojaActiva](datos);
+    var com = datos.filter(function (c) { return c.sub === 'Comercial'; });
+    var precio = com.filter(esPrecio);
+    var cerrados = datos.filter(function (c) { return c.resol !== null; });
+    var partes = ['Tres cortes del mismo conjunto: qué se factura mal, cuánto tardamos en responder y en quién se concentra.'];
+    if (com.length && precio.length) {
+      partes = partes.concat([' Hoy ', { b: pct(precio.length / com.length) },
+        ' de lo comercial es error de precio', cerrados.length ? ', y la mitad de los casos se cierra en ' : '.',
+        cerrados.length ? { b: fmt(percentil(cerrados.map(function (c) { return c.resol; }), 0.5)) + ' días' } : '',
+        cerrados.length ? '.' : '']);
+    }
+    escribe('h-analisis', partes);
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.pestana'), function (b) {
+    b.addEventListener('click', function () {
+      hojaActiva = b.id.slice(4);
+      Array.prototype.forEach.call(document.querySelectorAll('.pestana'), function (x) {
+        x.setAttribute('aria-selected', x === b ? 'true' : 'false');
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.hoja'), function (h) {
+        h.hidden = h.id !== 'hoja-' + hojaActiva;
+        if (!h.hidden) { h.style.animation = 'none'; void h.getBoundingClientRect(); h.style.animation = ''; }
+      });
+      pintaAnalisis(datosAhora);
+    });
+  });
+
+  // ---------------------------------------------------------------------
   // Filtros, dibujo y eventos
   // ---------------------------------------------------------------------
   // Cada filtro es una lista: vacía quiere decir "todos", y se pueden marcar
@@ -1848,6 +2506,7 @@ tr[data-guardando="1"] { opacity: .55; }
     pintaDuenos(abiertos);
     hallazgoTiempo(datos, abiertos);
 
+    pintaAnalisis(datos);
     pintaLista(listaDeCola(datos));
     escribe('h-lista', [LECTURA
       ? 'Los casos, del que más lleva esperando al que menos.'
