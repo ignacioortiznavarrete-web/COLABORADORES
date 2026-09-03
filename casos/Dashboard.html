@@ -176,23 +176,83 @@ button, select, input { font: inherit; color: inherit; }
 }
 .cuenta-viva { font-size: 12.5px; color: var(--tinta-3); }
 .cuenta-viva b { color: var(--tinta); font-weight: 500; }
-.grupo { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.grupo__et { font-size: 12px; color: var(--tinta-3); }
-.chips { display: flex; gap: 5px; flex-wrap: wrap; }
-.chip { position: relative; display: inline-flex; }
-.chip input {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  margin: 0; opacity: 0; cursor: pointer;
+/* --- Desplegable con lista de casillas ------------------------------------ */
+.combo { position: relative; display: inline-flex; }
+.combo__btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 999px;
+  padding: 5px 11px 5px 13px; cursor: pointer; max-width: 260px;
+  transition: border-color .18s cubic-bezier(.16, 1, .3, 1);
 }
-.chip span {
-  padding: 4px 11px; border-radius: 999px; border: 1px solid var(--borde);
-  font-size: 12.5px; color: var(--tinta-2); background: var(--sup); white-space: nowrap;
-  transition: background .18s cubic-bezier(.16, 1, .3, 1), color .18s, border-color .18s;
+.combo__btn:hover { border-color: var(--s1); }
+.combo__btn[aria-expanded="true"] { border-color: var(--s1); }
+.combo__et { font-size: 12px; color: var(--tinta-3); white-space: nowrap; }
+.combo__val {
+  font-size: 12.5px; color: var(--tinta); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
 }
-.chip input:checked + span { background: var(--s1); border-color: var(--s1); color: #fff; }
-.chip input:focus-visible + span { outline: 2px solid var(--foco); outline-offset: 2px; }
-.chip:hover span { border-color: var(--s1); }
-.chip input:active + span { transform: translateY(1px); }
+.combo__btn[data-activo="1"] .combo__val { color: var(--s1); font-weight: 500; }
+.combo__flecha { width: 9px; height: 9px; flex: none; fill: none; stroke: var(--tinta-3); stroke-width: 1.6; }
+
+/* El panel vive en el <body>: dentro de la barra lo cortaría el plegado. */
+.panel-combo {
+  position: fixed; z-index: var(--z-tooltip); min-width: 210px; max-width: 300px;
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(120, 40, 75, .20);
+  padding: 6px; max-height: min(340px, 62vh); overflow: auto;
+  animation: bajarPanel .18s cubic-bezier(.16, 1, .3, 1) both;
+}
+@keyframes bajarPanel { from { opacity: 0; transform: translateY(-6px); } }
+.panel-combo__acciones {
+  display: flex; gap: 6px; padding: 2px 4px 7px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--linea);
+}
+.panel-combo__acciones button {
+  background: none; border: 0; padding: 2px 6px; cursor: pointer;
+  font-size: 12px; color: var(--tinta-3); border-radius: 6px;
+}
+.panel-combo__acciones button:hover { color: var(--s1); background: var(--sup-2); }
+.opcion {
+  display: flex; align-items: center; gap: 9px; padding: 7px 8px;
+  border-radius: 8px; cursor: pointer; font-size: 13px;
+}
+.opcion:hover { background: var(--sup-2); }
+.opcion input { position: absolute; opacity: 0; width: 0; height: 0; }
+.opcion__marca {
+  width: 17px; height: 17px; flex: none; border-radius: 5px;
+  border: 1.5px solid var(--eje); background: var(--sup);
+  transition: background .14s, border-color .14s;
+}
+.opcion input:checked + .opcion__marca { background: var(--s1); border-color: var(--s1); }
+.opcion input:checked + .opcion__marca::after {
+  content: ''; display: block; width: 4px; height: 8px; margin: 1px auto 0;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(42deg);
+}
+.opcion input:focus-visible + .opcion__marca { outline: 2px solid var(--foco); outline-offset: 2px; }
+.opcion__txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opcion__n {
+  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+  font-size: 11.5px; color: var(--tinta-3); font-variant-numeric: tabular-nums;
+}
+
+/* --- Barra de la cola de trabajo ------------------------------------------ */
+.cola__barra {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding-bottom: 12px; margin-bottom: 2px; border-bottom: 1px solid var(--linea);
+}
+.cola__barra select, .cola__barra input {
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 999px;
+  padding: 5px 11px; font-size: 12.5px;
+}
+.cola__barra input { flex: 1 1 190px; min-width: 150px; max-width: 320px; }
+.cola__nota { margin-left: auto; font-size: 12.5px; color: var(--tinta-3); }
+.sel-estado {
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 999px;
+  padding: 3px 8px; font-size: 12px; color: var(--tinta); cursor: pointer;
+  transition: border-color .16s;
+}
+.sel-estado:hover { border-color: var(--s1); }
+.sel-estado[data-cerrado="1"] { border-color: var(--s1); color: var(--s1); }
 
 .campo { display: flex; align-items: center; gap: 6px; }
 .campo > label { font-size: 12px; color: var(--tinta-3); }
@@ -418,8 +478,9 @@ tr[data-guardando="1"] { opacity: .55; }
    un campo, y ya no vuelve. */
 @media (pointer: coarse) {
   .campo select, .buscador input { font-size: 16px; padding: 7px 11px; }
-  .chip span { padding: 7px 14px; }
-  .cierre input { width: 24px; height: 24px; }
+  .combo__btn { padding: 8px 13px 8px 15px; }
+  .opcion { padding: 10px 8px; }
+  .cola__barra select, .cola__barra input, .sel-estado { font-size: 16px; padding: 7px 12px; }
   .boton { padding: 8px 14px; }
   .orden { padding: 4px 0; }
 }
@@ -456,29 +517,14 @@ tr[data-guardando="1"] { opacity: .55; }
       </div>
     </div>
     <div class="filtros" id="filtros" role="group" aria-label="Filtros del tablero">
-      <div class="grupo">
-        <span class="grupo__et" id="et-anio">Año</span>
-        <div class="chips" id="f-anio" role="group" aria-labelledby="et-anio"></div>
-      </div>
-      <div class="grupo">
-        <span class="grupo__et" id="et-estado">Estado</span>
-        <div class="chips" id="f-estado" role="group" aria-labelledby="et-estado"></div>
-      </div>
-      <div class="grupo">
-        <span class="grupo__et" id="et-tipo">Tipo</span>
-        <div class="chips" id="f-tipo" role="group" aria-labelledby="et-tipo"></div>
-      </div>
-      <div class="grupo">
-        <span class="grupo__et" id="et-sub">Subcategoría</span>
-        <div class="chips" id="f-sub" role="group" aria-labelledby="et-sub"></div>
-      </div>
-      <div class="grupo">
-        <span class="grupo__et" id="et-causa">Causa</span>
-        <div class="chips" id="f-causa" role="group" aria-labelledby="et-causa"></div>
-      </div>
+      <div class="combo" id="c-anio"></div>
+      <div class="combo" id="c-estado"></div>
+      <div class="combo" id="c-tipo"></div>
+      <div class="combo" id="c-sub"></div>
+      <div class="combo" id="c-causa"></div>
       <div class="campo buscador">
-        <label class="oculto-visual" for="f-texto">Buscar</label>
-        <input id="f-texto" type="search" placeholder="Cliente, caso o asunto" autocomplete="off">
+        <label class="oculto-visual" for="f-texto">Buscar en todo el tablero</label>
+        <input id="f-texto" type="search" placeholder="Buscar en todo" autocomplete="off">
       </div>
       <button class="boton" id="btn-limpiar" type="button" hidden>Quitar filtros</button>
     </div>
@@ -615,6 +661,17 @@ tr[data-guardando="1"] { opacity: .55; }
         <p class="hallazgo" id="h-lista"></p>
       </div>
       <div class="panel">
+        <div class="cola__barra">
+          <label class="oculto-visual" for="cola-estado">Qué casos listar</label>
+          <select id="cola-estado">
+            <option value="abiertos">Abiertos</option>
+            <option value="cerrados">Cerrados</option>
+            <option value="todos">Todos</option>
+          </select>
+          <label class="oculto-visual" for="cola-buscar">Buscar en esta tabla</label>
+          <input id="cola-buscar" type="search" placeholder="Buscar caso, cliente, responsable…" autocomplete="off">
+          <span class="cola__nota" id="cola-nota"></span>
+        </div>
         <div class="cola__marco">
           <div class="tabla-caja" id="t-abiertos"></div>
           <div class="cola__velo" id="velo-cola" hidden></div>
@@ -1196,7 +1253,7 @@ tr[data-guardando="1"] { opacity: .55; }
   // ---------------------------------------------------------------------
   // Cola de trabajo: tabla ordenable de los casos abiertos
   // ---------------------------------------------------------------------
-  var orden = { col: 5, dir: -1 }, colaAbierta = false, colaAhora = [], colaCerrados = false, TOPE_COLA = 8;
+  var orden = { col: 6, dir: -1 }, colaAbierta = false, colaAhora = [], TOPE_COLA = 8;
   var HAY_SERVIDOR = typeof google !== 'undefined' && google.script && google.script.run;
 
   function isoDe(f) {
@@ -1238,22 +1295,28 @@ tr[data-guardando="1"] { opacity: .55; }
     caso.espera = (caso.ap && !cerrado) ? dias(caso.ap, HOY) : null;
   }
 
-  function pideCambio(caso, casilla) {
-    var cerrar = casilla.checked;
+  function pideCambio(caso, control) {
+    var cerrar = control.value === 'cerrado';
+    function revierte() { control.value = caso.cerrado ? 'cerrado' : 'abierto'; }
+
+    // Elegir de nuevo lo que ya está no debe escribir nada: volver a "cerrado"
+    // un caso cerrado le cambiaría la fecha de cierre por la de hoy.
+    if (cerrar === !!caso.cerrado) return;
+
     if (!cerrar && caso.ci && !window.confirm(
       'Reabrir el caso ' + caso.n + ' borra su fecha de cierre (' + fechaCorta(caso.ci) + ').\n\n¿Seguir?')) {
-      casilla.checked = true;
+      revierte();
       return;
     }
-    var fila = casilla.parentNode.parentNode.parentNode;
-    casilla.disabled = true;
+    var fila = control.parentNode && control.parentNode.parentNode;
+    control.disabled = true;
     if (fila && fila.setAttribute) fila.setAttribute('data-guardando', '1');
 
     guardarEstado(caso, cerrar, function (err, r) {
-      casilla.disabled = false;
+      control.disabled = false;
       if (fila && fila.removeAttribute) fila.removeAttribute('data-guardando');
       if (err) {
-        casilla.checked = !cerrar;
+        revierte();
         avisar('No se pudo guardar el caso ' + caso.n + '. ' + (err.message || err), 'error');
         return;
       }
@@ -1261,64 +1324,78 @@ tr[data-guardando="1"] { opacity: .55; }
       avisar(r.ensayo
         ? 'Vista previa: el caso ' + caso.n + ' se ve ' + (r.cerrado ? 'cerrado' : 'abierto') + ', pero no se escribió en la planilla.'
         : (r.cerrado
-          ? 'Caso ' + caso.n + ' cerrado el ' + fechaCorta(caso.ci) + '. Sale de la cola.'
+          ? 'Caso ' + caso.n + ' cerrado el ' + fechaCorta(caso.ci) + '.'
           : 'Caso ' + caso.n + ' reabierto, sin fecha de cierre.'));
       render();
     });
   }
 
-  function celdaCierre(caso) {
+  /** El estado editable de cada fila. */
+  function celdaEstado(caso) {
     var td = document.createElement('td');
-    var caja = document.createElement('span');
-    caja.className = 'cierre';
-    var casilla = document.createElement('input');
-    casilla.type = 'checkbox';
-    casilla.checked = !!caso.cerrado;
-    casilla.setAttribute('aria-label', 'Caso ' + caso.n + ': marcar como cerrado');
-    casilla.addEventListener('change', function () { pideCambio(caso, casilla); });
-    caja.appendChild(casilla);
-    td.appendChild(caja);
+    var sel = document.createElement('select');
+    sel.className = 'sel-estado';
+    [['abierto', 'Abierto'], ['cerrado', 'Cerrado']].forEach(function (o) {
+      var op = document.createElement('option');
+      op.value = o[0];
+      op.textContent = o[1];
+      sel.appendChild(op);
+    });
+    sel.value = caso.cerrado ? 'cerrado' : 'abierto';
+    sel.setAttribute('data-cerrado', caso.cerrado ? '1' : '0');
+    sel.setAttribute('aria-label', 'Estado del caso ' + caso.n);
+    sel.addEventListener('change', function () { pideCambio(caso, sel); });
+    td.appendChild(sel);
     return td;
   }
 
   // ---------------------------------------------------------------------
-  // Cola de trabajo: tabla ordenable, y la casilla que cierra o reabre el caso
+  // Cola de trabajo: elige qué casos lista, busca dentro de ella y deja
+  // cambiar el estado de cualquiera.
   // ---------------------------------------------------------------------
-  function pintaLista(lista, mostrandoCerrados) {
+  var colaEstado = 'abiertos', colaTexto = '';
+
+  function listaDeCola(datos) {
+    var t = colaTexto.trim().toLowerCase();
+    return datos.filter(function (c) {
+      if (colaEstado === 'abiertos' && c.cerrado) return false;
+      if (colaEstado === 'cerrados' && !c.cerrado) return false;
+      if (!t) return true;
+      return (c.n + ' ' + c.cli + ' ' + c.due + ' ' + c.est + ' ' + c.sub + ' ' +
+        c.cau + ' ' + c.tip + ' ' + c.asu).toLowerCase().indexOf(t) !== -1;
+    });
+  }
+
+  function diasDeCaso(c) {
+    return c.cerrado ? (c.resol === null ? 0 : c.resol) : (c.espera === null ? 0 : c.espera);
+  }
+
+  function pintaLista(lista) {
     colaAhora = lista;
-    colaCerrados = !!mostrandoCerrados;
-    var diasDe = mostrandoCerrados
-      ? function (c) { return c.resol === null ? 0 : c.resol; }
-      : function (c) { return c.espera === null ? 0 : c.espera; };
     var cols = [
       { t: 'Caso', v: function (c) { return c.n; } },
       { t: 'Cliente', v: function (c) { return c.cli; } },
       { t: 'Responsable', v: function (c) { return c.due; } },
-      { t: 'Estado', v: function (c) { return c.est; } },
-      {
-        t: mostrandoCerrados ? 'Cerrado el' : 'Abierto el',
-        v: function (c) { var f = mostrandoCerrados ? c.ci : c.ap; return f ? f.getTime() : 0; },
-        txt: function (c) { return fechaCorta(mostrandoCerrados ? c.ci : c.ap); }
-      },
-      {
-        t: mostrandoCerrados ? 'Días hasta el cierre' : 'Días esperando', num: true,
-        v: diasDe, txt: function (c) { return fmt(diasDe(c)); }
-      }
+      { t: 'Situación', v: function (c) { return c.est; } },
+      { t: 'Abierto el', v: function (c) { return c.ap ? c.ap.getTime() : 0; }, txt: function (c) { return fechaCorta(c.ap); } },
+      { t: 'Cerrado el', v: function (c) { return c.ci ? c.ci.getTime() : 0; }, txt: function (c) { return c.ci ? fechaCorta(c.ci) : '—'; } },
+      { t: 'Días', num: true, v: diasDeCaso, txt: function (c) { return fmt(diasDeCaso(c)); } }
     ];
     var filas = lista.slice().sort(function (a, b) {
       var va = cols[orden.col].v(a), vb = cols[orden.col].v(b);
-      if (va === vb) return diasDe(b) - diasDe(a);
+      if (va === vb) return diasDeCaso(b) - diasDeCaso(a);
       return (va > vb ? 1 : -1) * orden.dir;
     });
 
     var caja = q('#t-abiertos'), velo = q('#velo-cola'), btn = q('#btn-cola');
     while (caja.firstChild) caja.removeChild(caja.firstChild);
+    q('#cola-nota').textContent = 'Días: esperando si está abierto, hasta el cierre si ya cerró';
     if (!filas.length) {
       var p = document.createElement('p');
       p.className = 'panel__nota';
-      p.textContent = mostrandoCerrados
-        ? 'Ningún caso cerrado con este filtro.'
-        : 'No quedan casos abiertos con este filtro.';
+      p.textContent = colaTexto
+        ? 'Ningún caso calza con “' + colaTexto + '”.'
+        : 'Ningún caso con esta combinación.';
       caja.appendChild(p);
       velo.hidden = true;
       btn.hidden = true;
@@ -1338,9 +1415,9 @@ tr[data-guardando="1"] { opacity: .55; }
 
     var t = document.createElement('table'), thead = document.createElement('thead'), tr = document.createElement('tr');
     if (!LECTURA) {
-      var thCierre = document.createElement('th');
-      thCierre.textContent = 'Cerrado';
-      tr.appendChild(thCierre);
+      var thEstado = document.createElement('th');
+      thEstado.textContent = 'Estado';
+      tr.appendChild(thEstado);
     }
     cols.forEach(function (c, i) {
       var th = document.createElement('th');
@@ -1351,8 +1428,8 @@ tr[data-guardando="1"] { opacity: .55; }
       b.textContent = c.t + (orden.col === i ? (orden.dir === 1 ? ' ↑' : ' ↓') : '');
       b.setAttribute('aria-sort', orden.col === i ? (orden.dir === 1 ? 'ascending' : 'descending') : 'none');
       b.addEventListener('click', function () {
-        if (orden.col === i) orden.dir *= -1; else { orden.col = i; orden.dir = i === 5 ? -1 : 1; }
-        pintaLista(colaAhora, colaCerrados);
+        if (orden.col === i) orden.dir *= -1; else { orden.col = i; orden.dir = i === 6 ? -1 : 1; }
+        pintaLista(colaAhora);
       });
       th.appendChild(b);
       tr.appendChild(th);
@@ -1365,14 +1442,14 @@ tr[data-guardando="1"] { opacity: .55; }
       var fr = document.createElement('tr');
       if (quietud) fr.style.animation = 'none';
       else fr.style.animationDelay = Math.min(fi, 12) * 18 + 'ms';
-      if (!LECTURA) fr.appendChild(celdaCierre(c));
+      if (!LECTURA) fr.appendChild(celdaEstado(c));
       cols.forEach(function (col, i) {
         var td = document.createElement('td');
         if (col.num) td.className = 'n';
-        if (i === 5) {
+        if (i === 6) {
           var punto = document.createElement('span');
           punto.className = 'punto';
-          punto.style.background = (!mostrandoCerrados && diasDe(c) > 90) ? css('--tarde') : css('--s1');
+          punto.style.background = (!c.cerrado && diasDeCaso(c) > 90) ? css('--tarde') : css('--s1');
           td.appendChild(punto);
         }
         td.appendChild(document.createTextNode(col.txt ? col.txt(c) : col.v(c)));
@@ -1506,28 +1583,145 @@ tr[data-guardando="1"] { opacity: .55; }
   // Filtros, dibujo y eventos
   // ---------------------------------------------------------------------
   // Cada filtro es una lista: vacía quiere decir "todos", y se pueden marcar
-  // varios a la vez.
+  // varias opciones a la vez desde su desplegable.
   var F = { anio: [], estado: [], tipo: [], sub: [], causa: [], texto: '' };
+  var COMBOS = [], comboAbierto = null;
 
-  function llenaChips(id, opciones) {
-    var caja = document.getElementById(id), clave = id.slice(2);
-    opciones.forEach(function (op) {
-      var etiqueta = document.createElement('label'), casilla = document.createElement('input'),
-        texto = document.createElement('span');
-      etiqueta.className = 'chip';
-      casilla.type = 'checkbox';
-      casilla.value = op.valor === undefined ? op : op.valor;
-      texto.textContent = op.texto === undefined ? op : op.texto;
-      etiqueta.appendChild(casilla);
-      etiqueta.appendChild(texto);
-      caja.appendChild(etiqueta);
-      casilla.addEventListener('change', function () {
-        F[clave] = Array.prototype.map.call(caja.querySelectorAll('input:checked'),
-          function (x) { return x.value; });
-        render();
-      });
-    });
+  function cierraCombo() {
+    if (!comboAbierto) return;
+    comboAbierto.panel.hidden = true;
+    comboAbierto.btn.setAttribute('aria-expanded', 'false');
+    comboAbierto = null;
   }
+
+  /**
+   * Desplegable con lista de casillas. El panel se cuelga del <body>: dentro de
+   * la barra de filtros, que se pliega con overflow oculto, quedaría recortado.
+   */
+  function creaCombo(id, clave, etiqueta, textoTodos, opciones) {
+    var caja = document.getElementById(id);
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'combo__btn';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-haspopup', 'true');
+
+    var et = document.createElement('span');
+    et.className = 'combo__et';
+    et.textContent = etiqueta;
+    var val = document.createElement('span');
+    val.className = 'combo__val';
+    var flecha = el('svg', { class: 'combo__flecha', viewBox: '0 0 10 10' });
+    flecha.appendChild(el('polyline', { points: '1,3.5 5,7 9,3.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+    btn.appendChild(et);
+    btn.appendChild(val);
+    btn.appendChild(flecha);
+    caja.appendChild(btn);
+
+    var panel = document.createElement('div');
+    panel.className = 'panel-combo';
+    panel.hidden = true;
+    panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', etiqueta);
+    var acciones = document.createElement('div');
+    acciones.className = 'panel-combo__acciones';
+    var bTodo = document.createElement('button');
+    bTodo.type = 'button';
+    bTodo.textContent = 'Marcar todo';
+    var bNada = document.createElement('button');
+    bNada.type = 'button';
+    bNada.textContent = 'Limpiar';
+    acciones.appendChild(bTodo);
+    acciones.appendChild(bNada);
+    panel.appendChild(acciones);
+    document.body.appendChild(panel);
+
+    var casillas = [], textos = {};
+    opciones.forEach(function (op) {
+      textos[op.valor] = op.texto;
+      var fila = document.createElement('label');
+      fila.className = 'opcion';
+      var casilla = document.createElement('input');
+      casilla.type = 'checkbox';
+      casilla.value = op.valor;
+      var marca = document.createElement('span');
+      marca.className = 'opcion__marca';
+      var texto = document.createElement('span');
+      texto.className = 'opcion__txt';
+      texto.textContent = op.texto;
+      fila.appendChild(casilla);
+      fila.appendChild(marca);
+      fila.appendChild(texto);
+      if (op.n !== undefined) {
+        var n = document.createElement('span');
+        n.className = 'opcion__n';
+        n.textContent = fmt(op.n);
+        fila.appendChild(n);
+      }
+      panel.appendChild(fila);
+      casillas.push(casilla);
+      casilla.addEventListener('change', function () { refresca(true); });
+    });
+
+    function refresca(dibujar) {
+      var elegidos = casillas.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+      F[clave] = elegidos;
+      val.textContent = elegidos.length === 0 ? textoTodos
+        : elegidos.length === 1 ? textos[elegidos[0]]
+          : elegidos.length + ' elegidos';
+      btn.setAttribute('data-activo', elegidos.length ? '1' : '0');
+      if (dibujar) render();
+    }
+
+    function coloca() {
+      var r = btn.getBoundingClientRect();
+      var an = panel.offsetWidth || 220, alto = panel.offsetHeight || 240;
+      panel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - an - 8)) + 'px';
+      var abajo = r.bottom + 6;
+      panel.style.top = (abajo + alto > window.innerHeight - 8 && r.top - alto - 6 > 8
+        ? r.top - alto - 6 : abajo) + 'px';
+    }
+
+    btn.addEventListener('click', function () {
+      if (comboAbierto && comboAbierto.btn === btn) { cierraCombo(); return; }
+      cierraCombo();
+      panel.hidden = false;
+      coloca();
+      btn.setAttribute('aria-expanded', 'true');
+      comboAbierto = { panel: panel, btn: btn, coloca: coloca };
+      if (casillas.length) casillas[0].focus();
+    });
+    bTodo.addEventListener('click', function () {
+      casillas.forEach(function (c) { c.checked = true; });
+      refresca(true);
+    });
+    bNada.addEventListener('click', function () {
+      casillas.forEach(function (c) { c.checked = false; });
+      refresca(true);
+    });
+
+    COMBOS.push({
+      limpia: function () {
+        casillas.forEach(function (c) { c.checked = false; });
+        refresca(false);
+      }
+    });
+    refresca(false);
+  }
+
+  document.addEventListener('pointerdown', function (ev) {
+    if (!comboAbierto) return;
+    if (comboAbierto.panel.contains(ev.target) || comboAbierto.btn.contains(ev.target)) return;
+    cierraCombo();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || !comboAbierto) return;
+    var volver = comboAbierto.btn;
+    cierraCombo();
+    volver.focus();
+  });
+  window.addEventListener('resize', function () { if (comboAbierto) comboAbierto.coloca(); });
+  window.addEventListener('scroll', function () { if (comboAbierto) comboAbierto.coloca(); }, true);
 
   function pasa(elegidos, valor) { return !elegidos.length || elegidos.indexOf(valor) !== -1; }
 
@@ -1564,8 +1758,8 @@ tr[data-guardando="1"] { opacity: .55; }
   }
 
   function limpiar() {
-    F = { anio: [], estado: [], tipo: [], sub: [], causa: [], texto: '' };
-    Array.prototype.forEach.call(document.querySelectorAll('.chips input'), function (x) { x.checked = false; });
+    COMBOS.forEach(function (c) { c.limpia(); });
+    F.texto = '';
     q('#f-texto').value = '';
     render();
   }
@@ -1594,15 +1788,10 @@ tr[data-guardando="1"] { opacity: .55; }
     pintaDuenos(abiertos);
     hallazgoTiempo(datos, abiertos);
 
-    // La cola muestra lo que dice el filtro de estado: los abiertos por
-    // defecto, y los cerrados cuando se pide solo eso, para poder reabrirlos.
-    var soloCerrados = F.estado.length === 1 && F.estado[0] === 'cerrado';
-    pintaLista(soloCerrados ? datos.filter(function (c) { return c.cerrado; }) : abiertos, soloCerrados);
-    escribe('h-lista', [soloCerrados
-      ? 'Los casos cerrados. Desmarca la casilla para reabrir uno: vuelve a quedar abierto y se le borra la fecha de cierre.'
-      : (LECTURA
-        ? 'Los casos abiertos, del que más lleva esperando al que menos.'
-        : 'Marca la casilla para cerrar un caso: se escribe en la planilla y sale de la cola. Para reabrir, filtra por Cerrados.')]);
+    pintaLista(listaDeCola(datos));
+    escribe('h-lista', [LECTURA
+      ? 'Los casos, del que más lleva esperando al que menos.'
+      : 'Elige qué casos listar, busca dentro de la tabla y cambia el estado de cualquiera: lo que marques aquí se escribe en la planilla.']);
     primeraVez = false;
   }
 
@@ -1661,9 +1850,21 @@ tr[data-guardando="1"] { opacity: .55; }
 
   q('#btn-limpiar').addEventListener('click', limpiar);
 
+  q('#cola-estado').addEventListener('change', function (e) {
+    colaEstado = e.target.value;
+    colaAbierta = false;
+    render();
+  });
+  var relojCola = null;
+  q('#cola-buscar').addEventListener('input', function (e) {
+    clearTimeout(relojCola);
+    var v = e.target.value;
+    relojCola = setTimeout(function () { colaTexto = v; render(); }, 170);
+  });
+
   q('#btn-cola').addEventListener('click', function () {
     colaAbierta = !colaAbierta;
-    pintaLista(colaAhora, colaCerrados);
+    pintaLista(colaAhora);
     if (!colaAbierta) q('#btn-cola').scrollIntoView({ block: 'nearest', behavior: quietud ? 'auto' : 'smooth' });
   });
 
@@ -1680,18 +1881,27 @@ tr[data-guardando="1"] { opacity: .55; }
   });
 
   // Arranque
-  llenaChips('f-anio', Array.from(new Set(CASOS.map(function (c) { return c.anio; }).filter(Boolean))).sort());
-  llenaChips('f-estado', [{ valor: 'abierto', texto: 'Abiertos' }, { valor: 'cerrado', texto: 'Cerrados' }]);
+  function opcionesDe(campo) {
+    return contar(CASOS, campo).map(function (o) { return { valor: o.k, texto: o.k, n: o.n }; });
+  }
+  var anios = Array.from(new Set(CASOS.map(function (c) { return c.anio; }).filter(Boolean))).sort();
+  creaCombo('c-anio', 'anio', 'Año', 'Todos', anios.map(function (a) {
+    return { valor: a, texto: a, n: CASOS.filter(function (c) { return c.anio === a; }).length };
+  }));
+  creaCombo('c-estado', 'estado', 'Estado', 'Todos', [
+    { valor: 'abierto', texto: 'Abiertos', n: CASOS.filter(function (c) { return !c.cerrado; }).length },
+    { valor: 'cerrado', texto: 'Cerrados', n: CASOS.filter(function (c) { return c.cerrado; }).length }
+  ]);
   var tipos = contar(CASOS, function (c) { return c.tip; }).map(function (t) { return t.k; });
-  llenaChips('f-tipo', tipos);
-  llenaChips('f-sub', contar(CASOS, function (c) { return c.sub; }).map(function (s) { return s.k; }));
+  creaCombo('c-tipo', 'tipo', 'Tipo', 'Todos', opcionesDe(function (c) { return c.tip; }));
+  creaCombo('c-sub', 'sub', 'Subcategoría', 'Todas', opcionesDe(function (c) { return c.sub; }));
   // El título dice lo que hay cargado: si la hoja trae un solo tipo, lo nombra.
   if (tipos.length === 1 && tipos[0] !== 'Sin tipo') {
     q('.marca__nombre').textContent = 'Reclamos de ' + tipos[0].toLowerCase();
   } else if (tipos.length > 1) {
     q('.marca__nombre').textContent = 'Reclamos de clientes';
   }
-  llenaChips('f-causa', contar(CASOS, function (c) { return c.cau || 'Sin causa declarada'; }).map(function (c) { return c.k; }));
+  creaCombo('c-causa', 'causa', 'Causa', 'Todas', opcionesDe(function (c) { return c.cau || 'Sin causa declarada'; }));
 
   var fechas = CASOS.map(function (c) { return c.ap; }).filter(Boolean).sort(function (a, b) { return a - b; });
   if (fechas.length) {
