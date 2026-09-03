@@ -309,22 +309,29 @@ var COLUMNAS_TABLERO = [
 /** Menú "Casos": abre el tablero en un cuadro sobre la planilla. */
 function abrirTablero() {
   SpreadsheetApp.getUi().showModalDialog(
-    HtmlService.createHtmlOutput(paginaTablero_()).setWidth(1600).setHeight(1000),
+    HtmlService.createHtmlOutput(paginaTablero_(false)).setWidth(1600).setHeight(1000),
     'Reclamos de exportación'
   );
 }
 
-/** Aplicación web: el mismo tablero con enlace propio para compartir. */
-function doGet() {
-  return HtmlService.createHtmlOutput(paginaTablero_())
+/**
+ * Aplicación web: el mismo tablero con enlace propio para compartir.
+ * Agregando ?lectura=1 al enlace, el tablero se abre sin controles: se mira y
+ * no se toca. Sirve para mandarlo por WhatsApp o abrirlo en el teléfono.
+ */
+function doGet(e) {
+  var lectura = !!(e && e.parameter && (e.parameter.lectura === '1' || e.parameter.lectura === 'true'));
+  return HtmlService.createHtmlOutput(paginaTablero_(lectura))
     .setTitle('Reclamos de exportación')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
 
-function paginaTablero_() {
+function paginaTablero_(lectura) {
+  var datos = datosDelTablero_();
+  if (lectura) datos.lectura = true;
   // El reemplazo va con función para que un "$" en los datos no se interprete
   // como referencia de String.replace.
-  var json = JSON.stringify(datosDelTablero_()).replace(/</g, '\\u003c');
+  var json = JSON.stringify(datos).replace(/</g, '\\u003c');
   return HtmlService.createHtmlOutputFromFile('Dashboard').getContent()
     .replace('__DATOS__', function () { return json; });
 }

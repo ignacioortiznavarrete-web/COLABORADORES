@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Reclamos de exportación</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -84,9 +84,13 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   margin: 0;
   background: var(--plano);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
   transition: background-color .3s cubic-bezier(.16, 1, .3, 1);
   color: var(--tinta);
   font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -103,26 +107,44 @@ button, select, input { font: inherit; color: inherit; }
   position: absolute; width: 1px; height: 1px; overflow: hidden;
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
 }
-.envoltura { max-width: 1340px; margin: 0 auto; padding: 0 clamp(16px, 3vw, 34px); }
+.envoltura {
+  max-width: 1340px; margin: 0 auto;
+  padding-left: max(clamp(14px, 3vw, 34px), env(safe-area-inset-left));
+  padding-right: max(clamp(14px, 3vw, 34px), env(safe-area-inset-right));
+}
+.tabla-caja { -webkit-overflow-scrolling: touch; }
 
 /* --- Barra superior ------------------------------------------------------ */
 .barra {
-  position: sticky; top: 0; z-index: var(--z-barra);
+  position: sticky; top: 0; z-index: var(--z-barra); position: sticky;
   background: color-mix(in srgb, var(--plano) 92%, transparent);
   border-bottom: 1px solid var(--borde);
 }
 @supports not (background: color-mix(in srgb, red 50%, blue)) {
   .barra { background: var(--plano); }
 }
+.barra > .envoltura { position: relative; }
 .barra__fila {
-  display: flex; align-items: baseline; gap: 14px;
-  padding: 16px 0 14px;
+  display: flex; align-items: baseline; gap: 10px 14px; flex-wrap: wrap;
+  padding: 16px 0 14px; position: relative;
 }
 .marca { display: flex; align-items: baseline; gap: 10px; }
-.marca__glifo {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--s1); flex: none; transform: translateY(-1px);
+.flor { display: block; overflow: visible; }
+.flor__petalos { fill: var(--s1); }
+.flor__centro { fill: var(--tarde); }
+.marca__flor {
+  width: 17px; height: 17px; flex: none; transform: translateY(2px);
+  animation: brotar .7s cubic-bezier(.16, 1, .3, 1) both;
 }
+@keyframes brotar { from { transform: translateY(2px) scale(.5) rotate(-28deg); opacity: 0; } }
+/* Un puñado de flores en el fondo del encabezado. Decoración: no recibe
+   clics y se va en pantallas angostas, donde el espacio es del contenido. */
+.jardin { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.jardin .flor { position: absolute; opacity: .13; }
+.jardin .flor:nth-child(1) { width: 34px; height: 34px; right: 4%; bottom: 12px; transform: rotate(-12deg); }
+.jardin .flor:nth-child(2) { width: 20px; height: 20px; right: 10.5%; bottom: 38px; transform: rotate(24deg); }
+.jardin .flor:nth-child(3) { width: 27px; height: 27px; right: 7.5%; bottom: -7px; transform: rotate(9deg); }
+@media (max-width: 900px) { .jardin { display: none; } }
 .marca__nombre {
   font-family: Fraunces, Georgia, "Times New Roman", serif;
   font-optical-sizing: auto;
@@ -142,8 +164,18 @@ button, select, input { font: inherit; color: inherit; }
 /* --- Fila de filtros ----------------------------------------------------- */
 .filtros {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding-bottom: 14px;
+  padding-bottom: 14px; max-height: 260px; overflow: hidden;
+  transition: max-height .34s cubic-bezier(.16, 1, .3, 1), opacity .22s, padding-bottom .34s;
 }
+.filtros[data-plegado="1"] { max-height: 0; opacity: 0; padding-bottom: 0; }
+.pastilla {
+  display: inline-block; min-width: 17px; padding: 0 5px; margin-left: 6px;
+  border-radius: 999px; background: var(--s1); color: #fff;
+  font-size: 11px; line-height: 17px; text-align: center;
+  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+}
+.cuenta-viva { font-size: 12.5px; color: var(--tinta-3); }
+.cuenta-viva b { color: var(--tinta); font-weight: 500; }
 .campo { display: flex; align-items: center; gap: 6px; }
 .campo > label { font-size: 12px; color: var(--tinta-3); }
 .campo select, .buscador input {
@@ -272,6 +304,18 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
 .orden[aria-sort="descending"], .orden[aria-sort="ascending"] { color: var(--tinta); }
 .punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
 
+/* --- Solo lectura: se mira, no se toca ----------------------------------- */
+[data-lectura] .barra__der,
+[data-lectura] .filtros,
+[data-lectura] .panel__acc,
+[data-lectura] .cola__pie,
+[data-lectura] .cola__velo { display: none !important; }
+[data-lectura] .orden { pointer-events: none; }
+[data-lectura] .marca__sub::after {
+  content: 'solo lectura'; margin-left: 10px; padding: 2px 8px;
+  border: 1px solid var(--borde); border-radius: 999px; font-size: 11px;
+}
+
 /* --- Cola de trabajo plegada --------------------------------------------- */
 .cola__marco { position: relative; }
 .cola__velo {
@@ -312,8 +356,21 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
 }
 @media (max-width: 640px) {
   .filtros__cuenta { margin-left: 0; width: 100%; }
-  .buscador input { width: 100%; }
-  .campo select { max-width: 100%; }
+  .buscador, .buscador input { width: 100%; }
+  .campo { flex: 1 1 46%; }
+  .campo select { max-width: 100%; width: 100%; }
+  .panel { padding: 16px 14px 14px; border-radius: 12px; }
+  .panel__cab { flex-wrap: wrap; }
+  .panel__nota { order: 3; flex-basis: 100%; margin-top: 2px; }
+  .seccion { padding-top: 26px; }
+  th, td { padding-right: 14px; }
+}
+/* En pantallas táctiles el tipo bajo 16px hace que Safari haga zoom al tocar
+   un campo, y ya no vuelve. */
+@media (pointer: coarse) {
+  .campo select, .buscador input { font-size: 16px; padding: 7px 11px; }
+  .boton { padding: 8px 14px; }
+  .orden { padding: 4px 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; transition-duration: .001ms !important; }
@@ -325,17 +382,29 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
 
 <header class="barra">
   <div class="envoltura">
+    <div class="jardin" id="jardin" aria-hidden="true"></div>
     <div class="barra__fila">
       <div class="marca">
-        <span class="marca__glifo" aria-hidden="true"></span>
+        <svg class="flor marca__flor" id="flor-marca" viewBox="0 0 24 24" aria-hidden="true">
+          <g class="flor__petalos">
+            <circle cx="12" cy="5.2" r="4.15"/>
+            <circle cx="18.47" cy="9.9" r="4.15"/>
+            <circle cx="16" cy="17.5" r="4.15"/>
+            <circle cx="8" cy="17.5" r="4.15"/>
+            <circle cx="5.53" cy="9.9" r="4.15"/>
+          </g>
+          <circle class="flor__centro" cx="12" cy="12" r="2.7"/>
+        </svg>
         <h1 class="marca__nombre">Reclamos de exportación</h1>
       </div>
       <span class="marca__sub" id="periodo">—</span>
+      <p class="cuenta-viva" id="cuenta" aria-live="polite"></p>
       <div class="barra__der">
+        <button class="boton" id="btn-filtros" type="button" aria-expanded="true" aria-controls="filtros">Filtros<span class="pastilla" id="filtros-activos" hidden></span></button>
         <button class="boton" id="btn-tema" type="button" aria-pressed="false">Modo oscuro</button>
       </div>
     </div>
-    <div class="filtros" role="group" aria-label="Filtros del tablero">
+    <div class="filtros" id="filtros" role="group" aria-label="Filtros del tablero">
       <div class="campo">
         <label for="f-anio">Año</label>
         <select id="f-anio"><option value="">Todos</option></select>
@@ -365,7 +434,6 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
         <input id="f-texto" type="search" placeholder="Cliente, caso o asunto" autocomplete="off">
       </div>
       <button class="boton" id="btn-limpiar" type="button" hidden>Quitar filtros</button>
-      <p class="filtros__cuenta" id="cuenta" aria-live="polite"></p>
     </div>
   </div>
 </header>
@@ -601,6 +669,10 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
 
   var quietud = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var primeraVez = true;
+  // Modo mirar y no tocar. Lo enciende el servidor con ?lectura=1 en la
+  // aplicación web, o la propia URL cuando el archivo se abre suelto.
+  var LECTURA = CRUDO.lectura === true || /(?:^|[?&#])lectura=1/.test(location.search + location.hash);
+  if (LECTURA) document.body.setAttribute('data-lectura', '1');
 
   var NS = 'http://www.w3.org/2000/svg';
   function el(tag, at) {
@@ -642,7 +714,7 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
       void svg.getBoundingClientRect();
       svg.classList.add('fundido');
     }
-    var an = Math.max(280, svg.clientWidth || svg.parentNode.clientWidth || 600);
+    var an = Math.max(260, Math.round(svg.getBoundingClientRect().width) || svg.parentNode.clientWidth || 600);
     svg.setAttribute('viewBox', '0 0 ' + an + ' ' + alto);
     svg.setAttribute('height', alto);
     return { svg: svg, an: an, alto: alto };
@@ -683,7 +755,10 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     tip.setAttribute('data-visible', '1');
   }
   function ocultarTip() { tip.removeAttribute('data-visible'); }
+  document.addEventListener('pointerdown', ocultarTip, true);
+
   function conTip(nodo, titulo, filas) {
+    nodo.addEventListener('pointerdown', function (ev) { verTip(ev, titulo, filas); });
     nodo.addEventListener('pointermove', function (ev) { verTip(ev, titulo, filas); });
     nodo.addEventListener('pointerleave', ocultarTip);
     nodo.addEventListener('focus', function (ev) {
@@ -748,11 +823,14 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     }
     g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
     var pasados = abiertos.filter(function (c) { return c.espera > 90; }).length;
+    var etUmbral = pasados
+      ? '90 días · ' + fmt(pasados) + (pasados === 1 ? ' caso más allá' : ' casos más allá')
+      : '90 días';
+    var finUmbral = 0;
     if (maxD > 90) {
       g.appendChild(el('line', { x1: X(90), y1: mt - 4, x2: X(90), y2: base, class: 'tira__umbral' }));
-      g.appendChild(texto(X(90) + 5, mt + 4,
-        pasados ? '90 días · ' + fmt(pasados) + (pasados === 1 ? ' caso más allá' : ' casos más allá') : '90 días',
-        'tira__et-umbral'));
+      g.appendChild(texto(X(90) + 5, mt + 4, etUmbral, 'tira__et-umbral'));
+      finUmbral = X(90) + 9 + etUmbral.length * 5.9;
     }
 
     if (!abiertos.length) {
@@ -802,9 +880,15 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
       var kx = Math.round(X(peor.espera) / paso), px = kx * paso;
       var cima = cimas.has(kx) ? cimas.get(kx) : base;
       var derecha = px > L.an * 0.55;
-      g.appendChild(el('line', { x1: px, y1: mt + 15, x2: px, y2: cima - 4, stroke: css('--eje'), 'stroke-width': 1 }));
-      g.appendChild(texto(px + (derecha ? -7 : 7), mt + 11, fmt(peor.espera) + ' días · ' + recorta(peor.cli, 22),
-        'et-tx', { 'text-anchor': derecha ? 'end' : 'start' }));
+      var etPeor = fmt(peor.espera) + ' días · ' + recorta(peor.cli, 22);
+      var inicioPeor = derecha ? px - 7 - etPeor.length * 6 : px + 7;
+      // En pantalla angosta las dos etiquetas se pisan. Gana la del umbral: el
+      // caso más antiguo ya está en la ficha de la izquierda.
+      if (inicioPeor > finUmbral) {
+        g.appendChild(el('line', { x1: px, y1: mt + 15, x2: px, y2: cima - 4, stroke: css('--eje'), 'stroke-width': 1 }));
+        g.appendChild(texto(px + (derecha ? -7 : 7), mt + 11, etPeor,
+          'et-tx', { 'text-anchor': derecha ? 'end' : 'start' }));
+      }
     }
 
     tabla('t-cola',
@@ -1092,8 +1176,8 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
       q('#cuenta-cola').textContent = '';
       return;
     }
-    var tope = colaAbierta ? filas.length : Math.min(TOPE_COLA, filas.length);
-    var hayMas = filas.length > TOPE_COLA;
+    var tope = (colaAbierta || LECTURA) ? filas.length : Math.min(TOPE_COLA, filas.length);
+    var hayMas = filas.length > TOPE_COLA && !LECTURA;
     velo.hidden = !(hayMas && !colaAbierta);
     btn.hidden = !hayMas;
     btn.textContent = colaAbierta ? 'Ver menos' : 'Ver los ' + fmt(filas.length) + ' casos';
@@ -1320,8 +1404,11 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
   function render() {
     var datos = filtrar();
     var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
-    var hayFiltro = !!(F.anio || F.estado || F.tipo || F.sub || F.causa || F.texto);
-    q('#btn-limpiar').hidden = !hayFiltro;
+    var activos = [F.anio, F.estado, F.tipo, F.sub, F.causa, F.texto].filter(Boolean).length;
+    q('#btn-limpiar').hidden = !activos;
+    var pastilla = q('#filtros-activos');
+    pastilla.hidden = !activos;
+    pastilla.textContent = activos;
     escribe('cuenta', [{ b: fmt(datos.length) }, ' de ' + fmt(CASOS.length) + ' casos']);
     estadoVacio(datos.length === 0);
     if (!datos.length) return;
@@ -1339,6 +1426,27 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     pintaLista(abiertos);
     primeraVez = false;
   }
+
+  // La barra de filtros se pliega. En pantalla chica llega plegada, porque son
+  // seis controles antes del primer dato.
+  function plegarFiltros(plegado) {
+    var caja = q('#filtros');
+    caja.setAttribute('data-plegado', plegado ? '1' : '0');
+    q('#btn-filtros').setAttribute('aria-expanded', plegado ? 'false' : 'true');
+    // Un control invisible no debe recibir el tabulador.
+    Array.prototype.forEach.call(caja.querySelectorAll('select, input, button'), function (c) {
+      c.tabIndex = plegado ? -1 : 0;
+    });
+    try { localStorage.setItem('tablero-casos-filtros', plegado ? '1' : '0'); } catch (e) { /* modo privado */ }
+  }
+
+  q('#btn-filtros').addEventListener('click', function () {
+    plegarFiltros(q('#filtros').getAttribute('data-plegado') !== '1');
+  });
+
+  var plegadoInicial;
+  try { plegadoInicial = localStorage.getItem('tablero-casos-filtros'); } catch (e) { plegadoInicial = null; }
+  plegarFiltros(plegadoInicial === null ? window.innerWidth < 760 : plegadoInicial === '1');
 
   // Tema. Los gráficos leen los tokens al dibujarse, así que hay que repintar.
   var raiz = document.documentElement;
@@ -1416,6 +1524,16 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
   }
   if (CRUDO.hoja) q('#fuente').innerHTML = '';
   escribe('fuente', ['Fuente: hoja ', { b: CRUDO.hoja || 'BD' }, ' · Salesforce · leído el ' + fechaCorta(HOY)]);
+
+  var jardin = q('#jardin'), molde = q('#flor-marca');
+  if (jardin && molde) {
+    for (var nFlor = 0; nFlor < 3; nFlor++) {
+      var copia = molde.cloneNode(true);
+      copia.removeAttribute('id');
+      copia.setAttribute('class', 'flor');
+      jardin.appendChild(copia);
+    }
+  }
 
   render();
 })();

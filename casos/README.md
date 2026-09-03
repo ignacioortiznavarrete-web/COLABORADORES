@@ -83,6 +83,10 @@ todo lo de abajo, incluidas las frases de hallazgo, que se recalculan solas: el
 tablero dice en palabras lo que está mostrando. Cada gráfico tiene su botón
 **Tabla** con los mismos números en texto.
 
+La barra de filtros se pliega con el botón **Filtros**, que muestra cuántos hay
+puestos. En pantalla angosta llega plegada: son seis controles antes del primer
+dato. El plegado queda recordado en el navegador.
+
 **Abierto o cerrado lo decide la columna `Cerrado` (P)**: VERDADERO es cerrado,
 FALSO abierto. Solo si esa celda viene en blanco el tablero mira el estado y la
 fecha de cierre. El filtro **Tipo** sale de la columna `Tipo` (R), y si la hoja
@@ -99,13 +103,42 @@ Para tener un enlace que se pueda compartir sin entrar a la planilla:
 **Implementar › Nueva implementación › Aplicación web**, ejecutando como tú y con
 el acceso que corresponda. Esa URL abre el mismo tablero.
 
+### Solo lectura
+
+Agregando **`?lectura=1`** al enlace de la aplicación web, el tablero se abre sin
+un solo control: sin filtros, sin ordenar, sin botones de tabla, sin plegado y sin
+cambio de tema. La cola de trabajo se muestra completa y los globos de datos
+siguen funcionando al tocar. Es el enlace para mandar por mensaje o para dejar
+abierto en el teléfono:
+
+```
+https://script.google.com/…/exec?lectura=1
+```
+
+Fuera de Google, la misma copia se arma con `node casos/preview/construir.js --lectura`.
+
+### En el teléfono
+
+Probado en pantalla de 390 px con Safari en mente:
+
+- Los campos usan 16 px en pantallas táctiles. Con menos, Safari hace zoom al
+  tocar un campo y ya no vuelve.
+- El ancho de cada gráfico se mide con `getBoundingClientRect`: Safari no
+  implementa `clientWidth` en un `<svg>` y devuelve 0, lo que dejaba los gráficos
+  con el ancho equivocado.
+- Sin cursor no hay "pasar por encima": un toque abre el globo de datos y un
+  toque al lado lo cierra.
+- Los márgenes respetan el área segura del notch y el texto no se infla al girar
+  el teléfono.
+
 ### Verlo fuera de Google
 
 ```
 node casos/preview/construir.js
 ```
 
-Escribe `casos/preview/tablero-demo.html`, que se abre con doble clic. Usa
+Escribe `casos/preview/tablero-demo.html`, que se abre con doble clic. Con
+`--lectura` escribe `tablero-lectura.html`, la copia sin controles. Usa
 `datos-ejemplo.json`, que tiene la forma y los números de la planilla real con los
 nombres de clientes y personas enmascarados: los datos de clientes no viven en el
 repositorio. Para verlo con los datos de verdad, pásale tu propio JSON:
