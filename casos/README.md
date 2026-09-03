@@ -120,6 +120,12 @@ Tiene su propia barra, independiente de los filtros de arriba:
   cualquier caso de los 391 sin tocar los filtros del tablero.
 - La columna **Días** dice días esperando si el caso está abierto, y días hasta
   el cierre si ya cerró.
+- Un botón **Copiar** que se lleva al portapapeles **todas** las filas filtradas
+  —no solo las ocho a la vista— con encabezados y separadas por tabuladores, que
+  es lo que Sheets y Excel entienden como columnas al pegar. El botón dice
+  cuántas va a copiar. Si el navegador bloquea el portapapeles moderno (pasa
+  dentro del cuadro de Apps Script), usa el respaldo de siempre y avisa si aun
+  así no pudo.
 
 La primera columna es el **estado editable** de cada caso. Al cambiarlo, el
 tablero escribe en la planilla:

@@ -925,6 +925,7 @@ tr[data-guardando="1"] { opacity: .55; }
           </select>
           <label class="oculto-visual" for="cola-buscar">Buscar en esta tabla</label>
           <input id="cola-buscar" type="search" placeholder="Buscar caso, cliente, responsable…" autocomplete="off">
+          <button class="boton" type="button" id="btn-copiar">Copiar</button>
           <span class="cola__nota" id="cola-nota"></span>
         </div>
         <div class="cola__marco">
@@ -1665,7 +1666,7 @@ tr[data-guardando="1"] { opacity: .55; }
   // Cola de trabajo: elige qué casos lista, busca dentro de ella y deja
   // cambiar el estado de cualquiera.
   // ---------------------------------------------------------------------
-  var colaEstado = 'abiertos', colaTexto = '';
+  var colaEstado = 'abiertos', colaTexto = '', colaOrdenada = [], colaCols = [];
 
   function listaDeCola(datos) {
     var t = colaTexto.trim().toLowerCase();
@@ -1698,6 +1699,12 @@ tr[data-guardando="1"] { opacity: .55; }
       if (va === vb) return diasDeCaso(b) - diasDeCaso(a);
       return (va > vb ? 1 : -1) * orden.dir;
     });
+
+    colaOrdenada = filas;
+    colaCols = cols;
+    q('#btn-copiar').textContent = filas.length
+      ? 'Copiar ' + fmt(filas.length) + (filas.length === 1 ? ' fila' : ' filas') : 'Copiar';
+    q('#btn-copiar').disabled = !filas.length;
 
     var caja = q('#t-abiertos'), velo = q('#velo-cola'), btn = q('#btn-cola');
     while (caja.firstChild) caja.removeChild(caja.firstChild);
@@ -2815,6 +2822,61 @@ tr[data-guardando="1"] { opacity: .55; }
       caja.hidden = abierta;
       b.setAttribute('aria-expanded', abierta ? 'false' : 'true');
       b.textContent = abierta ? 'Tabla' : 'Ocultar tabla';
+    });
+  });
+
+  /**
+   * Copia la tabla entera —no solo las filas a la vista— separada por
+   * tabuladores, que es lo que Sheets y Excel entienden como columnas al pegar.
+   */
+  function textoDeLaCola() {
+    var limpio = function (v) { return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ').trim(); };
+    var lineas = [['Estado'].concat(colaCols.map(function (c) { return c.t; })).join('\t')];
+    colaOrdenada.forEach(function (c) {
+      lineas.push([c.cerrado ? 'Cerrado' : 'Abierto'].concat(colaCols.map(function (col) {
+        return limpio(col.txt ? col.txt(c) : col.v(c));
+      })).join('\t'));
+    });
+    return lineas.join('\n');
+  }
+
+  function alPortapapeles(texto, alTerminar) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(function () { alTerminar(true); },
+        function () { alTerminar(porTextarea(texto)); });
+      return;
+    }
+    alTerminar(porTextarea(texto));
+  }
+
+  /** Respaldo para cuando el portapapeles moderno no está: dentro del iframe
+      de Apps Script y en navegadores viejos es lo único que funciona. */
+  function porTextarea(texto) {
+    var caja = document.createElement('textarea');
+    caja.value = texto;
+    caja.setAttribute('readonly', '');
+    caja.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(caja);
+    caja.select();
+    caja.setSelectionRange(0, texto.length);
+    var listo = false;
+    try { listo = document.execCommand('copy'); } catch (e) { listo = false; }
+    document.body.removeChild(caja);
+    return listo;
+  }
+
+  q('#btn-copiar').addEventListener('click', function () {
+    var boton = q('#btn-copiar'), etiqueta = boton.textContent;
+    if (!colaOrdenada.length) return;
+    alPortapapeles(textoDeLaCola(), function (listo) {
+      if (!listo) {
+        avisar('El navegador no dejó copiar. Abre la tabla y selecciónala a mano.', 'error');
+        return;
+      }
+      boton.textContent = 'Copiado';
+      setTimeout(function () { boton.textContent = etiqueta; }, 1800);
+      avisar(fmt(colaOrdenada.length) + (colaOrdenada.length === 1 ? ' fila copiada' : ' filas copiadas') +
+        ', con encabezados. Pégala en la planilla con Ctrl+V.');
     });
   });
 
