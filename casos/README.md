@@ -82,6 +82,8 @@ Y una sección de **análisis a fondo** con tres pestañas, doce gráficos más:
 | **Pricing** | Error de precio mes a mes (sobre el total comercial), clientes con más error de precio, qué pide el cliente, y causa comercial por año |
 | **Respuesta** | Distribución de días hasta el cierre con mediana y p90, por dónde entra el caso y cuánto tarda cada origen, la cola por responsable y tramo de antigüedad, y comparación por tipo de caso |
 | **Clientes** | Reincidencia (cuántos clientes tienen 1, 2, 3-5… casos), con cliente y sin cliente, la curva de concentración, y quién acumula más días de espera |
+| **Tendencia** | Casos que entran mes a mes con media móvil de 3 meses, en qué meses del año entran, y la mediana de días hasta el cierre según el mes de apertura |
+| **Calidad del dato** | Campos sin completar, filas que se contradicen entre el estado, las columnas Abierto/Cerrado y las fechas, y la lista de casos por revisar |
 
 Solo se dibuja la pestaña visible: un gráfico oculto mide cero de ancho y saldría
 mal. Los filtros de arriba las alcanzan a las tres.
