@@ -114,7 +114,7 @@ button, select, input { font: inherit; color: inherit; }
   clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
 }
 .envoltura {
-  max-width: 1340px; margin: 0 auto;
+  max-width: 1760px; margin: 0 auto;
   padding-left: max(clamp(14px, 3vw, 34px), env(safe-area-inset-left));
   padding-right: max(clamp(14px, 3vw, 34px), env(safe-area-inset-right));
 }
@@ -917,52 +917,73 @@ tr[data-guardando="1"] { opacity: .55; }
   // La tira de espera: cada caso abierto es una marca, puesta en los días
   // que lleva esperando. La altura de una columna son casos empatados.
   // ---------------------------------------------------------------------
-  /** Tramos "redondos" que además parten en 90, para que el umbral caiga justo. */
-  function pasoBonito(maxD) {
-    var candidatos = [1, 2, 3, 5, 6, 9, 10, 15, 18, 30, 45, 90];
-    for (var i = 0; i < candidatos.length; i++) {
-      if (maxD / candidatos[i] <= 42) return candidatos[i];
-    }
-    return Math.ceil(maxD / 42 / 30) * 30;
-  }
-
   /**
-   * La espera de los casos abiertos.
+   * La espera de los casos abiertos: una marca por caso, siempre.
    *
-   * Con pocos casos, cada uno es una marca y se pueden contar. Cuando son
-   * cientos eso deja de leerse —las columnas topan y se desbordan—, así que la
-   * misma pregunta se responde con un histograma: casos por tramo de espera.
+   * Dos cosas la mantienen legible sin achicar la marca:
+   *
+   * - Cuando una columna se llena, las que sobran no se apilan hasta desbordar:
+   *   se corren a la columna libre más cercana, en abanico. Hace falta porque
+   *   decenas de casos comparten fecha de apertura y caerían todos en el mismo
+   *   punto del eje; el desplazamiento es de unos pocos días sobre cientos.
+   * - El tamaño de la marca solo se reduce si de verdad no cabe todo el
+   *   conjunto, y aun así nunca hay etiquetas "+N".
    */
+  var FORMATOS = [
+    { paso: 9, an: 7, al: 13, sep: 2 },
+    { paso: 7, an: 6, al: 9, sep: 2 },
+    { paso: 6, an: 5, al: 6, sep: 1 },
+    { paso: 5, an: 4, al: 4, sep: 1 },
+    { paso: 4, an: 3, al: 3, sep: 1 },
+    { paso: 3, an: 3, al: 2, sep: 0 }
+  ];
+  var CAMPO_MAX = 232;
+
   function pintaCola(abiertos) {
-    var mt = 26, mb = 27, mr = 14;
+    var mt = 26, mb = 27, ml = 12, mr = 14;
     var maxDato = abiertos.reduce(function (a, c) { return Math.max(a, c.espera || 0); }, 0);
     var maxD = Math.max(120, Math.ceil((maxDato + 12) / 30) * 30);
 
-    // ¿Cabe una marca por caso? Se mide antes de dibujar nada.
-    var altoTanteo = 146, anM = 7, alM = 13, sep = 2, pasoPx = 9;
-    var cupo = Math.floor((altoTanteo - mb - mt + 12) / (alM + sep));
-    var cubos = new Map(), maxCubo = 0;
-    if (abiertos.length) {
-      var anTanteo = Math.max(260, Math.round(document.getElementById('g-cola').getBoundingClientRect().width) || 600);
-      var escala = (anTanteo - 12 - mr) / maxD;
-      abiertos.forEach(function (c) {
-        var k = Math.round((12 + c.espera * escala) / pasoPx);
-        var n = (cubos.get(k) || 0) + 1;
-        cubos.set(k, n);
-        if (n > maxCubo) maxCubo = n;
-      });
-    }
-    var denso = maxCubo > cupo;
+    // El ancho manda: se mide antes de decidir el alto y el tamaño de la marca.
+    var anCaja = Math.max(260, Math.round(document.getElementById('g-cola').getBoundingClientRect().width) || 600);
 
-    var alto = denso ? 186 : 146;
-    var ml = denso ? 34 : 12;
+    // Se baja de tamaño solo si el conjunto no cabe en el campo, con holgura
+    // para que el abanico no tenga que buscar sitio muy lejos.
+    var util = anCaja - ml - mr, fmt0 = FORMATOS[FORMATOS.length - 1];
+    for (var i = 0; i < FORMATOS.length; i++) {
+      var f = FORMATOS[i];
+      var sitio = Math.floor(util / f.paso) * Math.floor(CAMPO_MAX / (f.al + f.sep));
+      if (abiertos.length <= sitio * 0.7) { fmt0 = f; break; }
+    }
+    var anM = fmt0.an, alM = fmt0.al, sep = fmt0.sep, pasoPx = fmt0.paso;
+    var unidad = alM + sep;
+    var cupo = Math.max(1, Math.floor(CAMPO_MAX / unidad));
+
+    var X = function (d) { return ml + (d / maxD) * (anCaja - ml - mr); };
+
+    // Reparto en abanico: cada caso busca su columna, y si está llena, la libre
+    // más cercana.
+    var cubos = new Map(), alturas = new Map();
+    abiertos.slice().sort(function (a, b) { return a.espera - b.espera; }).forEach(function (c) {
+      var k0 = Math.round(X(c.espera) / pasoPx), k = k0;
+      for (var d = 0; d <= 80; d++) {
+        if ((alturas.get(k0 + d) || 0) < cupo) { k = k0 + d; break; }
+        if ((alturas.get(k0 - d) || 0) < cupo) { k = k0 - d; break; }
+      }
+      alturas.set(k, (alturas.get(k) || 0) + 1);
+      if (!cubos.has(k)) cubos.set(k, []);
+      cubos.get(k).push(c);
+    });
+    var maxCol = 0;
+    alturas.forEach(function (v) { if (v > maxCol) maxCol = v; });
+
+    var campo = Math.min(CAMPO_MAX, Math.max(92, maxCol * unidad));
+    var alto = abiertos.length ? campo + mt + mb : 146;
     var L = lienzo('g-cola', alto), base = alto - mb;
-    var ancho = L.an - ml - mr;
-    var X = function (d) { return ml + (d / maxD) * ancho; };
     var g = el('g', {});
     L.svg.appendChild(g);
 
-    var pasoEje = 30 * Math.ceil(maxD / 30 / 12);
+    var pasoEje = 30 * Math.ceil(maxD / 30 / Math.max(6, Math.floor(L.an / 110)));
     if (maxD > 90) g.appendChild(el('rect', { x: X(90), y: mt - 10, width: X(maxD) - X(90), height: base - mt + 10, class: 'tira__zona-riesgo' }));
     for (var d = 0; d <= maxD; d += pasoEje) {
       g.appendChild(el('line', { x1: X(d), y1: mt - 10, x2: X(d), y2: base, class: 'malla' }));
@@ -981,107 +1002,58 @@ tr[data-guardando="1"] { opacity: .55; }
       finUmbral = X(90) + 9 + etUmbral.length * 5.9;
     }
 
+    q('#tit-cola').textContent = 'Un caso, una marca';
+    q('#nota-cola').textContent = abiertos.length
+      ? 'cada marca es un caso · eje en días esperando'
+      : '';
     if (!abiertos.length) {
       g.appendChild(texto(L.an / 2, base / 2, 'Sin casos abiertos en este filtro', 'et-tx', { 'text-anchor': 'middle' }));
-      q('#nota-cola').textContent = '';
       tabla('t-cola', [{ t: 'Caso' }], []);
       return;
     }
 
-    var tarde = css('--tarde'), s1 = css('--s1'), cimas = new Map(), peor = abiertos.reduce(
-      function (a, c) { return (!a || c.espera > a.espera) ? c : a; }, null);
+    var tarde = css('--tarde'), s1 = css('--s1'), cimas = new Map(), n = 0;
+    cubos.forEach(function (lista, k) {
+      var cx = k * pasoPx, gc = el('g', { class: 'fila-dato' });
+      lista.sort(function (a, b) { return a.espera - b.espera; });
+      lista.forEach(function (c, j) {
+        var r = barra(cx - anM / 2, base - (j + 1) * unidad + sep, anM, alM, Math.min(anM / 2, alM / 2), 'plano');
+        gc.appendChild(pinta(r, c.espera > 90 ? tarde : s1, 'an-y', Math.min(n * 4, 260) + j * 6));
+      });
+      var altoCol = lista.length * unidad;
+      var hit = el('rect', { x: cx - Math.max(5, pasoPx / 2), y: mt, width: Math.max(10, pasoPx), height: base - mt, class: 'marca-hit' });
+      var realce = el('rect', {
+        x: cx - anM / 2 - 2, y: base - altoCol - 2, width: anM + 4, height: altoCol + 4,
+        rx: 3, fill: 'none', stroke: css('--tinta-3'), 'stroke-width': 1, class: 'realce'
+      });
+      var esp = lista[0].espera, esp2 = lista[lista.length - 1].espera;
+      var filas = lista.slice(0, 4).map(function (c) {
+        return { et: recorta(c.cli, 26), val: c.espera + ' d', color: c.espera > 90 ? tarde : s1 };
+      });
+      if (lista.length === 1) filas.push({ et: recorta(lista[0].due, 26), val: recorta(lista[0].est, 22) });
+      if (lista.length > 4) filas.push({ et: 'y ' + fmt(lista.length - 4) + ' más', val: '' });
+      gc.appendChild(hit);
+      gc.appendChild(realce);
+      conTip(hit, lista.length === 1
+        ? 'Caso ' + lista[0].n + ' · ' + esp + ' días esperando'
+        : fmt(lista.length) + ' casos · ' + (esp === esp2 ? esp + ' días' : esp + '–' + esp2 + ' días') + ' esperando', filas);
+      g.appendChild(gc);
+      cimas.set(k, base - altoCol);
+      n++;
+    });
 
-    var etiquetaPeor = null;
-    if (peor && abiertos.length > 3) {
-      var pxPeor = X(peor.espera);
-      var derechaPeor = pxPeor > L.an * 0.55;
-      var txtPeor = fmt(peor.espera) + ' días · ' + recorta(peor.cli, 22);
-      var anchoPeor = txtPeor.length * 6;
-      var desdePeor = derechaPeor ? pxPeor - 7 - anchoPeor : pxPeor + 7;
-      if (desdePeor > finUmbral) {
-        etiquetaPeor = { x: pxPeor, derecha: derechaPeor, txt: txtPeor, desde: desdePeor, hasta: desdePeor + anchoPeor };
-      }
-    }
-
-    if (!denso) {
-      q('#tit-cola').textContent = 'La espera, caso a caso';
-      q('#nota-cola').textContent = 'cada marca es un caso · eje en días esperando';
-      var i = 0, porCubo = new Map();
-      abiertos.slice().sort(function (a, b) { return a.espera - b.espera; }).forEach(function (c) {
-        var k = Math.round(X(c.espera) / pasoPx);
-        if (!porCubo.has(k)) porCubo.set(k, []);
-        porCubo.get(k).push(c);
-      });
-      porCubo.forEach(function (lista, k) {
-        var cx = k * pasoPx, gc = el('g', { class: 'fila-dato' });
-        lista.forEach(function (c, j) {
-          var r = barra(cx - anM / 2, base - (j + 1) * (alM + sep) + sep, anM, alM, anM / 2, 'plano');
-          gc.appendChild(pinta(r, c.espera > 90 ? tarde : s1, 'an-y', i * 7 + j * 30));
-        });
-        var altoCol = lista.length * (alM + sep);
-        var hit = el('rect', { x: cx - 9, y: mt, width: 18, height: base - mt, class: 'marca-hit' });
-        var realce = el('rect', {
-          x: cx - anM / 2 - 2, y: base - altoCol - 2, width: anM + 4, height: altoCol + 4,
-          rx: 4, fill: 'none', stroke: css('--tinta-3'), 'stroke-width': 1, class: 'realce'
-        });
-        var esp = lista[0].espera, esp2 = lista[lista.length - 1].espera;
-        var filas = lista.slice(0, 4).map(function (c) {
-          return { et: recorta(c.cli, 26), val: c.espera + ' d', color: c.espera > 90 ? tarde : s1 };
-        });
-        if (lista.length === 1) filas.push({ et: recorta(lista[0].due, 26), val: recorta(lista[0].est, 22) });
-        if (lista.length > 4) filas.push({ et: 'y ' + (lista.length - 4) + ' más', val: '' });
-        gc.appendChild(hit);
-        gc.appendChild(realce);
-        conTip(hit, lista.length === 1
-          ? 'Caso ' + lista[0].n + ' · ' + esp + ' días esperando'
-          : lista.length + ' casos · ' + (esp === esp2 ? esp + ' días' : esp + '–' + esp2 + ' días') + ' esperando', filas);
-        g.appendChild(gc);
-        cimas.set(k, base - altoCol);
-        i++;
-      });
-    } else {
-      var paso = pasoBonito(maxD);
-      q('#tit-cola').textContent = 'Cuántos casos lleva cada espera';
-      q('#nota-cola').textContent = 'cada barra son ' + paso + ' días · ' + fmt(abiertos.length) + ' casos abiertos';
-      var tramos = [];
-      for (var t0 = 0; t0 < maxD; t0 += paso) tramos.push({ desde: t0, hasta: t0 + paso, n: 0 });
-      abiertos.forEach(function (c) {
-        tramos[Math.min(tramos.length - 1, Math.floor((c.espera || 0) / paso))].n++;
-      });
-      var maxN = tramos.reduce(function (a, t) { return Math.max(a, t.n); }, 1);
-      var Y = function (n) { return base - (n / maxN) * (base - mt); };
-      [maxN, Math.round(maxN / 2)].forEach(function (n) {
-        if (!n) return;
-        g.appendChild(el('line', { x1: ml, y1: Y(n), x2: L.an - mr, y2: Y(n), class: 'malla' }));
-        g.appendChild(texto(ml - 7, Y(n) + 4, fmt(n), 'eje-tx', { 'text-anchor': 'end' }));
-      });
-      var anBarra = Math.max(3, X(paso) - X(0) - 2);
-      tramos.forEach(function (t, j) {
-        if (!t.n) return;
-        var x = X(t.desde) + 1, altoB = base - Y(t.n);
-        var r = barra(x, Y(t.n), anBarra, altoB, Math.min(4, anBarra / 2), 'arriba');
-        g.appendChild(pinta(r, t.desde >= 90 ? tarde : s1, 'an-y', j * 12));
-        var libre = !etiquetaPeor || x + anBarra + 6 < etiquetaPeor.desde || x - 6 > etiquetaPeor.hasta;
-        if (t.n === maxN && libre) {
-          g.appendChild(texto(x + anBarra / 2, Y(t.n) - 6, fmt(t.n), 'val-tx', { 'text-anchor': 'middle' }));
-        }
-        var hit = el('rect', { x: x - 1, y: mt - 10, width: anBarra + 2, height: base - mt + 10, class: 'marca-hit' });
-        g.appendChild(hit);
-        conTip(hit, 'De ' + t.desde + ' a ' + (t.hasta - 1) + ' días esperando', [
-          { et: 'Casos', val: fmt(t.n), color: t.desde >= 90 ? tarde : s1 },
-          { et: 'De los abiertos', val: pct(t.n / abiertos.length) }
-        ]);
-      });
-    }
-
-    if (etiquetaPeor) {
-      if (!denso) {
-        var kPeor = Math.round(etiquetaPeor.x / pasoPx);
+    // La etiqueta del caso más antiguo, si no pisa la del umbral.
+    if (abiertos.length > 3) {
+      var peor = abiertos.reduce(function (a, c) { return (!a || c.espera > a.espera) ? c : a; }, null);
+      var kPeor = Math.round(X(peor.espera) / pasoPx), px = kPeor * pasoPx;
+      var derecha = px > L.an * 0.55;
+      var etPeor = fmt(peor.espera) + ' días · ' + recorta(peor.cli, 22);
+      var desde = derecha ? px - 7 - etPeor.length * 6 : px + 7;
+      if (desde > finUmbral) {
         var cima = cimas.has(kPeor) ? cimas.get(kPeor) : mt + 6;
-        g.appendChild(el('line', { x1: kPeor * pasoPx, y1: mt - 2, x2: kPeor * pasoPx, y2: cima - 4, stroke: css('--eje'), 'stroke-width': 1 }));
+        g.appendChild(el('line', { x1: px, y1: mt - 2, x2: px, y2: cima - 4, stroke: css('--eje'), 'stroke-width': 1 }));
+        g.appendChild(texto(px + (derecha ? -7 : 7), mt - 6, etPeor, 'et-tx', { 'text-anchor': derecha ? 'end' : 'start' }));
       }
-      g.appendChild(texto(etiquetaPeor.x + (etiquetaPeor.derecha ? -7 : 7), mt - 6, etiquetaPeor.txt,
-        'et-tx', { 'text-anchor': etiquetaPeor.derecha ? 'end' : 'start' }));
     }
 
     tabla('t-cola',
