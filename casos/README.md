@@ -83,7 +83,9 @@ todo lo de abajo, incluidas las frases de hallazgo, que se recalculan solas: el
 tablero dice en palabras lo que está mostrando. Cada gráfico tiene su botón
 **Tabla** con los mismos números en texto.
 
-La barra de filtros se pliega con el botón **Filtros**, que muestra cuántos hay
+Los filtros son **casillas: se puede marcar más de una en cada grupo**. Sin nada
+marcado entran todos; marcando *Producto* y *Comercial* entran los dos. La barra
+de filtros se pliega con el botón **Filtros**, que muestra cuántos hay
 puestos. En pantalla angosta llega plegada: son seis controles antes del primer
 dato. El plegado queda recordado en el navegador.
 
@@ -91,6 +93,43 @@ dato. El plegado queda recordado en el navegador.
 FALSO abierto. Solo si esa celda viene en blanco el tablero mira el estado y la
 fecha de cierre. El filtro **Tipo** sale de la columna `Tipo` (R), y si la hoja
 trae un solo tipo, el título de arriba lo nombra.
+
+### Cerrar y reabrir casos desde la cola
+
+La primera columna de la cola de trabajo es una casilla **Cerrado**, la misma de
+la columna P de la hoja. Al marcarla, el tablero escribe en la planilla:
+
+| | Abierto (O) | Cerrado (P) | Fecha de cierre (C) |
+| :-- | :-- | :-- | :-- |
+| Marcar **Cerrado** | FALSO | VERDADERO | la fecha de hoy |
+| Desmarcar | VERDADERO | FALSO | se borra |
+
+Las tres celdas se escriben **imitando lo que ya hay en su columna**: si son
+casillas de verificación escribe booleanos, si son texto escribe `VERDADERO` /
+`FALSO` (o `TRUE` / `FALSE`), y la fecha con el mismo formato que sus vecinas.
+Escribir texto donde hay casillas rompería la validación de la celda.
+
+Reabrir borra la fecha de cierre —un caso abierto no puede tener una— así que
+pide confirmación antes. El cambio se guarda con un candado de documento, para
+que dos personas a la vez no se pisen.
+
+Para reabrir un caso: marca el filtro **Cerrados** y la cola pasa a mostrar los
+cerrados, con su casilla marcada.
+
+> **Antes de publicar la aplicación web, decide quién puede escribir.** Con
+> *Ejecutar como: yo*, el script escribe en la planilla **con tu cuenta**: quien
+> tenga el enlace puede cerrar casos aunque no tenga acceso a la hoja. Tres
+> salidas, según lo que necesites:
+>
+> - Publicar como *Ejecutar como: el usuario que accede*. Cada persona escribe
+>   con su cuenta y necesita permiso de edición en la planilla.
+> - Dejar `PERMITIR_EDICION: false` en `CFG_CASOS`. El tablero se sigue viendo,
+>   pero el servidor rechaza cualquier escritura.
+> - Restringir el acceso de la implementación a las personas que corresponda.
+>
+> `?lectura=1` **no** es un candado: esconde los controles, no cierra la puerta.
+> Sirve para que el tablero no se toque sin querer, no para impedir que alguien
+> decidido llame a la función.
 
 ### Instalarlo
 
@@ -168,6 +207,8 @@ node casos/preview/construir.js mis-datos.json salida.html
   sobre fondo oscuro ningún morado se distingue del azul de los cierres (ΔE 1,7
   con protanopia). Es la única serie de su propio sub-gráfico, con el rótulo
   pegado al trazo, así que no tiene que competir con nadie.
+- Fuera de Google (vista previa o copia estática) la casilla de cierre se ve y
+  responde, pero avisa que no se escribió en ninguna planilla: no hay dónde.
 - La entrada de los gráficos corre una sola vez, al cargar. Al filtrar solo se
   funden con su nueva forma, para que mover un filtro no dispare toda la
   coreografía otra vez.

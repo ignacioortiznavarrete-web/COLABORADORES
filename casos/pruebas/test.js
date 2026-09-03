@@ -207,5 +207,56 @@ ok(paquete.casos[0].tip === 'Exportaciones' && paquete.casos[1].tip === 'Mercado
 ok(siONo_('Verdadero') === 'si' && siONo_(false) === 'no' && siONo_('') === '' && siONo_('quizás') === '',
   'la casilla se lee en texto, en booleano, y no inventa cuando viene rara');
 
+// ---------------------------------------------------------------------------
+seccion('Cambiar un caso a cerrado o abierto desde el tablero');
+
+/** Arma una hoja con las columnas Abierto y Cerrado escritas de una forma dada. */
+function hojaEditable(abierto1, cerrado1, cierre1) {
+  const planilla = nuevaPlanilla();
+  const h = planilla.insertSheet('BD', [
+    ['Número del caso', 'Fecha de apertura', 'Fecha de cierre', 'Estado', 'Abierto', 'Cerrado'],
+    ['2627', '7/1/2025', cierre1, 'Cerrado', abierto1, cerrado1],
+    ['4011', '8/4/2026', '', 'SNC Autorizada', !abierto1, !cerrado1]
+  ]);
+  return h;
+}
+const celda = (h, f, c) => h.getRange(f, c).getValue();
+
+let hj = hojaEditable(false, true, new Date(2025, 0, 22));
+let res = cambiarEstadoCaso('4011', true);
+ok(celda(hj, 3, 5) === false && celda(hj, 3, 6) === true,
+  'con casillas de verificación escribe booleanos: Abierto false, Cerrado true');
+ok(celda(hj, 3, 3) instanceof Date, 'y la fecha de cierre queda como fecha, igual que sus vecinas');
+ok(res.cerrado === true && /^\d{4}-\d{2}-\d{2}$/.test(res.ci), 'devuelve al tablero lo que quedó escrito');
+
+hj = hojaEditable('FALSO', 'VERDADERO', '22/1/2025');
+cambiarEstadoCaso('4011', true);
+ok(celda(hj, 3, 5) === 'FALSO' && celda(hj, 3, 6) === 'VERDADERO',
+  'donde la columna es texto en español, escribe VERDADERO y FALSO, no booleanos');
+ok(celda(hj, 3, 3) === HOY.getDate() + '/' + (HOY.getMonth() + 1) + '/' + HOY.getFullYear(),
+  'y la fecha con el mismo formato de texto de la columna (d/M/yyyy)');
+
+hj = hojaEditable('FALSE', 'TRUE', '2025-01-22');
+cambiarEstadoCaso('4011', true);
+ok(celda(hj, 3, 5) === 'FALSE' && celda(hj, 3, 6) === 'TRUE', 'y en inglés, TRUE/FALSE');
+ok(celda(hj, 3, 3) === HOY.getFullYear() + '-' + String(HOY.getMonth() + 1).padStart(2, '0') + '-' + String(HOY.getDate()).padStart(2, '0'),
+  'con la fecha en ISO si así está la columna');
+
+hj = hojaEditable(false, true, new Date(2025, 0, 22));
+res = cambiarEstadoCaso('2627', false);
+ok(celda(hj, 2, 5) === true && celda(hj, 2, 6) === false, 'reabrir invierte las dos columnas');
+ok(celda(hj, 2, 3) === '' && res.ci === '', 'y borra la fecha de cierre: un caso abierto no tiene cierre');
+
+hj = hojaEditable(false, true, '');
+let falla = '';
+try { cambiarEstadoCaso('9999', true); } catch (e) { falla = String(e.message || e); }
+ok(falla.indexOf('9999') !== -1, 'un caso que no está en la hoja da un error que lo nombra: ' + falla);
+
+CFG_CASOS.PERMITIR_EDICION = false;
+falla = '';
+try { cambiarEstadoCaso('4011', true); } catch (e) { falla = String(e.message || e); }
+ok(falla.toLowerCase().indexOf('desactivada') !== -1, 'con PERMITIR_EDICION en false, el servidor no escribe');
+CFG_CASOS.PERMITIR_EDICION = true;
+
 console.log(fallos ? '\n' + fallos + ' prueba(s) fallaron' : '\nTodo bien');
 process.exit(fallos ? 1 : 0);

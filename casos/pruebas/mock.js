@@ -66,6 +66,8 @@ class Range {
 
   getValue() { return this.hoja._fila(this.r)[this.c - 1]; }
 
+  setValue(v) { this.hoja._fila(this.r)[this.c - 1] = v; return this; }
+
   getValues() {
     const salida = [];
     for (let i = 0; i < this.nf; i++) {
@@ -140,14 +142,21 @@ function nuevaPlanilla() {
 
   global.SpreadsheetApp = {
     getActiveSpreadsheet: () => ss,
-    getUi: () => ({ createMenu: () => menu })
+    getUi: () => ({ createMenu: () => menu }),
+    flush() {}
   };
   global.Utilities = {
     formatDate(fecha, zona, formato) {
-      if (formato !== 'yyyy-MM-dd') throw new Error('formato no simulado: ' + formato);
       const dos = n => String(n).padStart(2, '0');
-      return fecha.getFullYear() + '-' + dos(fecha.getMonth() + 1) + '-' + dos(fecha.getDate());
+      const d = fecha.getDate(), m = fecha.getMonth() + 1, a = fecha.getFullYear();
+      if (formato === 'yyyy-MM-dd') return a + '-' + dos(m) + '-' + dos(d);
+      if (formato === 'd/M/yyyy') return d + '/' + m + '/' + a;
+      if (formato === 'd-M-yyyy') return d + '-' + m + '-' + a;
+      throw new Error('formato no simulado: ' + formato);
     }
+  };
+  global.LockService = {
+    getDocumentLock: () => ({ tryLock: () => true, releaseLock() {} })
   };
   global.__menu = menu;
   return ss;

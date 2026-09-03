@@ -176,6 +176,24 @@ button, select, input { font: inherit; color: inherit; }
 }
 .cuenta-viva { font-size: 12.5px; color: var(--tinta-3); }
 .cuenta-viva b { color: var(--tinta); font-weight: 500; }
+.grupo { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.grupo__et { font-size: 12px; color: var(--tinta-3); }
+.chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.chip { position: relative; display: inline-flex; }
+.chip input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; opacity: 0; cursor: pointer;
+}
+.chip span {
+  padding: 4px 11px; border-radius: 999px; border: 1px solid var(--borde);
+  font-size: 12.5px; color: var(--tinta-2); background: var(--sup); white-space: nowrap;
+  transition: background .18s cubic-bezier(.16, 1, .3, 1), color .18s, border-color .18s;
+}
+.chip input:checked + span { background: var(--s1); border-color: var(--s1); color: #fff; }
+.chip input:focus-visible + span { outline: 2px solid var(--foco); outline-offset: 2px; }
+.chip:hover span { border-color: var(--s1); }
+.chip input:active + span { transform: translateY(1px); }
+
 .campo { display: flex; align-items: center; gap: 6px; }
 .campo > label { font-size: 12px; color: var(--tinta-3); }
 .campo select, .buscador input {
@@ -329,6 +347,37 @@ td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, 
 .cola__cuenta { font-size: 12.5px; color: var(--tinta-3); }
 tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
 
+/* --- Casilla de cierre, en la cola de trabajo ----------------------------- */
+.cierre { display: inline-flex; align-items: center; justify-content: center; }
+.cierre input {
+  appearance: none; -webkit-appearance: none; margin: 0;
+  width: 20px; height: 20px; border-radius: 6px;
+  border: 1.5px solid var(--eje); background: var(--sup); cursor: pointer;
+  transition: background .16s cubic-bezier(.16, 1, .3, 1), border-color .16s;
+}
+.cierre input:hover { border-color: var(--s1); }
+.cierre input:checked { background: var(--s1); border-color: var(--s1); }
+.cierre input:checked::after {
+  content: ''; display: block; width: 5px; height: 9px; margin: 2px auto 0;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(42deg);
+}
+.cierre input:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+.cierre input:disabled { opacity: .45; cursor: progress; }
+tr[data-guardando="1"] { opacity: .55; }
+
+/* --- Aviso de guardado ---------------------------------------------------- */
+.aviso {
+  position: fixed; z-index: var(--z-tooltip); left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(-50%); max-width: min(92vw, 460px);
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(120, 40, 75, .18);
+  padding: 11px 15px; font-size: 13px; color: var(--tinta);
+  animation: subirAviso .3s cubic-bezier(.16, 1, .3, 1) both;
+}
+@keyframes subirAviso { from { opacity: 0; transform: translate(-50%, 10px); } }
+.aviso--error { border-color: var(--tarde); }
+.aviso b { font-weight: 500; }
+
 /* --- Estados vacío / error ----------------------------------------------- */
 .vacio {
   border: 1px dashed var(--borde); border-radius: 12px; padding: 44px 24px;
@@ -369,6 +418,8 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
    un campo, y ya no vuelve. */
 @media (pointer: coarse) {
   .campo select, .buscador input { font-size: 16px; padding: 7px 11px; }
+  .chip span { padding: 7px 14px; }
+  .cierre input { width: 24px; height: 24px; }
   .boton { padding: 8px 14px; }
   .orden { padding: 4px 0; }
 }
@@ -405,29 +456,25 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
       </div>
     </div>
     <div class="filtros" id="filtros" role="group" aria-label="Filtros del tablero">
-      <div class="campo">
-        <label for="f-anio">Año</label>
-        <select id="f-anio"><option value="">Todos</option></select>
+      <div class="grupo">
+        <span class="grupo__et" id="et-anio">Año</span>
+        <div class="chips" id="f-anio" role="group" aria-labelledby="et-anio"></div>
       </div>
-      <div class="campo">
-        <label for="f-estado">Estado</label>
-        <select id="f-estado">
-          <option value="">Todos</option>
-          <option value="abierto">Abiertos</option>
-          <option value="cerrado">Cerrados</option>
-        </select>
+      <div class="grupo">
+        <span class="grupo__et" id="et-estado">Estado</span>
+        <div class="chips" id="f-estado" role="group" aria-labelledby="et-estado"></div>
       </div>
-      <div class="campo">
-        <label for="f-tipo">Tipo</label>
-        <select id="f-tipo"><option value="">Todos</option></select>
+      <div class="grupo">
+        <span class="grupo__et" id="et-tipo">Tipo</span>
+        <div class="chips" id="f-tipo" role="group" aria-labelledby="et-tipo"></div>
       </div>
-      <div class="campo">
-        <label for="f-sub">Subcategoría</label>
-        <select id="f-sub"><option value="">Todas</option></select>
+      <div class="grupo">
+        <span class="grupo__et" id="et-sub">Subcategoría</span>
+        <div class="chips" id="f-sub" role="group" aria-labelledby="et-sub"></div>
       </div>
-      <div class="campo">
-        <label for="f-causa">Causa comercial</label>
-        <select id="f-causa"><option value="">Todas</option></select>
+      <div class="grupo">
+        <span class="grupo__et" id="et-causa">Causa</span>
+        <div class="chips" id="f-causa" role="group" aria-labelledby="et-causa"></div>
       </div>
       <div class="campo buscador">
         <label class="oculto-visual" for="f-texto">Buscar</label>
@@ -595,6 +642,7 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
 </footer>
 
 <div class="tooltip" id="tooltip" role="status" aria-live="polite"></div>
+<div class="aviso" id="aviso" role="status" aria-live="polite" hidden></div>
 
 <script>
 (function () {
@@ -1148,28 +1196,129 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
   // ---------------------------------------------------------------------
   // Cola de trabajo: tabla ordenable de los casos abiertos
   // ---------------------------------------------------------------------
-  var orden = { col: 5, dir: -1 }, colaAbierta = false, abiertosAhora = [], TOPE_COLA = 8;
-  function pintaLista(abiertos) {
+  var orden = { col: 5, dir: -1 }, colaAbierta = false, colaAhora = [], colaCerrados = false, TOPE_COLA = 8;
+  var HAY_SERVIDOR = typeof google !== 'undefined' && google.script && google.script.run;
+
+  function isoDe(f) {
+    return f.getFullYear() + '-' + ('0' + (f.getMonth() + 1)).slice(-2) + '-' + ('0' + f.getDate()).slice(-2);
+  }
+
+  var relojAviso = null;
+  function avisar(texto, tono) {
+    var a = q('#aviso');
+    a.textContent = texto;
+    a.className = 'aviso' + (tono === 'error' ? ' aviso--error' : '');
+    a.hidden = false;
+    a.style.animation = 'none';
+    void a.getBoundingClientRect();
+    a.style.animation = '';
+    clearTimeout(relojAviso);
+    relojAviso = setTimeout(function () { a.hidden = true; }, tono === 'error' ? 7000 : 4500);
+  }
+
+  /** Manda el cambio a la planilla. Fuera de Google no hay dónde escribir. */
+  function guardarEstado(caso, cerrado, alTerminar) {
+    if (!HAY_SERVIDOR) {
+      setTimeout(function () {
+        alTerminar(null, { n: caso.n, cerrado: cerrado, ci: cerrado ? isoDe(HOY) : '', ensayo: true });
+      }, 240);
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(function (r) { alTerminar(null, r); })
+      .withFailureHandler(function (e) { alTerminar(e, null); })
+      .cambiarEstadoCaso(caso.n, cerrado);
+  }
+
+  /** Deja el caso como quedó en la hoja, para que todo el tablero cuadre. */
+  function aplicarCambio(caso, cerrado, ci) {
+    caso.cerrado = cerrado;
+    caso.ci = ci ? aFecha(ci) : null;
+    caso.resol = (caso.ap && caso.ci) ? dias(caso.ap, caso.ci) : null;
+    caso.espera = (caso.ap && !cerrado) ? dias(caso.ap, HOY) : null;
+  }
+
+  function pideCambio(caso, casilla) {
+    var cerrar = casilla.checked;
+    if (!cerrar && caso.ci && !window.confirm(
+      'Reabrir el caso ' + caso.n + ' borra su fecha de cierre (' + fechaCorta(caso.ci) + ').\n\n¿Seguir?')) {
+      casilla.checked = true;
+      return;
+    }
+    var fila = casilla.parentNode.parentNode.parentNode;
+    casilla.disabled = true;
+    if (fila && fila.setAttribute) fila.setAttribute('data-guardando', '1');
+
+    guardarEstado(caso, cerrar, function (err, r) {
+      casilla.disabled = false;
+      if (fila && fila.removeAttribute) fila.removeAttribute('data-guardando');
+      if (err) {
+        casilla.checked = !cerrar;
+        avisar('No se pudo guardar el caso ' + caso.n + '. ' + (err.message || err), 'error');
+        return;
+      }
+      aplicarCambio(caso, r.cerrado, r.ci);
+      avisar(r.ensayo
+        ? 'Vista previa: el caso ' + caso.n + ' se ve ' + (r.cerrado ? 'cerrado' : 'abierto') + ', pero no se escribió en la planilla.'
+        : (r.cerrado
+          ? 'Caso ' + caso.n + ' cerrado el ' + fechaCorta(caso.ci) + '. Sale de la cola.'
+          : 'Caso ' + caso.n + ' reabierto, sin fecha de cierre.'));
+      render();
+    });
+  }
+
+  function celdaCierre(caso) {
+    var td = document.createElement('td');
+    var caja = document.createElement('span');
+    caja.className = 'cierre';
+    var casilla = document.createElement('input');
+    casilla.type = 'checkbox';
+    casilla.checked = !!caso.cerrado;
+    casilla.setAttribute('aria-label', 'Caso ' + caso.n + ': marcar como cerrado');
+    casilla.addEventListener('change', function () { pideCambio(caso, casilla); });
+    caja.appendChild(casilla);
+    td.appendChild(caja);
+    return td;
+  }
+
+  // ---------------------------------------------------------------------
+  // Cola de trabajo: tabla ordenable, y la casilla que cierra o reabre el caso
+  // ---------------------------------------------------------------------
+  function pintaLista(lista, mostrandoCerrados) {
+    colaAhora = lista;
+    colaCerrados = !!mostrandoCerrados;
+    var diasDe = mostrandoCerrados
+      ? function (c) { return c.resol === null ? 0 : c.resol; }
+      : function (c) { return c.espera === null ? 0 : c.espera; };
     var cols = [
       { t: 'Caso', v: function (c) { return c.n; } },
       { t: 'Cliente', v: function (c) { return c.cli; } },
       { t: 'Responsable', v: function (c) { return c.due; } },
       { t: 'Estado', v: function (c) { return c.est; } },
-      { t: 'Abierto', v: function (c) { return c.ap ? c.ap.getTime() : 0; }, txt: function (c) { return fechaCorta(c.ap); } },
-      { t: 'Días esperando', num: true, v: function (c) { return c.espera; }, txt: function (c) { return fmt(c.espera); } }
+      {
+        t: mostrandoCerrados ? 'Cerrado el' : 'Abierto el',
+        v: function (c) { var f = mostrandoCerrados ? c.ci : c.ap; return f ? f.getTime() : 0; },
+        txt: function (c) { return fechaCorta(mostrandoCerrados ? c.ci : c.ap); }
+      },
+      {
+        t: mostrandoCerrados ? 'Días hasta el cierre' : 'Días esperando', num: true,
+        v: diasDe, txt: function (c) { return fmt(diasDe(c)); }
+      }
     ];
-    var filas = abiertos.slice().sort(function (a, b) {
+    var filas = lista.slice().sort(function (a, b) {
       var va = cols[orden.col].v(a), vb = cols[orden.col].v(b);
-      if (va === vb) return b.espera - a.espera;
+      if (va === vb) return diasDe(b) - diasDe(a);
       return (va > vb ? 1 : -1) * orden.dir;
     });
-    abiertosAhora = abiertos;
+
     var caja = q('#t-abiertos'), velo = q('#velo-cola'), btn = q('#btn-cola');
     while (caja.firstChild) caja.removeChild(caja.firstChild);
     if (!filas.length) {
       var p = document.createElement('p');
       p.className = 'panel__nota';
-      p.textContent = 'No quedan casos abiertos con este filtro.';
+      p.textContent = mostrandoCerrados
+        ? 'Ningún caso cerrado con este filtro.'
+        : 'No quedan casos abiertos con este filtro.';
       caja.appendChild(p);
       velo.hidden = true;
       btn.hidden = true;
@@ -1183,10 +1332,16 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     btn.textContent = colaAbierta ? 'Ver menos' : 'Ver los ' + fmt(filas.length) + ' casos';
     btn.setAttribute('aria-expanded', colaAbierta ? 'true' : 'false');
     q('#cuenta-cola').textContent = hayMas
-      ? 'Se muestran ' + fmt(tope) + ' de ' + fmt(filas.length) + ', del que más lleva esperando al que menos'
-      : fmt(filas.length) + (filas.length === 1 ? ' caso abierto' : ' casos abiertos');
+      ? 'Se muestran ' + fmt(tope) + ' de ' + fmt(filas.length)
+      : fmt(filas.length) + (filas.length === 1 ? ' caso' : ' casos');
     filas = filas.slice(0, tope);
+
     var t = document.createElement('table'), thead = document.createElement('thead'), tr = document.createElement('tr');
+    if (!LECTURA) {
+      var thCierre = document.createElement('th');
+      thCierre.textContent = 'Cerrado';
+      tr.appendChild(thCierre);
+    }
     cols.forEach(function (c, i) {
       var th = document.createElement('th');
       if (c.num) th.className = 'n';
@@ -1197,25 +1352,27 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
       b.setAttribute('aria-sort', orden.col === i ? (orden.dir === 1 ? 'ascending' : 'descending') : 'none');
       b.addEventListener('click', function () {
         if (orden.col === i) orden.dir *= -1; else { orden.col = i; orden.dir = i === 5 ? -1 : 1; }
-        pintaLista(abiertos);
+        pintaLista(colaAhora, colaCerrados);
       });
       th.appendChild(b);
       tr.appendChild(th);
     });
     thead.appendChild(tr);
     t.appendChild(thead);
+
     var tb = document.createElement('tbody');
     filas.forEach(function (c, fi) {
       var fr = document.createElement('tr');
       if (quietud) fr.style.animation = 'none';
       else fr.style.animationDelay = Math.min(fi, 12) * 18 + 'ms';
+      if (!LECTURA) fr.appendChild(celdaCierre(c));
       cols.forEach(function (col, i) {
         var td = document.createElement('td');
         if (col.num) td.className = 'n';
         if (i === 5) {
           var punto = document.createElement('span');
           punto.className = 'punto';
-          punto.style.background = c.espera > 90 ? css('--tarde') : css('--s1');
+          punto.style.background = (!mostrandoCerrados && diasDe(c) > 90) ? css('--tarde') : css('--s1');
           td.appendChild(punto);
         }
         td.appendChild(document.createTextNode(col.txt ? col.txt(c) : col.v(c)));
@@ -1290,7 +1447,6 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     } else {
       escribe('h-cola', ['No hay casos abiertos con este filtro.']);
     }
-    escribe('h-lista', [abiertos.length ? 'Los casos abiertos, del que más lleva esperando al que menos. Ordena por cualquier columna.' : 'Nada pendiente con este filtro.']);
   }
 
   function hallazgoFlujo(datos) {
@@ -1349,27 +1505,40 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
   // ---------------------------------------------------------------------
   // Filtros, dibujo y eventos
   // ---------------------------------------------------------------------
-  var F = { anio: '', estado: '', tipo: '', sub: '', causa: '', texto: '' };
+  // Cada filtro es una lista: vacía quiere decir "todos", y se pueden marcar
+  // varios a la vez.
+  var F = { anio: [], estado: [], tipo: [], sub: [], causa: [], texto: '' };
 
-  function llenaSelect(id, valores) {
-    var s = document.getElementById(id);
-    valores.forEach(function (v) {
-      var o = document.createElement('option');
-      o.value = v;
-      o.textContent = v;
-      s.appendChild(o);
+  function llenaChips(id, opciones) {
+    var caja = document.getElementById(id), clave = id.slice(2);
+    opciones.forEach(function (op) {
+      var etiqueta = document.createElement('label'), casilla = document.createElement('input'),
+        texto = document.createElement('span');
+      etiqueta.className = 'chip';
+      casilla.type = 'checkbox';
+      casilla.value = op.valor === undefined ? op : op.valor;
+      texto.textContent = op.texto === undefined ? op : op.texto;
+      etiqueta.appendChild(casilla);
+      etiqueta.appendChild(texto);
+      caja.appendChild(etiqueta);
+      casilla.addEventListener('change', function () {
+        F[clave] = Array.prototype.map.call(caja.querySelectorAll('input:checked'),
+          function (x) { return x.value; });
+        render();
+      });
     });
   }
+
+  function pasa(elegidos, valor) { return !elegidos.length || elegidos.indexOf(valor) !== -1; }
 
   function filtrar() {
     var t = F.texto.trim().toLowerCase();
     return CASOS.filter(function (c) {
-      if (F.anio && c.anio !== F.anio) return false;
-      if (F.estado === 'abierto' && c.cerrado) return false;
-      if (F.estado === 'cerrado' && !c.cerrado) return false;
-      if (F.tipo && c.tip !== F.tipo) return false;
-      if (F.sub && c.sub !== F.sub) return false;
-      if (F.causa && (c.cau || 'Sin causa declarada') !== F.causa) return false;
+      if (!pasa(F.anio, c.anio)) return false;
+      if (!pasa(F.estado, c.cerrado ? 'cerrado' : 'abierto')) return false;
+      if (!pasa(F.tipo, c.tip)) return false;
+      if (!pasa(F.sub, c.sub)) return false;
+      if (!pasa(F.causa, c.cau || 'Sin causa declarada')) return false;
       if (t && (c.cli + ' ' + c.n + ' ' + c.asu + ' ' + c.due).toLowerCase().indexOf(t) === -1) return false;
       return true;
     });
@@ -1395,16 +1564,17 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
   }
 
   function limpiar() {
-    F = { anio: '', estado: '', tipo: '', sub: '', causa: '', texto: '' };
-    q('#f-anio').value = ''; q('#f-estado').value = ''; q('#f-tipo').value = '';
-    q('#f-sub').value = ''; q('#f-causa').value = ''; q('#f-texto').value = '';
+    F = { anio: [], estado: [], tipo: [], sub: [], causa: [], texto: '' };
+    Array.prototype.forEach.call(document.querySelectorAll('.chips input'), function (x) { x.checked = false; });
+    q('#f-texto').value = '';
     render();
   }
 
   function render() {
     var datos = filtrar();
     var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
-    var activos = [F.anio, F.estado, F.tipo, F.sub, F.causa, F.texto].filter(Boolean).length;
+    var activos = F.anio.length + F.estado.length + F.tipo.length + F.sub.length +
+      F.causa.length + (F.texto ? 1 : 0);
     q('#btn-limpiar').hidden = !activos;
     var pastilla = q('#filtros-activos');
     pastilla.hidden = !activos;
@@ -1423,7 +1593,16 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     pintaVelocidad(datos.filter(function (c) { return c.resol !== null; }));
     pintaDuenos(abiertos);
     hallazgoTiempo(datos, abiertos);
-    pintaLista(abiertos);
+
+    // La cola muestra lo que dice el filtro de estado: los abiertos por
+    // defecto, y los cerrados cuando se pide solo eso, para poder reabrirlos.
+    var soloCerrados = F.estado.length === 1 && F.estado[0] === 'cerrado';
+    pintaLista(soloCerrados ? datos.filter(function (c) { return c.cerrado; }) : abiertos, soloCerrados);
+    escribe('h-lista', [soloCerrados
+      ? 'Los casos cerrados. Desmarca la casilla para reabrir uno: vuelve a quedar abierto y se le borra la fecha de cierre.'
+      : (LECTURA
+        ? 'Los casos abiertos, del que más lleva esperando al que menos.'
+        : 'Marca la casilla para cerrar un caso: se escribe en la planilla y sale de la cola. Para reabrir, filtra por Cerrados.')]);
     primeraVez = false;
   }
 
@@ -1480,15 +1659,11 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
     });
   });
 
-  ['f-anio', 'f-estado', 'f-tipo', 'f-sub', 'f-causa'].forEach(function (id) {
-    document.getElementById(id).addEventListener('change', function (e) {
-      F[id.slice(2)] = e.target.value;
-      render();
-    });
-  });
+  q('#btn-limpiar').addEventListener('click', limpiar);
+
   q('#btn-cola').addEventListener('click', function () {
     colaAbierta = !colaAbierta;
-    pintaLista(abiertosAhora);
+    pintaLista(colaAhora, colaCerrados);
     if (!colaAbierta) q('#btn-cola').scrollIntoView({ block: 'nearest', behavior: quietud ? 'auto' : 'smooth' });
   });
 
@@ -1505,17 +1680,18 @@ tbody tr { animation: filaEntra .34s cubic-bezier(.16,1,.3,1) both; }
   });
 
   // Arranque
-  llenaSelect('f-anio', Array.from(new Set(CASOS.map(function (c) { return c.anio; }).filter(Boolean))).sort());
+  llenaChips('f-anio', Array.from(new Set(CASOS.map(function (c) { return c.anio; }).filter(Boolean))).sort());
+  llenaChips('f-estado', [{ valor: 'abierto', texto: 'Abiertos' }, { valor: 'cerrado', texto: 'Cerrados' }]);
   var tipos = contar(CASOS, function (c) { return c.tip; }).map(function (t) { return t.k; });
-  llenaSelect('f-tipo', tipos);
-  llenaSelect('f-sub', contar(CASOS, function (c) { return c.sub; }).map(function (s) { return s.k; }));
+  llenaChips('f-tipo', tipos);
+  llenaChips('f-sub', contar(CASOS, function (c) { return c.sub; }).map(function (s) { return s.k; }));
   // El título dice lo que hay cargado: si la hoja trae un solo tipo, lo nombra.
   if (tipos.length === 1 && tipos[0] !== 'Sin tipo') {
     q('.marca__nombre').textContent = 'Reclamos de ' + tipos[0].toLowerCase();
   } else if (tipos.length > 1) {
     q('.marca__nombre').textContent = 'Reclamos de clientes';
   }
-  llenaSelect('f-causa', contar(CASOS, function (c) { return c.cau || 'Sin causa declarada'; }).map(function (c) { return c.k; }));
+  llenaChips('f-causa', contar(CASOS, function (c) { return c.cau || 'Sin causa declarada'; }).map(function (c) { return c.k; }));
 
   var fechas = CASOS.map(function (c) { return c.ap; }).filter(Boolean).sort(function (a, b) { return a - b; });
   if (fechas.length) {

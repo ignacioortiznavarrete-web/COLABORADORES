@@ -45,7 +45,14 @@ var CFG_CASOS = {
    */
   USAR_FORMULAS: false,
   /** false: el script solo corre desde el menú "Casos", no al abrir. */
-  EJECUTAR_AL_ABRIR: true
+  EJECUTAR_AL_ABRIR: true,
+  /**
+   * Permite que el tablero cambie casos a abierto o cerrado en la hoja.
+   * Ponlo en false si publicas la aplicación web con acceso amplio: ahí el
+   * script escribe con TU cuenta, así que cualquiera con el enlace escribiría
+   * en la planilla. Ver README.
+   */
+  PERMITIR_EDICION: true
 };
 
 /**
@@ -295,6 +302,8 @@ var COLUMNAS_TABLERO = [
   { llave: 'ci', busca: ['fecha de cierre'], fecha: true },
   // Columna P: es la que decide si un caso está abierto o cerrado.
   { llave: 'cer', busca: ['cerrado'], bool: true },
+  // Columna O: el espejo de la anterior. El tablero las escribe juntas.
+  { llave: 'abi', busca: ['abierto'], bool: true },
   { llave: 'due', busca: ['propietario del caso', 'propietario'] },
   { llave: 'cli', busca: ['nombre de la cuenta', 'cliente'] },
   { llave: 'est', busca: ['estado'] },
@@ -408,4 +417,88 @@ function iso_(fecha) {
   return fecha.getFullYear() + '-' +
     ('0' + (fecha.getMonth() + 1)).slice(-2) + '-' +
     ('0' + fecha.getDate()).slice(-2);
+}
+
+// ===========================================================================
+// EDICIÓN DESDE EL TABLERO
+// ===========================================================================
+
+/**
+ * Cambia un caso a abierto o cerrado desde la cola de trabajo del tablero.
+ *
+ *   cerrado = true  -> Abierto FALSO, Cerrado VERDADERO, fecha de cierre = hoy
+ *   cerrado = false -> Abierto VERDADERO, Cerrado FALSO, fecha de cierre vacía
+ *
+ * Las tres celdas se escriben imitando lo que ya hay en su columna: casilla de
+ * verificación o texto, y la fecha con el mismo formato que sus vecinas.
+ */
+function cambiarEstadoCaso(numero, cerrado) {
+  if (!CFG_CASOS.PERMITIR_EDICION) throw new Error('La edición desde el tablero está desactivada.');
+  cerrado = !!cerrado;
+
+  var candado = LockService.getDocumentLock();
+  if (!candado.tryLock(15000)) throw new Error('La planilla está ocupada. Inténtalo de nuevo.');
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var hoja = hojaDeCasos_(ss);
+    var filas = hoja.getLastRow() - 1;
+    if (filas < 1) throw new Error('La hoja no tiene casos.');
+
+    var valores = hoja.getRange(1, 1, filas + 1, hoja.getLastColumn()).getValues();
+    var indices = mapaDeColumnas_(valores[0]);
+    if (indices.n === undefined) throw new Error('No encuentro la columna del número de caso.');
+    if (indices.cer === undefined) throw new Error('No encuentro la columna "Cerrado".');
+
+    var buscado = String(numero).trim(), fila = 0;
+    for (var f = 1; f <= filas && !fila; f++) {
+      if (String(valores[f][indices.n]).trim() === buscado) fila = f + 1;
+    }
+    if (!fila) throw new Error('No encuentro el caso ' + buscado + ' en la hoja.');
+
+    var zona = ss.getSpreadsheetTimeZone(), hoy = hoyEn_(zona);
+    hoja.getRange(fila, indices.cer + 1).setValue(comoLaColumna_(valores, indices.cer, cerrado));
+    if (indices.abi !== undefined) {
+      hoja.getRange(fila, indices.abi + 1).setValue(comoLaColumna_(valores, indices.abi, !cerrado));
+    }
+    if (indices.ci !== undefined) {
+      var celda = hoja.getRange(fila, indices.ci + 1);
+      if (cerrado) celda.setValue(fechaComoLaColumna_(valores, indices.ci, hoy, zona));
+      else celda.clearContent();
+    }
+    SpreadsheetApp.flush();
+    return { n: buscado, cerrado: cerrado, ci: cerrado ? iso_(hoy) : '' };
+  } finally {
+    candado.releaseLock();
+  }
+}
+
+/**
+ * Devuelve VERDADERO/FALSO escrito como ya está escrita esa columna: casilla
+ * de verificación, texto en español o texto en inglés. Escribir el texto donde
+ * hay casillas rompe la validación de la celda, y al revés se ve distinto.
+ */
+function comoLaColumna_(valores, col, valor) {
+  for (var f = 1; f < valores.length; f++) {
+    var v = valores[f][col];
+    if (typeof v === 'boolean') return valor;
+    var t = normalizar_(v);
+    if (t === 'verdadero' || t === 'falso') return valor ? 'VERDADERO' : 'FALSO';
+    if (t === 'true' || t === 'false') return valor ? 'TRUE' : 'FALSE';
+  }
+  return valor;
+}
+
+/** La fecha, con la misma pinta que las demás de su columna. */
+function fechaComoLaColumna_(valores, col, fecha, zona) {
+  for (var f = 1; f < valores.length; f++) {
+    var v = valores[f][col];
+    if (v instanceof Date || typeof v === 'number') return fecha;
+    var t = String(v == null ? '' : v).trim();
+    if (!t) continue;
+    if (/^\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}/.test(t)) return Utilities.formatDate(fecha, zona, 'yyyy-MM-dd');
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(t)) return Utilities.formatDate(fecha, zona, 'd/M/yyyy');
+    if (/^\d{1,2}-\d{1,2}-\d{2,4}/.test(t)) return Utilities.formatDate(fecha, zona, 'd-M-yyyy');
+    return fecha;
+  }
+  return fecha;
 }
