@@ -222,6 +222,18 @@ node casos/preview/construir.js mis-datos.json salida.html
 - Fuera de Google (vista previa o copia estática) el estado se puede cambiar y
   el tablero reacciona, pero avisa que no se escribió en ninguna planilla: no
   hay dónde.
+- **La tipografía se cambia en un solo lugar.** Arriba de `Dashboard.html`, en
+  `:root`, hay tres variables y ninguna otra regla nombra una fuente:
+
+  ```css
+  --tipo-titulo: "Bricolage Grotesque", ...;  /* titulares y preguntas */
+  --tipo-texto:  Outfit, ...;                 /* todo el texto y la interfaz */
+  --tipo-dato:   "DM Mono", ...;              /* números, ejes y tablas */
+  ```
+
+  Cambiarlas es cambiar esas tres líneas y el `<link>` de Google Fonts de más
+  arriba. Deja siempre una alternativa del sistema al final de cada lista, por si
+  la fuente no carga.
 - La entrada de los gráficos corre una sola vez, al cargar. Al filtrar solo se
   funden con su nueva forma, para que mover un filtro no dispare toda la
   coreografía otra vez.

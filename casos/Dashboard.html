@@ -6,13 +6,19 @@
 <title>Reclamos de exportación</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=DM+Mono:wght@400;500&family=Outfit:wght@300..600&display=swap">
 <style>
 /* ---------------------------------------------------------------------------
    Tokens. Paleta de datos validada (CVD + contraste) en claro y oscuro.
    Los colores de estado son fijos: nunca cambian entre modos.
    ------------------------------------------------------------------------- */
 :root {
+  /* Tipografía: titulares, texto y números. Para cambiarla, se cambian estas
+     tres líneas y el <link> de arriba. Nada más en la hoja nombra una fuente. */
+  --tipo-titulo: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --tipo-texto: Outfit, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tipo-dato: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
   color-scheme: light;
   --plano: #f7f0f3;
   --sup: #fffbfc;
@@ -93,7 +99,7 @@ body {
   overflow-x: hidden;
   transition: background-color .3s cubic-bezier(.16, 1, .3, 1);
   color: var(--tinta);
-  font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--tipo-texto);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -101,7 +107,7 @@ body {
 h1, h2, h3, p, ul, figure { margin: 0; }
 button, select, input { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; border-radius: 4px; }
-.num { font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace; }
+.num { font-family: var(--tipo-dato); }
 .tab { font-variant-numeric: tabular-nums; }
 .oculto-visual {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -146,9 +152,9 @@ button, select, input { font: inherit; color: inherit; }
 .jardin .flor:nth-child(3) { width: 27px; height: 27px; right: 7.5%; bottom: -7px; transform: rotate(9deg); }
 @media (max-width: 900px) { .jardin { display: none; } }
 .marca__nombre {
-  font-family: Fraunces, Georgia, "Times New Roman", serif;
+  font-family: var(--tipo-titulo);
   font-optical-sizing: auto;
-  font-size: 18px; font-weight: 500; letter-spacing: -.008em;
+  font-size: 17px; font-weight: 600; letter-spacing: -.018em;
 }
 .marca__sub { font-size: 12.5px; color: var(--tinta-3); }
 .barra__der { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -172,7 +178,7 @@ button, select, input { font: inherit; color: inherit; }
   display: inline-block; min-width: 17px; padding: 0 5px; margin-left: 6px;
   border-radius: 999px; background: var(--s1); color: #fff;
   font-size: 11px; line-height: 17px; text-align: center;
-  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--tipo-dato);
 }
 .cuenta-viva { font-size: 12.5px; color: var(--tinta-3); }
 .cuenta-viva b { color: var(--tinta); font-weight: 500; }
@@ -231,7 +237,7 @@ button, select, input { font: inherit; color: inherit; }
 .opcion input:focus-visible + .opcion__marca { outline: 2px solid var(--foco); outline-offset: 2px; }
 .opcion__txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opcion__n {
-  font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+  font-family: var(--tipo-dato);
   font-size: 11.5px; color: var(--tinta-3); font-variant-numeric: tabular-nums;
 }
 
@@ -272,10 +278,10 @@ button, select, input { font: inherit; color: inherit; }
 .seccion { padding: 34px 0 0; }
 .seccion__cab { max-width: 74ch; margin-bottom: 18px; }
 .pregunta {
-  font-family: Fraunces, Georgia, "Times New Roman", serif;
+  font-family: var(--tipo-titulo);
   font-optical-sizing: auto;
-  font-size: clamp(22px, 2.5vw, 27px); font-weight: 400; letter-spacing: -.014em;
-  line-height: 1.22; text-wrap: balance;
+  font-size: clamp(21px, 2.4vw, 26px); font-weight: 500; letter-spacing: -.022em;
+  line-height: 1.2; text-wrap: balance;
 }
 .hallazgo {
   margin-top: 7px; font-size: 14px; color: var(--tinta-2); max-width: 68ch;
@@ -324,9 +330,9 @@ button, select, input { font: inherit; color: inherit; }
 
 /* --- Gráficos ------------------------------------------------------------ */
 .grafico { width: 100%; display: block; overflow: visible; }
-.grafico text { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.grafico text { font-family: var(--tipo-dato); font-variant-numeric: tabular-nums; }
 .eje-tx { fill: var(--tinta-3); font-size: 10.5px; }
-.et-tx { fill: var(--tinta-2); font-size: 11.5px; font-family: Geist, system-ui, sans-serif !important; }
+.et-tx { fill: var(--tinta-2); font-size: 11.5px; font-family: var(--tipo-texto) !important; }
 .val-tx { fill: var(--tinta); font-size: 11.5px; font-weight: 500; }
 .malla { stroke: var(--linea); stroke-width: 1; }
 .base { stroke: var(--eje); stroke-width: 1; }
@@ -355,7 +361,7 @@ button, select, input { font: inherit; color: inherit; }
 .tira { position: relative; }
 .tira__zona-riesgo { fill: var(--lavado-tarde); }
 .tira__umbral { stroke: var(--tarde); stroke-width: 1; }
-.tira__et-umbral { fill: var(--tarde); font-size: 11px; font-family: Geist, system-ui, sans-serif !important; }
+.tira__et-umbral { fill: var(--tarde); font-size: 11px; font-family: var(--tipo-texto) !important; }
 
 /* --- Tooltip ------------------------------------------------------------- */
 .tooltip {
@@ -377,7 +383,7 @@ button, select, input { font: inherit; color: inherit; }
 table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 th, td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--linea); white-space: nowrap; }
 th { color: var(--tinta-3); font-weight: 500; font-size: 11.5px; }
-td.n, th.n { text-align: right; font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-variant-numeric: tabular-nums; }
+td.n, th.n { text-align: right; font-family: var(--tipo-dato); font-variant-numeric: tabular-nums; }
 .orden { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; font: inherit; }
 .orden[aria-sort="descending"], .orden[aria-sort="ascending"] { color: var(--tinta); }
 .punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
