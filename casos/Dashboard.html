@@ -545,6 +545,7 @@ tr[data-guardando="1"] { opacity: .55; }
       <div class="combo" id="c-tipo"></div>
       <div class="combo" id="c-sub"></div>
       <div class="combo" id="c-causa"></div>
+      <div class="combo" id="c-req"></div>
       <div class="campo buscador">
         <label class="oculto-visual" for="f-texto">Buscar en todo el tablero</label>
         <input id="f-texto" type="search" placeholder="Buscar en todo" autocomplete="off">
@@ -2302,7 +2303,7 @@ tr[data-guardando="1"] { opacity: .55; }
   // ---------------------------------------------------------------------
   // Cada filtro es una lista: vacía quiere decir "todos", y se pueden marcar
   // varias opciones a la vez desde su desplegable.
-  var F = { anio: [], estado: [], tipo: [], sub: [], causa: [], texto: '' };
+  var F = { anio: [], estado: [], tipo: [], sub: [], causa: [], req: [], texto: '' };
   var COMBOS = [], comboAbierto = null;
 
   function cierraCombo() {
@@ -2451,6 +2452,7 @@ tr[data-guardando="1"] { opacity: .55; }
       if (!pasa(F.tipo, c.tip)) return false;
       if (!pasa(F.sub, c.sub)) return false;
       if (!pasa(F.causa, c.cau || 'Sin causa declarada')) return false;
+      if (!pasa(F.req, c.req || 'Sin requerimiento')) return false;
       if (t && (c.cli + ' ' + c.n + ' ' + c.asu + ' ' + c.due).toLowerCase().indexOf(t) === -1) return false;
       return true;
     });
@@ -2486,7 +2488,7 @@ tr[data-guardando="1"] { opacity: .55; }
     var datos = filtrar();
     var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
     var activos = F.anio.length + F.estado.length + F.tipo.length + F.sub.length +
-      F.causa.length + (F.texto ? 1 : 0);
+      F.causa.length + F.req.length + (F.texto ? 1 : 0);
     q('#btn-limpiar').hidden = !activos;
     var pastilla = q('#filtros-activos');
     pastilla.hidden = !activos;
@@ -2621,6 +2623,7 @@ tr[data-guardando="1"] { opacity: .55; }
     q('.marca__nombre').textContent = 'Reclamos de clientes';
   }
   creaCombo('c-causa', 'causa', 'Causa', 'Todas', opcionesDe(function (c) { return c.cau || 'Sin causa declarada'; }));
+  creaCombo('c-req', 'req', 'Requerimiento', 'Todos', opcionesDe(function (c) { return c.req || 'Sin requerimiento'; }));
 
   var fechas = CASOS.map(function (c) { return c.ap; }).filter(Boolean).sort(function (a, b) { return a - b; });
   if (fechas.length) {

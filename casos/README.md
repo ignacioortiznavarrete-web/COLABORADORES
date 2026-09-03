@@ -89,7 +89,7 @@ mal. Los filtros de arriba las alcanzan a las tres.
 Abajo queda la cola de trabajo: los casos abiertos, ordenables por cualquier
 columna. Llega plegada en 8 filas, con **Ver los N casos** para abrirla entera.
 
-Los filtros de arriba (año, estado, tipo, subcategoría, causa, búsqueda) reordenan
+Los filtros de arriba (año, estado, tipo, subcategoría, causa, requerimiento y búsqueda) reordenan
 todo lo de abajo, incluidas las frases de hallazgo, que se recalculan solas: el
 tablero dice en palabras lo que está mostrando. Cada gráfico tiene su botón
 **Tabla** con los mismos números en texto.
