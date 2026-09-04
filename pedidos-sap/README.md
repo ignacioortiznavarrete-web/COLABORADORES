@@ -1,7 +1,6 @@
 # pedidos-sap — ME31K / ME21N / ME22N desde Excel
 
 Macro de Excel (VBA + SAP GUI Scripting) para el trabajo mensual de pedidos.
-Un solo archivo: **`PedidosSAP.bas`**.
 
 Lo que antes se hacía a mano en ME22N —entrar a *Datos adicionales* y poner la
 fecha, levantar la barra de abajo, escribir `99,9` y la calidad posición por
@@ -9,18 +8,21 @@ posición— ahora lo hace la macro sola, pedido por pedido.
 
 ---
 
-## Las dos macros
+## Dos archivos, uno por mes
 
-`Alt+F8` y aparecen solo dos nombres:
+| Archivo | Macro (`Alt+F8`) | Período que usa |
+|---|---|---|
+| **`PedidosMesActual.bas`** | `PEDIDOS_MES_ACTUAL` | día 01 del mes en curso → último día de ese mes |
+| **`PedidosMesSiguiente.bas`** | `PEDIDOS_MES_SIGUIENTE` | día 01 del mes que viene → último día de ese mes |
 
-| Macro | Período que usa |
-|---|---|
-| **`MES_ACTUAL`** | día 01 del mes en curso → último día de ese mes |
-| **`MES_SIGUIENTE`** | día 01 del mes que viene → último día de ese mes |
+Son el mismo código; lo único que cambia es el mes. Puedes importar **uno solo
+o los dos**: cada uno es un módulo independiente y no chocan entre sí, porque
+todo lo de adentro es privado salvo su macro.
 
 El último día lo calcula solo (28, 29, 30 o 31). Ejecutando en septiembre de
-2026, `MES_ACTUAL` trabaja con **01.09.2026 – 30.09.2026** y `MES_SIGUIENTE`
-con **01.10.2026 – 31.10.2026**. No hay que tocar nada en el código cada mes.
+2026, `PEDIDOS_MES_ACTUAL` trabaja con **01.09.2026 – 30.09.2026** y
+`PEDIDOS_MES_SIGUIENTE` con **01.10.2026 – 31.10.2026**. No hay que tocar
+ninguna fecha en el código, ningún mes.
 
 Las dos preguntan lo mismo al arrancar, y muestran el período antes de empezar:
 
@@ -55,10 +57,14 @@ Para cada bloque de la planilla que tenga número de pedido en la columna J:
 
 ## Instalación (una sola vez)
 
-1. `Alt+F11` → **Archivo › Importar archivo…** → elige `PedidosSAP.bas`.
+1. `Alt+F11` → **Archivo › Importar archivo…** → elige `PedidosMesActual.bas`.
+2. Repite con `PedidosMesSiguiente.bas` si quieres tener los dos meses.
    (O bien **Insertar › Módulo** y pega el texto completo del archivo.)
-2. Borra el módulo viejo, para que no queden dos macros con el mismo nombre.
-3. Guarda el libro como **`.xlsm`**.
+3. Borra el módulo viejo, para que no queden macros repetidas.
+4. Guarda el libro como **`.xlsm`**.
+
+Quedan dos módulos, `PedidosMesActual` y `PedidosMesSiguiente`, y en `Alt+F8`
+aparecen solo sus dos macros.
 
 En SAP tiene que estar habilitado el scripting (`sapgui/user_scripting = TRUE`
 en el servidor y *Opciones › Accesibilidad y scripting › Scripting* en el
@@ -106,7 +112,7 @@ por pedido en SAP.
 
 ---
 
-## Ajustes (arriba del módulo)
+## Ajustes (arriba de cada módulo)
 
 ```vba
 Const TOL_EXCESO        As String = "99,9"       ' sobreentrega EKPO-UEBTO
@@ -125,6 +131,9 @@ SAP rechazará todas las fechas.
 
 La primera vez conviene correrlo con `GUARDAR_AUTO = False` y un par de
 bloques, para mirar en pantalla antes de grabar.
+
+Los dos archivos llevan los mismos ajustes: si cambias uno (por ejemplo la
+tolerancia o el prefijo de calidad), cámbialo también en el otro.
 
 ---
 
@@ -158,11 +167,14 @@ bloques, para mirar en pantalla antes de grabar.
 ## Rutina de cada mes
 
 1. Actualiza la planilla con los materiales, precios y cantidades del mes.
-2. `MES_SIGUIENTE` → opción **1** (ME31K). Quedan los pedidos abiertos en la
-   columna H.
-3. `MES_SIGUIENTE` → opción **2** (ME21N). Quedan los números de pedido en la
-   columna J.
+2. `PEDIDOS_MES_SIGUIENTE` → opción **1** (ME31K). Quedan los pedidos abiertos
+   en la columna H.
+3. `PEDIDOS_MES_SIGUIENTE` → opción **2** (ME21N). Quedan los números de pedido
+   en la columna J.
 4. Si después hay que corregir fechas, tolerancia o calidad:
-   `MES_SIGUIENTE` → opción **3** (ME22N).
+   `PEDIDOS_MES_SIGUIENTE` → opción **3** (ME22N).
 5. Mira la hoja **Registro** y revisa en SAP solo lo que salió `REVISAR` o
    `ERROR`.
+
+Para arreglar algo del mes que ya está corriendo, lo mismo pero con
+`PEDIDOS_MES_ACTUAL`.

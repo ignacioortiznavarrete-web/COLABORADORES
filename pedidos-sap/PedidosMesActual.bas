@@ -1,13 +1,20 @@
 ' =====================================================================
-'  PEDIDOS SAP  -  ME31K / ME21N / ME22N        (v14)
-'  Modulo unico para Excel + SAP GUI Scripting
+'  PEDIDOS_MES_ACTUAL
+'  Pedidos SAP  -  ME31K / ME21N / ME22N        (v14)
+'  Excel + SAP GUI Scripting
 ' ---------------------------------------------------------------------
-'  DOS MACROS, UNA POR MES. Alt+F8 y elige:
+'  ESTE ARCHIVO TRABAJA SIEMPRE CON EL MES ACTUAL:
+'     desde el dia 01 del mes en curso hasta el ultimo dia de ese mes.
+'     El ultimo dia (28, 29, 30 o 31) lo calcula solo. No hay que tocar
+'     ninguna fecha en el codigo, ningun mes.
 '
-'     MES_ACTUAL      ->  01 del mes en curso   hasta el ultimo dia de ese mes
-'     MES_SIGUIENTE   ->  01 del mes que viene  hasta el ultimo dia de ese mes
+'  Es el archivo hermano de PedidosMesSiguiente.bas, que hace lo mismo con el otro
+'  mes. Son iguales salvo el mes: se pueden tener los dos en el mismo
+'  libro, cada uno con su macro.
 '
-'  Las dos preguntan que hacer:
+'  Alt+F8 > PEDIDOS_MES_ACTUAL
+'
+'  Pregunta que hacer:
 '     1 = Crear PEDIDOS ABIERTOS (ME31K)
 '     2 = Crear PEDIDOS de compra (ME21N)
 '     3 = ACTUALIZAR pedidos ya creados (ME22N)  <-- lo que se hacia a mano
@@ -21,9 +28,9 @@
 '     d) Graba y anota el resultado en la hoja "Registro"
 '
 '  INSTALACION (una sola vez)
-'     Alt+F11 > Archivo > Importar archivo... > PedidosSAP.bas
+'     Alt+F11 > Archivo > Importar archivo... > este archivo
 '     (o Insertar > Modulo y pegar este texto completo)
-'     Borra el modulo viejo para que no queden dos macros con el mismo nombre.
+'     Borra el modulo viejo para que no queden macros repetidas.
 '     Guarda el libro como .xlsm
 '
 '  LA PLANILLA (Hoja1). Un bloque por proveedor:
@@ -88,14 +95,11 @@ Dim pestTextos As String           ' pestana de posicion con los textos
 Dim logFila As Long
 
 ' =====================================================================
-'                        LAS DOS MACROS DEL MES
+'                          LA MACRO DEL MES
+'  PEDIDOS_MES_ACTUAL: del 01 del mes en curso al ultimo dia de ese mes
 ' =====================================================================
-Sub MES_ACTUAL()
+Sub PEDIDOS_MES_ACTUAL()
     Ejecutar 0
-End Sub
-
-Sub MES_SIGUIENTE()
-    Ejecutar 1
 End Sub
 
 ' ---------------------------------------------------------------------
