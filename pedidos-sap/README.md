@@ -129,6 +129,58 @@ Const HOJA_LOG          As String = "Registro"   ' "" = no dejar registro
 usuario en `SU3 › Valores fijos`. Si ahí la fecha es `MM/DD/YYYY`, cámbialo o
 SAP rechazará todas las fechas.
 
+### Qué se escribe en cada transacción
+
+Cada dato entra en **un solo campo**: la macro prueba las variantes del ID
+(`EKKO-KDATB`, `RM06E-KDATB`…) y escribe en la primera que exista en pantalla.
+Antes se escribía en todas a la vez, y eso dejaba datos donde no correspondía.
+
+```vba
+' Pantalla inicial de ME31K
+Const ME31K_DATOS_POSICION  As Boolean = True    ' centro / almacén / grupo de artículos
+Const ME31K_MARCAR_CASILLAS As Boolean = False   ' antes se tildaban 5 casillas a ciegas
+
+' Columnas de la grilla de ME21N
+Const ME21N_MATERIAL As Boolean = True
+Const ME21N_CANTIDAD As Boolean = True
+Const ME21N_UMP      As Boolean = True
+Const ME21N_PRECIO   As Boolean = True
+Const ME21N_MONEDA   As Boolean = False   ' la moneda es de cabecera, no de posición
+Const ME21N_ENTREGA  As Boolean = True
+```
+
+En ME21N el contrato marco (`KONNR` + `KTPNR`) se escribe **primero**, para que
+SAP traiga del contrato lo que corresponda antes de que la macro escriba el
+resto. Si en tu R3 el precio o la unidad tienen que venir del contrato y no de
+la planilla, pon esas constantes en `False`.
+
+Las casillas de la pantalla inicial de ME31K ya no se tildan: eran cinco
+(`XOBLR`, `XOBL`, `XOBLK`…) y se marcaban sin mirar si existían o qué hacían.
+
+---
+
+## Si algo falla: el diagnóstico
+
+Cuando ME31K no llega a las posiciones, el aviso ya no dice solo "revisa en qué
+pantalla quedó SAP": trae **dónde se quedó exactamente**.
+
+```
+Donde quedo SAP:
+  transaccion ME31K, programa SAPMM06E, dynpro 0205
+  ventana: Crear contrato marco: Pantalla inicial
+  mensaje (E): Indique la clase de documento
+  tablas en pantalla: (ninguna)
+```
+
+Con eso se ve al tiro si el problema es un campo obligatorio que falta, un
+valor que SAP rechaza, o que la tabla de posiciones se llama distinto en tu
+sistema. La macro ya no se limita a cuatro nombres de tabla conocidos: recorre
+la pantalla y toma la que tenga columna de material.
+
+Además, entre pantalla y pantalla mira la barra de estado: si SAP contesta con
+un error (`E`) o un aborto (`A`), se detiene ahí y lo anota, en vez de seguir
+mandando Enter a ciegas.
+
 La primera vez conviene correrlo con `GUARDAR_AUTO = False` y un par de
 bloques, para mirar en pantalla antes de grabar.
 

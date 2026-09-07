@@ -63,6 +63,20 @@ Const INTERVALO_POS     As Long = 10             ' posiciones del contrato 10,20
 Const ENTREGA_AL_CIERRE As Boolean = True        ' True  = entrega el ultimo dia del mes
                                                  ' False = entrega el dia 01
 
+' --- Que se escribe en la pantalla inicial de ME31K ---
+Const ME31K_DATOS_POSICION  As Boolean = True    ' centro / almacen / grupo de articulos
+Const ME31K_MARCAR_CASILLAS As Boolean = False   ' antes se tildaban 5 casillas a ciegas
+
+' --- Que columnas se escriben en la grilla de ME21N ---
+' Al referenciar el pedido abierto, SAP trae del contrato el material, la
+' unidad y el precio. Pon en False lo que en tu R3 no corresponda escribir.
+Const ME21N_MATERIAL    As Boolean = True
+Const ME21N_CANTIDAD    As Boolean = True
+Const ME21N_UMP         As Boolean = True
+Const ME21N_PRECIO      As Boolean = True
+Const ME21N_MONEDA      As Boolean = False       ' la moneda es de cabecera, no de posicion
+Const ME21N_ENTREGA     As Boolean = True
+
 Const FORMATO_FECHA     As String = "DD.MM.YYYY" ' formato de fecha de tu usuario SAP
 Const SEP_DECIMAL       As String = ","          ' separador decimal de tu usuario SAP
 Const MAX_POSICIONES    As Long = 200            ' tope al recorrer la grilla
@@ -85,6 +99,8 @@ Dim cWAERS As Long, cKONNR As Long, cKTPNR As Long, cEEIND As Long
 
 Dim clavesPos() As String          ' claves reales del combo de posiciones
 Dim nClavesPos As Long
+Dim gUltimoMsg As String           ' ultimo mensaje de SAP tras un Enter
+Dim gListaTablas As String         ' tablas encontradas en la pantalla
 
 Dim gN As String                   ' dynpro de SAPLMEGUI ya descubierto (0014, 0016...)
 Dim gBaseCab As String             ' ruta de la cabecera ya descubierta
@@ -303,6 +319,133 @@ Private Sub SalirTransaccion()
     On Error GoTo 0
     WaitSeconds 0.8
     ConfirmarPopups
+End Sub
+
+' =====================================================================
+'  ESCRITURA CONTROLADA Y DIAGNOSTICO DE PANTALLA
+' =====================================================================
+
+' Escribe el valor en el PRIMER campo de la lista que exista en pantalla
+' y devuelve cual fue ("" si no existia ninguno). Asi un dato entra en un
+' solo campo, y no en todas las variantes a la vez.
+Private Function EscribirPrimero(ids As Variant, valor As String) As String
+    Dim i As Long, o As Object
+
+    EscribirPrimero = ""
+    If Trim(valor) = "" Then Exit Function
+
+    For i = LBound(ids) To UBound(ids)
+        Set o = Nothing
+        On Error Resume Next
+        Set o = session.findById(CStr(ids(i)))
+        On Error GoTo 0
+        If Not o Is Nothing Then
+            On Error Resume Next
+            o.Text = valor
+            On Error GoTo 0
+            EscribirPrimero = CStr(ids(i))
+            Exit Function
+        End If
+    Next i
+End Function
+
+' Enter + confirmar avisos + mirar la barra de estado.
+' Devuelve False si SAP contesto con un error (E) o un aborto (A).
+Private Function EnterYComprobar() As Boolean
+    Dim tipo As String
+
+    gUltimoMsg = ""
+    On Error Resume Next
+    session.findById("wnd[0]").sendVKey 0
+    On Error GoTo 0
+    WaitSeconds 1
+    ConfirmarPopups
+
+    tipo = SbarTipo()
+    gUltimoMsg = Sbar()
+    EnterYComprobar = Not (tipo = "E" Or tipo = "A")
+End Function
+
+' En que pantalla quedo SAP
+Private Function Pantalla() As String
+    Dim tx As String, pr As String, dy As String
+    On Error Resume Next
+    tx = session.Info.Transaction
+    pr = session.Info.Program
+    dy = CStr(session.Info.ScreenNumber)
+    On Error GoTo 0
+    Pantalla = "transaccion " & tx & ", programa " & pr & ", dynpro " & dy
+End Function
+
+' Texto para pegar y saber exactamente donde se atasco
+Private Function DiagnosticoPantalla() As String
+    Dim titulo As String
+    On Error Resume Next
+    titulo = session.findById("wnd[0]").Text
+    On Error GoTo 0
+    DiagnosticoPantalla = "Donde quedo SAP:" & vbCrLf & _
+        "  " & Pantalla() & vbCrLf & _
+        "  ventana: " & titulo & vbCrLf & _
+        "  mensaje (" & SbarTipo() & "): " & Sbar() & vbCrLf & _
+        "  tablas en pantalla: " & ListarTablas() & vbCrLf & vbCrLf & _
+        "Copia este texto: con el se ajusta la macro a tu pantalla."
+End Function
+
+' Todas las tablas (table controls) que hay en la pantalla, con su ID
+Private Function ListarTablas() As String
+    Dim usr As Object
+    Set usr = Nothing
+    On Error Resume Next
+    Set usr = session.findById("wnd[0]/usr")
+    On Error GoTo 0
+    If usr Is Nothing Then
+        ListarTablas = "(no pude leer el area de la pantalla)"
+        Exit Function
+    End If
+    gListaTablas = ""
+    RecorrerBuscandoTablas usr, 0
+    If gListaTablas = "" Then
+        ListarTablas = "(ninguna)"
+    Else
+        ListarTablas = gListaTablas
+    End If
+End Function
+
+Private Sub RecorrerBuscandoTablas(cont As Object, prof As Long)
+    Dim hijos As Object, i As Long, n As Long, o As Object, t As String, id As String
+
+    If prof > 5 Then Exit Sub
+    Set hijos = Nothing
+    On Error Resume Next
+    Set hijos = cont.Children
+    On Error GoTo 0
+    If hijos Is Nothing Then Exit Sub
+
+    n = 0
+    On Error Resume Next
+    n = hijos.Count
+    On Error GoTo 0
+
+    For i = 0 To n - 1
+        Set o = Nothing
+        On Error Resume Next
+        Set o = hijos.ElementAt(i)
+        On Error GoTo 0
+        If Not o Is Nothing Then
+            t = "": id = ""
+            On Error Resume Next
+            t = o.Type
+            id = o.id
+            On Error GoTo 0
+            If t = "GuiTableControl" Then
+                If gListaTablas <> "" Then gListaTablas = gListaTablas & ", "
+                gListaTablas = gListaTablas & id
+            ElseIf InStr(t, "Container") > 0 Or t = "GuiUserArea" Or t = "GuiTab" _
+                   Or t = "GuiTabStrip" Or t = "GuiSplitterShell" Then
+                RecorrerBuscandoTablas o, prof + 1
+            End If
+        End If
+    Next i
 End Sub
 
 ' =====================================================================
@@ -1194,76 +1337,81 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
 
     session.findById("wnd[0]/tbar[0]/okcd").Text = "/nME31K"
     session.findById("wnd[0]").sendVKey 0
-    WaitSeconds 0.9
+    WaitSeconds 1
+    ConfirmarPopups
 
     ' ---- Pantalla inicial ----
-    SetText "wnd[0]/usr/ctxtEKKO-LIFNR", proveedor
-    SetText "wnd[0]/usr/ctxtRM06E-EVART", CLASE_CONTRATO
-    SetText "wnd[0]/usr/ctxtEKKO-EKORG", ORG_COMPRAS
-    SetText "wnd[0]/usr/ctxtRM06E-EKORG", ORG_COMPRAS
-    SetText "wnd[0]/usr/ctxtEKKO-EKGRP", GRUPO_COMPRAS
-    SetText "wnd[0]/usr/ctxtRM06E-EKGRP", GRUPO_COMPRAS
-    SetText "wnd[0]/usr/ctxtRM06E-WERKS", CENTRO
-    SetText "wnd[0]/usr/ctxtRM06E-LGORT", ALMACEN
-    SetText "wnd[0]/usr/ctxtRM06E-MATKL", GRUPO_ARTICULO
-    SetText "wnd[0]/usr/ctxtEKPO-WERKS", CENTRO
-    SetText "wnd[0]/usr/ctxtEKPO-LGORT", ALMACEN
-    SetText "wnd[0]/usr/ctxtEKPO-MATKL", GRUPO_ARTICULO
-
-    SetText "wnd[0]/usr/txtEKKO-KTWRT", valTotal
-    SetText "wnd[0]/usr/txtRM06E-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtEKKO-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtRM06E-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtEKKO-WAERS", moneda
-    SetText "wnd[0]/usr/ctxtRM06E-WAERS", moneda
-    TrySelect "wnd[0]/usr/chkRM06E-KTWRT"
-    TrySelect "wnd[0]/usr/chkEKKO-KTWRT"
-    TrySelect "wnd[0]/usr/chkRM06E-XOBLR"
-    TrySelect "wnd[0]/usr/chkRM06E-XOBL"
-    TrySelect "wnd[0]/usr/chkRM06E-XOBLK"
-
-    ' Validez: dia 01 del mes elegido hasta el ultimo dia de ese mes
-    SetText "wnd[0]/usr/ctxtRM06E-VEDAT", d1
-    SetText "wnd[0]/usr/ctxtRM06E-KDATB", d1
-    SetText "wnd[0]/usr/ctxtRM06E-KDATE", d2
-    SetText "wnd[0]/usr/ctxtEKKO-KDATB", d1
-    SetText "wnd[0]/usr/ctxtEKKO-KDATE", d2
-    session.findById("wnd[0]").sendVKey 0
-    WaitSeconds 1
-
-    ' ---- Cabecera: repetir fechas y valor ----
-    SetText "wnd[0]/usr/ctxtRM06E-KDATB", d1
-    SetText "wnd[0]/usr/ctxtRM06E-KDATE", d2
-    SetText "wnd[0]/usr/ctxtEKKO-KDATB", d1
-    SetText "wnd[0]/usr/ctxtEKKO-KDATE", d2
-    SetText "wnd[0]/usr/txtEKKO-KTWRT", valTotal
-    SetText "wnd[0]/usr/txtRM06E-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtEKKO-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtRM06E-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtEKKO-WAERS", moneda
-    SetText "wnd[0]/usr/ctxtRM06E-WAERS", moneda
-    session.findById("wnd[0]").sendVKey 0
-    WaitSeconds 1
-
-    ' ---- Posiciones: escritura directa en la tabla ----
-    Dim tbl As Object, colMat As Long, colCtd As Long, colUm As Long, colPrc As Long
-    Dim filasVis As Long, pos As Long, filaTbl As Long
-
-    Set tbl = GetTablaME31K()
-    If tbl Is Nothing Then
-        session.findById("wnd[0]").sendVKey 0
-        WaitSeconds 1
-        Set tbl = GetTablaME31K()
-    End If
-    If tbl Is Nothing Then
-        Registrar f1, "", proveedor, "ERROR", "No aparecio la tabla de posiciones de ME31K"
-        MsgBox "No encontre la tabla de posiciones de ME31K en pantalla." & vbCrLf & _
-               "Revisa en que pantalla quedo SAP.", vbCritical
+    ' Cada dato entra en UN solo campo: el primero de la lista que exista
+    ' en la pantalla. Antes se escribia en todas las variantes a la vez y
+    ' eso dejaba datos donde no correspondia.
+    If EscribirPrimero(Array("wnd[0]/usr/ctxtEKKO-LIFNR"), proveedor) = "" Then
+        Registrar f1, "", proveedor, "ERROR", _
+                  "ME31K no mostro la pantalla inicial. " & Pantalla() & " | " & Sbar()
+        MsgBox "ME31K no llego a la pantalla inicial: no esta el campo del proveedor." & _
+               vbCrLf & vbCrLf & DiagnosticoPantalla(), vbCritical, "Pedido Abierto"
         Exit Sub
     End If
 
-    colMat = ColTbl(tbl, "EKPO-EMATN")
-    If colMat = -1 Then colMat = ColTbl(tbl, "EKPO-MATNR")
+    EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-EVART"), CLASE_CONTRATO
+    EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-VEDAT"), d1
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-EKORG", _
+                          "wnd[0]/usr/ctxtRM06E-EKORG"), ORG_COMPRAS
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-EKGRP", _
+                          "wnd[0]/usr/ctxtRM06E-EKGRP"), GRUPO_COMPRAS
+
+    If ME31K_DATOS_POSICION Then
+        EscribirPrimero Array("wnd[0]/usr/ctxtEKPO-WERKS", _
+                              "wnd[0]/usr/ctxtRM06E-WERKS"), CENTRO
+        EscribirPrimero Array("wnd[0]/usr/ctxtEKPO-LGORT", _
+                              "wnd[0]/usr/ctxtRM06E-LGORT"), ALMACEN
+        EscribirPrimero Array("wnd[0]/usr/ctxtEKPO-MATKL", _
+                              "wnd[0]/usr/ctxtRM06E-MATKL"), GRUPO_ARTICULO
+    End If
+
+    If ME31K_MARCAR_CASILLAS Then
+        TrySelect "wnd[0]/usr/chkRM06E-KTWRT"
+        TrySelect "wnd[0]/usr/chkEKKO-KTWRT"
+    End If
+
+    If Not EnterYComprobar() Then
+        Registrar f1, "", proveedor, "ERROR", _
+                  "ME31K rechazo la pantalla inicial: " & gUltimoMsg & " | " & Pantalla()
+        MsgBox "SAP no acepto la pantalla inicial de ME31K." & vbCrLf & _
+               "Mensaje: " & gUltimoMsg & vbCrLf & vbCrLf & _
+               DiagnosticoPantalla(), vbCritical, "Pedido Abierto"
+        Exit Sub
+    End If
+
+    ' ---- Cabecera y camino hasta las posiciones ----
+    ' La cabecera se llena si esta en pantalla; si no, no pasa nada.
+    Dim tbl As Object, colMat As Long, colCtd As Long, colUm As Long, colPrc As Long
+    Dim filasVis As Long, pos As Long, filaTbl As Long, intento As Long
+
+    Set tbl = Nothing
+    For intento = 1 To 4
+        LlenarCabeceraME31K valTotal, moneda
+        Set tbl = GetTablaME31K()
+        If Not tbl Is Nothing Then Exit For
+        If Not EnterYComprobar() Then Exit For
+    Next intento
+
+    If tbl Is Nothing Then
+        Registrar f1, "", proveedor, "ERROR", _
+                  "No aparecio la tabla de posiciones de ME31K. " & Pantalla() & " | " & Sbar()
+        MsgBox "No encontre la tabla de posiciones de ME31K." & vbCrLf & _
+               "SAP se quedo antes de llegar a las posiciones." & vbCrLf & vbCrLf & _
+               DiagnosticoPantalla(), vbCritical, "Pedido Abierto"
+        Exit Sub
+    End If
+
+    colMat = ColMaterialME31K(tbl)
+    If colMat < 0 Then
+        Registrar f1, "", proveedor, "ERROR", _
+                  "La tabla de posiciones no tiene columna de material. " & Pantalla()
+        MsgBox "Encontre la tabla de posiciones pero no su columna de material." & _
+               vbCrLf & vbCrLf & DiagnosticoPantalla(), vbCritical, "Pedido Abierto"
+        Exit Sub
+    End If
     colCtd = ColTbl(tbl, "EKPO-KTMNG")
     If colCtd = -1 Then colCtd = ColTbl(tbl, "EKPO-MENGE")
     colUm = ColTbl(tbl, "EKPO-MEINS")
@@ -1317,9 +1465,35 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     End If
 End Sub
 
-' Busca la tabla de posiciones de ME31K probando los nombres conocidos
+' Cabecera del contrato: validez, valor previsto y moneda.
+' Escribe solo lo que este en pantalla, un dato en un solo campo.
+Private Sub LlenarCabeceraME31K(valTotal As String, moneda As String)
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATB", _
+                          "wnd[0]/usr/ctxtRM06E-KDATB"), d1
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATE", _
+                          "wnd[0]/usr/ctxtRM06E-KDATE"), d2
+    EscribirPrimero Array("wnd[0]/usr/txtEKKO-KTWRT", _
+                          "wnd[0]/usr/ctxtEKKO-KTWRT", _
+                          "wnd[0]/usr/txtRM06E-KTWRT", _
+                          "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-WAERS", _
+                          "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
+End Sub
+
+' Columna de material de la tabla de posiciones (-1 si no la tiene)
+Private Function ColMaterialME31K(tbl As Object) As Long
+    Dim c As Long
+    c = ColTbl(tbl, "EKPO-EMATN")
+    If c = -1 Then c = ColTbl(tbl, "EKPO-MATNR")
+    ColMaterialME31K = c
+End Function
+
+' Busca la tabla de posiciones de ME31K: primero por los nombres conocidos
+' y si no, recorriendo la pantalla en busca de una tabla con columna de
+' material. Asi no depende de como se llame la tabla en tu sistema.
 Private Function GetTablaME31K() As Object
-    Dim nombres As Variant, i As Long, t As Object
+    Dim nombres As Variant, ids As Variant, i As Long, t As Object
+
     nombres = Array("wnd[0]/usr/tblSAPMM06ETC_0220", _
                     "wnd[0]/usr/tblSAPMM06ETC_0120", _
                     "wnd[0]/usr/tblSAPMM06ETC_0201", _
@@ -1330,10 +1504,27 @@ Private Function GetTablaME31K() As Object
         Set t = session.findById(CStr(nombres(i)))
         On Error GoTo 0
         If Not t Is Nothing Then
-            Set GetTablaME31K = t
-            Exit Function
+            If ColMaterialME31K(t) >= 0 Then
+                Set GetTablaME31K = t
+                Exit Function
+            End If
         End If
     Next i
+
+    ids = Split(ListarTablas(), ", ")
+    For i = LBound(ids) To UBound(ids)
+        Set t = Nothing
+        On Error Resume Next
+        Set t = session.findById(CStr(ids(i)))
+        On Error GoTo 0
+        If Not t Is Nothing Then
+            If ColMaterialME31K(t) >= 0 Then
+                Set GetTablaME31K = t
+                Exit Function
+            End If
+        End If
+    Next i
+
     Set GetTablaME31K = Nothing
 End Function
 
@@ -1442,14 +1633,15 @@ Private Sub CrearPedido(f1 As Long, f2 As Long)
         Exit Sub
     End If
 
-    cEMATN = DescubrirCol("ctxtMEPO1211-EMATN", 4)
-    cMENGE = DescubrirCol("txtMEPO1211-MENGE", 6)
-    cMEINS = DescubrirCol("ctxtMEPO1211-MEINS", 7)
-    cNETPR = DescubrirCol("txtMEPO1211-NETPR", 10)
-    cWAERS = DescubrirCol("txtMEPO1211-WAERS", 11)
+    ' solo se busca la columna de lo que se va a escribir
+    If ME21N_MATERIAL Then cEMATN = DescubrirCol("ctxtMEPO1211-EMATN", 4)
+    If ME21N_CANTIDAD Then cMENGE = DescubrirCol("txtMEPO1211-MENGE", 6)
+    If ME21N_UMP Then cMEINS = DescubrirCol("ctxtMEPO1211-MEINS", 7)
+    If ME21N_PRECIO Then cNETPR = DescubrirCol("txtMEPO1211-NETPR", 10)
+    If ME21N_MONEDA Then cWAERS = DescubrirCol("txtMEPO1211-WAERS", 11)
+    If ME21N_ENTREGA Then cEEIND = DescubrirCol("ctxtMEPO1211-EEIND", 9)
     cKONNR = DescubrirCol("ctxtMEPO1211-KONNR", 27)
     cKTPNR = DescubrirCol("txtMEPO1211-KTPNR", 28)
-    cEEIND = DescubrirCol("ctxtMEPO1211-EEIND", 9)
 
     If cKONNR = -1 Then
         Registrar f1, "", proveedor, "ERROR", "No esta la columna Contrato marco en la grilla"
@@ -1474,13 +1666,14 @@ Private Sub CrearPedido(f1 As Long, f2 As Long)
             scrollPos = tbl.VerticalScrollbar.Position
             filaVis = n - scrollPos
         End If
+        ' el contrato marco va primero: SAP trae de ahi lo que corresponda
+        EscribirCelda cKONNR, filaVis, contrato
+        EscribirCelda cKTPNR, filaVis, CStr((n + 1) * INTERVALO_POS)
         EscribirCelda cEMATN, filaVis, Trim(CStr(ws.Cells(i, C_MAT).Value))
         EscribirCelda cMENGE, filaVis, FNum(ws.Cells(i, C_CAN).Value)
         EscribirCelda cMEINS, filaVis, Trim(CStr(ws.Cells(i, C_UMP).Value))
         EscribirCelda cNETPR, filaVis, FNum(ws.Cells(i, C_PRE).Value)
         EscribirCelda cWAERS, filaVis, moneda
-        EscribirCelda cKONNR, filaVis, contrato
-        EscribirCelda cKTPNR, filaVis, CStr((n + 1) * INTERVALO_POS)
         EscribirCelda cEEIND, filaVis, dEntrega
     Next i
 
