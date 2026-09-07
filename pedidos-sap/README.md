@@ -194,6 +194,40 @@ macro **no abandona el bloque**: te muestra qué falta, esperas a completarlo a
 mano en SAP, pulsas Aceptar y sigue sola. Cuando ya sepas cuáles son y los
 pongas en la constante, deja de preguntar.
 
+### Cómo se rellena la cabecera del contrato
+
+En la pantalla **Datos cabecera** de ME31K (dynpro 201), SAP pide como
+obligatorios `EKKO-KDATE` (Fin per.validez) y `EKKO-KTWRT` (Val.prev.). La
+macro los toma de:
+
+| Campo SAP | De dónde sale |
+|---|---|
+| `EKKO-KDATB` (Inicio validez) | día 01 del mes elegido |
+| `EKKO-KDATE` (Fin per.validez) | último día de ese mes |
+| `EKKO-KTWRT` (Val.prev.) | **columna F, Valor total** de la planilla |
+| `EKKO-WAERS` (Moneda) | columna G |
+
+Cada escritura se **verifica**: se escribe y se vuelve a leer el campo. Si
+quedó vacío o el campo no era modificable, la macro sigue buscando por otra
+ruta y por nombre en toda la pantalla, en vez de darlo por bueno.
+
+Después hace un **barrido**: recorre la pantalla, y cualquier campo que SAP
+marque como obligatorio y siga vacío lo rellena si sabe qué va ahí (los cuatro
+de la tabla, más los que estén en `ME31K_CABECERA_EXTRA`).
+
+Si aun así falta algo, el aviso muestra las dos listas — qué está vacío y qué
+intentó escribir la macro, campo por campo:
+
+```
+Campos obligatorios vacios:
+   EKKO-KDATE (Fin per.validez) | EKKO-KTWRT (Val.prev.)
+
+Lo que la macro intento escribir:
+   EKKO-KDATB = 01.10.2026
+   EKKO-KDATE no se puede modificar
+   EKKO-KTWRT = 111142,4
+```
+
 ### Campos dentro de subpantallas
 
 Los campos se buscan primero por su ruta (`wnd[0]/usr/ctxtEKKO-KDATB`) y, si no

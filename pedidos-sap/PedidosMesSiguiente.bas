@@ -116,6 +116,10 @@ Dim gListaTablas As String         ' tablas encontradas en la pantalla
 Dim gListaOblig As String          ' campos obligatorios vacios
 Dim gNombreBuscado As String       ' campo que se esta buscando por nombre
 Dim gCampoHallado As Object        ' campo encontrado por nombre
+Dim gValTotal As String            ' valor previsto del bloque en curso
+Dim gMoneda As String              ' moneda del bloque en curso
+Dim gModoRelleno As Boolean        ' el recorrido rellena, no solo mira
+Dim gLogEscritura As String        ' que se escribio y si quedo
 
 Dim gN As String                   ' dynpro de SAPLMEGUI ya descubierto (0014, 0016...)
 Dim gBaseCab As String             ' ruta de la cabecera ya descubierta
@@ -343,43 +347,125 @@ End Sub
 ' Escribe el valor en el PRIMER campo de la lista que exista en pantalla
 ' y devuelve cual fue ("" si no existia ninguno). Asi un dato entra en un
 ' solo campo, y no en todas las variantes a la vez.
+' Escribe en un campo y COMPRUEBA que el valor quedo. Devuelve False si
+' el campo no se puede modificar o si sigue vacio despues de escribir:
+' entonces hay que seguir buscando en otra ruta.
+Private Function IntentarEscribir(o As Object, valor As String, nombre As String) As Boolean
+    Dim editable As Boolean, quedo As String
+
+    IntentarEscribir = False
+    If o Is Nothing Then Exit Function
+
+    editable = True
+    On Error Resume Next
+    editable = o.Changeable
+    On Error GoTo 0
+    If Not editable Then
+        Anotar nombre & " no se puede modificar"
+        Exit Function
+    End If
+
+    On Error Resume Next
+    o.Text = valor
+    On Error GoTo 0
+
+    quedo = ""
+    On Error Resume Next
+    quedo = Trim(o.Text)
+    On Error GoTo 0
+
+    If quedo <> "" Then
+        Anotar nombre & " = " & quedo
+        IntentarEscribir = True
+    Else
+        Anotar nombre & " no acepto " & valor
+    End If
+End Function
+
+Private Sub Anotar(txt As String)
+    If Len(gLogEscritura) > 700 Then Exit Sub
+    If gLogEscritura <> "" Then gLogEscritura = gLogEscritura & vbCrLf & "   "
+    gLogEscritura = gLogEscritura & txt
+End Sub
+
 Private Function EscribirPrimero(ids As Variant, valor As String) As String
-    Dim i As Long, o As Object
+    Dim i As Long, o As Object, nombre As String
 
     EscribirPrimero = ""
     If Trim(valor) = "" Then Exit Function
 
-    ' 1) por la ruta exacta
+    ' 1) por la ruta exacta, comprobando que el valor queda
     For i = LBound(ids) To UBound(ids)
         Set o = Nothing
         On Error Resume Next
         Set o = session.findById(CStr(ids(i)))
         On Error GoTo 0
         If Not o Is Nothing Then
-            On Error Resume Next
-            o.Text = valor
-            On Error GoTo 0
-            EscribirPrimero = CStr(ids(i))
-            Exit Function
+            nombre = NombreCampo(CStr(ids(i)))
+            If IntentarEscribir(o, valor, nombre) Then
+                EscribirPrimero = CStr(ids(i))
+                Exit Function
+            End If
         End If
     Next i
 
     ' 2) por el nombre del campo, en cualquier parte de la pantalla:
     '    asi funciona aunque el campo este dentro de una subpantalla
     For i = LBound(ids) To UBound(ids)
-        Set o = BuscarCampoPorNombre(NombreCampo(CStr(ids(i))))
+        nombre = NombreCampo(CStr(ids(i)))
+        Set o = BuscarCampoPorNombre(nombre)
         If Not o Is Nothing Then
-            On Error Resume Next
-            o.Text = valor
-            On Error GoTo 0
-            EscribirPrimero = ""
-            On Error Resume Next
-            EscribirPrimero = o.id
-            On Error GoTo 0
-            Exit Function
+            If IntentarEscribir(o, valor, nombre) Then
+                EscribirPrimero = nombre
+                Exit Function
+            End If
         End If
     Next i
 End Function
+
+' Que valor le corresponde a cada campo de la cabecera del contrato
+Private Function ValorParaCampo(nombre As String) As String
+    Select Case UCase(Trim(nombre))
+        Case "EKKO-KDATB", "RM06E-KDATB": ValorParaCampo = d1
+        Case "EKKO-KDATE", "RM06E-KDATE": ValorParaCampo = d2
+        Case "EKKO-VEDAT", "RM06E-VEDAT": ValorParaCampo = d1
+        Case "EKKO-KTWRT", "RM06E-KTWRT": ValorParaCampo = gValTotal
+        Case "EKKO-WAERS", "RM06E-WAERS": ValorParaCampo = gMoneda
+        Case Else:                        ValorParaCampo = ValorExtra(nombre)
+    End Select
+End Function
+
+' Busca el campo en las constantes "CAMPO=VALOR;CAMPO=VALOR"
+Private Function ValorExtra(nombre As String) As String
+    ValorExtra = BuscarEnLista(ME31K_CABECERA_EXTRA, nombre)
+    If ValorExtra = "" Then ValorExtra = BuscarEnLista(ME31K_INICIAL_EXTRA, nombre)
+End Function
+
+Private Function BuscarEnLista(lista As String, nombre As String) As String
+    Dim partes As Variant, i As Long, p As Long, campo As String
+
+    BuscarEnLista = ""
+    If Trim(lista) = "" Then Exit Function
+    partes = Split(lista, ";")
+    For i = LBound(partes) To UBound(partes)
+        p = InStr(CStr(partes(i)), "=")
+        If p > 0 Then
+            campo = UCase(Trim(Left(CStr(partes(i)), p - 1)))
+            If campo = UCase(Trim(nombre)) Then
+                BuscarEnLista = Trim(Mid(CStr(partes(i)), p + 1))
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
+
+' Recorre la pantalla y rellena TODOS los campos obligatorios vacios que
+' la macro sepa llenar, esten donde esten (subpantallas incluidas).
+Private Sub RellenarObligatorios()
+    gModoRelleno = True
+    AnalizarPantalla
+    gModoRelleno = False
+End Sub
 
 ' "wnd[0]/usr/sub...:SAPMM06E:0201/ctxtEKKO-KDATB"  ->  "EKKO-KDATB"
 Private Function NombreCampo(id As String) As String
@@ -527,7 +613,8 @@ Private Function DiagnosticoPantalla() As String
         "  ventana: " & titulo & vbCrLf & _
         "  mensaje (" & SbarTipo() & "): " & Sbar() & vbCrLf & _
         "  obligatorios vacios: " & TextoOblig() & vbCrLf & _
-        "  tablas en pantalla: " & TextoTablas() & vbCrLf & vbCrLf & _
+        "  tablas en pantalla: " & TextoTablas() & vbCrLf & _
+        "  escritura: " & TextoEscritura() & vbCrLf & vbCrLf & _
         "Copia este texto: con el se ajusta la macro a tu pantalla."
 End Function
 
@@ -553,6 +640,14 @@ Private Function TextoTablas() As String
     End If
 End Function
 
+Private Function TextoEscritura() As String
+    If gLogEscritura = "" Then
+        TextoEscritura = "(no se escribio ningun campo)"
+    Else
+        TextoEscritura = gLogEscritura
+    End If
+End Function
+
 Private Function TextoOblig() As String
     If gListaOblig = "" Then
         TextoOblig = "(ninguno detectado)"
@@ -574,7 +669,7 @@ End Function
 Private Sub RecorrerPantalla(cont As Object, prof As Long)
     Dim hijos As Object, i As Long, n As Long, o As Object
     Dim t As String, id As String, txt As String, etiqueta As String
-    Dim obliga As Boolean
+    Dim obliga As Boolean, valorCampo As String
 
     If prof > 6 Then Exit Sub
     Set hijos = Nothing
@@ -616,9 +711,16 @@ Private Sub RecorrerPantalla(cont As Object, prof As Long)
                     On Error Resume Next
                     etiqueta = o.LeftLabel.Text
                     On Error GoTo 0
-                    If gListaOblig <> "" Then gListaOblig = gListaOblig & " | "
-                    gListaOblig = gListaOblig & NombreCampo(id)
-                    If Trim(etiqueta) <> "" Then gListaOblig = gListaOblig & " (" & Trim(etiqueta) & ")"
+
+                    If gModoRelleno Then
+                        ' rellenar lo que la macro sepa llenar
+                        valorCampo = ValorParaCampo(NombreCampo(id))
+                        If valorCampo <> "" Then IntentarEscribir o, valorCampo, NombreCampo(id)
+                    Else
+                        If gListaOblig <> "" Then gListaOblig = gListaOblig & " | "
+                        gListaOblig = gListaOblig & NombreCampo(id)
+                        If Trim(etiqueta) <> "" Then gListaOblig = gListaOblig & " (" & Trim(etiqueta) & ")"
+                    End If
                 End If
 
             ElseIf InStr(t, "Container") > 0 Or t = "GuiUserArea" Or t = "GuiTab" _
@@ -1515,6 +1617,14 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     proveedor = Trim(CStr(ws.Cells(f1, C_PRV).Value))
     valTotal = FNum(ws.Cells(f1, C_VAL).Value)
     moneda = Trim(CStr(ws.Cells(f1, C_MON).Value))
+    gValTotal = valTotal
+    gMoneda = moneda
+    gLogEscritura = ""
+
+    If valTotal = "" Then
+        Registrar f1, "", proveedor, "OMITIDO", "El bloque no tiene Valor total en la columna F"
+        Exit Sub
+    End If
 
     session.findById("wnd[0]/tbar[0]/okcd").Text = "/nME31K"
     session.findById("wnd[0]").sendVKey 0
@@ -1573,6 +1683,7 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     Set tbl = Nothing
     For intento = 1 To 6
         LlenarCabeceraME31K valTotal, moneda
+        RellenarObligatorios          ' barrido: lo que quede obligatorio y vacio
         Set tbl = GetTablaME31K()
         If Not tbl Is Nothing Then Exit For
         If Not EnterYComprobar() Then
@@ -1659,10 +1770,11 @@ Private Function PedirAyudaCabecera(proveedor As String) As Boolean
     MsgBox "SAP no acepta la cabecera del contrato del proveedor " & proveedor & "." & vbCrLf & _
            "Mensaje: " & gUltimoMsg & vbCrLf & vbCrLf & _
            "Campos obligatorios vacios:" & vbCrLf & "   " & ListarObligatorios() & vbCrLf & vbCrLf & _
+           "Lo que la macro intento escribir:" & vbCrLf & "   " & TextoEscritura() & vbCrLf & vbCrLf & _
            "Completalos en SAP y pulsa Aceptar para seguir." & vbCrLf & vbCrLf & _
-           "Cuando sepas cuales son, ponlos arriba del modulo en" & vbCrLf & _
-           "ME31K_CABECERA_EXTRA (por ejemplo ""EKKO-ZTERM=0001"")" & vbCrLf & _
-           "y la macro deja de preguntar.", _
+           "Si el campo que falta no lo pone la macro, agregalo arriba del" & vbCrLf & _
+           "modulo en ME31K_CABECERA_EXTRA (ejemplo ""EKKO-ZTERM=0001"")" & vbCrLf & _
+           "y deja de preguntar.", _
            vbExclamation, "Falta un dato en la cabecera"
     PedirAyudaCabecera = True
 End Function
