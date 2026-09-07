@@ -161,21 +161,48 @@ Las casillas de la pantalla inicial de ME31K ya no se tildan: eran cinco
 
 ## Si algo falla: el diagnóstico
 
-Cuando ME31K no llega a las posiciones, el aviso ya no dice solo "revisa en qué
-pantalla quedó SAP": trae **dónde se quedó exactamente**.
+Cuando ME31K no llega a las posiciones, el aviso trae **dónde se quedó
+exactamente y qué le falta**:
 
 ```
 Donde quedo SAP:
-  transaccion ME31K, programa SAPMM06E, dynpro 0205
-  ventana: Crear contrato marco: Pantalla inicial
-  mensaje (E): Indique la clase de documento
+  transaccion ME31K, programa SAPMM06E, dynpro 201
+  ventana: Crear Pedido abierto : Datos cabecera
+  mensaje (E): Complete todos los campos obligatorios
+  obligatorios vacios: EKKO-ZTERM (Cond.pago) | EKKO-INCO1 (Incoterms)
   tablas en pantalla: (ninguna)
 ```
 
-Con eso se ve al tiro si el problema es un campo obligatorio que falta, un
-valor que SAP rechaza, o que la tabla de posiciones se llama distinto en tu
-sistema. La macro ya no se limita a cuatro nombres de tabla conocidos: recorre
-la pantalla y toma la que tenga columna de material.
+La línea **`obligatorios vacios`** recorre la pantalla y lista los campos que
+SAP marca como obligatorios y están sin llenar, con su nombre técnico y su
+etiqueta. Eso es lo que hay que completar.
+
+### Campos que tu R3 pide de más
+
+Se agregan sin tocar código, en dos constantes:
+
+```vba
+Const ME31K_INICIAL_EXTRA   As String = ""
+Const ME31K_CABECERA_EXTRA  As String = "EKKO-ZTERM=0001;EKKO-INCO1=CIF"
+```
+
+Formato `CAMPO=VALOR`, separados por `;`, con el nombre técnico tal como sale
+en el diagnóstico. Se escriben en su pantalla justo antes del Enter.
+
+Mientras no estén configurados, con `ME31K_PEDIR_AYUDA = True` (por defecto) la
+macro **no abandona el bloque**: te muestra qué falta, esperas a completarlo a
+mano en SAP, pulsas Aceptar y sigue sola. Cuando ya sepas cuáles son y los
+pongas en la constante, deja de preguntar.
+
+### Campos dentro de subpantallas
+
+Los campos se buscan primero por su ruta (`wnd[0]/usr/ctxtEKKO-KDATB`) y, si no
+están ahí, **por su nombre en toda la pantalla**. Así funciona aunque en tu
+sistema vivan dentro de una subpantalla (`wnd[0]/usr/subSUB…:SAPMM06E:0201/…`),
+que es la causa más habitual de que "se escriba" un dato y SAP siga pidiéndolo.
+
+La tabla de posiciones tampoco se busca ya por cuatro nombres fijos: se recorre
+la pantalla y se toma la que tenga columna de material.
 
 Además, entre pantalla y pantalla mira la barra de estado: si SAP contesta con
 un error (`E`) o un aborto (`A`), se detiene ahí y lo anota, en vez de seguir

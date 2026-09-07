@@ -67,6 +67,18 @@ Const ENTREGA_AL_CIERRE As Boolean = True        ' True  = entrega el ultimo dia
 Const ME31K_DATOS_POSICION  As Boolean = True    ' centro / almacen / grupo de articulos
 Const ME31K_MARCAR_CASILLAS As Boolean = False   ' antes se tildaban 5 casillas a ciegas
 
+' --- Campos extra que tu R3 pida en ME31K ---
+' Se escriben tal cual, con el nombre SAP que sale en el diagnostico.
+' Formato: "CAMPO=VALOR;CAMPO=VALOR". Ejemplos:
+'    ME31K_CABECERA_EXTRA = "EKKO-ZTERM=0001;EKKO-INCO1=CIF;EKKO-BUKRS=1000"
+' Dejalos vacios si no hace falta ninguno.
+Const ME31K_INICIAL_EXTRA   As String = ""
+Const ME31K_CABECERA_EXTRA  As String = ""
+
+' Si SAP rechaza la cabecera por campos obligatorios, avisar y esperar a
+' que los completes a mano en SAP en vez de abandonar el bloque.
+Const ME31K_PEDIR_AYUDA     As Boolean = True
+
 ' --- Que columnas se escriben en la grilla de ME21N ---
 ' Al referenciar el pedido abierto, SAP trae del contrato el material, la
 ' unidad y el precio. Pon en False lo que en tu R3 no corresponda escribir.
@@ -101,6 +113,9 @@ Dim clavesPos() As String          ' claves reales del combo de posiciones
 Dim nClavesPos As Long
 Dim gUltimoMsg As String           ' ultimo mensaje de SAP tras un Enter
 Dim gListaTablas As String         ' tablas encontradas en la pantalla
+Dim gListaOblig As String          ' campos obligatorios vacios
+Dim gNombreBuscado As String       ' campo que se esta buscando por nombre
+Dim gCampoHallado As Object        ' campo encontrado por nombre
 
 Dim gN As String                   ' dynpro de SAPLMEGUI ya descubierto (0014, 0016...)
 Dim gBaseCab As String             ' ruta de la cabecera ya descubierta
@@ -334,6 +349,7 @@ Private Function EscribirPrimero(ids As Variant, valor As String) As String
     EscribirPrimero = ""
     If Trim(valor) = "" Then Exit Function
 
+    ' 1) por la ruta exacta
     For i = LBound(ids) To UBound(ids)
         Set o = Nothing
         On Error Resume Next
@@ -347,7 +363,129 @@ Private Function EscribirPrimero(ids As Variant, valor As String) As String
             Exit Function
         End If
     Next i
+
+    ' 2) por el nombre del campo, en cualquier parte de la pantalla:
+    '    asi funciona aunque el campo este dentro de una subpantalla
+    For i = LBound(ids) To UBound(ids)
+        Set o = BuscarCampoPorNombre(NombreCampo(CStr(ids(i))))
+        If Not o Is Nothing Then
+            On Error Resume Next
+            o.Text = valor
+            On Error GoTo 0
+            EscribirPrimero = ""
+            On Error Resume Next
+            EscribirPrimero = o.id
+            On Error GoTo 0
+            Exit Function
+        End If
+    Next i
 End Function
+
+' "wnd[0]/usr/sub...:SAPMM06E:0201/ctxtEKKO-KDATB"  ->  "EKKO-KDATB"
+Private Function NombreCampo(id As String) As String
+    Dim n As String, p As Long
+    n = id
+    p = InStrRev(n, "/")
+    If p > 0 Then n = Mid(n, p + 1)
+    If Left(n, 4) = "ctxt" Then
+        n = Mid(n, 5)
+    ElseIf Left(n, 3) = "txt" Or Left(n, 3) = "cmb" Or Left(n, 3) = "chk" Or Left(n, 3) = "rad" Then
+        n = Mid(n, 4)
+    End If
+    p = InStr(n, "[")
+    If p > 0 Then n = Left(n, p - 1)
+    NombreCampo = UCase(Trim(n))
+End Function
+
+' Busca un campo por su nombre SAP (EKKO-KDATB) recorriendo la pantalla
+Private Function BuscarCampoPorNombre(nombre As String) As Object
+    Dim usr As Object
+
+    Set BuscarCampoPorNombre = Nothing
+    If Trim(nombre) = "" Then Exit Function
+
+    Set usr = Nothing
+    On Error Resume Next
+    Set usr = session.findById("wnd[0]/usr")
+    On Error GoTo 0
+    If usr Is Nothing Then Exit Function
+
+    gNombreBuscado = UCase(Trim(nombre))
+    Set gCampoHallado = Nothing
+    RecorrerBuscandoCampo usr, 0
+    Set BuscarCampoPorNombre = gCampoHallado
+    Set gCampoHallado = Nothing
+End Function
+
+Private Sub RecorrerBuscandoCampo(cont As Object, prof As Long)
+    Dim hijos As Object, i As Long, n As Long, o As Object
+    Dim t As String, id As String, editable As Boolean
+
+    If prof > 6 Then Exit Sub
+    If Not gCampoHallado Is Nothing Then Exit Sub
+
+    Set hijos = Nothing
+    On Error Resume Next
+    Set hijos = cont.Children
+    On Error GoTo 0
+    If hijos Is Nothing Then Exit Sub
+
+    n = 0
+    On Error Resume Next
+    n = hijos.Count
+    On Error GoTo 0
+
+    For i = 0 To n - 1
+        If Not gCampoHallado Is Nothing Then Exit Sub
+        Set o = Nothing
+        On Error Resume Next
+        Set o = hijos.ElementAt(i)
+        On Error GoTo 0
+        If Not o Is Nothing Then
+            t = "": id = ""
+            On Error Resume Next
+            t = o.Type
+            id = o.id
+            On Error GoTo 0
+            If t = "GuiTextField" Or t = "GuiCTextField" Or t = "GuiComboBox" Then
+                If NombreCampo(id) = gNombreBuscado Then
+                    editable = True
+                    On Error Resume Next
+                    editable = o.Changeable
+                    On Error GoTo 0
+                    If editable Then
+                        Set gCampoHallado = o
+                        Exit Sub
+                    End If
+                End If
+            ElseIf t <> "GuiTableControl" And t <> "GuiShell" Then
+                If InStr(t, "Container") > 0 Or t = "GuiUserArea" Or t = "GuiTab" _
+                   Or t = "GuiTabStrip" Or t = "GuiSplitterShell" Then
+                    RecorrerBuscandoCampo o, prof + 1
+                End If
+            End If
+        End If
+    Next i
+End Sub
+
+' Escribe campos indicados como "CAMPO=VALOR;CAMPO=VALOR"
+Private Sub EscribirCamposExtra(lista As String)
+    Dim partes As Variant, i As Long, campo As String, valor As String, p As Long
+
+    If Trim(lista) = "" Then Exit Sub
+    partes = Split(lista, ";")
+    For i = LBound(partes) To UBound(partes)
+        p = InStr(CStr(partes(i)), "=")
+        If p > 0 Then
+            campo = Trim(Left(CStr(partes(i)), p - 1))
+            valor = Trim(Mid(CStr(partes(i)), p + 1))
+            If campo <> "" And valor <> "" Then
+                EscribirPrimero Array("wnd[0]/usr/ctxt" & campo, _
+                                      "wnd[0]/usr/txt" & campo), valor
+            End If
+        End If
+    Next i
+End Sub
 
 ' Enter + confirmar avisos + mirar la barra de estado.
 ' Devuelve False si SAP contesto con un error (E) o un aborto (A).
@@ -383,38 +521,62 @@ Private Function DiagnosticoPantalla() As String
     On Error Resume Next
     titulo = session.findById("wnd[0]").Text
     On Error GoTo 0
+    AnalizarPantalla
     DiagnosticoPantalla = "Donde quedo SAP:" & vbCrLf & _
         "  " & Pantalla() & vbCrLf & _
         "  ventana: " & titulo & vbCrLf & _
         "  mensaje (" & SbarTipo() & "): " & Sbar() & vbCrLf & _
-        "  tablas en pantalla: " & ListarTablas() & vbCrLf & vbCrLf & _
+        "  obligatorios vacios: " & TextoOblig() & vbCrLf & _
+        "  tablas en pantalla: " & TextoTablas() & vbCrLf & vbCrLf & _
         "Copia este texto: con el se ajusta la macro a tu pantalla."
 End Function
 
-' Todas las tablas (table controls) que hay en la pantalla, con su ID
-Private Function ListarTablas() As String
+' Recorre la pantalla una vez y anota las tablas y los campos
+' obligatorios que estan vacios
+Private Sub AnalizarPantalla()
     Dim usr As Object
+    gListaTablas = ""
+    gListaOblig = ""
     Set usr = Nothing
     On Error Resume Next
     Set usr = session.findById("wnd[0]/usr")
     On Error GoTo 0
-    If usr Is Nothing Then
-        ListarTablas = "(no pude leer el area de la pantalla)"
-        Exit Function
-    End If
-    gListaTablas = ""
-    RecorrerBuscandoTablas usr, 0
+    If usr Is Nothing Then Exit Sub
+    RecorrerPantalla usr, 0
+End Sub
+
+Private Function TextoTablas() As String
     If gListaTablas = "" Then
-        ListarTablas = "(ninguna)"
+        TextoTablas = "(ninguna)"
     Else
-        ListarTablas = gListaTablas
+        TextoTablas = gListaTablas
     End If
 End Function
 
-Private Sub RecorrerBuscandoTablas(cont As Object, prof As Long)
-    Dim hijos As Object, i As Long, n As Long, o As Object, t As String, id As String
+Private Function TextoOblig() As String
+    If gListaOblig = "" Then
+        TextoOblig = "(ninguno detectado)"
+    Else
+        TextoOblig = gListaOblig
+    End If
+End Function
 
-    If prof > 5 Then Exit Sub
+Private Function ListarTablas() As String
+    AnalizarPantalla
+    ListarTablas = TextoTablas()
+End Function
+
+Private Function ListarObligatorios() As String
+    AnalizarPantalla
+    ListarObligatorios = TextoOblig()
+End Function
+
+Private Sub RecorrerPantalla(cont As Object, prof As Long)
+    Dim hijos As Object, i As Long, n As Long, o As Object
+    Dim t As String, id As String, txt As String, etiqueta As String
+    Dim obliga As Boolean
+
+    If prof > 6 Then Exit Sub
     Set hijos = Nothing
     On Error Resume Next
     Set hijos = cont.Children
@@ -437,12 +599,31 @@ Private Sub RecorrerBuscandoTablas(cont As Object, prof As Long)
             t = o.Type
             id = o.id
             On Error GoTo 0
+
             If t = "GuiTableControl" Then
                 If gListaTablas <> "" Then gListaTablas = gListaTablas & ", "
                 gListaTablas = gListaTablas & id
+
+            ElseIf t = "GuiTextField" Or t = "GuiCTextField" Or t = "GuiComboBox" Then
+                obliga = False
+                txt = "x"
+                On Error Resume Next
+                obliga = o.Required
+                txt = o.Text
+                On Error GoTo 0
+                If obliga And Trim(txt) = "" Then
+                    etiqueta = ""
+                    On Error Resume Next
+                    etiqueta = o.LeftLabel.Text
+                    On Error GoTo 0
+                    If gListaOblig <> "" Then gListaOblig = gListaOblig & " | "
+                    gListaOblig = gListaOblig & NombreCampo(id)
+                    If Trim(etiqueta) <> "" Then gListaOblig = gListaOblig & " (" & Trim(etiqueta) & ")"
+                End If
+
             ElseIf InStr(t, "Container") > 0 Or t = "GuiUserArea" Or t = "GuiTab" _
                    Or t = "GuiTabStrip" Or t = "GuiSplitterShell" Then
-                RecorrerBuscandoTablas o, prof + 1
+                RecorrerPantalla o, prof + 1
             End If
         End If
     Next i
@@ -1373,6 +1554,8 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
         TrySelect "wnd[0]/usr/chkEKKO-KTWRT"
     End If
 
+    EscribirCamposExtra ME31K_INICIAL_EXTRA
+
     If Not EnterYComprobar() Then
         Registrar f1, "", proveedor, "ERROR", _
                   "ME31K rechazo la pantalla inicial: " & gUltimoMsg & " | " & Pantalla()
@@ -1388,11 +1571,13 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     Dim filasVis As Long, pos As Long, filaTbl As Long, intento As Long
 
     Set tbl = Nothing
-    For intento = 1 To 4
+    For intento = 1 To 6
         LlenarCabeceraME31K valTotal, moneda
         Set tbl = GetTablaME31K()
         If Not tbl Is Nothing Then Exit For
-        If Not EnterYComprobar() Then Exit For
+        If Not EnterYComprobar() Then
+            If Not PedirAyudaCabecera(proveedor) Then Exit For
+        End If
     Next intento
 
     If tbl Is Nothing Then
@@ -1465,6 +1650,23 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     End If
 End Sub
 
+' SAP pide campos obligatorios en la cabecera: avisar y esperar a que se
+' completen a mano. Devuelve True si hay que reintentar.
+Private Function PedirAyudaCabecera(proveedor As String) As Boolean
+    PedirAyudaCabecera = False
+    If Not ME31K_PEDIR_AYUDA Then Exit Function
+
+    MsgBox "SAP no acepta la cabecera del contrato del proveedor " & proveedor & "." & vbCrLf & _
+           "Mensaje: " & gUltimoMsg & vbCrLf & vbCrLf & _
+           "Campos obligatorios vacios:" & vbCrLf & "   " & ListarObligatorios() & vbCrLf & vbCrLf & _
+           "Completalos en SAP y pulsa Aceptar para seguir." & vbCrLf & vbCrLf & _
+           "Cuando sepas cuales son, ponlos arriba del modulo en" & vbCrLf & _
+           "ME31K_CABECERA_EXTRA (por ejemplo ""EKKO-ZTERM=0001"")" & vbCrLf & _
+           "y la macro deja de preguntar.", _
+           vbExclamation, "Falta un dato en la cabecera"
+    PedirAyudaCabecera = True
+End Function
+
 ' Cabecera del contrato: validez, valor previsto y moneda.
 ' Escribe solo lo que este en pantalla, un dato en un solo campo.
 Private Sub LlenarCabeceraME31K(valTotal As String, moneda As String)
@@ -1478,6 +1680,7 @@ Private Sub LlenarCabeceraME31K(valTotal As String, moneda As String)
                           "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
     EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-WAERS", _
                           "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
+    EscribirCamposExtra ME31K_CABECERA_EXTRA
 End Sub
 
 ' Columna de material de la tabla de posiciones (-1 si no la tiene)
