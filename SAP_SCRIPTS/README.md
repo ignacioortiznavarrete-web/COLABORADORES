@@ -13,17 +13,32 @@ productivo, uno por orden de compra, organizados en carpetas por proveedor.
   Enter adicional para continuar.
 - **`MES_SIGUIENTE/`**: fechas de validez del primer al **último día del mes
   siguiente** al momento de ejecutar el script.
-- **`PEDIDOS_48/`**: crea el **pedido de compras (48xxxxxxxx) con referencia
-  al contrato marco (46xxxxxxxx)** en ME21N. Al ejecutar, el script pide en
-  una ventana el número del contrato marco (se puede pegar); luego carga cada
-  posición con contrato + posición del contrato (10, 20, 30…) + cantidad, y
-  SAP trae el material, precio, centro y demás datos desde el contrato. No
-  guarda: usted revisa y presiona GUARDAR. Requiere que la tabla de
-  posiciones de ME21N tenga visibles las columnas Acuerdo marco y Posición.
+- **`PEDIDOS_48/MES_ACTUAL/`** y **`PEDIDOS_48/MES_SIGUIENTE/`**: crean el
+  **pedido de compras (48xxxxxxxx) con referencia al contrato marco
+  (46xxxxxxxx)** en ME21N. Al ejecutar, el script pide en una ventana el
+  número del contrato marco (se puede pegar); luego carga cada posición con
+  contrato + posición del contrato (10, 20, 30…) + cantidad + fecha de
+  entrega, y SAP trae el material, precio, centro y demás datos desde el
+  contrato. La variante `MES_ACTUAL` usa el período del mes en curso y
+  `MES_SIGUIENTE` el del mes siguiente; la **fecha de entrega de cada
+  posición es el último día** de ese mes. No guarda: usted revisa y presiona
+  GUARDAR. Requiere que la tabla de posiciones de ME21N tenga visibles las
+  columnas Acuerdo marco, Posición y Fecha de entrega.
 
-Ambas carpetas contienen los mismos 47 scripts con los mismos valores
+Todas las carpetas contienen los mismos 47 scripts con los mismos valores
 (proveedor, monto, moneda y posiciones); solo cambia el mes de las fechas,
 que se calculan automáticamente al ejecutar. Use el juego que corresponda.
+
+### Fechas que calcula cada variante
+
+| Variante | Fecha inicial | Fecha final |
+|---|---|---|
+| `MES_ACTUAL` | primer día del mes en curso | último día del mes en curso |
+| `MES_SIGUIENTE` | primer día del mes siguiente | último día del mes siguiente |
+
+Ejemplo ejecutando en septiembre 2026: `MES_ACTUAL` → 01.09.2026 al
+30.09.2026; `MES_SIGUIENTE` → 01.10.2026 al 31.10.2026. En diciembre el
+cálculo salta correctamente al año siguiente.
 
 ## Qué hace cada script
 
