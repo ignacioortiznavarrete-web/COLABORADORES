@@ -131,13 +131,22 @@ SAP rechazará todas las fechas.
 
 ### Qué se escribe en cada transacción
 
-En ME31K el mismo dato vive a la vez como `RM06E-xxxx` y `EKKO-xxxx` según la
-pantalla, así que la validez, el valor previsto y la moneda se escriben en
-**todas las variantes que existan**, y en las **dos** pantallas: la inicial y la
-de cabecera. Es como trabajaba el script original, y es lo que hace que SAP
-acepte el fin de período de validez. Cada escritura se comprueba una por una.
+Los campos y los ID salen de una **grabación de una ME31K real** (Alt+F12 ›
+Grabar script), no de suposiciones:
 
-Lo que sí se quitó son las cinco casillas que se tildaban a ciegas.
+**Pantalla inicial** — `EKKO-LIFNR`, `RM06E-EVART`, `RM06E-VEDAT` (fecha de
+contrato), `EKKO-EKORG`, `EKKO-EKGRP`, y `RM06E-WERKS` / `RM06E-LGORT` /
+`RM06E-MATKL`. La validez y el valor previsto **no** van aquí.
+
+**Pantalla de cabecera** — `EKKO-KDATB`, `EKKO-KDATE` y `txtEKKO-KTWRT`, este
+último con dos decimales (`179213,00`).
+
+**Tabla de posiciones** — `tblSAPMM06ETC_0220`, columnas `EKPO-EMATN`,
+`EKPO-KTMNG` y `EKPO-NETPR`. La unidad no se escribe: la trae SAP del material
+(`ME31K_ESCRIBIR_UMP = False`).
+
+Cada escritura se comprueba releyendo el campo, y las cinco casillas que se
+tildaban a ciegas siguen apagadas.
 
 ```vba
 ' Pantalla inicial de ME31K
@@ -187,9 +196,10 @@ etiqueta. Eso es lo que hay que completar.
 
 Cuando el contrato empieza el **día 01 del mes en curso**, esa fecha ya está en
 el pasado y SAP saca un aviso: la pantalla no avanza hasta que se acepta con
-otro Enter. La macro lo detecta —mira si el dynpro cambió y de qué tipo es el
-mensaje— y manda el Enter que falta, hasta tres avisos seguidos. Solo repite si
-sigue en la misma pantalla, para no saltarse ninguna.
+otro Enter. La macro lo detecta —mira si el dynpro cambió y si SAP dejó mensaje— y manda el
+Enter que falta, hasta tres veces. Solo repite si sigue en la misma pantalla,
+para no saltarse ninguna. Es el doble Enter que aparece en la grabación después
+de la pantalla inicial y otra vez después de la cabecera.
 
 Cada aviso aceptado queda anotado: `aviso aceptado con otro Enter: …`.
 

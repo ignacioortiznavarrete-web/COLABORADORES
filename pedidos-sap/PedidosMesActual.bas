@@ -66,6 +66,7 @@ Const ENTREGA_AL_CIERRE As Boolean = True        ' True  = entrega el ultimo dia
 ' --- Que se escribe en la pantalla inicial de ME31K ---
 Const ME31K_DATOS_POSICION  As Boolean = True    ' centro / almacen / grupo de articulos
 Const ME31K_MARCAR_CASILLAS As Boolean = False   ' antes se tildaban 5 casillas a ciegas
+Const ME31K_ESCRIBIR_UMP    As Boolean = False   ' la unidad la trae SAP del material
 
 ' --- Campos extra que tu R3 pida en ME31K ---
 ' Se escriben tal cual, con el nombre SAP que sale en el diagnostico.
@@ -216,6 +217,25 @@ Private Function FNum(v As Variant) As String
         s = Replace(s, ",", ".")
     End If
     FNum = s
+End Function
+
+' Numero con dos decimales y el separador del usuario SAP: 179213,00
+Private Function FNum2(v As Variant) As String
+    Dim d As Double, ent As String, dec As Long
+
+    On Error Resume Next
+    d = CDbl(v)
+    On Error GoTo 0
+
+    ent = Format(Int(Abs(d)), "0")
+    dec = CLng((Abs(d) - Int(Abs(d))) * 100 + 0.5)
+    If dec >= 100 Then
+        ent = Format(Int(Abs(d)) + 1, "0")
+        dec = 0
+    End If
+
+    FNum2 = ent & SEP_DECIMAL & Right("0" & dec, 2)
+    If d < 0 Then FNum2 = "-" & FNum2
 End Function
 
 Private Function LimpiarNumero(v As Variant) As String
@@ -661,8 +681,7 @@ Private Function EnterYComprobar() As Boolean
 
     For extra = 1 To 3
         If DynproActual() <> antes Then Exit For          ' ya avanzo
-        If tipo <> "W" And tipo <> "I" Then Exit For      ' no es un aviso
-        If Trim(gUltimoMsg) = "" Then Exit For
+        If Trim(gUltimoMsg) = "" Then Exit For            ' avanzo sin decir nada
 
         Anotar "aviso aceptado con otro Enter: " & gUltimoMsg
 
@@ -1712,7 +1731,7 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     Dim i As Long, nro As String
 
     proveedor = Trim(CStr(ws.Cells(f1, C_PRV).Value))
-    valTotal = FNum(ws.Cells(f1, C_VAL).Value)
+    valTotal = FNum2(ws.Cells(f1, C_VAL).Value)
     moneda = Trim(CStr(ws.Cells(f1, C_MON).Value))
     gValTotal = valTotal
     gMoneda = moneda
@@ -1730,9 +1749,10 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     ConfirmarPopups
 
     ' ---- Pantalla inicial ----
-    ' En ME31K el mismo dato vive a la vez como RM06E-xxxx y EKKO-xxxx
-    ' segun la pantalla, asi que se escribe en las variantes que existan,
-    ' como hacia el script v3. Lo que NO se toca son las casillas.
+    ' Los campos son los de la grabacion de una ME31K real: proveedor,
+    ' clase de contrato, fecha de contrato, org. y grupo de compras y los
+    ' datos por defecto de posicion. La validez y el valor previsto NO
+    ' van aqui: van en la pantalla de cabecera.
     If EscribirPrimero(Array("wnd[0]/usr/ctxtEKKO-LIFNR"), proveedor) = "" Then
         Registrar f1, "", proveedor, "ERROR", _
                   "ME31K no mostro la pantalla inicial. " & Pantalla() & " | " & Sbar()
@@ -1741,24 +1761,21 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
         Exit Sub
     End If
 
-    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-EVART"), CLASE_CONTRATO
-    EscribirTodas Array("wnd[0]/usr/ctxtEKKO-EKORG", _
-                        "wnd[0]/usr/ctxtRM06E-EKORG"), ORG_COMPRAS
-    EscribirTodas Array("wnd[0]/usr/ctxtEKKO-EKGRP", _
-                        "wnd[0]/usr/ctxtRM06E-EKGRP"), GRUPO_COMPRAS
+    EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-EVART"), CLASE_CONTRATO
+    EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-VEDAT"), d1
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-EKORG", _
+                          "wnd[0]/usr/ctxtRM06E-EKORG"), ORG_COMPRAS
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-EKGRP", _
+                          "wnd[0]/usr/ctxtRM06E-EKGRP"), GRUPO_COMPRAS
 
     If ME31K_DATOS_POSICION Then
-        EscribirTodas Array("wnd[0]/usr/ctxtEKPO-WERKS", _
-                            "wnd[0]/usr/ctxtRM06E-WERKS"), CENTRO
-        EscribirTodas Array("wnd[0]/usr/ctxtEKPO-LGORT", _
-                            "wnd[0]/usr/ctxtRM06E-LGORT"), ALMACEN
-        EscribirTodas Array("wnd[0]/usr/ctxtEKPO-MATKL", _
-                            "wnd[0]/usr/ctxtRM06E-MATKL"), GRUPO_ARTICULO
+        EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-WERKS", _
+                              "wnd[0]/usr/ctxtEKPO-WERKS"), CENTRO
+        EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-LGORT", _
+                              "wnd[0]/usr/ctxtEKPO-LGORT"), ALMACEN
+        EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-MATKL", _
+                              "wnd[0]/usr/ctxtEKPO-MATKL"), GRUPO_ARTICULO
     End If
-
-    ' La validez y el valor previsto van TAMBIEN en la pantalla inicial:
-    ' asi lo hacia el v3 y por eso si le entraba el fin de validez.
-    LlenarValidezYValor valTotal, moneda
 
     If ME31K_MARCAR_CASILLAS Then
         TrySelect "wnd[0]/usr/chkRM06E-KTWRT"
@@ -1811,7 +1828,8 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     End If
     colCtd = ColTbl(tbl, "EKPO-KTMNG")
     If colCtd = -1 Then colCtd = ColTbl(tbl, "EKPO-MENGE")
-    colUm = ColTbl(tbl, "EKPO-MEINS")
+    colUm = -1
+    If ME31K_ESCRIBIR_UMP Then colUm = ColTbl(tbl, "EKPO-MEINS")
     colPrc = ColTbl(tbl, "EKPO-NETPR")
 
     filasVis = tbl.VisibleRowCount
@@ -1899,23 +1917,24 @@ End Sub
 ' Se escribe en todas las variantes que haya en la pantalla, que es lo
 ' que hacia el script v3. Vale igual para la pantalla inicial y para la
 ' de cabecera: cada una tiene los campos que tiene.
+' Los ID son los de la grabacion de una ME31K real:
+'    ctxtEKKO-KDATB   inicio de validez
+'    ctxtEKKO-KDATE   fin de validez
+'    txtEKKO-KTWRT    valor previsto
+' Las otras variantes quedan de reserva por si otro sistema las usa.
 Private Sub LlenarValidezYValor(valTotal As String, moneda As String)
-    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-VEDAT", _
-                        "wnd[0]/usr/ctxtEKKO-BEDAT"), d1
-    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-KDATB", _
-                        "wnd[0]/usr/ctxtEKKO-KDATB", _
-                        "wnd[0]/usr/txtRM06E-KDATB", _
-                        "wnd[0]/usr/txtEKKO-KDATB"), d1
-    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-KDATE", _
-                        "wnd[0]/usr/ctxtEKKO-KDATE", _
-                        "wnd[0]/usr/txtRM06E-KDATE", _
-                        "wnd[0]/usr/txtEKKO-KDATE"), d2
-    EscribirTodas Array("wnd[0]/usr/txtEKKO-KTWRT", _
-                        "wnd[0]/usr/txtRM06E-KTWRT", _
-                        "wnd[0]/usr/ctxtEKKO-KTWRT", _
-                        "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
-    EscribirTodas Array("wnd[0]/usr/ctxtEKKO-WAERS", _
-                        "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATB", _
+                          "wnd[0]/usr/ctxtRM06E-KDATB", _
+                          "wnd[0]/usr/txtEKKO-KDATB"), d1
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATE", _
+                          "wnd[0]/usr/ctxtRM06E-KDATE", _
+                          "wnd[0]/usr/txtEKKO-KDATE"), d2
+    EscribirPrimero Array("wnd[0]/usr/txtEKKO-KTWRT", _
+                          "wnd[0]/usr/ctxtEKKO-KTWRT", _
+                          "wnd[0]/usr/txtRM06E-KTWRT", _
+                          "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
+    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-WAERS", _
+                          "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
 End Sub
 
 ' Columna de material de la tabla de posiciones (-1 si no la tiene)
