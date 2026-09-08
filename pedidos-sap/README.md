@@ -215,18 +215,26 @@ Después hace un **barrido**: recorre la pantalla, y cualquier campo que SAP
 marque como obligatorio y siga vacío lo rellena si sabe qué va ahí (los cuatro
 de la tabla, más los que estén en `ME31K_CABECERA_EXTRA`).
 
-Si aun así falta algo, el aviso muestra las dos listas — qué está vacío y qué
-intentó escribir la macro, campo por campo:
+Antes de escribir se pone el **foco** en el campo: sin eso SAP rechaza la
+entrada en campos que están dentro de una subpantalla o fuera de la vista.
 
-```
-Campos obligatorios vacios:
-   EKKO-KDATE (Fin per.validez) | EKKO-KTWRT (Val.prev.)
+Si aun así falta algo, el aviso muestra qué intentó escribir la macro campo por
+campo, y **cada línea dice qué pasó**:
 
-Lo que la macro intento escribir:
-   EKKO-KDATB = 01.10.2026
-   EKKO-KDATE no se puede modificar
-   EKKO-KTWRT = 111142,4
-```
+| Línea del aviso | Qué significa |
+|---|---|
+| `EKKO-KTWRT = 111142,4` | entró bien |
+| `EKKO-KDATE rechazado por SAP: …` | SAP no aceptó el valor (formato de fecha o separador decimal) |
+| `EKKO-KDATE no se puede modificar` | el campo está en pantalla pero bloqueado |
+| `EKKO-KDATE quedó vacío al escribir …` | se escribió y SAP lo borró |
+| `EKKO-KDATE no aparece en esta pantalla` | el campo no está donde la macro mira |
+
+Si sale **rechazado por SAP** en una fecha, revisa `FORMATO_FECHA`; si sale en
+`EKKO-KTWRT`, revisa `SEP_DECIMAL`. Los dos tienen que coincidir con lo que
+tiene tu usuario en `SU3 › Valores fijos`.
+
+El mismo detalle queda en la hoja **Registro**, última fila, columna `Detalle`,
+donde se puede copiar entero sin que lo corte la ventana.
 
 ### Campos dentro de subpantallas
 

@@ -116,10 +116,12 @@ Dim gListaTablas As String         ' tablas encontradas en la pantalla
 Dim gListaOblig As String          ' campos obligatorios vacios
 Dim gNombreBuscado As String       ' campo que se esta buscando por nombre
 Dim gCampoHallado As Object        ' campo encontrado por nombre
+Dim gCampoRespaldo As Object       ' campo hallado pero marcado no modificable
 Dim gValTotal As String            ' valor previsto del bloque en curso
 Dim gMoneda As String              ' moneda del bloque en curso
 Dim gModoRelleno As Boolean        ' el recorrido rellena, no solo mira
 Dim gLogEscritura As String        ' que se escribio y si quedo
+Dim gFilaBloque As Long            ' primera fila del bloque en curso
 
 Dim gN As String                   ' dynpro de SAPLMEGUI ya descubierto (0014, 0016...)
 Dim gBaseCab As String             ' ruta de la cabecera ya descubierta
@@ -351,7 +353,7 @@ End Sub
 ' el campo no se puede modificar o si sigue vacio despues de escribir:
 ' entonces hay que seguir buscando en otra ruta.
 Private Function IntentarEscribir(o As Object, valor As String, nombre As String) As Boolean
-    Dim editable As Boolean, quedo As String
+    Dim editable As Boolean, quedo As String, fallo As String
 
     IntentarEscribir = False
     If o Is Nothing Then Exit Function
@@ -360,13 +362,21 @@ Private Function IntentarEscribir(o As Object, valor As String, nombre As String
     On Error Resume Next
     editable = o.Changeable
     On Error GoTo 0
-    If Not editable Then
-        Anotar nombre & " no se puede modificar"
-        Exit Function
-    End If
 
+    ' Poner el foco antes de escribir: sin esto SAP rechaza la entrada en
+    ' campos que estan dentro de una subpantalla o fuera de la vista.
     On Error Resume Next
+    o.SetFocus
+    On Error GoTo 0
+
+    fallo = ""
+    On Error Resume Next
+    Err.Clear
     o.Text = valor
+    If Err.Number <> 0 Then fallo = Err.Description
+    Err.Clear
+    o.caretPosition = Len(valor)
+    Err.Clear
     On Error GoTo 0
 
     quedo = ""
@@ -377,8 +387,12 @@ Private Function IntentarEscribir(o As Object, valor As String, nombre As String
     If quedo <> "" Then
         Anotar nombre & " = " & quedo
         IntentarEscribir = True
+    ElseIf fallo <> "" Then
+        Anotar nombre & " rechazado por SAP: " & fallo
+    ElseIf Not editable Then
+        Anotar nombre & " no se puede modificar"
     Else
-        Anotar nombre & " no acepto " & valor
+        Anotar nombre & " quedo vacio al escribir " & valor
     End If
 End Function
 
@@ -421,6 +435,8 @@ Private Function EscribirPrimero(ids As Variant, valor As String) As String
             End If
         End If
     Next i
+
+    Anotar NombreCampo(CStr(ids(LBound(ids)))) & " no aparece en esta pantalla"
 End Function
 
 ' Que valor le corresponde a cada campo de la cabecera del contrato
@@ -498,9 +514,12 @@ Private Function BuscarCampoPorNombre(nombre As String) As Object
 
     gNombreBuscado = UCase(Trim(nombre))
     Set gCampoHallado = Nothing
+    Set gCampoRespaldo = Nothing
     RecorrerBuscandoCampo usr, 0
+    If gCampoHallado Is Nothing Then Set gCampoHallado = gCampoRespaldo
     Set BuscarCampoPorNombre = gCampoHallado
     Set gCampoHallado = Nothing
+    Set gCampoRespaldo = Nothing
 End Function
 
 Private Sub RecorrerBuscandoCampo(cont As Object, prof As Long)
@@ -542,6 +561,9 @@ Private Sub RecorrerBuscandoCampo(cont As Object, prof As Long)
                     If editable Then
                         Set gCampoHallado = o
                         Exit Sub
+                    ElseIf gCampoRespaldo Is Nothing Then
+                        ' se guarda por si no hay otro: se intenta igual
+                        Set gCampoRespaldo = o
                     End If
                 End If
             ElseIf t <> "GuiTableControl" And t <> "GuiShell" Then
@@ -715,7 +737,11 @@ Private Sub RecorrerPantalla(cont As Object, prof As Long)
                     If gModoRelleno Then
                         ' rellenar lo que la macro sepa llenar
                         valorCampo = ValorParaCampo(NombreCampo(id))
-                        If valorCampo <> "" Then IntentarEscribir o, valorCampo, NombreCampo(id)
+                        If valorCampo <> "" Then
+                            IntentarEscribir o, valorCampo, NombreCampo(id)
+                        Else
+                            Anotar NombreCampo(id) & " lo pide SAP y la macro no sabe que poner"
+                        End If
                     Else
                         If gListaOblig <> "" Then gListaOblig = gListaOblig & " | "
                         gListaOblig = gListaOblig & NombreCampo(id)
@@ -1620,6 +1646,7 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     gValTotal = valTotal
     gMoneda = moneda
     gLogEscritura = ""
+    gFilaBloque = f1
 
     If valTotal = "" Then
         Registrar f1, "", proveedor, "OMITIDO", "El bloque no tiene Valor total en la columna F"
@@ -1764,17 +1791,26 @@ End Sub
 ' SAP pide campos obligatorios en la cabecera: avisar y esperar a que se
 ' completen a mano. Devuelve True si hay que reintentar.
 Private Function PedirAyudaCabecera(proveedor As String) As Boolean
+    Dim oblig As String
+
     PedirAyudaCabecera = False
+    oblig = ListarObligatorios()
+
+    ' el detalle completo queda en la hoja Registro, para copiarlo entero
+    Registrar gFilaBloque, "", proveedor, "REVISAR", _
+              "ME31K cabecera. " & Pantalla() & " | SAP dice: " & gUltimoMsg & _
+              " | obligatorios vacios: " & oblig & _
+              " | escritura: " & Replace(TextoEscritura(), vbCrLf, " ")
+
     If Not ME31K_PEDIR_AYUDA Then Exit Function
 
     MsgBox "SAP no acepta la cabecera del contrato del proveedor " & proveedor & "." & vbCrLf & _
            "Mensaje: " & gUltimoMsg & vbCrLf & vbCrLf & _
-           "Campos obligatorios vacios:" & vbCrLf & "   " & ListarObligatorios() & vbCrLf & vbCrLf & _
-           "Lo que la macro intento escribir:" & vbCrLf & "   " & TextoEscritura() & vbCrLf & vbCrLf & _
+           "LO QUE LA MACRO INTENTO ESCRIBIR:" & vbCrLf & "   " & TextoEscritura() & vbCrLf & vbCrLf & _
+           "Siguen obligatorios y vacios:" & vbCrLf & "   " & oblig & vbCrLf & vbCrLf & _
            "Completalos en SAP y pulsa Aceptar para seguir." & vbCrLf & vbCrLf & _
-           "Si el campo que falta no lo pone la macro, agregalo arriba del" & vbCrLf & _
-           "modulo en ME31K_CABECERA_EXTRA (ejemplo ""EKKO-ZTERM=0001"")" & vbCrLf & _
-           "y deja de preguntar.", _
+           "Este mismo detalle quedo en la hoja " & HOJA_LOG & ", ultima fila," & vbCrLf & _
+           "columna Detalle: de ahi se puede copiar entero.", _
            vbExclamation, "Falta un dato en la cabecera"
     PedirAyudaCabecera = True
 End Function
