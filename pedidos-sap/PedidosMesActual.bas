@@ -439,6 +439,34 @@ Private Function EscribirPrimero(ids As Variant, valor As String) As String
     Anotar NombreCampo(CStr(ids(LBound(ids)))) & " no aparece en esta pantalla"
 End Function
 
+' Escribe el valor en TODAS las variantes del campo que existan en la
+' pantalla. Es como trabajaba el script v3 que si llenaba la validez:
+' en ME31K el mismo dato vive a la vez como RM06E-xxxx y EKKO-xxxx, y
+' hay que dejarlo en el que corresponda sin adivinar cual es.
+Private Function EscribirTodas(ids As Variant, valor As String) As Long
+    Dim i As Long, o As Object, n As Long, nombre As String
+
+    EscribirTodas = 0
+    If Trim(valor) = "" Then Exit Function
+
+    For i = LBound(ids) To UBound(ids)
+        Set o = Nothing
+        On Error Resume Next
+        Set o = session.findById(CStr(ids(i)))
+        On Error GoTo 0
+        If Not o Is Nothing Then
+            nombre = NombreCampo(CStr(ids(i)))
+            If IntentarEscribir(o, valor, nombre) Then n = n + 1
+        End If
+    Next i
+
+    ' si no habia ninguna ruta, buscarlo por nombre en toda la pantalla
+    If n = 0 Then
+        If EscribirPrimero(ids, valor) <> "" Then n = 1
+    End If
+    EscribirTodas = n
+End Function
+
 ' Que valor le corresponde a cada campo de la cabecera del contrato
 Private Function ValorParaCampo(nombre As String) As String
     Select Case UCase(Trim(nombre))
@@ -1659,9 +1687,9 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     ConfirmarPopups
 
     ' ---- Pantalla inicial ----
-    ' Cada dato entra en UN solo campo: el primero de la lista que exista
-    ' en la pantalla. Antes se escribia en todas las variantes a la vez y
-    ' eso dejaba datos donde no correspondia.
+    ' En ME31K el mismo dato vive a la vez como RM06E-xxxx y EKKO-xxxx
+    ' segun la pantalla, asi que se escribe en las variantes que existan,
+    ' como hacia el script v3. Lo que NO se toca son las casillas.
     If EscribirPrimero(Array("wnd[0]/usr/ctxtEKKO-LIFNR"), proveedor) = "" Then
         Registrar f1, "", proveedor, "ERROR", _
                   "ME31K no mostro la pantalla inicial. " & Pantalla() & " | " & Sbar()
@@ -1670,21 +1698,24 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
         Exit Sub
     End If
 
-    EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-EVART"), CLASE_CONTRATO
-    EscribirPrimero Array("wnd[0]/usr/ctxtRM06E-VEDAT"), d1
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-EKORG", _
-                          "wnd[0]/usr/ctxtRM06E-EKORG"), ORG_COMPRAS
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-EKGRP", _
-                          "wnd[0]/usr/ctxtRM06E-EKGRP"), GRUPO_COMPRAS
+    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-EVART"), CLASE_CONTRATO
+    EscribirTodas Array("wnd[0]/usr/ctxtEKKO-EKORG", _
+                        "wnd[0]/usr/ctxtRM06E-EKORG"), ORG_COMPRAS
+    EscribirTodas Array("wnd[0]/usr/ctxtEKKO-EKGRP", _
+                        "wnd[0]/usr/ctxtRM06E-EKGRP"), GRUPO_COMPRAS
 
     If ME31K_DATOS_POSICION Then
-        EscribirPrimero Array("wnd[0]/usr/ctxtEKPO-WERKS", _
-                              "wnd[0]/usr/ctxtRM06E-WERKS"), CENTRO
-        EscribirPrimero Array("wnd[0]/usr/ctxtEKPO-LGORT", _
-                              "wnd[0]/usr/ctxtRM06E-LGORT"), ALMACEN
-        EscribirPrimero Array("wnd[0]/usr/ctxtEKPO-MATKL", _
-                              "wnd[0]/usr/ctxtRM06E-MATKL"), GRUPO_ARTICULO
+        EscribirTodas Array("wnd[0]/usr/ctxtEKPO-WERKS", _
+                            "wnd[0]/usr/ctxtRM06E-WERKS"), CENTRO
+        EscribirTodas Array("wnd[0]/usr/ctxtEKPO-LGORT", _
+                            "wnd[0]/usr/ctxtRM06E-LGORT"), ALMACEN
+        EscribirTodas Array("wnd[0]/usr/ctxtEKPO-MATKL", _
+                            "wnd[0]/usr/ctxtRM06E-MATKL"), GRUPO_ARTICULO
     End If
+
+    ' La validez y el valor previsto van TAMBIEN en la pantalla inicial:
+    ' asi lo hacia el v3 y por eso si le entraba el fin de validez.
+    LlenarValidezYValor valTotal, moneda
 
     If ME31K_MARCAR_CASILLAS Then
         TrySelect "wnd[0]/usr/chkRM06E-KTWRT"
@@ -1818,17 +1849,31 @@ End Function
 ' Cabecera del contrato: validez, valor previsto y moneda.
 ' Escribe solo lo que este en pantalla, un dato en un solo campo.
 Private Sub LlenarCabeceraME31K(valTotal As String, moneda As String)
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATB", _
-                          "wnd[0]/usr/ctxtRM06E-KDATB"), d1
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATE", _
-                          "wnd[0]/usr/ctxtRM06E-KDATE"), d2
-    EscribirPrimero Array("wnd[0]/usr/txtEKKO-KTWRT", _
-                          "wnd[0]/usr/ctxtEKKO-KTWRT", _
-                          "wnd[0]/usr/txtRM06E-KTWRT", _
-                          "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-WAERS", _
-                          "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
+    LlenarValidezYValor valTotal, moneda
     EscribirCamposExtra ME31K_CABECERA_EXTRA
+End Sub
+
+' Validez, fecha de documento, valor previsto y moneda.
+' Se escribe en todas las variantes que haya en la pantalla, que es lo
+' que hacia el script v3. Vale igual para la pantalla inicial y para la
+' de cabecera: cada una tiene los campos que tiene.
+Private Sub LlenarValidezYValor(valTotal As String, moneda As String)
+    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-VEDAT", _
+                        "wnd[0]/usr/ctxtEKKO-BEDAT"), d1
+    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-KDATB", _
+                        "wnd[0]/usr/ctxtEKKO-KDATB", _
+                        "wnd[0]/usr/txtRM06E-KDATB", _
+                        "wnd[0]/usr/txtEKKO-KDATB"), d1
+    EscribirTodas Array("wnd[0]/usr/ctxtRM06E-KDATE", _
+                        "wnd[0]/usr/ctxtEKKO-KDATE", _
+                        "wnd[0]/usr/txtRM06E-KDATE", _
+                        "wnd[0]/usr/txtEKKO-KDATE"), d2
+    EscribirTodas Array("wnd[0]/usr/txtEKKO-KTWRT", _
+                        "wnd[0]/usr/txtRM06E-KTWRT", _
+                        "wnd[0]/usr/ctxtEKKO-KTWRT", _
+                        "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
+    EscribirTodas Array("wnd[0]/usr/ctxtEKKO-WAERS", _
+                        "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
 End Sub
 
 ' Columna de material de la tabla de posiciones (-1 si no la tiene)
@@ -1881,8 +1926,32 @@ End Function
 
 ' Indice de columna de una tabla SAP por nombre de campo (-1 si no esta)
 Private Function ColTbl(tbl As Object, nombre As String) As Long
-    Dim c As Long, nm As String
+    Dim c As Long, nm As String, cols As Object, n As Long
+
     ColTbl = -1
+
+    ' via la coleccion de columnas: funciona aunque no haya filas dibujadas
+    Set cols = Nothing
+    On Error Resume Next
+    Set cols = tbl.Columns
+    On Error GoTo 0
+    If Not cols Is Nothing Then
+        n = 0
+        On Error Resume Next
+        n = cols.Count
+        On Error GoTo 0
+        For c = 0 To n - 1
+            nm = ""
+            On Error Resume Next
+            nm = cols.ElementAt(c).Name
+            On Error GoTo 0
+            If InStr(nm, nombre) > 0 Then
+                ColTbl = c
+                Exit Function
+            End If
+        Next c
+    End If
+
     For c = 0 To 80
         nm = ""
         On Error Resume Next
