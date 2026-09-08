@@ -701,12 +701,12 @@ Private Function EnterYComprobar() As Boolean
         Exit Function
     End If
 
+    ' Se insiste con el Enter SOLO si la pantalla no avanzo. Nunca se
+    ' manda un Enter a una pantalla nueva que todavia no se ha llenado:
+    ' asi es como se perdian el fin de validez y el valor previsto.
     For extra = 1 To 3
-        If Trim(gUltimoMsg) = "" Then Exit For            ' no dijo nada mas
-        If tipo <> "W" And tipo <> "I" Then
-            ' no es un aviso: solo se insiste si la pantalla no avanzo
-            If DynproActual() <> antes Then Exit For
-        End If
+        If DynproActual() <> antes Then Exit For          ' ya avanzo
+        If Trim(gUltimoMsg) = "" Then Exit For            ' no dijo nada
 
         Anotar "aviso aceptado con otro Enter: " & gUltimoMsg
 
@@ -1834,15 +1834,11 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
         Set tbl = GetTablaME31K()
         If Not tbl Is Nothing Then Exit For
 
-        AceptarAvisoPendiente         ' limpiar lo que SAP dejo dicho
-        RellenarObligatorios          ' lo que quede obligatorio y vacio
-        LlenarCabeceraME31K valTotal, moneda
-
+        LlenarCabeceraME31K valTotal, moneda      ' KDATB, KDATE, KTWRT
         If Not EnterYComprobar() Then
-            ' SAP rechazo la cabecera: reintentar escribiendola de nuevo
-            AceptarAvisoPendiente
+            ' SAP la rechazo: rellenar lo que pida y volver a intentar,
+            ' sin mandar Enters de por medio a una pantalla vacia
             RellenarObligatorios
-            LlenarCabeceraME31K valTotal, moneda
             If Not EnterYComprobar() Then
                 If Not PedirAyudaCabecera(proveedor) Then Exit For
             End If
@@ -1949,9 +1945,8 @@ End Function
 ' Cabecera del contrato: validez, valor previsto y moneda.
 ' Escribe solo lo que este en pantalla, un dato en un solo campo.
 Private Sub LlenarCabeceraME31K(valTotal As String, moneda As String)
-    AceptarAvisoPendiente
-    EscribirCamposExtra ME31K_CABECERA_EXTRA
     LlenarValidezYValor valTotal, moneda
+    EscribirCamposExtra ME31K_CABECERA_EXTRA
 End Sub
 
 ' Validez, fecha de documento, valor previsto y moneda.
@@ -1964,18 +1959,71 @@ End Sub
 '    txtEKKO-KTWRT    valor previsto
 ' Las otras variantes quedan de reserva por si otro sistema las usa.
 Private Sub LlenarValidezYValor(valTotal As String, moneda As String)
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATB", _
-                          "wnd[0]/usr/ctxtRM06E-KDATB", _
-                          "wnd[0]/usr/txtEKKO-KDATB"), d1
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-KDATE", _
-                          "wnd[0]/usr/ctxtRM06E-KDATE", _
-                          "wnd[0]/usr/txtEKKO-KDATE"), d2
-    EscribirPrimero Array("wnd[0]/usr/txtEKKO-KTWRT", _
-                          "wnd[0]/usr/ctxtEKKO-KTWRT", _
-                          "wnd[0]/usr/txtRM06E-KTWRT", _
-                          "wnd[0]/usr/ctxtRM06E-KTWRT"), valTotal
-    EscribirPrimero Array("wnd[0]/usr/ctxtEKKO-WAERS", _
-                          "wnd[0]/usr/ctxtRM06E-WAERS"), moneda
+    ' Literal, en el mismo orden de la grabacion
+    EscribirLiteral "wnd[0]/usr/ctxtEKKO-KDATB", d1, _
+                    Array("wnd[0]/usr/ctxtRM06E-KDATB", "wnd[0]/usr/txtEKKO-KDATB")
+    EscribirLiteral "wnd[0]/usr/ctxtEKKO-KDATE", d2, _
+                    Array("wnd[0]/usr/ctxtRM06E-KDATE", "wnd[0]/usr/txtEKKO-KDATE")
+    EscribirLiteral "wnd[0]/usr/txtEKKO-KTWRT", valTotal, _
+                    Array("wnd[0]/usr/ctxtEKKO-KTWRT", "wnd[0]/usr/txtRM06E-KTWRT", _
+                          "wnd[0]/usr/ctxtRM06E-KTWRT")
+    EscribirLiteral "wnd[0]/usr/ctxtEKKO-WAERS", moneda, _
+                    Array("wnd[0]/usr/ctxtRM06E-WAERS")
+
+    ' el foco queda en el valor previsto, como en la grabacion
+    PonerFocoFinal "wnd[0]/usr/txtEKKO-KTWRT", valTotal
+End Sub
+
+' Escribe igual que la grabacion: .Text directo al ID, sin tocar el foco.
+' Solo si el campo queda vacio se prueban las rutas de reserva y la
+' busqueda por nombre.
+Private Sub EscribirLiteral(idPrincipal As String, valor As String, reservas As Variant)
+    Dim o As Object, quedo As String, i As Long, ids As Variant
+
+    If Trim(valor) = "" Then Exit Sub
+
+    Set o = Nothing
+    On Error Resume Next
+    Set o = session.findById(idPrincipal)
+    On Error GoTo 0
+
+    If Not o Is Nothing Then
+        On Error Resume Next
+        o.Text = valor
+        On Error GoTo 0
+        quedo = ""
+        On Error Resume Next
+        quedo = Trim(o.Text)
+        On Error GoTo 0
+        If quedo <> "" Then
+            Anotar NombreCampo(idPrincipal) & " = " & quedo
+            Exit Sub
+        End If
+        Anotar NombreCampo(idPrincipal) & " no acepto " & valor
+    Else
+        Anotar NombreCampo(idPrincipal) & " no esta en " & idPrincipal
+    End If
+
+    ' reservas: mismo campo por otra ruta, y por ultimo por nombre
+    ReDim ids(0 To UBound(reservas) + 1)
+    ids(0) = idPrincipal
+    For i = 0 To UBound(reservas)
+        ids(i + 1) = reservas(i)
+    Next i
+    EscribirPrimero ids, valor
+End Sub
+
+Private Sub PonerFocoFinal(id As String, valor As String)
+    Dim o As Object
+    Set o = Nothing
+    On Error Resume Next
+    Set o = session.findById(id)
+    On Error GoTo 0
+    If o Is Nothing Then Exit Sub
+    On Error Resume Next
+    o.SetFocus
+    o.caretPosition = Len(valor)
+    On Error GoTo 0
 End Sub
 
 ' Columna de material de la tabla de posiciones (-1 si no la tiene)
