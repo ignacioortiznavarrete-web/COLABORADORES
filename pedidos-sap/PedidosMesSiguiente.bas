@@ -1823,15 +1823,29 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
     Dim tbl As Object, colMat As Long, colCtd As Long, colUm As Long, colPrc As Long
     Dim filasVis As Long, pos As Long, filaTbl As Long, intento As Long
 
+    ' El orden es el de la grabacion, en la pantalla de cabecera:
+    '    aceptar lo que SAP dejo dicho
+    '    escribir inicio de validez, fin de validez y valor previsto
+    '    Enter, y otro Enter si SAP avisa que la fecha esta en el pasado
+    ' Si despues del Enter la cabecera sigue en pantalla con los campos
+    ' vacios, se vuelve a empezar: se escriben otra vez y se insiste.
     Set tbl = Nothing
     For intento = 1 To 6
-        AceptarAvisoPendiente         ' primero limpiar lo que SAP dejo dicho
-        RellenarObligatorios          ' barrido: lo que quede obligatorio y vacio
-        LlenarCabeceraME31K valTotal, moneda
         Set tbl = GetTablaME31K()
         If Not tbl Is Nothing Then Exit For
+
+        AceptarAvisoPendiente         ' limpiar lo que SAP dejo dicho
+        RellenarObligatorios          ' lo que quede obligatorio y vacio
+        LlenarCabeceraME31K valTotal, moneda
+
         If Not EnterYComprobar() Then
-            If Not PedirAyudaCabecera(proveedor) Then Exit For
+            ' SAP rechazo la cabecera: reintentar escribiendola de nuevo
+            AceptarAvisoPendiente
+            RellenarObligatorios
+            LlenarCabeceraME31K valTotal, moneda
+            If Not EnterYComprobar() Then
+                If Not PedirAyudaCabecera(proveedor) Then Exit For
+            End If
         End If
     Next intento
 
