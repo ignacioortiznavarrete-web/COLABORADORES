@@ -643,6 +643,28 @@ Private Sub EscribirCamposExtra(lista As String)
     Next i
 End Sub
 
+' Si SAP dejo un aviso en la barra de estado, hay que aceptarlo ANTES de
+' escribir nada: el primer Enter que se mande despues se lo come el aviso
+' y con el se pierde lo que se acaba de escribir. En la grabacion de una
+' ME31K real esto son los dos Enter seguidos antes de la validez.
+Private Sub AceptarAvisoPendiente()
+    Dim tipo As String, i As Long, msg As String
+
+    For i = 1 To 2
+        tipo = SbarTipo()
+        msg = Sbar()
+        If Trim(msg) = "" Then Exit Sub
+        If tipo <> "W" And tipo <> "I" And tipo <> "E" Then Exit Sub
+
+        Anotar "aviso pendiente aceptado antes de escribir: " & msg
+        On Error Resume Next
+        session.findById("wnd[0]").sendVKey 0
+        On Error GoTo 0
+        WaitSeconds 0.8
+        ConfirmarPopups
+    Next i
+End Sub
+
 ' En que pantalla estamos ahora mismo (programa y dynpro)
 Private Function DynproActual() As String
     Dim pr As String, dy As String
@@ -680,8 +702,11 @@ Private Function EnterYComprobar() As Boolean
     End If
 
     For extra = 1 To 3
-        If DynproActual() <> antes Then Exit For          ' ya avanzo
-        If Trim(gUltimoMsg) = "" Then Exit For            ' avanzo sin decir nada
+        If Trim(gUltimoMsg) = "" Then Exit For            ' no dijo nada mas
+        If tipo <> "W" And tipo <> "I" Then
+            ' no es un aviso: solo se insiste si la pantalla no avanzo
+            If DynproActual() <> antes Then Exit For
+        End If
 
         Anotar "aviso aceptado con otro Enter: " & gUltimoMsg
 
@@ -1800,8 +1825,9 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
 
     Set tbl = Nothing
     For intento = 1 To 6
-        LlenarCabeceraME31K valTotal, moneda
+        AceptarAvisoPendiente         ' primero limpiar lo que SAP dejo dicho
         RellenarObligatorios          ' barrido: lo que quede obligatorio y vacio
+        LlenarCabeceraME31K valTotal, moneda
         Set tbl = GetTablaME31K()
         If Not tbl Is Nothing Then Exit For
         If Not EnterYComprobar() Then
@@ -1909,8 +1935,9 @@ End Function
 ' Cabecera del contrato: validez, valor previsto y moneda.
 ' Escribe solo lo que este en pantalla, un dato en un solo campo.
 Private Sub LlenarCabeceraME31K(valTotal As String, moneda As String)
-    LlenarValidezYValor valTotal, moneda
+    AceptarAvisoPendiente
     EscribirCamposExtra ME31K_CABECERA_EXTRA
+    LlenarValidezYValor valTotal, moneda
 End Sub
 
 ' Validez, fecha de documento, valor previsto y moneda.

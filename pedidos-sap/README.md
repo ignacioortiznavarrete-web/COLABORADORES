@@ -201,7 +201,14 @@ Enter que falta, hasta tres veces. Solo repite si sigue en la misma pantalla,
 para no saltarse ninguna. Es el doble Enter que aparece en la grabación después
 de la pantalla inicial y otra vez después de la cabecera.
 
-Cada aviso aceptado queda anotado: `aviso aceptado con otro Enter: …`.
+Lo importante es **cuándo**: el aviso se acepta **antes** de escribir la
+validez, no después. Si queda pendiente en la barra, el primer Enter que se
+mande se lo come el aviso — y con él se pierde lo recién escrito, que es por lo
+que SAP volvía a pedir el fin de período de validez una y otra vez. Es el mismo
+orden de la grabación: Enter, Enter, y recién ahí las fechas y el valor.
+
+Cada aviso aceptado queda anotado: `aviso aceptado con otro Enter: …` o
+`aviso pendiente aceptado antes de escribir: …`.
 
 Al archivo del mes siguiente casi no le pasa, porque su fecha de inicio es
 futura; al del mes actual le pasa siempre a partir del día 2.
