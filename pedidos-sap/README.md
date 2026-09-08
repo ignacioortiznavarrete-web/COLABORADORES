@@ -183,6 +183,19 @@ La línea **`obligatorios vacios`** recorre la pantalla y lista los campos que
 SAP marca como obligatorios y están sin llenar, con su nombre técnico y su
 etiqueta. Eso es lo que hay que completar.
 
+### Avisos que piden un segundo Enter
+
+Cuando el contrato empieza el **día 01 del mes en curso**, esa fecha ya está en
+el pasado y SAP saca un aviso: la pantalla no avanza hasta que se acepta con
+otro Enter. La macro lo detecta —mira si el dynpro cambió y de qué tipo es el
+mensaje— y manda el Enter que falta, hasta tres avisos seguidos. Solo repite si
+sigue en la misma pantalla, para no saltarse ninguna.
+
+Cada aviso aceptado queda anotado: `aviso aceptado con otro Enter: …`.
+
+Al archivo del mes siguiente casi no le pasa, porque su fecha de inicio es
+futura; al del mes actual le pasa siempre a partir del día 2.
+
 ### Campos que tu R3 pide de más
 
 Se agregan sin tocar código, en dos constantes:

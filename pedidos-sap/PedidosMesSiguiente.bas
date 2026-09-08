@@ -623,12 +623,29 @@ Private Sub EscribirCamposExtra(lista As String)
     Next i
 End Sub
 
+' En que pantalla estamos ahora mismo (programa y dynpro)
+Private Function DynproActual() As String
+    Dim pr As String, dy As String
+    On Error Resume Next
+    pr = session.Info.Program
+    dy = CStr(session.Info.ScreenNumber)
+    On Error GoTo 0
+    DynproActual = pr & "/" & dy
+End Function
+
 ' Enter + confirmar avisos + mirar la barra de estado.
 ' Devuelve False si SAP contesto con un error (E) o un aborto (A).
+'
+' Hay avisos que no dejan avanzar hasta que se aceptan con un segundo
+' Enter, como "la fecha se encuentra en el pasado" cuando el contrato
+' empieza el dia 01 del mes en curso. En ese caso se repite el Enter,
+' pero SOLO si seguimos en la misma pantalla: asi no se salta ninguna.
 Private Function EnterYComprobar() As Boolean
-    Dim tipo As String
+    Dim tipo As String, antes As String, extra As Long
 
     gUltimoMsg = ""
+    antes = DynproActual()
+
     On Error Resume Next
     session.findById("wnd[0]").sendVKey 0
     On Error GoTo 0
@@ -637,7 +654,33 @@ Private Function EnterYComprobar() As Boolean
 
     tipo = SbarTipo()
     gUltimoMsg = Sbar()
-    EnterYComprobar = Not (tipo = "E" Or tipo = "A")
+    If tipo = "E" Or tipo = "A" Then
+        EnterYComprobar = False
+        Exit Function
+    End If
+
+    For extra = 1 To 3
+        If DynproActual() <> antes Then Exit For          ' ya avanzo
+        If tipo <> "W" And tipo <> "I" Then Exit For      ' no es un aviso
+        If Trim(gUltimoMsg) = "" Then Exit For
+
+        Anotar "aviso aceptado con otro Enter: " & gUltimoMsg
+
+        On Error Resume Next
+        session.findById("wnd[0]").sendVKey 0
+        On Error GoTo 0
+        WaitSeconds 1
+        ConfirmarPopups
+
+        tipo = SbarTipo()
+        gUltimoMsg = Sbar()
+        If tipo = "E" Or tipo = "A" Then
+            EnterYComprobar = False
+            Exit Function
+        End If
+    Next extra
+
+    EnterYComprobar = True
 End Function
 
 ' En que pantalla quedo SAP
@@ -1791,8 +1834,7 @@ Private Sub CrearContrato(f1 As Long, f2 As Long)
         pos = pos + 1
     Next i
 
-    session.findById("wnd[0]").sendVKey 0
-    WaitSeconds 0.5
+    EnterYComprobar
 
     If GUARDAR_AUTO Then
         GrabarYCapturar f1, proveedor, moneda
