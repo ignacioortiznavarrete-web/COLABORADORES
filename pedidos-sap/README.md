@@ -155,7 +155,9 @@ resto. Si en tu R3 el precio o la unidad tienen que venir del contrato y no de
 la planilla, pon esas constantes en `False`.
 
 Las casillas de la pantalla inicial de ME31K ya no se tildan: eran cinco
-(`XOBLR`, `XOBL`, `XOBLK`…) y se marcaban sin mirar si existían o qué hacían.
+(`XOBLR`, `XOBL`, `XOBLK`…) y se marcaban sin mirar si existían o qué hacían. Si
+en tu R3 hiciera falta alguna, se vuelven a activar con
+`ME31K_MARCAR_CASILLAS = True`.
 
 ---
 
