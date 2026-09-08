@@ -131,9 +131,13 @@ SAP rechazará todas las fechas.
 
 ### Qué se escribe en cada transacción
 
-Cada dato entra en **un solo campo**: la macro prueba las variantes del ID
-(`EKKO-KDATB`, `RM06E-KDATB`…) y escribe en la primera que exista en pantalla.
-Antes se escribía en todas a la vez, y eso dejaba datos donde no correspondía.
+En ME31K el mismo dato vive a la vez como `RM06E-xxxx` y `EKKO-xxxx` según la
+pantalla, así que la validez, el valor previsto y la moneda se escriben en
+**todas las variantes que existan**, y en las **dos** pantallas: la inicial y la
+de cabecera. Es como trabajaba el script original, y es lo que hace que SAP
+acepte el fin de período de validez. Cada escritura se comprueba una por una.
+
+Lo que sí se quitó son las cinco casillas que se tildaban a ciegas.
 
 ```vba
 ' Pantalla inicial de ME31K
