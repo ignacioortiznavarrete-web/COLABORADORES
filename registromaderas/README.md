@@ -39,11 +39,29 @@ Todo lo que el formulario decide solo sale de tus propias hojas:
 | Decisión | De dónde sale |
 |---|---|
 | Qué agrupaciones se pueden pedir | Hoja **SAP**: `Ce.` + `TpMt` → `AgrupMad` |
+| En **Trading**, cuáles de esas | Solo las de especie `H`, Radiata Terceros: es madera de terceros |
 | Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` |
 | Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
 | Etapa de **aserradero** | Va siempre |
-| Plantilla propuesta de cada etapa | Hoja **Agrupamiento**, por el carácter 3 (calidad) |
-| Largos que se ofrecen | Los que `BD_Maderas` tiene para esa agrupación y escuadría |
+| Qué hojas de ruta se ofrecen | Las que `BD_Maderas` tiene para esa escuadría |
+| A qué etapa pertenece una ruta | Sus dos primeros caracteres: `RV` aserradero, `RS` secado, `C` cepillado |
+
+## Las dos comprobaciones contra la base
+
+Se consulta `BD_Maderas` dos veces, y para cosas opuestas. Conviene no
+confundirlas:
+
+| Qué | Regla | Por qué |
+|---|---|---|
+| El **código** que se pide | **No** debe existir | El batch input lo crea. Si ya está, no hay nada que crear |
+| Las **hojas de ruta** que referencia | **Sí** deben existir | Son materiales de proceso ya dados de alta |
+
+Si el código ya existe, el formulario lo dice con su descripción y no deja
+seguir. Y para no chocar, muestra qué largos de esa escuadría ya están creados.
+
+La exigencia sobre la ruta depende de la clase: en **PP** y **PCP** tiene que
+existir en la base; en **PT** se puede indicar una que todavía no esté, y el
+formulario solo avisa.
 
 Ejemplos, con los mismos códigos de tu archivo:
 
@@ -76,7 +94,8 @@ RVMH032X180X3960  →  RVMH · Rústico Verde Médula Radiata Terceros · TCD2 �
 
 Si al copiar se perdió el espacio del cuarto lugar (`CSF019X075` en vez de
 `CSF 019X075`), igual lo reconoce. Si el prefijo no está en `SAP`, lo dice con
-ese nombre en vez de fallar en silencio.
+ese nombre en vez de fallar en silencio. Y si el código **ya existe**, avisa cuál
+es el material que está ocupando ese lugar y no deja continuar.
 
 **Armándolo paso a paso.** Los cinco pasos de abajo. Las dos maneras terminan en
 la misma fila; hay una prueba que lo comprueba columna por columna.
@@ -87,8 +106,8 @@ la misma fila; hay una prueba que lo comprueba columna por columna.
 |---|---|
 | 1 · Cabecera | Clase (PT/PCP/PP), origen (Trading elige centro TCP1 o TCD2; Planta va fijo en TCP1) y tipo de material (TTAS/TPAS) |
 | 2 · Agrupación | Solo las que el centro y el tipo de material habilitan |
-| 3 · Medidas | Espesor, ancho y largo. Se ofrecen los largos que existen en la base |
-| 4 · Desglose | Aserradero, secado y cepillado: propuestos, y editables si la etapa va sobredimensionada |
+| 3 · Medidas | Espesor, ancho y largo. Se avisa qué largos de esa escuadría ya están creados |
+| 4 · Desglose | La hoja de ruta de cada etapa, elegida de las que existen en la base. Si la etapa va sobredimensionada, se cambia su escuadría y se recargan las rutas |
 | 5 · Cantidad | Piezas, unidad y stock/pedido, con el resumen de la fila antes de guardar |
 
 Arriba, siempre a la vista, el código se va armando carácter por carácter y
@@ -113,9 +132,9 @@ están en la fila 2:
 | Col | Rótulo | Qué recibe |
 |---|---|---|
 | A–F | País … Usuario Solicitante | lo automático de arriba |
-| G–J | Aserradero(Template), Tamaño Dimensión, EE, AA | etapa de aserradero |
-| K–N | Secado(Template), Tamaño dimensión, EE, AA | etapa de secado (vacías si no aplica) |
-| O–R | Cepillado(Template), Tamaño dimensión, EE, AA | etapa de cepillado (vacías si no aplica) |
+| G–J | Aserradero(Template), Tamaño Dimensión, EE, AA | de la ruta: `RVM 032X180` da `RVM`, `032X180`, `032`, `180` |
+| K–N | Secado(Template), Tamaño dimensión, EE, AA | igual, con su ruta (vacías si la etapa no aplica) |
+| O–R | Cepillado(Template), Tamaño dimensión, EE, AA | igual (vacías si no aplica) |
 | S | Empaquetado | la agrupación elegida |
 | T–W | Tamaño dimensión, Espesor, Ancho, Largo | la medida final |
 | X–Z | PAK, UMB, Stock/Pedido | piezas, unidad y origen |
@@ -208,15 +227,20 @@ Si acabas de cambiarlos y quieres verlos ya, ejecuta `instalarRegistro`.
 
 ## Decisiones que conviene revisar
 
-**Las plantillas de etapa se proponen por la calidad.** `RVMH` tiene calidad `M`,
-así que propone `RVM` para aserradero y `RSM` para secado, que son los códigos
-que están en tu hoja Agrupamiento. En tu archivo de ejemplo aparecían `RVFD` y
-`RSFD`, que no están en ese catálogo: si la plantilla correcta lleva la especie
-pegada, agrégala como fila en `Agrupamiento` y quedará disponible.
+**Las hojas de ruta salen de la base, no de un catálogo.** Para `032X180` la base
+tiene `RVFD032X180` (aserradero) y `RSFD032X180` (secado), que son justo las que
+usaba tu fila de ejemplo. Si una etapa tiene una sola ruta posible, se pone sola;
+si hay varias, se elige.
 
-**El código tiene que existir en `BD_Maderas`.** Si la combinación no está, no se
-guarda y el formulario ofrece los largos que sí existen. Para permitir códigos
-nuevos, `MEDIDAS.EXIGIR_EN_BD = false` en `Config.gs`.
+**Trading exige especie `H`.** Con ese origen la lista de agrupaciones se filtra a
+las que terminan en `H`, y al guardar se vuelve a comprobar. En la práctica eso
+deja Trading en TCD2, que es donde están todas las de terceros. Se cambia en
+`TRADING.ESPECIE` (`Config.gs`).
+
+**Dónde se afloja cada regla.** `MEDIDAS.EXIGIR_NUEVO = false` deja registrar un
+código que ya exista; `RUTAS.DEBE_EXISTIR_EN` decide en qué clases la ruta tiene
+que estar en la base; `RUTAS.OBLIGATORIA = false` permite dejar una etapa sin
+ruta.
 
 **Los códigos con espacios raros igual se encuentran.** Hay 15 filas en
 `BD_Maderas` con un espacio duro pegado al final (`RSFR037X130X3600 `). El
@@ -266,5 +290,6 @@ cd registromaderas/pruebas && node test.js
 Las pruebas levantan las hojas con los mismos encabezados que tiene hoy el
 spreadsheet (rótulos repetidos incluidos) y cubren las condicionales: qué
 agrupación habilita cada centro, qué etapas aplican según el prefijo, cómo se
-arma y se desarma el código, qué queda escrito en cada columna, y que pegar el
-código y armarlo a mano produzcan exactamente la misma fila.
+arma y se desarma el código, que el producto sea nuevo y las rutas existan, qué
+queda escrito en cada columna, y que pegar el código y armarlo a mano produzcan
+exactamente la misma fila.

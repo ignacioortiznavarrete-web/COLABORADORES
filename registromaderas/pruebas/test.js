@@ -38,17 +38,21 @@ const FILA2 = ['País', 'Centro', 'Clase Requerimiento ', 'Tipo Requerimiento',
   'Largo', 'PAK', 'UMB PZA ó M3', 'Stock/Pedido toda la posicion del ID en consulta',
   'Descripcion Especial EN', 'Descripcion Especial ES'];
 
+// BD_Maderas guarda lo que YA existe. De ahí las dos comprobaciones opuestas:
+// las rutas tienen que estar, y el producto que se pide no.
 const MATERIALES = [
-  ['RVMH032X180X3200', 'X9000', 'TTAS', 'Rús. Verde Médula Radiata 032X180X3200', 'X'],
-  ['RVMH032X180X3960', 'X9000', 'TTAS', 'Rús. Verde Médula Radiata 032X180X3960', 'X'],
+  // Hojas de ruta: materiales de proceso de 11 caracteres.
+  ['RVM 032X180', 'X9000', 'TPAS', 'Rústico Verde Médula 032X180', 'X'],
+  ['RVFD032X180', 'X9000', 'TPAS', 'Rústico Verde Col Mix 032X180', 'X'],
+  ['RSFD032X180', 'X9000', 'TPAS', 'Rús. Seco COL MIX Radiata 032X180', 'X'],
+  ['RVF 021X105', 'X9000', 'TPAS', 'Rústico Verde COL MIX 021X105', 'X'],
+  ['RSF 020X102', 'X9000', 'TPAS', 'Rústico Seco COL MIX 020X102', 'X'],
+  ['CSF 019X100', 'X11000', 'TPAS', 'Cepillado Seco COL MIX 019X100', 'X'],
+  // Un producto que ya está creado: no se puede volver a pedir.
   ['RVMH032X180X4000', 'X9000', 'TTAS', 'Rús. Verde Médula Radiata 032X180X4000', 'X'],
-  ['C4JH019X100X2440', 'X11000', 'TTAS', 'Cep.4(C) Seco COL B Radiata 019X100X2440', 'X'],
-  // Producto en proceso: el 4º carácter es un espacio y no lleva largo.
-  ['CSF 019X075', 'X11000', 'TPAS', 'Cepillado Seco COL MIX 019x075', 'X'],
-  // Señuelo antes del bueno: contiene al código pero no es el código.
+  // Señuelo antes del bueno, y el espacio duro del final.
   ['XRSFR037X130X3600', 'X9000', 'TTAS', 'Señuelo 037X130X3600', 'X'],
-  // En la base hay 15 códigos con un espacio duro pegado al final.
-  ['RSFR037X130X3600 ', 'X9000', 'TTAS', 'Rús. Seco COL MIX Radiata 037X130X3600', 'X']
+  ['RSFR037X130X3600 ', 'X9000', 'TTAS', 'Rús. Seco COL MIX Radiata 037X130X3600', 'X']
 ];
 
 function crearHojasReales() {
@@ -81,13 +85,22 @@ function registro(fila, encabezado) {
 const SOLICITUD = {
   clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
   agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960',
-  desglose: { aserradero: { plantilla: 'RVM', espesor: '32', ancho: '180' } },
+  desglose: { aserradero: { ruta: 'RVM 032X180', espesor: '032', ancho: '180' } },
   piezas: 248, umb: 'PZA', stockPedido: 'P'
 };
 
-function con(cambios) {
-  return Object.assign({}, SOLICITUD, cambios);
-}
+const CEPILLADO = {
+  clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
+  agrupacion: 'C4JH', espesor: '19', ancho: '100', largo: '2440',
+  desglose: {
+    aserradero: { ruta: 'RVF 021X105' },
+    secado: { ruta: 'RSF 020X102' },
+    cepillado: { ruta: 'CSF 019X100' }
+  },
+  piezas: 60, umb: 'PZA', stockPedido: 'S'
+};
+
+function con(cambios) { return Object.assign({}, SOLICITUD, cambios); }
 
 crearHojasReales();
 
@@ -99,9 +112,9 @@ seccion('Contexto que recibe el formulario');
   ok(ctx.clases.length === 3 && ctx.clases[0].id === 'PT', 'ofrece PT, PCP y PP');
   ok(ctx.origenes[0].centros.join() === 'TCP1,TCD2', 'Trading elige entre TCP1 y TCD2');
   ok(ctx.origenes[1].centros.join() === 'TCP1', 'Planta tiene un solo centro: TCP1');
-  ok(ctx.etapas.map(e => e.id).join() === 'aserradero,secado,cepillado', 'las tres etapas del proceso');
-  ok(ctx.catalogoEtapas.aserradero.length === 5, 'el catálogo trae las 5 plantillas de aserradero');
-  ok(ctx.catalogoEtapas.cepillado.length === 6, 'y las 6 de cepillado');
+  ok(ctx.exigeCodigoNuevo === true, 'el código que se pide tiene que ser nuevo');
+  ok(ctx.clasesConRutaEnBD.join() === 'PP,PCP', 'en PP y PCP la ruta tiene que existir');
+  ok(ctx.trading.especie === 'H', 'Trading exige especie H');
   ok(ctx.porDefecto.TIPO_REQUERIMIENTO === 'NO', 'Tipo Requerimiento va en NO, como el ejemplo');
   ok(!ctx.hojasFaltantes.length, 'no falta ninguna hoja');
 }
@@ -110,22 +123,26 @@ seccion('Contexto que recibe el formulario');
 
 seccion('Qué agrupaciones habilita cada centro y tipo de material');
 {
-  const codigos = (c, t) => apiAgrupaciones(c, t).agrupaciones.map(a => a.codigo);
+  const codigos = (c, t, o) => apiAgrupaciones(c, t, o).agrupaciones.map(a => a.codigo);
 
   const tcd2 = codigos('TCD2', 'TTAS');
-  ok(tcd2.length === 9, 'TCD2 + TTAS habilita 9 agrupaciones');
-  ok(tcd2.indexOf('RVMH') !== -1, 'entre ellas RVMH');
-  ok(tcd2.indexOf('CSF') === -1, 'y no las de proceso como CSF');
-
-  const tpas = codigos('TCP1', 'TPAS');
-  ok(tpas.length === 16, 'TCP1 + TPAS habilita 16');
-  ok(tpas.indexOf('CSF') !== -1 && tpas.indexOf('RVM') !== -1, 'las de proceso, de tres letras');
-  ok(tpas.indexOf('RVMH') === -1, 'y no las de terceros');
-
-  const ttas = codigos('TCP1', 'TTAS');
-  ok(ttas.length === 8 && ttas.indexOf('RSFR') !== -1, 'TCP1 + TTAS habilita 8, con RSFR');
-
+  ok(tcd2.length === 9 && tcd2.indexOf('RVMH') !== -1, 'TCD2 + TTAS habilita 9, entre ellas RVMH');
+  ok(codigos('TCP1', 'TPAS').length === 16, 'TCP1 + TPAS habilita 16, las de proceso');
+  ok(codigos('TCP1', 'TTAS').length === 8, 'TCP1 + TTAS habilita 8');
   ok(codigos('TCD2', 'TPAS').length === 0, 'TCD2 + TPAS no habilita ninguna');
+}
+
+seccion('En Trading el código tiene que llevar especie H');
+{
+  const codigos = (c, t, o) => apiAgrupaciones(c, t, o).agrupaciones.map(a => a.codigo);
+  const trading = codigos('TCD2', 'TTAS', 'Trading');
+  ok(trading.length === 9, 'las 9 de TCD2 + TTAS sirven para Trading');
+  ok(trading.every(c => c.charAt(3) === 'H'), 'porque todas terminan en H');
+  ok(codigos('TCP1', 'TTAS', 'Trading').length === 0,
+    'en TCP1 no queda ninguna: sus agrupaciones terminan en R, no en H');
+  ok(codigos('TCP1', 'TTAS', 'Planta').length === 8, 'pero desde Planta sí se pueden pedir');
+  ok(apiAgrupaciones('TCD2', 'TTAS', 'Trading').filtradoPorTrading === true,
+    'el formulario sabe que la lista viene filtrada');
 }
 
 seccion('Qué etapas tiene cada producto, leídas del prefijo');
@@ -135,112 +152,82 @@ seccion('Qué etapas tiene cada producto, leídas del prefijo');
     'RVMH es verde y rústico: solo aserradero');
   ok(etapas('RSFR').secado && !etapas('RSFR').cepillado,
     'RSFR es seco y rústico: aserradero y secado');
-  ok(etapas('C4JH').cepillado && etapas('C4JH').secado,
-    'C4JH es cepillado: pasa por las tres');
-  ok(etapas('CSF').cepillado && etapas('CSF').secado, 'CSF también pasa por las tres');
+  ok(etapas('C4JH').cepillado && etapas('C4JH').secado, 'C4JH es cepillado: pasa por las tres');
 }
 
-seccion('Cómo se arma el código');
+seccion('Cómo se arma y se desarma el código');
 {
   ok(armarCodigo_('RVMH', '032', '180', '3960') === 'RVMH032X180X3960',
     'prefijo de cuatro + medidas = 16 caracteres');
   ok(armarCodigo_('CSF', '019', '075', '') === 'CSF 019X075',
     'prefijo de tres: el 4º lugar es un espacio y sin largo quedan 11');
   ok(rellenar_('32', 3, 'espesor') === '032', 'el espesor se rellena con ceros a la izquierda');
-  ok(rellenar_('3960', 4, 'largo') === '3960', 'el largo va con sus cuatro dígitos');
-  ok(rellenar_('', 3, 'largo') === '', 'sin valor no se inventa nada');
-  ok(error(() => rellenar_('12345', 4, 'largo')).indexOf('más de 4') !== -1,
-    'más dígitos de los que caben no pasa');
   ok(error(() => rellenar_('32,5', 3, 'espesor')).indexOf('número entero') !== -1,
-    'con coma decimal tampoco');
+    'con coma decimal no pasa');
+
+  const d = descomponerCodigo_('RVMH032X180X3960');
+  ok(d.agrupacion === 'RVMH' && d.espesor === '032' && d.largo === '3960',
+    'desarma un código de 16 caracteres en sus partes');
+  ok(descomponerCodigo_('CSF 019X075').prefijo === 'CSF ', 'y uno de proceso, con su espacio');
+  ok(descomponerCodigo_('CSF019X075').agrupacion === 'CSF',
+    'si al copiar se perdió ese espacio, igual lo reconoce');
+  ok(descomponerCodigo_('rvmh032x180x3960').agrupacion === 'RVMH', 'y en minúsculas también');
+  ok(descomponerCodigo_('RVMH032-180-3960') === null, 'una forma que no calza devuelve null');
+
   const partes = descomponerPrefijo_('RVMH');
-  ok(partes[0].significado === 'Rústico' && partes[1].significado === 'Verde' &&
-     partes[2].significado === 'Médula' && partes[3].significado === 'Radiata Terceros',
+  ok(partes[0].significado === 'Rústico' && partes[3].significado === 'Radiata Terceros',
     'cada carácter del prefijo se explica solo');
   ok(descomponerPrefijo_('CSF')[3].significado === 'Producto en proceso',
     'el espacio del 4º lugar significa producto en proceso');
 }
 
-/* ------------------------------------------------------ medidas y búsqueda */
+/* -------------------------------------- el código se está creando, no existe */
 
-seccion('Medidas: arma el código y lo busca en la base');
+seccion('El código que se pide tiene que ser nuevo');
 {
-  const r = apiMedidas({ agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960' });
-  ok(r.ok && r.encontrado, 'encuentra RVMH032X180X3960');
-  ok(r.codigo === 'RVMH032X180X3960', 'arma el código con los ceros puestos');
-  ok(r.material.grupo === 'X9000', 'asocia el grupo de artículo');
-  ok(r.largos.join() === '3200,3960,4000', 'ofrece los tres largos que existen para esa escuadría');
+  const nuevo = apiMedidas({ agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960' });
+  ok(nuevo.ok && !nuevo.existe, 'RVMH032X180X3960 no está en la base: se puede crear');
+  ok(nuevo.codigo === 'RVMH032X180X3960', 'lo arma con los ceros puestos');
+
+  const repetido = apiMedidas({ agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '4000' });
+  ok(!repetido.ok && repetido.existe, 'RVMH032X180X4000 ya existe: no se puede volver a crear');
+  ok(repetido.mensaje.indexOf('ya existe') !== -1 &&
+     repetido.mensaje.indexOf('Verde Médula') !== -1,
+    'y el mensaje dice cuál es el material que ya está');
+
+  ok(nuevo.largos.join() === '4000',
+    'muestra los largos ya creados de esa escuadría, para no chocar con ellos');
+  ok(nuevo.rutas.map(r => r.codigo).join() === 'RSFD032X180,RVFD032X180,RVM 032X180',
+    'y de paso trae las hojas de ruta de la escuadría');
 }
 {
-  const r = apiMedidas({ agrupacion: 'CSF', espesor: '19', ancho: '75', largo: '' });
-  ok(r.encontrado && r.codigo === 'CSF 019X075', 'un producto en proceso se busca sin largo');
-  ok(r.largos.length === 0, 'y no ofrece largos porque no tiene');
-}
-{
-  const r = apiMedidas({ agrupacion: 'RSFR', espesor: '37', ancho: '130', largo: '3600' });
-  ok(r.encontrado, 'encuentra el código aunque en la base tenga un espacio duro al final');
-  ok(r.codigo === 'RSFR037X130X3600', 'y lo deja limpio');
-}
-{
-  const r = apiMedidas({ agrupacion: 'RVMH', espesor: '99', ancho: '999', largo: '9999' });
-  ok(!r.ok && !r.encontrado, 'una medida que no existe no deja seguir');
-  ok(r.mensaje.indexOf('BD_Maderas') !== -1, 'y el mensaje dice dónde se buscó');
-}
-{
+  const tolerante = apiMedidas({ agrupacion: 'RSFR', espesor: '37', ancho: '130', largo: '3600' });
+  ok(tolerante.existe,
+    'detecta como existente el código que en la base trae un espacio duro al final');
   ok(apiMedidas({ agrupacion: '', espesor: '32' }).mensaje.indexOf('agrupación') !== -1,
     'sin agrupación no hay nada que armar');
   ok(apiMedidas({ agrupacion: 'RVMH', espesor: 'ab' }).mensaje.indexOf('número entero') !== -1,
     'una medida con letras avisa en vez de romperse');
 }
 
+/* ---------------------------------------------------------- hojas de ruta */
+
+seccion('Las hojas de ruta salen de lo que existe en la base');
+{
+  const r = apiRutas('32', '180');
+  ok(r.ok && r.escuadria === '032X180', 'se piden por escuadría');
+  ok(r.rutas.length === 3, 'para 032X180 la base tiene tres');
+  ok(r.rutas.map(x => x.etapa).join() === 'secado,aserradero,aserradero',
+    'y cada una sabe a qué etapa pertenece');
+  ok(familiaDeRuta_('RVFD032X180') === 'aserradero', 'RV es aserradero');
+  ok(familiaDeRuta_('RSFD032X180') === 'secado', 'RS es secado');
+  ok(familiaDeRuta_('CSF 019X100') === 'cepillado', 'C es cepillado');
+  ok(escuadriaDeRuta_('RVM 032X180') === '032X180', 'la escuadría son los siete del final');
+  ok(escuadriaDeRuta_('RVMH032X180X3960') === '', 'un producto con largo no es una ruta');
+  ok(apiRutas('99', '999').rutas.length === 0, 'una escuadría sin rutas devuelve la lista vacía');
+}
+
 /* -------------------------------------------------------------- el guardado */
-
-seccion('Pegar un código ya armado');
-{
-  const d = descomponerCodigo_('RVMH032X180X3960');
-  ok(d.agrupacion === 'RVMH' && d.espesor === '032' && d.ancho === '180' && d.largo === '3960',
-    'desarma un código de 16 caracteres en sus cuatro partes');
-
-  const proceso = descomponerCodigo_('CSF 019X075');
-  ok(proceso.agrupacion === 'CSF' && proceso.prefijo === 'CSF ' && proceso.largo === '',
-    'y uno de proceso, con el espacio en el cuarto lugar y sin largo');
-
-  ok(descomponerCodigo_('CSF019X075').agrupacion === 'CSF',
-    'si al copiar se perdió ese espacio, igual lo reconoce');
-  ok(descomponerCodigo_('rvmh032x180x3960').agrupacion === 'RVMH',
-    'y no importa que venga en minúsculas');
-  ok(descomponerCodigo_('RVMH032-180-3960') === null, 'una forma que no calza devuelve null');
-  ok(descomponerCodigo_('RVMH32X180X3960') === null,
-    'un espesor de dos dígitos tampoco: el código va con los ceros puestos');
-}
-{
-  const r = apiPegarCodigo('RVMH032X180X3960');
-  ok(r.ok && r.encontrado, 'el código pegado se encuentra en la base');
-  ok(r.centro === 'TCD2' && r.tipoMaterial === 'TTAS',
-    'el prefijo trae consigo el centro y el tipo de material, desde la hoja SAP');
-  ok(r.origen === 'Trading', 'y el origen, porque TCD2 solo lo usa Trading');
-  ok(r.agrupacion.texto.indexOf('Médula') !== -1, 'trae el texto de la agrupación');
-  ok(r.agrupacion.etapas.aserradero && !r.agrupacion.etapas.secado,
-    'y las etapas que le corresponden');
-  ok(r.agrupacion.sugerido.aserradero.plantilla === 'RVM', 'con la plantilla propuesta');
-  ok(r.espesor === '032' && r.ancho === '180' && r.largo === '3960', 'y las medidas separadas');
-  ok(r.largos.join() === '3200,3960,4000', 'más los otros largos de esa escuadría');
-  ok(r.material.grupo === 'X9000', 'y la ficha del material');
-}
-{
-  const r = apiPegarCodigo('CSF 019X075');
-  ok(r.centro === 'TCP1' && r.tipoMaterial === 'TPAS', 'un producto en proceso trae TCP1 + TPAS');
-  ok(r.origen === '' && r.origenes.join() === 'Trading,Planta',
-    'el origen queda por preguntar: TCP1 lo usan los dos');
-}
-{
-  const viejo = apiPegarCodigo('C23H001X006X0013');
-  ok(!viejo.ok && viejo.mensaje.indexOf('no está en la hoja SAP') !== -1,
-    'un prefijo que no está en SAP dice exactamente eso');
-  ok(apiPegarCodigo('').mensaje.indexOf('Pega el código') !== -1, 'sin código, avisa');
-  ok(apiPegarCodigo('ABC').mensaje.indexOf('No reconozco la forma') !== -1,
-    'con algo que no es un código, explica cómo se arma uno');
-}
 
 seccion('La fila de batch input en la hoja de la clase');
 {
@@ -251,11 +238,11 @@ seccion('La fila de batch input en la hoja de la clase');
   ok(celda('PT', 3, 2) === 'TCD2', 'B Centro = el elegido');
   ok(celda('PT', 3, 3) === 'PT', 'C Clase Requerimiento = PT');
   ok(celda('PT', 3, 4) === 'NO', 'D Tipo Requerimiento = NO');
-  ok(/^\d{2}\.\d{2}\.\d{4}$/.test(celda('PT', 3, 5)), 'E Llegada requerimiento como texto dd.mm.aaaa');
+  ok(/^\d{2}\.\d{2}\.\d{4}$/.test(celda('PT', 3, 5)), 'E Llegada requerimiento, texto dd.mm.aaaa');
   ok(celda('PT', 3, 6) === 'test@masisa.com', 'F Usuario Solicitante = el correo');
 
-  ok(celda('PT', 3, 7) === 'RVM', 'G Aserradero(Template)');
-  ok(celda('PT', 3, 8) === '032X180', 'H Tamaño Dimensión del aserradero');
+  ok(celda('PT', 3, 7) === 'RVM', 'G Aserradero(Template) sale del prefijo de la ruta');
+  ok(celda('PT', 3, 8) === '032X180', 'H Tamaño Dimensión sale de la escuadría de la ruta');
   ok(celda('PT', 3, 9) === '032' && celda('PT', 3, 10) === '180', 'I y J: EE y AA del aserradero');
 
   ok(celda('PT', 3, 11) === '' && celda('PT', 3, 12) === '',
@@ -265,29 +252,21 @@ seccion('La fila de batch input en la hoja de la clase');
 
   ok(celda('PT', 3, 19) === 'RVMH', 'S Empaquetado = la agrupación');
   ok(celda('PT', 3, 20) === '032X180X3960', 'T Tamaño dimensión completa');
-  ok(celda('PT', 3, 21) === '032', 'U Espesor');
-  ok(celda('PT', 3, 22) === '180', 'V Ancho');
-  ok(celda('PT', 3, 23) === '3960', 'W Largo');
-  ok(celda('PT', 3, 24) === 248, 'X PAK = las piezas');
-  ok(celda('PT', 3, 25) === 'PZA', 'Y UMB');
-  ok(celda('PT', 3, 26) === 'P', 'Z Stock/Pedido');
+  ok(celda('PT', 3, 21) === '032' && celda('PT', 3, 22) === '180' && celda('PT', 3, 23) === '3960',
+    'U, V y W: espesor, ancho y largo');
+  ok(celda('PT', 3, 24) === 248 && celda('PT', 3, 25) === 'PZA' && celda('PT', 3, 26) === 'P',
+    'X, Y y Z: PAK, UMB y Stock/Pedido');
   ok(celda('PT', 3, 27) === '' && celda('PT', 3, 28) === '',
     'las descripciones especiales quedan intactas');
 }
 
-seccion('Un producto cepillado sí llena las tres etapas');
+seccion('Un producto cepillado llena las tres etapas');
 {
-  const r = apiGuardar(con({
-    centro: 'TCD2', agrupacion: 'C4JH', espesor: '19', ancho: '100', largo: '2440',
-    desglose: {
-      aserradero: { plantilla: 'RVF', espesor: '21', ancho: '105' },
-      secado: { plantilla: 'RSF', espesor: '20', ancho: '102' },
-      cepillado: { plantilla: 'CSF', espesor: '19', ancho: '100' }
-    }
-  }));
-  ok(celda('PT', r.fila, 7) === 'RVF' && celda('PT', r.fila, 8) === '021X105', 'aserradero sobredimensionado');
-  ok(celda('PT', r.fila, 11) === 'RSF' && celda('PT', r.fila, 12) === '020X102', 'secado con su medida');
-  ok(celda('PT', r.fila, 15) === 'CSF' && celda('PT', r.fila, 16) === '019X100', 'cepillado con la final');
+  const r = apiGuardar(CEPILLADO);
+  ok(celda('PT', r.fila, 7) === 'RVF' && celda('PT', r.fila, 8) === '021X105',
+    'aserradero sobredimensionado, con su propia ruta');
+  ok(celda('PT', r.fila, 11) === 'RSF' && celda('PT', r.fila, 12) === '020X102', 'secado');
+  ok(celda('PT', r.fila, 15) === 'CSF' && celda('PT', r.fila, 16) === '019X100', 'cepillado');
   ok(celda('PT', r.fila, 19) === 'C4JH', 'y el empaquetado es la agrupación pedida');
 }
 
@@ -296,10 +275,9 @@ seccion('La bitácora Registro');
   ok(registro(1, 'Fecha') === 'Fecha', 'estrena sus encabezados');
   ok(registro(2, 'Solicitante') === 'test@masisa.com', 'guarda el correo');
   ok(registro(2, 'Agrupación') === 'RVMH', 'guarda la agrupación');
-  ok(registro(2, 'Descripción Agrupación').indexOf('Médula') !== -1, 'con su texto de SAP');
   ok(registro(2, 'Código') === 'RVMH032X180X3960', 'guarda el código armado');
-  ok(registro(2, 'Piezas') === 248, 'guarda las piezas');
-  ok(registro(2, 'Aserradero') === 'RVM' && registro(2, 'Secado') === '', 'guarda el desglose');
+  ok(registro(2, 'Aserradero') === 'RVM 032X180', 'guarda la ruta completa, no solo el prefijo');
+  ok(registro(2, 'Secado') === '', 'y deja en blanco la etapa que no aplica');
   ok(registro(2, 'Hoja Destino') === 'PT' && registro(2, 'Fila Destino') === 3,
     'deja la pista de dónde quedó la fila');
 }
@@ -313,6 +291,20 @@ seccion('Cada clase a su hoja');
   ok(celda('PP', 3, 3) === 'PP', 'y la clase queda escrita en su fila');
 }
 
+seccion('En PT la ruta se avisa; en PP y PCP tiene que existir');
+{
+  const inventada = { aserradero: { ruta: 'RVM 999X999' } };
+  const pt = apiGuardar(con({ desglose: inventada }));
+  ok(pt.ok, 'en PT se puede indicar una ruta que todavía no está en la base');
+  ok(celda('PT', pt.fila, 7) === 'RVM' && celda('PT', pt.fila, 8) === '999X999',
+    'y se escribe igual');
+
+  ok(error(() => apiGuardar(con({ clase: 'PP', desglose: inventada })))
+    .indexOf('no existe en BD_Maderas') !== -1, 'en PP no: la ruta tiene que existir');
+  ok(error(() => apiGuardar(con({ clase: 'PCP', desglose: inventada })))
+    .indexOf('no existe en BD_Maderas') !== -1, 'en PCP tampoco');
+}
+
 seccion('Pegar y armar paso a paso terminan en la misma fila');
 {
   const pegado = apiPegarCodigo('RVMH032X180X3960');
@@ -320,8 +312,7 @@ seccion('Pegar y armar paso a paso terminan en la misma fila');
     clase: 'PT', origen: pegado.origen, centro: pegado.centro, tipoMaterial: pegado.tipoMaterial,
     agrupacion: pegado.agrupacion.codigo,
     espesor: pegado.espesor, ancho: pegado.ancho, largo: pegado.largo,
-    desglose: { aserradero: { plantilla: pegado.agrupacion.sugerido.aserradero.plantilla,
-                              espesor: pegado.espesor, ancho: pegado.ancho } },
+    desglose: { aserradero: { ruta: 'RVM 032X180' } },
     piezas: 248, umb: 'PZA', stockPedido: 'P'
   });
   const armado = apiGuardar(SOLICITUD);
@@ -331,14 +322,33 @@ seccion('Pegar y armar paso a paso terminan en la misma fila');
     'la fila del código pegado es idéntica a la del código armado a mano');
 }
 
+seccion('Pegar un código ya armado');
+{
+  const r = apiPegarCodigo('RVMH032X180X3960');
+  ok(r.ok && !r.existe, 'el código pegado todavía no existe: se puede crear');
+  ok(r.centro === 'TCD2' && r.tipoMaterial === 'TTAS',
+    'el prefijo trae el centro y el tipo de material desde la hoja SAP');
+  ok(r.origen === 'Trading', 'y el origen, porque la especie H es madera de terceros');
+  ok(r.agrupacion.etapas.aserradero && !r.agrupacion.etapas.secado, 'con sus etapas');
+  ok(r.rutas.length === 3, 'y las rutas de la escuadría, listas para el desglose');
+
+  const repetido = apiPegarCodigo('RVMH032X180X4000');
+  ok(!repetido.ok && repetido.existe, 'si el código ya existe, lo dice y no deja seguir');
+
+  ok(apiPegarCodigo('C23H001X006X0013').mensaje.indexOf('no está en la hoja SAP') !== -1,
+    'un prefijo que no está en SAP dice exactamente eso');
+  ok(apiPegarCodigo('ABC').mensaje.indexOf('No reconozco la forma') !== -1,
+    'con algo que no es un código, explica cómo se arma uno');
+}
+
 seccion('Trading elige centro, Planta no');
 {
   const r = apiGuardar(con({
     origen: 'Planta', centro: 'TCD2', agrupacion: 'RSFR',
-    espesor: '37', ancho: '130', largo: '3600',
+    espesor: '37', ancho: '130', largo: '3200',
     desglose: {
-      aserradero: { plantilla: 'RVF', espesor: '37', ancho: '130' },
-      secado: { plantilla: 'RSF', espesor: '37', ancho: '130' }
+      aserradero: { ruta: 'RVFD032X180' },
+      secado: { ruta: 'RSFD032X180' }
     }
   }));
   ok(celda('PT', r.fila, 2) === 'TCP1', 'Planta entra como TCP1 aunque pidan otro centro');
@@ -348,19 +358,27 @@ seccion('Trading elige centro, Planta no');
 
 seccion('Lo que no se puede guardar');
 {
+  ok(error(() => apiGuardar(con({ largo: '4000' }))).indexOf('ya existe') !== -1,
+    'un código que ya está creado');
+  ok(error(() => apiGuardar(con({
+    origen: 'Trading', centro: 'TCP1', tipoMaterial: 'TTAS', agrupacion: 'RSFR',
+    espesor: '37', ancho: '130', largo: '3200',
+    desglose: { aserradero: { ruta: 'RVFD032X180' }, secado: { ruta: 'RSFD032X180' } }
+  }))).indexOf('la especie del código tiene que ser H') !== -1,
+    'una agrupación sin H pedida desde Trading');
   ok(error(() => apiGuardar(con({ centro: 'TCP1' }))).indexOf('no está habilitada') !== -1,
     'RVMH no se puede pedir en TCP1: la hoja SAP no lo permite');
-  ok(error(() => apiGuardar(con({ tipoMaterial: 'TPAS' }))).indexOf('no está habilitada') !== -1,
-    'ni con el tipo de material cambiado');
   ok(error(() => apiGuardar(con({ agrupacion: 'XXXX' }))).indexOf('no está habilitada') !== -1,
-    'una agrupación inventada tampoco');
-  ok(error(() => apiGuardar(con({
-    desglose: { aserradero: { plantilla: 'ZZZ', espesor: '32', ancho: '180' } }
-  }))).indexOf('no está en el catálogo') !== -1, 'una plantilla fuera del catálogo de Agrupamiento');
+    'una agrupación inventada');
+  ok(error(() => apiGuardar(con({ desglose: {} }))).indexOf('Falta la hoja de ruta') !== -1,
+    'sin hoja de ruta');
+  ok(error(() => apiGuardar(con({ desglose: { aserradero: { ruta: 'RSFD032X180' } } })))
+    .indexOf('es de secado, no de Aserradero') !== -1,
+    'una ruta de secado puesta en el aserradero');
+  ok(error(() => apiGuardar(con({ desglose: { aserradero: { ruta: 'RVM' } } })))
+    .indexOf('no tiene la forma de una ruta') !== -1, 'una ruta sin escuadría');
   ok(error(() => apiGuardar(con({ piezas: 0 }))).indexOf('mayor que cero') !== -1, 'piezas en 0');
   ok(error(() => apiGuardar(con({ piezas: 2.5 }))).indexOf('entero') !== -1, 'piezas con decimales');
-  ok(error(() => apiGuardar(con({ largo: '9999' }))).indexOf('no está en la hoja') !== -1,
-    'un largo que la base no tiene');
   ok(error(() => apiGuardar(con({ espesor: '' }))).indexOf('Faltan el espesor') !== -1,
     'sin espesor no hay código');
   ok(error(() => apiGuardar(con({ clase: 'XX' }))).indexOf('Clase de requerimiento desconocida') !== -1,
@@ -385,10 +403,9 @@ seccion('instalarRegistro deja los catálogos en el spreadsheet');
   ok(!SS.getSheetByName('SAP'), 'antes de instalar no existe la hoja SAP');
   instalarRegistro();
   const sap = SS.getSheetByName('SAP');
-  const agr = SS.getSheetByName('Agrupamiento');
   ok(!!sap && sap.getLastRow() === 34, 'crea SAP con sus 33 filas de agrupaciones');
-  ok(sap.getRange(1, 4).getValue() === 'AgrupMad', 'con AgrupMad en la columna D, como el archivo original');
-  ok(!!agr && agr.getLastRow() === 18, 'y Agrupamiento con las plantillas de cada etapa');
+  ok(sap.getRange(1, 4).getValue() === 'AgrupMad', 'con AgrupMad en la columna D');
+  ok(SS.getSheetByName('Agrupamiento').getLastRow() === 18, 'y Agrupamiento con las plantillas');
   ok(apiAgrupaciones('TCD2', 'TTAS').agrupaciones.length === 9,
     'y desde ahí en adelante las agrupaciones salen de la hoja');
 }

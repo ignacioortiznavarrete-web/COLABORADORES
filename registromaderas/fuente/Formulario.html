@@ -106,7 +106,7 @@
       <p class="ayuda" id="ayudaDesglose"></p>
       <table class="desglose">
         <thead>
-          <tr><th>Etapa</th><th>Plantilla</th><th>Espesor</th><th>Ancho</th></tr>
+          <tr><th>Etapa</th><th>Hoja de ruta</th><th>Espesor</th><th>Ancho</th></tr>
         </thead>
         <tbody id="tablaDesglose"></tbody>
       </table>
@@ -161,7 +161,7 @@
     clase: '', origen: '', centro: '', tipoMaterial: '',
     agrupaciones: null, agrupacion: null,
     espesor: '', ancho: '', largo: '',
-    codigo: '', material: null, largos: [], buscado: false,
+    codigo: '', material: null, existe: false, largos: [], rutas: [], buscado: false,
     desglose: {}, piezas: '', umb: '', stockPedido: ''
   };
 
@@ -374,11 +374,14 @@
     S.origen = r.origen || '';
     S.agrupacion = r.agrupacion;
     S.agrupaciones = null;          // se recarga sola si vuelve al paso 2
+    S.codigo = r.codigo || '';
     S.espesor = r.espesor;
     S.ancho = r.ancho;
     S.largo = r.largo;
     S.largos = r.largos || [];
-    S.material = r.material;
+    S.rutas = r.rutas || [];
+    S.material = r.material || null;
+    S.existe = !!r.existe;
     S.buscado = true;
     S.desglose = {};
 
@@ -394,22 +397,14 @@
     dibujarLargos();
     pintarBanco();
 
-    if (r.encontrado) {
-      var m = r.material;
-      mostrarFicha('', '<span class="desc">' + esc(m.descripcion) + '</span>' +
-        '<span class="dato">Grupo <b>' + esc(m.grupo || '—') + '</b></span>' +
-        '<span class="dato">TpMt <b>' + esc(m.tipoMaterial || '—') + '</b></span>' +
-        '<span class="dato">Ce <b>' + esc(m.ce || '—') + '</b></span>');
-    } else {
-      mostrarFicha('malo', esc(r.mensaje));
-    }
+    mostrarEstadoCodigo(r.mensaje);
 
     var falta = primerPasoIncompleto();
-    aviso($('pegarAviso'), r.encontrado ? 'ok' : 'alerta', '',
-      r.encontrado
-        ? esc(r.agrupacion.codigo) + ' · ' + esc(r.agrupacion.texto) + ' · ' +
-          esc(r.centro) + ' · ' + esc(r.tipoMaterial) + '. ' + queFalta(falta)
-        : r.mensaje);
+    aviso($('pegarAviso'), r.existe ? 'error' : 'ok', '',
+      r.existe
+        ? r.mensaje
+        : r.agrupacion.codigo + ' · ' + r.agrupacion.texto + ' · ' +
+          r.centro + ' · ' + r.tipoMaterial + '. ' + queFalta(falta));
 
     irA(falta);
     refrescar();
@@ -446,7 +441,11 @@
 
   function cargarAgrupaciones() {
     $('ayudaAgrup').textContent = 'Habilitadas para ' + S.centro + ' + ' + S.tipoMaterial +
-      ', según la hoja ' + CTX.hojaSAP + '.';
+      ', según la hoja ' + CTX.hojaSAP + '.' +
+      (S.origen === CTX.trading.origen
+        ? ' En ' + CTX.trading.origen + ' solo las de especie ' + CTX.trading.especie +
+          ', que es la madera de terceros.'
+        : '');
     $('listaAgrup').innerHTML = '<div class="vacio-estado">Buscando agrupaciones…</div>';
     google.script.run
       .withSuccessHandler(function (r) {
@@ -458,14 +457,18 @@
         $('listaAgrup').innerHTML = '<div class="aviso error">' +
           esc(err && err.message ? err.message : err) + '</div>';
       })
-      .apiAgrupaciones(S.centro, S.tipoMaterial);
+      .apiAgrupaciones(S.centro, S.tipoMaterial, S.origen);
   }
 
   function dibujarAgrupaciones() {
     if (!S.agrupaciones.length) {
       $('listaAgrup').innerHTML = '<div class="vacio-estado">' +
-        'No hay agrupaciones para <b>' + esc(S.centro) + ' + ' + esc(S.tipoMaterial) + '</b>. ' +
-        'Vuelve atrás y cambia el centro o el tipo de material.</div>';
+        'No hay agrupaciones para <b>' + esc(S.centro) + ' + ' + esc(S.tipoMaterial) + '</b>' +
+        (S.origen === CTX.trading.origen
+          ? ' con especie ' + esc(CTX.trading.especie) + ', que es la que exige ' +
+            esc(CTX.trading.origen) + '.'
+          : '.') +
+        ' Vuelve atrás y cambia el origen, el centro o el tipo de material.</div>';
       return;
     }
     $('listaAgrup').innerHTML = '<div class="filas">' + S.agrupaciones.map(function (a) {
@@ -513,6 +516,7 @@
     S.ancho = soloDigitos($('mAncho'));
     S.largo = soloDigitos($('mLargo'));
     S.material = null;
+    S.existe = false;
     S.buscado = false;
     pintarBanco();
     refrescar();
@@ -541,28 +545,32 @@
     $('buscando').hidden = true;
     S.buscado = true;
     S.largos = r.largos || [];
+    S.rutas = r.rutas || [];
     S.codigo = r.codigo || '';
-    S.material = r.encontrado ? r.material : null;
-
-    if (r.encontrado) {
-      var m = r.material;
-      mostrarFicha('', '<span class="desc">' + esc(m.descripcion) + '</span>' +
-        '<span class="dato">Grupo <b>' + esc(m.grupo || '—') + '</b></span>' +
-        '<span class="dato">TpMt <b>' + esc(m.tipoMaterial || '—') + '</b></span>' +
-        '<span class="dato">Ce <b>' + esc(m.ce || '—') + '</b></span>');
-      if (m.tipoMaterial && m.tipoMaterial !== S.tipoMaterial) {
-        mostrarFicha('aviso', 'En ' + esc(CTX.hojaBD) + ' este código figura como ' +
-          esc(m.tipoMaterial) + ' y elegiste ' + esc(S.tipoMaterial) + '.');
-      }
-    } else if (r.mensaje) {
-      mostrarFicha('malo', esc(r.mensaje));
-    } else {
-      $('fichaBanco').hidden = true;
-    }
-
+    S.existe = !!r.existe;
+    S.material = r.material || null;
+    mostrarEstadoCodigo(r.mensaje);
     dibujarLargos();
     pintarBanco();
     refrescar();
+  }
+
+  /**
+   * El código se está creando, así que encontrarlo en la base es el problema,
+   * no el objetivo.
+   */
+  function mostrarEstadoCodigo(mensaje) {
+    if (!S.codigo) { $('fichaBanco').hidden = true; return; }
+    if (S.existe) {
+      var m = S.material || {};
+      mostrarFicha('malo', '<span class="desc">Ya existe: ' + esc(m.descripcion || S.codigo) +
+        '</span><span class="dato">Grupo <b>' + esc(m.grupo || '—') + '</b></span>' +
+        '<span class="dato">TpMt <b>' + esc(m.tipoMaterial || '—') + '</b></span>');
+      return;
+    }
+    mostrarFicha('nuevo', '<span class="desc">Código disponible</span>' +
+      '<span class="dato">no está en ' + esc(CTX.hojaBD) + ', así que se puede crear</span>' +
+      (mensaje ? '<span class="dato">' + esc(mensaje) + '</span>' : ''));
   }
 
   function mostrarFicha(clase, html) {
@@ -572,56 +580,60 @@
     caja.hidden = false;
   }
 
+  /**
+   * Los largos que ya están en la base son los que NO se pueden volver a
+   * crear. Se muestran para no chocar con ellos, y por eso no son botones.
+   */
   function dibujarLargos() {
     var caja = $('largos');
-    if (!S.espesor || !S.ancho) { caja.innerHTML = ''; return; }
-    if (!S.largos.length) {
-      caja.innerHTML = '<div class="vacio-estado">' + esc(CTX.hojaBD) +
-        ' no tiene largos para ' + esc(S.agrupacion.codigo + ' ' + S.espesor + 'X' + S.ancho) +
-        '. Revisa la escuadría.</div>';
-      return;
-    }
+    if (!S.espesor || !S.ancho || !S.largos.length) { caja.innerHTML = ''; return; }
     caja.innerHTML = '<h3 style="margin:0 0 9px;font-size:12px;font-weight:600;letter-spacing:.06em;' +
-      'text-transform:uppercase;color:var(--tinta-suave)">Largos que existen en la base</h3>' +
+      'text-transform:uppercase;color:var(--tinta-suave)">Largos ya creados para ' +
+      esc(S.agrupacion.codigo + ' ' + relleno(S.espesor, 3) + 'X' + relleno(S.ancho, 3)) + '</h3>' +
       '<div class="chips">' + S.largos.map(function (l, i) {
-        return '<button type="button" class="chip entrando" data-largo="' + esc(l) + '" ' +
-          'style="animation-delay:' + (i * 22) + 'ms" aria-pressed="' +
-          (l === S.largo ? 'true' : 'false') + '">' + esc(l) + '</button>';
+        return '<span class="chip ocupado entrando" style="animation-delay:' + (i * 22) + 'ms">' +
+          esc(l) + '</span>';
       }).join('') + '</div>';
-    if (!caja.dataset.listo) {
-      caja.addEventListener('click', function (ev) {
-        var b = ev.target;
-        while (b && b !== caja && !b.hasAttribute('data-largo')) b = b.parentNode;
-        if (!b || b === caja) return;
-        $('mLargo').value = b.getAttribute('data-largo');
-        alEscribirMedida();
-        consultarMedidas();
-      });
-      caja.dataset.listo = '1';
-    }
   }
 
   /* --------------------------------------------------------- paso 4 */
 
+  /** Las rutas que la base tiene para una escuadría, ya cargadas. */
+  var RUTAS_POR_ESCUADRIA = {};
+
+  function rutasDe(escuadria) { return RUTAS_POR_ESCUADRIA[escuadria] || null; }
+
   function dibujarDesglose() {
     var a = S.agrupacion;
+    var exigeEnBD = CTX.clasesConRutaEnBD.indexOf(S.clase) !== -1;
     $('ayudaDesglose').textContent = 'El prefijo ' + a.codigo + ' dice por qué etapas pasa el ' +
-      'producto. Las medidas vienen del producto final: ajústalas si la etapa va sobredimensionada.';
+      'producto. La hoja de ruta es un material que ya existe: se elige de los que la base ' +
+      'tiene para esa escuadría.' +
+      (exigeEnBD ? ' En ' + S.clase + ' tiene que existir sí o sí.' : '');
 
     $('tablaDesglose').innerHTML = CTX.etapas.map(function (etapa) {
-      var aplica = a.etapas[etapa.id];
-      if (!aplica) {
+      if (!a.etapas[etapa.id]) {
         return '<tr class="no-aplica"><td class="etapa">' + esc(etapa.titulo) + '</td>' +
           '<td colspan="3" class="motivo">' + esc(motivoSinEtapa(etapa.id)) + '</td></tr>';
       }
       var d = S.desglose[etapa.id] || {};
-      var lista = CTX.catalogoEtapas[etapa.id] || [];
-      var opciones = '<option value=""></option>' + lista.map(function (o) {
-        return '<option value="' + esc(o.codigo) + '"' + (o.codigo === d.plantilla ? ' selected' : '') +
-          '>' + esc(o.codigo) + ' — ' + esc(o.descripcion) + '</option>';
-      }).join('');
+      var escuadria = (d.espesor || '') + 'X' + (d.ancho || '');
+      var lista = rutasDe(escuadria);
+      var suyas = (lista || []).filter(function (r) { return !r.etapa || r.etapa === etapa.id; });
+
+      var pie;
+      if (!lista) pie = 'buscando rutas…';
+      else if (!suyas.length) pie = 'sin rutas de ' + etapa.titulo.toLowerCase() + ' para ' + escuadria;
+      else pie = suyas.length + (suyas.length === 1 ? ' ruta' : ' rutas') + ' en la base';
+
       return '<tr><td class="etapa">' + esc(etapa.titulo) + '</td>' +
-        '<td><select data-etapa="' + etapa.id + '" data-campo="plantilla">' + opciones + '</select></td>' +
+        '<td><input type="text" class="ruta" list="rutas_' + etapa.id + '" ' +
+        'data-etapa="' + etapa.id + '" data-campo="ruta" placeholder="RVFD032X180" ' +
+        'value="' + esc(d.ruta || '') + '">' +
+        '<datalist id="rutas_' + etapa.id + '">' + suyas.map(function (r) {
+          return '<option value="' + esc(r.codigo) + '">' + esc(r.descripcion) + '</option>';
+        }).join('') + '</datalist>' +
+        '<small class="pie-ruta">' + esc(pie) + '</small></td>' +
         '<td><input type="text" class="num" inputmode="numeric" maxlength="3" ' +
         'data-etapa="' + etapa.id + '" data-campo="espesor" value="' + esc(d.espesor || '') + '"></td>' +
         '<td><input type="text" class="num" inputmode="numeric" maxlength="3" ' +
@@ -634,23 +646,21 @@
         var etapa = el.getAttribute('data-etapa');
         if (!etapa) return;
         var campo = el.getAttribute('data-campo');
-        if (campo !== 'plantilla') soloDigitos(el);
+        if (campo === 'ruta') el.value = el.value.toUpperCase();
+        else soloDigitos(el);
         S.desglose[etapa] = S.desglose[etapa] || {};
         S.desglose[etapa][campo] = el.value;
         refrescar();
       });
-      $('tablaDesglose').addEventListener('change', function (ev) {
-        var el = ev.target;
-        if (el.getAttribute('data-campo') !== 'plantilla') return;
-        S.desglose[el.getAttribute('data-etapa')].plantilla = el.value;
-        refrescar();
-      });
       $('tablaDesglose').addEventListener('focusout', function (ev) {
         var el = ev.target;
+        var etapa = el.getAttribute('data-etapa');
         var campo = el.getAttribute('data-campo');
-        if (!campo || campo === 'plantilla') return;
+        if (!etapa || campo === 'ruta') return;
         el.value = relleno(el.value, 3);
-        S.desglose[el.getAttribute('data-etapa')][campo] = el.value;
+        S.desglose[etapa][campo] = el.value;
+        // Cambiar la escuadría de una etapa cambia las rutas que puede tener.
+        pedirRutas((S.desglose[etapa].espesor || '') + 'X' + (S.desglose[etapa].ancho || ''));
       });
       $('tablaDesglose').dataset.listo = '1';
     }
@@ -663,18 +673,52 @@
     return 'No aplica.';
   }
 
-  /** Rellena el desglose con lo sugerido si todavía está vacío. */
+  /** Pide al servidor las rutas de una escuadría, una sola vez cada una. */
+  function pedirRutas(escuadria) {
+    if (!/^\d{3}X\d{3}$/.test(escuadria) || RUTAS_POR_ESCUADRIA[escuadria]) return;
+    RUTAS_POR_ESCUADRIA[escuadria] = null;
+    google.script.run
+      .withSuccessHandler(function (r) {
+        RUTAS_POR_ESCUADRIA[r.escuadria] = r.rutas || [];
+        proponerRutas();
+        if (PASO === 4) dibujarDesglose();
+        refrescar();
+      })
+      .withFailureHandler(function () { RUTAS_POR_ESCUADRIA[escuadria] = []; })
+      .apiRutas(escuadria.substring(0, 3), escuadria.substring(4));
+  }
+
+  /** Si una etapa tiene una sola ruta posible, se pone sola. */
+  function proponerRutas() {
+    if (!S.agrupacion) return;
+    CTX.etapas.forEach(function (etapa) {
+      if (!S.agrupacion.etapas[etapa.id]) return;
+      var d = S.desglose[etapa.id];
+      if (!d || d.ruta) return;
+      var lista = rutasDe((d.espesor || '') + 'X' + (d.ancho || ''));
+      if (!lista) return;
+      var suyas = lista.filter(function (r) { return r.etapa === etapa.id; });
+      if (suyas.length === 1) d.ruta = suyas[0].codigo;
+    });
+  }
+
+  /** Deja el desglose listo: mismas medidas que el producto y rutas de la base. */
   function prepararDesglose() {
     var a = S.agrupacion;
     CTX.etapas.forEach(function (etapa) {
-      if (!a.etapas[etapa.id]) { S.desglose[etapa.id] = { plantilla: '', espesor: '', ancho: '' }; return; }
+      if (!a.etapas[etapa.id]) { S.desglose[etapa.id] = { ruta: '', espesor: '', ancho: '' }; return; }
       if (S.desglose[etapa.id]) return;
       S.desglose[etapa.id] = {
-        plantilla: (a.sugerido[etapa.id] || {}).plantilla || '',
+        ruta: '',
         espesor: relleno(S.espesor, 3),
         ancho: relleno(S.ancho, 3)
       };
     });
+    if (S.rutas && S.rutas.length) {
+      RUTAS_POR_ESCUADRIA[relleno(S.espesor, 3) + 'X' + relleno(S.ancho, 3)] = S.rutas;
+    }
+    pedirRutas(relleno(S.espesor, 3) + 'X' + relleno(S.ancho, 3));
+    proponerRutas();
     dibujarDesglose();
   }
 
@@ -698,10 +742,7 @@
   function dibujarResumen() {
     var m = S.material || {};
     var d = S.desglose;
-    var etapa = function (id) {
-      var x = d[id] || {};
-      return x.plantilla ? x.plantilla + '  ' + (x.espesor || '') + 'X' + (x.ancho || '') : '';
-    };
+    var etapa = function (id) { return (d[id] || {}).ruta || ''; };
     $('resumen').innerHTML =
       fila('País', CTX.porDefecto.PAIS) +
       fila('Centro', S.centro) +
@@ -791,14 +832,14 @@
     if (n === 2) return !!S.agrupacion;
     if (n === 3) {
       if (!S.espesor || !S.ancho || !S.buscado) return false;
-      return CTX.exigeCodigoEnBD ? !!S.material : true;
+      return CTX.exigeCodigoNuevo ? !S.existe : true;
     }
     if (n === 4) {
       var ok = true;
       CTX.etapas.forEach(function (etapa) {
         if (!S.agrupacion.etapas[etapa.id]) return;
         var d = S.desglose[etapa.id] || {};
-        if (!d.plantilla || !d.espesor || !d.ancho) ok = false;
+        if (!d.ruta || !d.espesor || !d.ancho) ok = false;
       });
       return ok;
     }
@@ -897,7 +938,8 @@
   function reiniciar(conservar) {
     document.body.classList.remove('guardado');
     S.espesor = ''; S.ancho = ''; S.largo = '';
-    S.material = null; S.buscado = false; S.largos = []; S.codigo = ''; S.piezas = '';
+    S.material = null; S.existe = false; S.buscado = false;
+    S.largos = []; S.rutas = []; S.codigo = ''; S.piezas = '';
     S.desglose = {};
     $('mEspesor').value = ''; $('mAncho').value = ''; $('mLargo').value = '';
     $('piezas').value = '';

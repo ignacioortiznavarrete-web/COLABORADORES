@@ -1,6 +1,11 @@
 /**
- * El motor: arma el código, decide qué etapas del proceso aplican, lo busca en
- * BD_Maderas y escribe la fila de batch input.
+ * El motor: arma el código, decide qué etapas del proceso aplican, comprueba
+ * contra BD_Maderas y escribe la fila de batch input.
+ *
+ * Dos comprobaciones opuestas contra la misma base, y conviene no confundirlas:
+ *   · el CÓDIGO que se registra NO debe existir todavía (se está creando);
+ *   · las HOJAS DE RUTA que referencia SÍ deben existir (son materiales de
+ *     proceso que ya están dados de alta).
  *
  * Todo lo que manda el formulario se vuelve a validar acá: el navegador ayuda,
  * pero no decide.
@@ -100,28 +105,6 @@ function etapasAplicables_(agrupacion) {
     secado: p.charAt(1) !== 'V',
     cepillado: p.charAt(0) === 'C'
   };
-}
-
-/** El carácter 3 es la calidad, y es lo que hermana las plantillas entre etapas. */
-function plantillaSugerida_(lista, calidad) {
-  for (var i = 0; i < lista.length; i++) {
-    if (lista[i].codigo.charAt(2) === calidad) return lista[i].codigo;
-  }
-  return '';
-}
-
-/** Desglose propuesto: mismas medidas que el producto final, plantillas por calidad. */
-function desgloseSugerido_(agrupacion, espesor, ancho) {
-  var catalogo = catalogoEtapas_();
-  var aplica = etapasAplicables_(agrupacion);
-  var calidad = prefijo_(agrupacion).charAt(2);
-  var salida = {};
-  ETAPAS.forEach(function (etapa) {
-    salida[etapa.id] = aplica[etapa.id]
-      ? { plantilla: plantillaSugerida_(catalogo[etapa.id] || [], calidad), espesor: espesor, ancho: ancho }
-      : { plantilla: '', espesor: '', ancho: '' };
-  });
-  return salida;
 }
 
 /** Cada carácter del prefijo con su significado, para explicarlo en pantalla. */
@@ -262,18 +245,67 @@ function largosDisponibles_(agrupacion, espesor, ancho) {
   return salida;
 }
 
-/* -------------------------------------------------------------- validación */
+/* ------------------------------------------------------------------ rutas */
 
-function etapaDelCatalogo_(etapaId, plantilla) {
-  var limpio = normalizarCodigo_(plantilla);
-  if (!limpio) return '';
-  var lista = catalogoEtapas_()[etapaId] || [];
-  for (var i = 0; i < lista.length; i++) {
-    if (normalizar_(lista[i].codigo) === normalizar_(limpio)) return lista[i].codigo;
+/** A qué etapa pertenece una ruta, por sus dos primeros caracteres. */
+function familiaDeRuta_(codigo) {
+  var c = normalizarCodigo_(codigo);
+  var etapas = Object.keys(RUTAS.FAMILIAS);
+  for (var i = 0; i < etapas.length; i++) {
+    var prefijos = RUTAS.FAMILIAS[etapas[i]];
+    for (var j = 0; j < prefijos.length; j++) {
+      if (c.indexOf(prefijos[j]) === 0) return etapas[i];
+    }
   }
-  throw new Error('La plantilla "' + plantilla + '" no está en el catálogo de ' + etapaId +
-    ' de la hoja ' + CFG.HOJA_AGRUPAMIENTO + '.');
+  return '';
 }
+
+/** La escuadría de una ruta: los 7 caracteres finales, EEEXAAA. */
+function escuadriaDeRuta_(codigo) {
+  var c = normalizarCodigo_(codigo);
+  return /^.{4}\d{3}X\d{3}$/.test(c) ? c.substring(4) : '';
+}
+
+/**
+ * Las hojas de ruta que BD_Maderas tiene para una escuadría: los códigos de
+ * 11 caracteres que terminan en EEEXAAA. Para 032X180 son dos, RVFD032X180 y
+ * RSFD032X180, que es justo lo que el desglose necesita.
+ */
+function rutasDisponibles_(espesor, ancho) {
+  if (!espesor || !ancho) return [];
+  var escuadria = espesor + 'X' + ancho;
+  var cache = cache_();
+  var llave = 'rutas:' + escuadria;
+  if (cache) {
+    var guardado = cache.get(llave);
+    if (guardado) return JSON.parse(guardado);
+  }
+
+  var hoja = hoja_(CFG.HOJA_BD);
+  var ultima = hoja.getLastRow();
+  var salida = [];
+  if (ultima >= 2) {
+    // Se lee solo la columna de códigos; la descripción se busca después,
+    // y son pocas: la mediana es de dos rutas por escuadría.
+    var codigos = hoja.getRange(2, BD.MATERIAL, ultima - 1, 1).getValues();
+    for (var i = 0; i < codigos.length && salida.length < RUTAS.MAXIMO; i++) {
+      var cod = normalizarCodigo_(codigos[i][0]);
+      if (cod.length !== 11 || cod.substring(4) !== escuadria) continue;
+      var fila = hoja.getRange(i + 2, 1, 1, BD.COLUMNAS).getValues()[0];
+      salida.push({
+        codigo: cod,
+        descripcion: texto_(fila[BD.DESCRIPCION - 1]),
+        tipoMaterial: texto_(fila[BD.TIPO_MATERIAL - 1]),
+        etapa: familiaDeRuta_(cod)
+      });
+    }
+    salida.sort(function (a, b) { return a.codigo < b.codigo ? -1 : 1; });
+  }
+  if (cache) cache.put(llave, JSON.stringify(salida), CFG.SEGUNDOS_CACHE);
+  return salida;
+}
+
+/* -------------------------------------------------------------- validación */
 
 /** Deja la solicitud lista para escribir, o lanza el error que corresponda. */
 function validar_(datos) {
@@ -305,10 +337,20 @@ function validar_(datos) {
   var largo = rellenar_(datos.largo, MEDIDAS.DIGITOS_LARGO, 'largo');
   if (!espesor || !ancho) throw new Error('Faltan el espesor y el ancho.');
 
+  // Trading compra a terceros: eso va escrito en la especie del código.
+  if (normalizar_(origen.id) === normalizar_(TRADING.ORIGEN) &&
+      prefijo_(agrupacion.agrupacion).charAt(3) !== TRADING.ESPECIE) {
+    throw new Error('En Trading la especie del código tiene que ser ' + TRADING.ESPECIE +
+      ' (Radiata Terceros), y ' + agrupacion.agrupacion + ' termina en "' +
+      prefijo_(agrupacion.agrupacion).charAt(3).replace(' ', '␣') + '".');
+  }
+
   var codigo = armarCodigo_(agrupacion.agrupacion, espesor, ancho, largo);
   var ficha = buscarEnBD_(codigo);
-  if (!ficha && MEDIDAS.EXIGIR_EN_BD) {
-    throw new Error('El código ' + codigo + ' no está en la hoja ' + CFG.HOJA_BD + '.');
+  if (ficha && MEDIDAS.EXIGIR_NUEVO) {
+    throw new Error('El código ' + codigo + ' ya existe en ' + CFG.HOJA_BD +
+      (ficha.descripcion ? ' (' + ficha.descripcion + ')' : '') +
+      '. Este formulario crea materiales nuevos: no hace falta pedirlo de nuevo.');
   }
 
   var piezas = Number(datos.piezas);
@@ -317,21 +359,48 @@ function validar_(datos) {
   }
 
   var aplica = etapasAplicables_(agrupacion.agrupacion);
+  var exigeRuta = RUTAS.DEBE_EXISTIR_EN.indexOf(clase.id) !== -1;
   var pedido = datos.desglose || {};
   var desglose = {};
   ETAPAS.forEach(function (etapa) {
     if (!aplica[etapa.id]) {
-      desglose[etapa.id] = { plantilla: '', dimension: '', espesor: '', ancho: '' };
+      desglose[etapa.id] = { ruta: '', plantilla: '', dimension: '', espesor: '', ancho: '' };
       return;
     }
-    var suyo = pedido[etapa.id] || {};
-    var ee = rellenar_(suyo.espesor, MEDIDAS.DIGITOS_ESPESOR, 'espesor de ' + etapa.titulo) || espesor;
-    var aa = rellenar_(suyo.ancho, MEDIDAS.DIGITOS_ANCHO, 'ancho de ' + etapa.titulo) || ancho;
+    var ruta = normalizarCodigo_((pedido[etapa.id] || {}).ruta);
+    if (!ruta) {
+      if (!RUTAS.OBLIGATORIA) {
+        desglose[etapa.id] = { ruta: '', plantilla: '', dimension: '', espesor: '', ancho: '' };
+        return;
+      }
+      throw new Error('Falta la hoja de ruta de ' + etapa.titulo + '.');
+    }
+
+    var escuadria = escuadriaDeRuta_(ruta);
+    if (!escuadria) {
+      throw new Error('La hoja de ruta de ' + etapa.titulo + ' ("' + ruta + '") no tiene la ' +
+        'forma de una ruta: cuatro caracteres de prefijo más la escuadría, como RVFD032X180.');
+    }
+
+    var enBD = buscarEnBD_(ruta);
+    if (!enBD && exigeRuta) {
+      throw new Error('La hoja de ruta ' + ruta + ' de ' + etapa.titulo + ' no existe en ' +
+        CFG.HOJA_BD + ', y en ' + clase.id + ' la ruta tiene que existir.');
+    }
+
+    var familia = familiaDeRuta_(ruta);
+    if (familia && familia !== etapa.id) {
+      throw new Error('La ruta ' + ruta + ' es de ' + familia + ', no de ' + etapa.titulo + '.');
+    }
+
     desglose[etapa.id] = {
-      plantilla: etapaDelCatalogo_(etapa.id, suyo.plantilla),
-      dimension: dimension_(ee, aa, ''),
-      espesor: ee,
-      ancho: aa
+      ruta: enBD ? enBD.codigo : ruta,
+      plantilla: ruta.substring(0, 4).trim(),
+      dimension: escuadria,
+      espesor: escuadria.substring(0, 3),
+      ancho: escuadria.substring(4),
+      existe: !!enBD,
+      descripcion: enBD ? enBD.descripcion : ''
     };
   });
 
@@ -460,7 +529,7 @@ function guardarEnRegistro_(v, destino) {
     v.origen, v.centro, v.tipoMaterial, v.agrupacion, v.agrupacionTexto,
     v.codigo, v.descripcion, v.grupo,
     v.espesor, v.ancho, v.largo, v.piezas, v.umb, v.stockPedido,
-    v.desglose.aserradero.plantilla, v.desglose.secado.plantilla, v.desglose.cepillado.plantilla,
+    v.desglose.aserradero.ruta, v.desglose.secado.ruta, v.desglose.cepillado.ruta,
     destino.hoja, destino.fila
   ]);
   return hoja.getLastRow();
@@ -498,7 +567,10 @@ function apiContexto() {
     hojaBD: CFG.HOJA_BD,
     hojaSAP: CFG.HOJA_SAP,
     hojaRegistro: CFG.HOJA_REGISTRO,
-    exigeCodigoEnBD: MEDIDAS.EXIGIR_EN_BD,
+    exigeCodigoNuevo: MEDIDAS.EXIGIR_NUEVO,
+    rutaObligatoria: RUTAS.OBLIGATORIA,
+    clasesConRutaEnBD: RUTAS.DEBE_EXISTIR_EN.slice(),
+    trading: { origen: TRADING.ORIGEN, especie: TRADING.ESPECIE },
     usuario: correo,
     identificado: !!correo,
     exigeIdentidad: AUDITORIA.EXIGIR_IDENTIDAD,
@@ -507,12 +579,20 @@ function apiContexto() {
   };
 }
 
-/** Agrupaciones habilitadas para ese centro y tipo de material. */
-function apiAgrupaciones(centro, tipoMaterial) {
-  var lista = agrupacionesDe_(centro, tipoMaterial);
+/**
+ * Agrupaciones habilitadas para ese centro y tipo de material.
+ * En Trading, además, solo las de especie H (Radiata Terceros).
+ */
+function apiAgrupaciones(centro, tipoMaterial, origen) {
+  var esTrading = normalizar_(origen) === normalizar_(TRADING.ORIGEN);
+  var lista = agrupacionesDe_(centro, tipoMaterial).filter(function (f) {
+    return !esTrading || prefijo_(f.agrupacion).charAt(3) === TRADING.ESPECIE;
+  });
   return {
     centro: centro,
     tipoMaterial: tipoMaterial,
+    origen: origen || '',
+    filtradoPorTrading: esTrading,
     agrupaciones: lista.map(function (f) {
       return {
         codigo: f.agrupacion,
@@ -521,11 +601,22 @@ function apiAgrupaciones(centro, tipoMaterial) {
         textoEs: f.textoEs,
         textoEn: f.textoEn,
         etapas: etapasAplicables_(f.agrupacion),
-        partes: descomponerPrefijo_(f.agrupacion),
-        sugerido: desgloseSugerido_(f.agrupacion, '', '')
+        partes: descomponerPrefijo_(f.agrupacion)
       };
     })
   };
+}
+
+/** Las hojas de ruta que existen en BD_Maderas para una escuadría. */
+function apiRutas(espesor, ancho) {
+  try {
+    var ee = rellenar_(espesor, MEDIDAS.DIGITOS_ESPESOR, 'espesor');
+    var aa = rellenar_(ancho, MEDIDAS.DIGITOS_ANCHO, 'ancho');
+    if (!ee || !aa) return { ok: false, escuadria: '', rutas: [], mensaje: 'Faltan las medidas.' };
+    return { ok: true, escuadria: ee + 'X' + aa, rutas: rutasDisponibles_(ee, aa) };
+  } catch (err) {
+    return { ok: false, escuadria: '', rutas: [], mensaje: err.message };
+  }
 }
 
 /**
@@ -549,19 +640,22 @@ function apiMedidas(datos) {
     }
 
     var codigo = armarCodigo_(agrupacion, espesor, ancho, largo);
-    var largos = largosDisponibles_(agrupacion, espesor, ancho);
     var ficha = buscarEnBD_(codigo);
 
     return {
-      ok: !!ficha || !MEDIDAS.EXIGIR_EN_BD,
+      ok: !ficha || !MEDIDAS.EXIGIR_NUEVO,
       codigo: codigo,
       espesor: espesor,
       ancho: ancho,
       largo: largo,
-      largos: largos,
-      encontrado: !!ficha,
+      largos: largosDisponibles_(agrupacion, espesor, ancho),
+      rutas: rutasDisponibles_(espesor, ancho),
+      existe: !!ficha,
       material: ficha || null,
-      mensaje: ficha ? '' : 'El código ' + codigo + ' no está en ' + CFG.HOJA_BD + '.'
+      mensaje: ficha
+        ? 'El código ' + codigo + ' ya existe en ' + CFG.HOJA_BD +
+          (ficha.descripcion ? ': ' + ficha.descripcion : '') + '.'
+        : ''
     };
   } catch (err) {
     return { ok: false, mensaje: err.message };
@@ -602,13 +696,18 @@ function apiPegarCodigo(texto) {
   var codigo = armarCodigo_(agrupacion.agrupacion, partes.espesor, partes.ancho, partes.largo);
   var ficha = buscarEnBD_(codigo);
 
-  // Origen: solo se deduce si un único origen usa ese centro.
+  // Origen: se deduce si un único origen usa ese centro. Con especie H manda
+  // Trading, que es lo que significa comprarle a terceros.
   var posibles = ORIGENES.filter(function (o) {
     return o.centros.indexOf(agrupacion.centro) !== -1;
   }).map(function (o) { return o.id; });
+  if (prefijo_(agrupacion.agrupacion).charAt(3) === TRADING.ESPECIE &&
+      posibles.indexOf(TRADING.ORIGEN) !== -1) {
+    posibles = [TRADING.ORIGEN];
+  }
 
   return {
-    ok: !!ficha || !MEDIDAS.EXIGIR_EN_BD,
+    ok: !ficha || !MEDIDAS.EXIGIR_NUEVO,
     codigo: codigo,
     centro: agrupacion.centro,
     tipoMaterial: agrupacion.tipoMaterial,
@@ -621,16 +720,20 @@ function apiPegarCodigo(texto) {
       textoEs: agrupacion.textoEs,
       textoEn: agrupacion.textoEn,
       etapas: etapasAplicables_(agrupacion.agrupacion),
-      partes: descomponerPrefijo_(agrupacion.agrupacion),
-      sugerido: desgloseSugerido_(agrupacion.agrupacion, '', '')
+      partes: descomponerPrefijo_(agrupacion.agrupacion)
     },
     espesor: partes.espesor,
     ancho: partes.ancho,
     largo: partes.largo,
     largos: largosDisponibles_(agrupacion.agrupacion, partes.espesor, partes.ancho),
-    encontrado: !!ficha,
+    rutas: rutasDisponibles_(partes.espesor, partes.ancho),
+    existe: !!ficha,
     material: ficha || null,
-    mensaje: ficha ? '' : 'El código ' + codigo + ' no está en la hoja ' + CFG.HOJA_BD + '.'
+    mensaje: ficha
+      ? 'El código ' + codigo + ' ya existe en ' + CFG.HOJA_BD +
+        (ficha.descripcion ? ': ' + ficha.descripcion : '') +
+        '. Este formulario crea materiales nuevos.'
+      : ''
   };
 }
 

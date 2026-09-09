@@ -93,8 +93,35 @@ const MEDIDAS = {
   DIGITOS_ESPESOR: 3,
   DIGITOS_ANCHO: 3,
   DIGITOS_LARGO: 4,
-  /** El código tiene que existir en BD_Maderas para poder guardar. */
-  EXIGIR_EN_BD: true
+  /**
+   * El batch input CREA el material, así que el código no puede existir
+   * todavía en BD_Maderas. Si ya está, no hay nada que crear.
+   */
+  EXIGIR_NUEVO: true
+};
+
+/**
+ * La hoja de ruta de cada etapa es un material que YA existe en BD_Maderas:
+ * el prefijo más la escuadría, sin largo (RVFD032X180, RSN 032X240).
+ */
+const RUTAS = {
+  /** Hay que indicar una ruta en cada etapa que aplique. */
+  OBLIGATORIA: true,
+  /** Clases donde además tiene que existir en BD_Maderas. */
+  DEBE_EXISTIR_EN: ['PP', 'PCP'],
+  /** A qué etapa pertenece cada ruta, por sus dos primeros caracteres. */
+  FAMILIAS: { aserradero: ['RV'], secado: ['RS'], cepillado: ['C'] },
+  /** Tope de rutas que se ofrecen por escuadría. */
+  MAXIMO: 40
+};
+
+/**
+ * Trading compra a terceros, y eso va escrito en el código: la especie
+ * (4º carácter) es H, Radiata Terceros.
+ */
+const TRADING = {
+  ORIGEN: 'Trading',
+  ESPECIE: 'H'
 };
 
 /** Columnas de BD_Maderas (Material | Grupo art. | TpMt | Texto breve | Ce). */
