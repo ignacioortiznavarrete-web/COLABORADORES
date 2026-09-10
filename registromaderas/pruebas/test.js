@@ -588,6 +588,28 @@ seccion('Sin identidad no hay registro');
   ok(guardarUna(SOLICITUD).ok, 'con el correo de vuelta, se puede guardar otra vez');
 }
 
+seccion('Revisar permisos dice dónde se corta');
+{
+  SS.__seleccionar('PT', [[3, 1]]);
+  const dichos = [];
+  const antes = global.avisar_;
+  global.avisar_ = (t, m) => dichos.push(m);
+
+  revisarPermisos();
+  ok(dichos[0].indexOf('Todo en orden') !== -1, 'con todo en su lugar, lo dice');
+  ok(dichos[0].indexOf('test@masisa.com') !== -1, 'y muestra con qué cuenta está entrando');
+  ok(SpreadsheetApp.__temporales().every(t => t.enPapelera),
+    'la prueba tampoco deja hojas tiradas');
+
+  global.__FALLA_EXPORTACION = 403;
+  revisarPermisos();
+  delete global.__FALLA_EXPORTACION;
+  ok(dichos[1].indexOf('Se cortó acá') !== -1, 'y cuando algo falla, dice dónde');
+  ok(dichos[1].indexOf('Google respondio 403') !== -1, 'con el error de Google tal cual');
+  ok(dichos[1].indexOf('desde el editor') !== -1, 'y qué hacer si es de permisos');
+  global.avisar_ = antes;
+}
+
 seccion('instalarRegistro deja la bitácora lista');
 {
   const resumen = instalarRegistro();

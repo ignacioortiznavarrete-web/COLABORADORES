@@ -222,7 +222,8 @@ y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son nueve archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son nueve archivos más el manifiesto, los de la
+carpeta `fuente/`.
 
 ### 1. Abre el editor
 
@@ -237,6 +238,7 @@ carpeta:
 
 | Archivo en Apps Script | Contenido |
 |---|---|
+| `appsscript.json` | `fuente/appsscript.json` (ver el paso 3) |
 | `Config.gs` | `fuente/Config.gs` |
 | `Registro.gs` | `fuente/Registro.gs` |
 | `Lote.gs` | `fuente/Lote.gs` |
@@ -254,7 +256,27 @@ Los nombres `Estilos`, `Masivo` y `Descarga` tienen que quedar tal cual: el
 código los llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
 importa, porque en Apps Script todos comparten el mismo espacio.
 
-### 3. Prepara las hojas
+### 3. Declara los permisos
+
+En el editor, **⚙ Configuración del proyecto** › marca **«Mostrar el archivo de
+manifiesto appsscript.json en el editor»**. Aparece `appsscript.json` en la lista
+de archivos: reemplaza su contenido por el de `fuente/appsscript.json`.
+
+Ahí van declarados los cinco permisos que el script necesita:
+
+| Permiso | Para qué |
+|---|---|
+| `spreadsheets` | Leer `BD_Maderas` y escribir en PT, PCP, PP y `Registro` |
+| `drive` | Crear la hoja temporal del Excel y mandarla a la papelera |
+| `script.external_request` | Pedirle a Google la exportación a Excel |
+| `script.container.ui` | El menú y los cuadros de diálogo |
+| `userinfo.email` | Saber quién registra cada solicitud |
+
+Sin este archivo Apps Script los adivina leyendo el código, y esa adivinanza
+falla justo cuando se agregan permisos nuevos: el menú tira un error de permiso
+y no aparece ninguna pantalla para aceptarlos.
+
+### 4. Prepara las hojas
 
 En el selector de funciones elige **`instalarRegistro`** y pulsa **Ejecutar**.
 
@@ -265,7 +287,11 @@ verificada" es normal en scripts propios.
 Revisa que estén `BD_Maderas`, `PT`, `PCP` y `PP` con sus columnas donde se
 esperan, y deja `Registro` con sus encabezados. **No crea ninguna hoja más.**
 
-### 4. Publica
+Después elige **`revisarPermisos`** y **Ejecutar**. Hace el viaje completo de la
+exportación con una fila de mentira y dice dónde se corta, si se corta. Sirve
+para saber que el Excel va a salir **antes** de necesitarlo de verdad.
+
+### 5. Publica
 
 **Implementar › Nueva implementación › ⚙ › Aplicación web**
 
@@ -279,7 +305,7 @@ segundo modo Google no entrega el correo del visitante y se pierde el registro
 de quién pidió qué. Si eso pasa, el formulario **bloquea** el guardado en vez de
 anotar una solicitud sin solicitante.
 
-### 5. Reparte el enlace
+### 6. Reparte el enlace
 
 Copia la URL y mándala. El menú **Registro Maderas › Ver enlace del formulario**
 también la muestra.
@@ -334,8 +360,16 @@ común, el navegador arma un Blob y de ahí sale el enlace; el diálogo compara 
 bytes que recibió con los que dijo el servidor antes de ofrecerlos.
 
 **La exportación pide permiso de Drive.** Crear y borrar la hoja temporal, y
-pedirle a Google el xlsx, necesitan permisos que la primera versión no pedía.
-Google los va a pedir de nuevo la primera vez que uses el menú.
+pedirle a Google el xlsx, necesitan permisos que la primera versión no pedía. Van
+declarados en `appsscript.json`; si tu administrador prefiere algo más estrecho,
+`drive` se puede cambiar por `drive.file`, que solo alcanza a los archivos que
+crea el propio script. Es lo justo para la hoja temporal, pero conviene probarlo
+con **Revisar permisos** antes de darlo por bueno.
+
+**Cuando cambian los permisos hay que volver a autorizar, y a publicar.** El
+menú toma los permisos nuevos apenas se acepta la pantalla de autorización,
+pero **la aplicación web se queda con los de la implementación que está
+publicada**: hay que crear una implementación nueva para que los tome.
 
 ## Quién puede entrar
 

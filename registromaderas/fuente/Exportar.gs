@@ -10,6 +10,35 @@
  * que lo que se ve en la pantalla es exactamente lo que llega al archivo.
  */
 
+/**
+ * Menu > Revisar permisos.
+ *
+ * Se ejecuta desde el editor de Apps Script la primera vez: dispara la
+ * pantalla de autorizacion y, de paso, hace el viaje completo de la
+ * exportacion con una fila de mentira. Asi se sabe si el permiso quedo bien
+ * ANTES de necesitarlo con datos de verdad, en vez de descubrirlo a medias.
+ */
+function revisarPermisos() {
+  var pasos = [];
+  try {
+    pasos.push('Tu cuenta: ' + (Session.getActiveUser().getEmail() || '(no la entrega)'));
+    pasos.push('Leer el spreadsheet: ' +
+      (ss_().getSheetByName(CFG.HOJA_BD) ? 'si' : 'no encuentro ' + CFG.HOJA_BD));
+
+    var blob = exportarComoExcel_([['CL', 'TCP1', '032']], 'prueba-de-permisos');
+    pasos.push('Crear la hoja temporal, exportarla a Excel y borrarla: si (' +
+      blob.getBytes().length + ' bytes)');
+
+    avisar_('Revisar permisos', '· ' + pasos.join('\n· ') +
+      '\n\nTodo en orden: el menu de descarga va a funcionar.');
+  } catch (err) {
+    avisar_('Revisar permisos', '· ' + pasos.join('\n· ') +
+      '\n\nSe cortó acá:\n' + err.message +
+      '\n\nSi habla de permisos o autorizacion, ejecuta esta misma funcion ' +
+      'desde el editor de Apps Script: ahi aparece la pantalla para aceptarlos.');
+  }
+}
+
 /** Menú › Descargar filas seleccionadas como Excel. */
 function descargarSeleccion() {
   var elegidas;

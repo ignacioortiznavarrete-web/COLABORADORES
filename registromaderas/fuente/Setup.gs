@@ -14,6 +14,7 @@ function onOpen() {
       .addSeparator()
       .addItem('Ver enlace del formulario', 'mostrarEnlace')
       .addItem('Preparar hojas', 'instalarRegistro')
+      .addItem('Revisar permisos', 'revisarPermisos')
       .addToUi();
   } catch (err) {
     // Sin interfaz (trigger o editor): no hay menú que crear.
