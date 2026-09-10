@@ -13,9 +13,8 @@ RVMH  +  032 X 180 X 3960   ->   RVMH032X180X3960
 prefijo  espesor ancho  largo
 ```
 
-Hay dos pantallas sobre el mismo motor: la **carga masiva**, que es la que se
-abre por defecto, y un **asistente paso a paso** para una sola solicitud, en
-`?modo=paso`.
+El batch input no tiene pantalla: vive en el spreadsheet y se baja como Excel
+con las filas que elijas.
 
 ---
 
@@ -98,21 +97,27 @@ Qué habilita cada combinación, hoy:
 
 ## La carga masiva
 
-Se pegan los códigos, uno por línea. Si vienen de Excel con más columnas al
-lado, también se aprovechan: **lo que tenga forma de ruta se asigna a su etapa y
-un número suelto es el PAK**, sin importar el orden.
+La pantalla son cinco columnas de texto, y **cada línea se lee junto con la
+misma línea de las demás**:
 
-```
-RVMH032X180X3960
-RVMH032X180X4270	RVM 032X180	248
-C4JH019X100X2440
-```
+| Códigos | Aserradero | Secado | Cepillado | PAK |
+|---|---|---|---|---|
+| `RVMH032X180X3960` | `RVM 032X180` | | | `248` |
+| `C4JH019X100X2440` | `RVF 019X100` | `RSF 019X100` | `CSF 019X100` | |
 
-De ahí sale una tabla con una fila por línea: el código, su clase, su centro y
-las rutas de las etapas que apliquen. Cuando una escuadría tiene **una sola ruta
-posible** para una etapa, se pone sola; cuando hay varias, se elige de la lista.
-Cada fila dice si está lista o qué le falta, y se revisa sola mientras se
-escribe.
+Se pega una columna entera de una vez. Las cinco ruedan juntas, para que las
+líneas no dejen de calzar. Una línea en blanco no genera fila, pero **no
+renumera**: la fila 5 sigue siendo la línea 5.
+
+Si los códigos vienen de Excel con más columnas pegadas en la misma línea,
+también se aprovechan: lo que tenga forma de ruta va a su etapa y un número
+suelto es el PAK, sin importar el orden. Lo escrito en la columna de la etapa
+manda sobre eso.
+
+Cuando una escuadría tiene **una sola ruta posible** para una etapa, se pone
+sola y se escribe de vuelta en su columna. Cuando hay varias, la tabla dice
+cuántas hay por elegir. Cada fila dice si está lista o qué le falta, y se revisa
+sola mientras escribes.
 
 Con las filas seleccionadas, la barra de abajo ofrece dos cosas:
 
@@ -123,42 +128,6 @@ Con las filas seleccionadas, la barra de abajo ofrece dos cosas:
 
 En la carga masiva el PAK es opcional: el batch input crea el maestro de
 material, no un pedido. Para exigirlo, `MEDIDAS.EXIGIR_PIEZAS = true`.
-
-## El asistente: dos maneras de entrar
-
-**Pegando el código.** Si ya lo tienes armado, lo pegas arriba y el formulario
-lo desarma y trae el resto: la agrupación con su texto, el centro y el tipo de
-material (desde `SAP`), las medidas separadas, las etapas que aplican y la ficha
-del material. Queda por elegir solo lo que el código no dice: la **clase de
-requerimiento** y, si el centro es TCP1, el **origen** — porque TCP1 lo usan
-tanto Trading como Planta. Después, *Siguiente* salta directo a lo que falte.
-
-```
-RVMH032X180X3960  →  RVMH · Rústico Verde Médula Radiata Terceros · TCD2 · TTAS
-                     032 · 180 · 3960 · solo aserradero
-```
-
-Si al copiar se perdió el espacio del cuarto lugar (`CSF019X075` en vez de
-`CSF 019X075`), igual lo reconoce. Si el prefijo no está en `SAP`, lo dice con
-ese nombre en vez de fallar en silencio. Y si el código **ya existe**, avisa cuál
-es el material que está ocupando ese lugar y no deja continuar.
-
-**Armándolo paso a paso.** Los cinco pasos de abajo. Las dos maneras terminan en
-la misma fila; hay una prueba que lo comprueba columna por columna.
-
-## Los cinco pasos
-
-| Paso | Qué se pide |
-|---|---|
-| 1 · Cabecera | Clase (PT/PCP/PP), origen (Trading elige centro TCP1 o TCD2; Planta va fijo en TCP1) y tipo de material (TTAS/TPAS) |
-| 2 · Agrupación | Solo las que el centro y el tipo de material habilitan |
-| 3 · Medidas | Espesor, ancho y largo. Se avisa qué largos de esa escuadría ya están creados |
-| 4 · Desglose | La hoja de ruta de cada etapa, elegida de las que existen en la base. Si la etapa va sobredimensionada, se cambia su escuadría y se recargan las rutas |
-| 5 · Cantidad | Piezas, unidad y stock/pedido, con el resumen de la fila antes de guardar |
-
-Arriba, siempre a la vista, el código se va armando carácter por carácter y
-debajo dice qué significa cada uno. Los pasos que ya vienen resueltos quedan
-marcados en la barra de arriba y se pueden revisar haciendo clic.
 
 ## Lo que se completa solo
 
@@ -197,13 +166,13 @@ y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son diez archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son ocho archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los diez archivos
+### 2. Crea los ocho archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -221,13 +190,12 @@ carpeta:
 | `WebApp.gs` | `fuente/WebApp.gs` |
 | `Estilos.html` | `fuente/Estilos.html` |
 | `Masivo.html` | `fuente/Masivo.html` |
-| `Formulario.html` | `fuente/Formulario.html` |
 
 Borra el `Código.gs` que viene por defecto con su `function myFunction() {}`.
 Guarda con `Ctrl+S`.
 
-Los nombres `Estilos`, `Masivo` y `Formulario` tienen que quedar tal cual: el
-código los llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
+Los nombres `Estilos` y `Masivo` tienen que quedar tal cual: el código los llama
+por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
 importa, porque en Apps Script todos comparten el mismo espacio.
 
 ### 3. Prepara las hojas
@@ -238,9 +206,8 @@ Google pedirá permisos: *Revisar permisos › elige tu cuenta › Configuració
 avanzada › Ir a (nombre del proyecto) › Permitir*. La pantalla de "app no
 verificada" es normal en scripts propios.
 
-Eso crea las hojas **SAP** y **Agrupamiento** con los catálogos del archivo de
-Jorge, deja `Registro` con sus encabezados y avisa si alguna columna de
-PT/PCP/PP se movió de lugar.
+Eso crea la hoja **SAP** con el catálogo del archivo de Jorge, deja `Registro`
+con sus encabezados y avisa si alguna columna de PT/PCP/PP se movió de lugar.
 
 ### 4. Publica
 
@@ -258,22 +225,20 @@ anotar una solicitud sin solicitante.
 
 ### 5. Reparte el enlace
 
-Copia la URL y mándala: abre en la carga masiva. Con `?modo=paso` al final se
-entra al asistente de una solicitud, y ahí `&clase=PT` lo abre con la clase ya
-elegida. El menú **Registro Maderas › Ver enlace del formulario** te los muestra
-armados.
+Copia la URL y mándala. El menú **Registro Maderas › Ver enlace del formulario**
+también la muestra.
 
 ---
 
-## Mantener los catálogos
+## Mantener el catálogo
 
-**Se editan en Sheets, no en el código.** Las hojas `SAP` y `Agrupamiento` son
-la fuente de verdad: agregar una agrupación nueva es pegar una fila en `SAP` con
-su `Ce.`, `TpMt` y `AgrupMad`, y aparece en el formulario. Lo mismo con las
-plantillas de etapa en `Agrupamiento`.
+**Se edita en Sheets, no en el código.** La hoja `SAP` es la fuente de verdad:
+agregar una agrupación nueva es pegar una fila con su `Ce.`, `TpMt` y
+`AgrupMad`, y aparece en el formulario. Las hojas de ruta salen de
+`BD_Maderas`, así que tampoco hay nada que mantener en el código.
 
-Los catálogos se recuerdan seis horas para no releer la planilla en cada clic.
-Si acabas de cambiarlos y quieres verlos ya, ejecuta `instalarRegistro`.
+El catálogo se recuerda seis horas para no releer la planilla en cada clic. Si
+acabas de cambiarlo y quieres verlo ya, ejecuta `instalarRegistro`.
 
 ## Decisiones que conviene revisar
 
@@ -325,15 +290,14 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 | Archivo | Qué hay |
 |---|---|
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
-| `fuente/Catalogos.gs` | Lectura de las hojas SAP y Agrupamiento, con sus semillas. |
-| `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. La API. |
+| `fuente/Catalogos.gs` | Lectura de la hoja SAP, con su semilla. |
+| `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. |
 | `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado, Excel y guardado en bloque. |
 | `fuente/Xlsx.gs` | Arma el .xlsx a mano, sin librerías: un zip con cinco XML. |
 | `fuente/Setup.gs` | Crea las hojas de catálogo y revisa las columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |
 | `fuente/Estilos.html` | El sistema visual. |
-| `fuente/Masivo.html` | La tabla del lote y la barra de acciones. |
-| `fuente/Formulario.html` | La barra de pegado, los cinco pasos y el código en vivo. |
+| `fuente/Masivo.html` | Las cinco columnas, la tabla del lote y la barra de acciones. |
 | `pruebas/` | Simulador de Apps Script + pruebas. |
 
 ```bash

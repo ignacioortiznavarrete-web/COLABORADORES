@@ -107,11 +107,13 @@ function deducirDeCodigo_(texto) {
 /* ----------------------------------------------------------------- el lote */
 
 /**
- * Una línea del pegado. El primer campo es el código; los demás se reconocen
- * solos: lo que tenga forma de ruta se asigna a su etapa, y un número suelto
- * es la cantidad de piezas. Así da igual el orden en que vengan.
+ * Lee una línea del pegado, sin juzgarla todavía.
+ *
+ * El primer campo es el código; los demás se reconocen solos: lo que tenga
+ * forma de ruta se asigna a su etapa y un número suelto es la cantidad de
+ * piezas. Así da igual el orden en que vengan.
  */
-function analizarLinea_(linea, numero, bd) {
+function leerLinea_(linea, numero, bd) {
   var campos = String(linea).split(/\t|;|\|/)
     .map(function (c) { return c.trim(); })
     .filter(function (c) { return c !== ''; });
@@ -122,12 +124,12 @@ function analizarLinea_(linea, numero, bd) {
     rutas: { aserradero: '', secado: '', cepillado: '' },
     opciones: { aserradero: [], secado: [], cepillado: [] },
     piezas: '',
-    problemas: []
+    problemas: [],
+    ok: false
   };
 
   var base = deducirDeCodigo_(campos[0] || '');
   if (!base.ok) {
-    fila.ok = false;
     fila.problemas.push(base.mensaje);
     return fila;
   }
@@ -140,7 +142,36 @@ function analizarLinea_(linea, numero, bd) {
     if (escuadriaDeRuta_(campo) && familia) fila.rutas[familia] = normalizarCodigo_(campo);
   }
 
-  var existente = bd.codigos[fila.codigo];
+  // Rutas de la escuadría del producto, separadas por etapa.
+  var disponibles = bd.rutas[fila.espesor + 'X' + fila.ancho] || [];
+  ETAPAS.forEach(function (etapa) {
+    if (!fila.etapas[etapa.id]) return;
+    fila.opciones[etapa.id] = disponibles.filter(function (r) { return r.etapa === etapa.id; });
+  });
+  return fila;
+}
+
+/** Si una etapa tiene una sola ruta posible, se pone sola. */
+function proponerRutas_(fila) {
+  if (!fila.etapas) return fila;
+  ETAPAS.forEach(function (etapa) {
+    if (!fila.etapas[etapa.id] || fila.rutas[etapa.id]) return;
+    var suyas = fila.opciones[etapa.id] || [];
+    if (suyas.length === 1) fila.rutas[etapa.id] = suyas[0].codigo;
+  });
+  return fila;
+}
+
+/**
+ * Juzga una fila: el código no puede existir todavía y las rutas sí.
+ * `existe` dice si un código está en BD_Maderas: al analizar un lote se
+ * consulta el índice ya leído, y al revisar una fila suelta, la caché.
+ */
+function validarFila_(fila, existe) {
+  if (!fila.codigo || !fila.etapas) { fila.ok = false; return fila; }
+  fila.problemas = [];
+
+  var existente = existe(fila.codigo);
   fila.existe = !!existente;
   fila.descripcionExistente = existente ? existente.descripcion : '';
   if (fila.existe && MEDIDAS.EXIGIR_NUEVO) {
@@ -148,25 +179,6 @@ function analizarLinea_(linea, numero, bd) {
       (existente.descripcion ? ': ' + existente.descripcion : '') + '.');
   }
 
-  // Rutas: las de la escuadría del producto, separadas por etapa.
-  var escuadria = fila.espesor + 'X' + fila.ancho;
-  var disponibles = bd.rutas[escuadria] || [];
-  ETAPAS.forEach(function (etapa) {
-    if (!fila.etapas[etapa.id]) return;
-    var suyas = disponibles.filter(function (r) { return r.etapa === etapa.id; });
-    fila.opciones[etapa.id] = suyas;
-    // Si hay una sola posible, se pone sola.
-    if (!fila.rutas[etapa.id] && suyas.length === 1) fila.rutas[etapa.id] = suyas[0].codigo;
-  });
-
-  revisarRutas_(fila, bd);
-  fila.ok = !fila.problemas.length;
-  return fila;
-}
-
-/** Comprueba las rutas de una fila contra las reglas y contra la base. */
-function revisarRutas_(fila, bd) {
-  if (!fila.etapas) return;
   var exigeEnBD = RUTAS.DEBE_EXISTIR_EN.indexOf(fila.clase) !== -1;
   ETAPAS.forEach(function (etapa) {
     if (!fila.etapas[etapa.id]) return;
@@ -185,11 +197,14 @@ function revisarRutas_(fila, bd) {
       fila.problemas.push('La ruta ' + ruta + ' es de ' + familia + ', no de ' + etapa.titulo + '.');
       return;
     }
-    if (!bd.codigos[ruta] && exigeEnBD) {
+    if (!existe(ruta) && exigeEnBD) {
       fila.problemas.push('La ruta ' + ruta + ' no existe en ' + CFG.HOJA_BD +
         ', y en ' + fila.clase + ' tiene que existir.');
     }
   });
+
+  fila.ok = !fila.problemas.length;
+  return fila;
 }
 
 /** La solicitud que espera `validar_`, armada desde una fila del lote. */
@@ -230,19 +245,50 @@ function filaBatch_(v) {
 
 /* --------------------------------------------------------------------- API */
 
-/** Analiza el pegado y devuelve una fila por línea, con lo que falta en cada una. */
-function apiLote(texto) {
+function porLineas_(texto) {
+  return String(texto == null ? '' : texto).split(/\r?\n/);
+}
+
+/**
+ * Analiza el pegado y devuelve una fila por línea.
+ *
+ * La entrada son columnas paralelas: la línea 5 de los códigos va con la
+ * línea 5 de cada columna de rutas y con la 5 del PAK. Por eso las líneas en
+ * blanco no se renumeran: el número de fila es el de la línea escrita.
+ */
+function apiLote(entrada) {
   var correo = usuario_();
   if (AUDITORIA.EXIGIR_IDENTIDAD && !correo) {
     throw new Error('No se pudo identificar tu cuenta. Entra con tu correo corporativo.');
   }
   if (!puedeAcceder_(correo)) throw new Error('Tu cuenta no está autorizada.');
 
+  var datos = (typeof entrada === 'string') ? { codigos: entrada } : (entrada || {});
+  var codigos = porLineas_(datos.codigos);
+  var piezas = porLineas_(datos.piezas);
+  var rutas = {};
+  ETAPAS.forEach(function (etapa) {
+    rutas[etapa.id] = porLineas_((datos.rutas || {})[etapa.id]);
+  });
+
   var bd = leerBD_();
+  var enBD = function (codigo) { return bd.codigos[codigo]; };
   var filas = [];
-  String(texto == null ? '' : texto).split(/\r?\n/).forEach(function (linea) {
+
+  codigos.forEach(function (linea, i) {
     if (!linea.trim()) return;
-    filas.push(analizarLinea_(linea, filas.length + 1, bd));
+    var fila = leerLinea_(linea, i + 1, bd);
+
+    // Lo escrito en la columna de la etapa manda sobre lo que venga pegado
+    // en la misma línea del código.
+    ETAPAS.forEach(function (etapa) {
+      var suya = (rutas[etapa.id][i] || '').trim();
+      if (suya) fila.rutas[etapa.id] = normalizarCodigo_(suya);
+    });
+    var pak = (piezas[i] || '').trim();
+    if (pak) fila.piezas = pak.replace(/\D/g, '');
+
+    filas.push(validarFila_(proponerRutas_(fila), enBD));
   });
 
   return {
@@ -255,22 +301,13 @@ function apiLote(texto) {
 
 /** Vuelve a revisar las filas después de que alguien completó las rutas. */
 function apiRevisarLote(filas) {
-  var bd = leerBD_();
+  // Acá no se relee la base entera: se consultan solo los códigos en juego,
+  // y esas consultas van por caché.
+  var existe = function (codigo) { return buscarEnBD_(normalizarCodigo_(codigo)); };
   var salida = (filas || []).map(function (fila) {
-    // Una línea que no se pudo leer no se arregla editando rutas: se deja como está.
-    if (!fila.codigo || !fila.etapas) { fila.ok = false; return fila; }
-    fila.problemas = [];
-    var existente = bd.codigos[fila.codigo];
-    fila.existe = !!existente;
-    fila.descripcionExistente = existente ? existente.descripcion : '';
-    if (fila.existe && MEDIDAS.EXIGIR_NUEVO) {
-      fila.problemas.push('Ya existe en ' + CFG.HOJA_BD +
-        (existente.descripcion ? ': ' + existente.descripcion : '') + '.');
-    }
-    revisarRutas_(fila, bd);
-    fila.ok = !fila.problemas.length;
-    return fila;
+    return validarFila_(fila, existe);
   });
+
   return {
     ok: true,
     filas: salida,

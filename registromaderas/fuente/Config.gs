@@ -38,7 +38,6 @@ const CFG = {
 
   HOJA_BD: 'BD_Maderas',
   HOJA_SAP: 'SAP',
-  HOJA_AGRUPAMIENTO: 'Agrupamiento',
   HOJA_REGISTRO: 'Registro',
 
   /** En PT/PCP/PP la fila 1 es la numeración y la fila 2 son los rótulos. */

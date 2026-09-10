@@ -1,31 +1,13 @@
 /**
- * Publicación web. Dos pantallas sobre el mismo motor:
+ * Publicación web: una sola pantalla, la de ingreso masivo.
  *
- *   .../exec                 carga masiva: se pegan códigos y salen sus filas
- *   .../exec?modo=paso       el asistente, una solicitud a la vez
- *   .../exec?modo=paso&clase=PT   además, con la clase ya elegida
+ * El batch input no tiene interfaz. Vive en el spreadsheet y se baja como
+ * Excel con las filas que se elijan.
  */
 
-function doGet(e) {
-  var params = (e && e.parameter) || {};
-  var modo = String(params.modo || '').trim().toLowerCase();
-
-  if (modo === 'paso' || modo === 'asistente') {
-    var clase = '';
-    try {
-      if (params.clase) clase = clasePorId_(params.clase).id;
-    } catch (err) {
-      clase = '';  // ?clase= con algo raro: se ignora y se pregunta igual
-    }
-    var t = HtmlService.createTemplateFromFile('Formulario');
-    t.clasePrevia = clase;
-    return t.evaluate()
-      .setTitle('Registro paso a paso · Maderas')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-  }
-
+function doGet() {
   return HtmlService.createTemplateFromFile('Masivo').evaluate()
-    .setTitle('Batch input de maderas')
+    .setTitle('Ingreso de maderas')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 

@@ -1,10 +1,9 @@
 /**
- * Los dos catálogos que mandan en el formulario, tal como vienen del archivo
- * de Jorge: SAP y Agrupamiento.
+ * El catálogo que manda: la hoja SAP, tal como viene del archivo de Jorge.
  *
- * Se leen SIEMPRE de las hojas del spreadsheet, para que mantenerlos sea
- * pegar filas en Sheets y no tocar código. Las semillas de acá abajo solo se
- * usan una vez, cuando `instalarRegistro` crea las hojas porque no existían.
+ * Se lee SIEMPRE de la hoja del spreadsheet, para que mantenerla sea pegar
+ * filas en Sheets y no tocar código. La semilla de acá abajo solo se usa una
+ * vez, cuando `instalarRegistro` crea la hoja porque no existía.
  */
 
 /**
@@ -53,35 +52,11 @@ const SAP_SEMILLA = [
 
 const SAP = { CENTRO: 1, TIPO_MATERIAL: 2, AGRUPACION: 4, TEXTO_LARGO: 5, TEXTO_ES: 6, TEXTO_EN: 7 };
 
-/** Agrupamiento: las plantillas válidas de cada etapa del proceso. */
-const AGRUPAMIENTO_ENCABEZADOS = ['Aserradero(Template)', 'Descripción', 'Secado(Template)',
-  'Descripción', 'Cepillado(Template)', 'Descripción', 'Empaquetado', 'Descripción'];
-
-const AGRUPAMIENTO_SEMILLA = [
-  ['RVF', 'Rústico Verde COL MIX', 'RSF', 'Rústico Seco COL MIX', 'CSF', 'Cepillado Seco COL MIX', 'C4JH', 'Cepillado Seco 4 Caras Col B Radiata Terceros'],
-  ['RVK', 'Rústico Verde Muebles', 'RSK', 'Rústico Seco Muebles', 'CSK', 'Cepillado Seco Muebles', 'C4KH', 'Cepillado Seco 4 Caras Radiata Terceros'],
-  ['RVM', 'Rústico Verde Médula', 'RSM', 'Rústico Seco Médula', 'CSM', 'Cepillado Seco Médula', 'RSKH', 'Rústico Seco Primera Radiata Terceros'],
-  ['RVO', 'Rústico Verde Otros', 'RSO', 'Rústico Seco Otros', 'CSO', 'Cepillado Seco Otros', 'RSMH', 'Rústico Seco Médula Radiata Terceros'],
-  ['RVZ', 'Rústico Verde Mancha', 'RSZ', 'Rústico Seco Mancha', 'CSJ', 'Cepillado Seco COL B', 'RSNH', 'Rústico Seco Mill Run Radiata Terceros'],
-  ['', '', '', '', 'CSR', 'Cepillado Seco Rechazo', 'RSWH', 'Rústico Seco Excedente Radiata Terceros'],
-  ['', '', '', '', '', '', 'RSYH', 'Rústico Seco ST Mueble Radiata Terceros'],
-  ['', '', '', '', '', '', 'RVBH', 'Rústico Verde Blue Stain Radiata Tercero'],
-  ['', '', '', '', '', '', 'RVMH', 'Rústico Verde Médula Radiata Terceros'],
-  ['', '', '', '', '', '', 'C4JR', 'Cepillado Seco 4 Caras Col B Radiata'],
-  ['', '', '', '', '', '', 'C4KR', 'Cepillado Seco 4 Caras Muebles Radiata'],
-  ['', '', '', '', '', '', 'RSFR', 'Rústico Seco COL MIX Radiata'],
-  ['', '', '', '', '', '', 'RSJR', 'Rústico Seco COL B Radiata'],
-  ['', '', '', '', '', '', 'RSKR', 'Rústico Seco Mueble Radiata'],
-  ['', '', '', '', '', '', 'RSMR', 'Rústico Seco Médula Radiata'],
-  ['', '', '', '', '', '', 'RSOR', 'Rústico Seco Otros Radiata'],
-  ['', '', '', '', '', '', 'RSZR', 'Rústico Seco Mill Run BS Radiata']
-];
-
-/** Par de columnas (código, descripción) de cada etapa en Agrupamiento. */
+/** Las etapas del proceso, en orden. */
 const ETAPAS = [
-  { id: 'aserradero', titulo: 'Aserradero', columna: 1 },
-  { id: 'secado', titulo: 'Secado', columna: 3 },
-  { id: 'cepillado', titulo: 'Cepillado', columna: 5 }
+  { id: 'aserradero', titulo: 'Aserradero' },
+  { id: 'secado', titulo: 'Secado' },
+  { id: 'cepillado', titulo: 'Cepillado' }
 ];
 
 /* ------------------------------------------------------------------ lectura */
@@ -99,25 +74,6 @@ function catalogoSAP_() {
         textoEn: texto_(f[SAP.TEXTO_EN - 1])
       };
     }).filter(function (f) { return f.agrupacion; });
-  });
-}
-
-/** Plantillas por etapa: { aserradero: [{codigo, descripcion}], secado: [...], ... }. */
-function catalogoEtapas_() {
-  return enCache_('etapas', function () {
-    var filas = filasDe_(CFG.HOJA_AGRUPAMIENTO, AGRUPAMIENTO_SEMILLA);
-    var salida = {};
-    ETAPAS.forEach(function (etapa) {
-      var vistos = {};
-      salida[etapa.id] = filas.map(function (f) {
-        return { codigo: texto_(f[etapa.columna - 1]), descripcion: texto_(f[etapa.columna]) };
-      }).filter(function (o) {
-        if (!o.codigo || vistos[o.codigo]) return false;
-        vistos[o.codigo] = true;
-        return true;
-      });
-    });
-    return salida;
   });
 }
 
@@ -183,7 +139,5 @@ function enCache_(llave, calcular) {
 /** Se llama al reinstalar: los catálogos cambiaron y hay que releerlos. */
 function olvidarCatalogos_() {
   var cache = cache_();
-  if (!cache) return;
-  cache.remove('cat:sap');
-  cache.remove('cat:etapas');
+  if (cache) cache.remove('cat:sap');
 }

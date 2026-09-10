@@ -30,9 +30,6 @@ function instalarRegistro() {
   if (crearCatalogo_(libro, CFG.HOJA_SAP, SAP_ENCABEZADOS, SAP_SEMILLA)) {
     hechos.push('Se creó la hoja "' + CFG.HOJA_SAP + '" con las agrupaciones por centro y tipo de material.');
   }
-  if (crearCatalogo_(libro, CFG.HOJA_AGRUPAMIENTO, AGRUPAMIENTO_ENCABEZADOS, AGRUPAMIENTO_SEMILLA)) {
-    hechos.push('Se creó la hoja "' + CFG.HOJA_AGRUPAMIENTO + '" con las plantillas de cada etapa.');
-  }
   olvidarCatalogos_();
 
   CLASES.forEach(function (clase) {
