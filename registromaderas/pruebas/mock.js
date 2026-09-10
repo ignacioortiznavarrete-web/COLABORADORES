@@ -132,7 +132,89 @@ global.Session = {
   }),
   getScriptTimeZone: () => 'America/Santiago'
 };
+/* --- ZIP mínimo, sin comprimir: alcanza para revisar que el xlsx abra. --- */
+const TABLA_CRC = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+    t[n] = c;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = TABLA_CRC[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ -1) >>> 0;
+}
+
+function comprimir(partes) {
+  const locales = [];
+  const central = [];
+  let desplazamiento = 0;
+  partes.forEach(p => {
+    const nombre = Buffer.from(p.name, 'utf8');
+    const datos = Buffer.from(p.bytes);
+    const crc = crc32(datos);
+
+    const local = Buffer.alloc(30 + nombre.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(datos.length, 18);
+    local.writeUInt32LE(datos.length, 22);
+    local.writeUInt16LE(nombre.length, 26);
+    nombre.copy(local, 30);
+    locales.push(local, datos);
+
+    const dir = Buffer.alloc(46 + nombre.length);
+    dir.writeUInt32LE(0x02014b50, 0);
+    dir.writeUInt16LE(20, 4);
+    dir.writeUInt16LE(20, 6);
+    dir.writeUInt32LE(crc, 16);
+    dir.writeUInt32LE(datos.length, 20);
+    dir.writeUInt32LE(datos.length, 24);
+    dir.writeUInt16LE(nombre.length, 28);
+    dir.writeUInt32LE(desplazamiento, 42);
+    nombre.copy(dir, 46);
+    central.push(dir);
+
+    desplazamiento += local.length + datos.length;
+  });
+
+  const cuerpo = Buffer.concat(locales);
+  const directorio = Buffer.concat(central);
+  const fin = Buffer.alloc(22);
+  fin.writeUInt32LE(0x06054b50, 0);
+  fin.writeUInt16LE(partes.length, 8);
+  fin.writeUInt16LE(partes.length, 10);
+  fin.writeUInt32LE(directorio.length, 12);
+  fin.writeUInt32LE(cuerpo.length, 16);
+  return Buffer.concat([cuerpo, directorio, fin]);
+}
+
 global.Utilities = {
+  newBlob: (contenido, tipo, nombre) => ({
+    __blob: true,
+    name: nombre,
+    type: tipo,
+    bytes: Buffer.from(String(contenido), 'utf8'),
+    getName: function () { return this.name; },
+    getBytes: function () { return this.bytes; },
+    getDataAsString: function () { return this.bytes.toString('utf8'); }
+  }),
+  zip: partes => {
+    const bytes = comprimir(partes);
+    return {
+      __zip: true,
+      __partes: partes,
+      getBytes: () => bytes,
+      setName: function () { return this; },
+      getName: () => 'archivo.zip'
+    };
+  },
+  base64Encode: bytes => Buffer.from(bytes).toString('base64'),
   formatDate: (d, tz, fmt) => {
     const p = n => String(n).padStart(2, '0');
     return fmt

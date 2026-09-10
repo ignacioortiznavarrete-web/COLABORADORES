@@ -3,15 +3,19 @@
 Apps Script sobre el spreadsheet **Maderas**
 (`15THGajqCDH0YuBaoEUt9uLM8s-6iKsUf9_-vY8bABmE`).
 
-Nadie escribe el código de material. Se elige la agrupación, se dictan las
-medidas y el formulario arma el código, decide por qué etapas pasa el producto
-y escribe la fila completa de batch input.
+Se pegan los códigos, uno por línea, y salen sus filas de batch input listas
+para SAP. Del código se deduce todo lo que el código ya dice; lo único que hay
+que completar son las hojas de ruta.
 
 ```
 RVMH  +  032 X 180 X 3960   ->   RVMH032X180X3960
 └──┬─┘   └─┬─┘   └┬┘   └─┬┘
 prefijo  espesor ancho  largo
 ```
+
+Hay dos pantallas sobre el mismo motor: la **carga masiva**, que es la que se
+abre por defecto, y un **asistente paso a paso** para una sola solicitud, en
+`?modo=paso`.
 
 ---
 
@@ -31,6 +35,20 @@ y largo (4). Con largo el código mide **16 caracteres**; sin largo, **11**. Los
 ceros a la izquierda los pone el formulario: escribes `32` y queda `032`.
 
 De las 41.816 filas de `BD_Maderas`, 40.066 siguen exactamente este patrón.
+
+## Lo que el código dice solo
+
+Nada de esto se pregunta:
+
+| En el código | Se deduce |
+|---|---|
+| Especie `H` (4º carácter) | Es madera de terceros: **Trading**, y su centro en SAP es **TCD2** |
+| Cualquier otra especie | El centro que diga SAP, y **Planta** |
+| Lleva largo (16 caracteres) | Producto terminado: **PT** |
+| Tres letras y sin largo | Producto de proceso: **PP** |
+| Tres letras, sin largo y empieza en `C` | Cepillado en proceso: **PCP** |
+
+La clase queda editable en la tabla por si algún caso no calza.
 
 ## Las condicionales
 
@@ -78,7 +96,35 @@ Qué habilita cada combinación, hoy:
 | TCP1 | TPAS | 16 (las de proceso, de tres letras: CSF, RSF, RVM…) |
 | TCD2 | TPAS | ninguna |
 
-## Dos maneras de entrar
+## La carga masiva
+
+Se pegan los códigos, uno por línea. Si vienen de Excel con más columnas al
+lado, también se aprovechan: **lo que tenga forma de ruta se asigna a su etapa y
+un número suelto es el PAK**, sin importar el orden.
+
+```
+RVMH032X180X3960
+RVMH032X180X4270	RVM 032X180	248
+C4JH019X100X2440
+```
+
+De ahí sale una tabla con una fila por línea: el código, su clase, su centro y
+las rutas de las etapas que apliquen. Cuando una escuadría tiene **una sola ruta
+posible** para una etapa, se pone sola; cuando hay varias, se elige de la lista.
+Cada fila dice si está lista o qué le falta, y se revisa sola mientras se
+escribe.
+
+Con las filas seleccionadas, la barra de abajo ofrece dos cosas:
+
+- **Descargar Excel** — el batch input. Los datos entran **desde la fila 3**, con
+  la 1 y la 2 en blanco, y las columnas en el mismo orden que PT/PCP/PP.
+- **Guardar en las hojas** — la misma fila, en la hoja de su clase y en la
+  bitácora `Registro`.
+
+En la carga masiva el PAK es opcional: el batch input crea el maestro de
+material, no un pedido. Para exigirlo, `MEDIDAS.EXIGIR_PIEZAS = true`.
+
+## El asistente: dos maneras de entrar
 
 **Pegando el código.** Si ya lo tienes armado, lo pegas arriba y el formulario
 lo desarma y trae el resto: la agrupación con su texto, el centro y el tipo de
@@ -151,13 +197,13 @@ y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son siete archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son diez archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los siete archivos
+### 2. Crea los diez archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -169,16 +215,19 @@ carpeta:
 | `Config.gs` | `fuente/Config.gs` |
 | `Catalogos.gs` | `fuente/Catalogos.gs` |
 | `Registro.gs` | `fuente/Registro.gs` |
+| `Xlsx.gs` | `fuente/Xlsx.gs` |
+| `Lote.gs` | `fuente/Lote.gs` |
 | `Setup.gs` | `fuente/Setup.gs` |
 | `WebApp.gs` | `fuente/WebApp.gs` |
 | `Estilos.html` | `fuente/Estilos.html` |
+| `Masivo.html` | `fuente/Masivo.html` |
 | `Formulario.html` | `fuente/Formulario.html` |
 
 Borra el `Código.gs` que viene por defecto con su `function myFunction() {}`.
 Guarda con `Ctrl+S`.
 
-Los nombres `Estilos` y `Formulario` tienen que quedar tal cual: el código los
-llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
+Los nombres `Estilos`, `Masivo` y `Formulario` tienen que quedar tal cual: el
+código los llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
 importa, porque en Apps Script todos comparten el mismo espacio.
 
 ### 3. Prepara las hojas
@@ -209,9 +258,10 @@ anotar una solicitud sin solicitante.
 
 ### 5. Reparte el enlace
 
-Copia la URL y mándala. Con `?clase=PT`, `?clase=PCP` o `?clase=PP` al final se
-entra con la clase ya elegida. El menú **Registro Maderas › Ver enlace del
-formulario** te los muestra armados.
+Copia la URL y mándala: abre en la carga masiva. Con `?modo=paso` al final se
+entra al asistente de una solicitud, y ahí `&clase=PT` lo abre con la clase ya
+elegida. El menú **Registro Maderas › Ver enlace del formulario** te los muestra
+armados.
 
 ---
 
@@ -277,9 +327,12 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
 | `fuente/Catalogos.gs` | Lectura de las hojas SAP y Agrupamiento, con sus semillas. |
 | `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. La API. |
+| `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado, Excel y guardado en bloque. |
+| `fuente/Xlsx.gs` | Arma el .xlsx a mano, sin librerías: un zip con cinco XML. |
 | `fuente/Setup.gs` | Crea las hojas de catálogo y revisa las columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |
 | `fuente/Estilos.html` | El sistema visual. |
+| `fuente/Masivo.html` | La tabla del lote y la barra de acciones. |
 | `fuente/Formulario.html` | La barra de pegado, los cinco pasos y el código en vivo. |
 | `pruebas/` | Simulador de Apps Script + pruebas. |
 

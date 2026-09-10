@@ -361,6 +361,88 @@
   button:disabled { opacity: .45; cursor: not-allowed; }
   button:focus-visible { outline: 2px solid var(--bosque-600); outline-offset: 2px; }
 
+  /* ---------------------------------------------------------- carga masiva */
+
+  .wrap.ancho { max-width: 1240px; }
+
+  textarea {
+    width: 100%; font: 14px/1.6 var(--mono); letter-spacing: .04em;
+    color: var(--tinta); background: var(--papel);
+    border: 1px solid var(--linea); border-radius: var(--r-chico);
+    padding: 12px 14px; resize: vertical; min-height: 120px;
+    transition: border-color 140ms var(--salida), box-shadow 140ms var(--salida);
+  }
+  textarea:focus {
+    outline: none; border-color: var(--bosque-600);
+    box-shadow: 0 0 0 3px oklch(0.47 0.095 156 / .16);
+  }
+
+  .resumen-lote { margin: 22px 0 12px; font-size: 14px; color: var(--tinta-suave); }
+  .resumen-lote b { color: var(--tinta); }
+  .resumen-lote .ok { color: var(--bosque-700); font-weight: 600; }
+  .resumen-lote .problema { color: var(--ambar); font-weight: 600; }
+
+  /* La tabla es ancha a propósito: rueda dentro de su caja, no en la página. */
+  .tabla-scroll {
+    overflow-x: auto; border: 1px solid var(--linea); border-radius: var(--r-grande);
+    background: var(--papel);
+  }
+  table.lote { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.lote th {
+    text-align: left; font: 600 11px/1 var(--sans); letter-spacing: .05em;
+    text-transform: uppercase; color: var(--tinta-suave); white-space: nowrap;
+    padding: 12px 10px; border-bottom: 1px solid var(--linea); background: var(--bosque-050);
+    position: sticky; top: 0; z-index: var(--z-base);
+  }
+  table.lote td {
+    padding: 9px 10px; border-bottom: 1px solid var(--linea); vertical-align: middle;
+  }
+  table.lote tr:last-child td { border-bottom: 0; }
+  table.lote tr.pendiente { background: var(--ambar-fondo); }
+  table.lote tr.mala { background: var(--rojo-fondo); }
+  table.lote .col-sel, table.lote .col-n { width: 1%; white-space: nowrap; }
+  table.lote .col-n { color: var(--tinta-suave); font-family: var(--mono); font-size: 12px; }
+  table.lote .col-pak { width: 8ch; }
+  table.lote .mono { font-family: var(--mono); letter-spacing: .04em; }
+  table.lote .fuerte { font-weight: 700; }
+  table.lote .chico { font-size: 12.5px; }
+  table.lote small {
+    display: block; margin-top: 2px; font-size: 11.5px; color: var(--tinta-suave);
+    max-width: 26ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  table.lote input.ruta {
+    font-family: var(--mono); font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
+    width: 17ch; padding: 7px 9px;
+  }
+  table.lote input.num { width: 7ch; font-size: 13px; padding: 7px 6px; }
+  table.lote select { padding: 7px 9px; font-size: 13px; width: auto; }
+  table.lote td.no-aplica { color: var(--tinta-suave); text-align: center; }
+  table.lote .estado { max-width: 34ch; }
+  table.lote .estado .ok { color: var(--bosque-700); font-weight: 600; }
+  table.lote .estado .problema, table.lote td.problema { color: var(--ambar); font-size: 12.5px; }
+  table.lote tr.mala td.problema { color: var(--rojo); }
+  table.lote input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--bosque-600); }
+
+  /* Barra de acciones: aparece cuando hay algo seleccionado. */
+  .barra {
+    position: sticky; bottom: 0; z-index: var(--z-banco);
+    background: var(--bosque-900); color: #fff;
+    animation: sube 220ms var(--salida) both;
+  }
+  @keyframes sube {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .barra-dentro {
+    max-width: 1240px; margin: 0 auto; padding: 12px 20px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 14px; font-weight: 600;
+  }
+  .barra-dentro .derecha { margin-left: auto; }
+  .barra button.secundario { background: transparent; border-color: oklch(0.55 0.06 157); color: #fff; }
+  .barra button.secundario:hover:not(:disabled) { border-color: #fff; }
+  .barra #trabajando { color: oklch(0.85 0.03 157) !important; }
+
   /* --------------------------------------------------------------- avisos */
 
   .aviso {

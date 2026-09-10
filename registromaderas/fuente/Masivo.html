@@ -1,0 +1,367 @@
+<!--
+  Carga masiva: se pegan los códigos, uno por línea, y de cada uno sale su fila
+  de batch input. Lo que el código dice no se pregunta.
+-->
+<?!= include('Estilos') ?>
+
+<header class="app">
+  <div class="cabecera-fila">
+    <h1>Batch input de maderas</h1>
+    <span class="quien" id="quien"></span>
+  </div>
+</header>
+
+<div class="wrap ancho">
+  <div id="cargando" class="cargando">Cargando…</div>
+
+  <main id="app" hidden>
+    <div id="mensaje"></div>
+
+    <section class="pegar" id="pegar">
+      <label class="tit" for="pegado">Pega los códigos, uno por línea</label>
+      <textarea id="pegado" rows="6" spellcheck="false"
+        placeholder="RVMH032X180X3960&#10;RVMH032X180X4270&#10;RVM 032X180"></textarea>
+      <div class="pegar-fila" style="margin-top:12px">
+        <button type="button" class="primario" id="btnAnalizar">Analizar</button>
+        <button type="button" class="secundario" id="btnLimpiar">Limpiar</button>
+        <span class="pegar-nota">
+          Del código salen la clase, el centro, el origen y las etapas. Solo quedan las rutas.
+          Si pegas desde Excel con las rutas al lado, se toman también.
+        </span>
+      </div>
+      <div id="pegarAviso"></div>
+    </section>
+
+    <section id="cajaTabla" hidden>
+      <div class="resumen-lote" id="resumenLote"></div>
+      <div class="tabla-scroll">
+        <table class="lote">
+          <thead>
+            <tr>
+              <th class="col-sel"><input type="checkbox" id="todas" title="Seleccionar las listas"></th>
+              <th class="col-n">#</th>
+              <th>Código</th>
+              <th>Clase</th>
+              <th>Centro</th>
+              <th>Aserradero</th>
+              <th>Secado</th>
+              <th>Cepillado</th>
+              <th class="col-pak">PAK</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoLote"></tbody>
+        </table>
+      </div>
+      <div id="resultados"></div>
+    </section>
+  </main>
+</div>
+
+<div class="barra" id="barra" hidden>
+  <div class="barra-dentro">
+    <span id="barraTexto"></span>
+    <span class="derecha"></span>
+    <button type="button" class="secundario" id="btnGuardarLote">Guardar en las hojas</button>
+    <button type="button" class="primario" id="btnExcel">Descargar Excel</button>
+    <span id="trabajando" hidden style="font-size:13px;color:var(--tinta-suave)">Preparando…</span>
+  </div>
+</div>
+
+<script>
+  var CTX = null;
+  var FILAS = [];
+  var TIMER = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function aviso(caja, tipo, titulo, texto) {
+    if (!titulo && !texto) { caja.innerHTML = ''; return; }
+    caja.innerHTML = '<div class="aviso ' + tipo + '">' +
+      (titulo ? '<b>' + esc(titulo) + '</b>' : '') + esc(texto || '') + '</div>';
+  }
+
+  /* ---------------------------------------------------------- carga inicial */
+
+  function iniciar() {
+    google.script.run
+      .withSuccessHandler(function (ctx) {
+        CTX = ctx;
+        $('quien').textContent = ctx.usuario || '';
+        $('cargando').hidden = true;
+        $('app').hidden = false;
+        if (ctx.hojasFaltantes && ctx.hojasFaltantes.length) {
+          aviso($('mensaje'), 'error', 'Faltan hojas en el spreadsheet: ',
+            ctx.hojasFaltantes.join(', ') + '.');
+        } else if (!ctx.identificado && ctx.exigeIdentidad) {
+          aviso($('mensaje'), 'error', 'No se pudo identificar tu cuenta. ',
+            'Entra con tu correo corporativo: cada solicitud queda a nombre de quien la ingresa.');
+        }
+        $('pegado').focus();
+      })
+      .withFailureHandler(function (err) {
+        $('cargando').innerHTML = '<div class="aviso error"><b>No se pudo cargar</b>' +
+          esc(err && err.message ? err.message : err) + '</div>';
+      })
+      .apiContexto();
+  }
+
+  /* ------------------------------------------------------------- analizar */
+
+  function analizar() {
+    var texto = $('pegado').value;
+    if (!texto.trim()) {
+      aviso($('pegarAviso'), 'alerta', '', 'Pega al menos un código.');
+      return;
+    }
+    $('btnAnalizar').disabled = true;
+    aviso($('pegarAviso'), 'info', '', 'Leyendo ' + CTX.hojaBD + '…');
+    google.script.run
+      .withSuccessHandler(function (r) {
+        $('btnAnalizar').disabled = false;
+        aviso($('pegarAviso'), '', '', '');
+        FILAS = r.filas.map(function (f) { f.sel = f.ok; return f; });
+        dibujarTabla();
+      })
+      .withFailureHandler(function (err) {
+        $('btnAnalizar').disabled = false;
+        aviso($('pegarAviso'), 'error', 'No se pudo analizar. ',
+          err && err.message ? err.message : err);
+      })
+      .apiLote(texto);
+  }
+
+  /* --------------------------------------------------------------- tabla */
+
+  function celdaRuta(fila, etapa) {
+    if (!fila.etapas || !fila.etapas[etapa]) {
+      return '<td class="no-aplica">—</td>';
+    }
+    var id = 'r' + fila.n + '_' + etapa;
+    var opciones = (fila.opciones && fila.opciones[etapa]) || [];
+    return '<td><input type="text" class="ruta" list="' + id + '" ' +
+      'data-fila="' + fila.n + '" data-etapa="' + etapa + '" ' +
+      'placeholder="' + (opciones.length ? esc(opciones[0].codigo) : 'RVFD032X180') + '" ' +
+      'value="' + esc(fila.rutas[etapa] || '') + '">' +
+      '<datalist id="' + id + '">' + opciones.map(function (o) {
+        return '<option value="' + esc(o.codigo) + '">' + esc(o.descripcion) + '</option>';
+      }).join('') + '</datalist></td>';
+  }
+
+  function dibujarTabla() {
+    $('cajaTabla').hidden = false;
+    $('cuerpoLote').innerHTML = FILAS.map(function (f) {
+      if (!f.codigo) {
+        return '<tr class="mala"><td class="col-sel"></td><td class="col-n">' + f.n + '</td>' +
+          '<td class="mono">' + esc(f.entrada) + '</td>' +
+          '<td colspan="7" class="problema">' + esc(f.problemas.join(' ')) + '</td></tr>';
+      }
+      var clases = ['PT', 'PCP', 'PP'].map(function (c) {
+        return '<option value="' + c + '"' + (c === f.clase ? ' selected' : '') + '>' + c + '</option>';
+      }).join('');
+      return '<tr class="' + (f.ok ? '' : 'pendiente') + '">' +
+        '<td class="col-sel"><input type="checkbox" data-fila="' + f.n + '" data-campo="sel"' +
+        (f.sel ? ' checked' : '') + '></td>' +
+        '<td class="col-n">' + f.n + '</td>' +
+        '<td><span class="mono fuerte">' + esc(f.codigo) + '</span>' +
+        '<small>' + esc(f.agrupacionTexto || '') + '</small></td>' +
+        '<td><select data-fila="' + f.n + '" data-campo="clase">' + clases + '</select></td>' +
+        '<td class="mono chico">' + esc(f.centro) + '<small>' + esc(f.origen) + '</small></td>' +
+        celdaRuta(f, 'aserradero') + celdaRuta(f, 'secado') + celdaRuta(f, 'cepillado') +
+        '<td class="col-pak"><input type="text" class="num" inputmode="numeric" maxlength="6" ' +
+        'data-fila="' + f.n + '" data-campo="piezas" value="' + esc(f.piezas || '') + '"></td>' +
+        '<td class="estado">' + (f.ok
+          ? '<span class="ok">Lista</span>'
+          : '<span class="problema">' + esc(f.problemas.join(' ')) + '</span>') + '</td>' +
+        '</tr>';
+    }).join('');
+    refrescar();
+  }
+
+  function filaPorN(n) {
+    for (var i = 0; i < FILAS.length; i++) if (String(FILAS[i].n) === String(n)) return FILAS[i];
+    return null;
+  }
+
+  function seleccionadas() {
+    return FILAS.filter(function (f) { return f.sel && f.ok; });
+  }
+
+  function refrescar() {
+    var listas = FILAS.filter(function (f) { return f.ok; }).length;
+    var malas = FILAS.length - listas;
+    $('resumenLote').innerHTML =
+      '<b>' + FILAS.length + '</b> ' + (FILAS.length === 1 ? 'línea' : 'líneas') +
+      ' · <span class="ok">' + listas + ' ' + (listas === 1 ? 'lista' : 'listas') + '</span>' +
+      (malas ? ' · <span class="problema">' + malas + ' con algo pendiente</span>' : '');
+
+    var n = seleccionadas().length;
+    $('barra').hidden = n === 0;
+    $('barraTexto').textContent = n + (n === 1 ? ' fila seleccionada' : ' filas seleccionadas');
+    $('todas').checked = listas > 0 && n === listas;
+  }
+
+  /** Vuelve a preguntar al servidor si las filas quedaron correctas. */
+  function revisar() {
+    if (!FILAS.length) return;
+    // Se anota cómo estaba cada fila ANTES de preguntar: la respuesta puede
+    // llegar sobre los mismos objetos y ya no habría con qué comparar.
+    var antes = {};
+    FILAS.forEach(function (f) { antes[f.n] = { sel: f.sel, ok: f.ok }; });
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        FILAS = r.filas.map(function (f) {
+          var previo = antes[f.n] || {};
+          // Si acaba de quedar lista, entra en la selección: para eso se arregló.
+          f.sel = f.ok && (previo.sel || !previo.ok);
+          return f;
+        });
+        pintarEstados();
+        refrescar();
+      })
+      .withFailureHandler(function (err) {
+        aviso($('resultados'), 'error', 'No se pudo revisar el lote. ',
+          err && err.message ? err.message : err);
+      })
+      .apiRevisarLote(FILAS);
+  }
+
+  /** Solo repinta estado y selección: no toca los campos que se están editando. */
+  function pintarEstados() {
+    var filas = $('cuerpoLote').getElementsByTagName('tr');
+    for (var i = 0; i < filas.length && i < FILAS.length; i++) {
+      var f = FILAS[i];
+      var celda = filas[i].getElementsByClassName('estado')[0];
+      if (celda) {
+        celda.innerHTML = f.ok
+          ? '<span class="ok">Lista</span>'
+          : '<span class="problema">' + esc(f.problemas.join(' ')) + '</span>';
+      }
+      filas[i].className = f.codigo ? (f.ok ? '' : 'pendiente') : 'mala';
+      var check = filas[i].querySelector('[data-campo="sel"]');
+      if (check) check.checked = !!f.sel;
+    }
+  }
+
+  /* ------------------------------------------------------------- acciones */
+
+  function descargar() {
+    var sel = seleccionadas();
+    if (!sel.length) return;
+    trabajando(true);
+    google.script.run
+      .withSuccessHandler(function (r) {
+        trabajando(false);
+        var enlace = document.createElement('a');
+        enlace.href = 'data:application/vnd.openxmlformats-officedocument.' +
+          'spreadsheetml.sheet;base64,' + r.base64;
+        enlace.download = r.nombre;
+        document.body.appendChild(enlace);
+        enlace.click();
+        document.body.removeChild(enlace);
+        aviso($('resultados'), 'ok', 'Excel listo. ',
+          r.filas + (r.filas === 1 ? ' fila' : ' filas') + ' en ' + r.nombre +
+          ', desde la fila ' + r.primeraFila + '.');
+      })
+      .withFailureHandler(function (err) {
+        trabajando(false);
+        aviso($('resultados'), 'error', 'No se pudo generar el Excel. ',
+          err && err.message ? err.message : err);
+      })
+      .apiExcelLote(sel);
+  }
+
+  function guardarLote() {
+    var sel = seleccionadas();
+    if (!sel.length) return;
+    trabajando(true);
+    google.script.run
+      .withSuccessHandler(function (r) {
+        trabajando(false);
+        var fallidas = r.resultados.filter(function (x) { return !x.ok; });
+        aviso($('resultados'), fallidas.length ? 'alerta' : 'ok',
+          r.guardadas + (r.guardadas === 1 ? ' fila guardada. ' : ' filas guardadas. '),
+          fallidas.length
+            ? 'No entraron: ' + fallidas.map(function (x) {
+                return x.codigo + ' (' + x.mensaje + ')';
+              }).join(' · ')
+            : 'Quedaron en su hoja y en ' + CTX.hojaRegistro + '.');
+      })
+      .withFailureHandler(function (err) {
+        trabajando(false);
+        aviso($('resultados'), 'error', 'No se pudo guardar. ',
+          err && err.message ? err.message : err);
+      })
+      .apiGuardarLote(sel);
+  }
+
+  function trabajando(activo) {
+    $('trabajando').hidden = !activo;
+    $('btnExcel').disabled = activo;
+    $('btnGuardarLote').disabled = activo;
+  }
+
+  /* -------------------------------------------------------------- eventos */
+
+  $('btnAnalizar').addEventListener('click', analizar);
+  $('btnLimpiar').addEventListener('click', function () {
+    $('pegado').value = '';
+    FILAS = [];
+    $('cajaTabla').hidden = true;
+    $('barra').hidden = true;
+    $('resultados').innerHTML = '';
+    aviso($('pegarAviso'), '', '', '');
+    $('pegado').focus();
+  });
+  $('btnExcel').addEventListener('click', descargar);
+  $('btnGuardarLote').addEventListener('click', guardarLote);
+
+  $('todas').addEventListener('change', function () {
+    var marcar = $('todas').checked;
+    FILAS.forEach(function (f) { f.sel = marcar && f.ok; });
+    pintarEstados();
+    refrescar();
+  });
+
+  $('cuerpoLote').addEventListener('input', function (ev) {
+    var el = ev.target;
+    var fila = filaPorN(el.getAttribute('data-fila'));
+    if (!fila) return;
+    var etapa = el.getAttribute('data-etapa');
+    if (etapa) {
+      el.value = el.value.toUpperCase();
+      fila.rutas[etapa] = el.value;
+    } else if (el.getAttribute('data-campo') === 'piezas') {
+      el.value = el.value.replace(/\D/g, '');
+      fila.piezas = el.value;
+    }
+    if (TIMER) clearTimeout(TIMER);
+    TIMER = setTimeout(revisar, 400);
+  });
+
+  $('cuerpoLote').addEventListener('change', function (ev) {
+    var el = ev.target;
+    var fila = filaPorN(el.getAttribute('data-fila'));
+    if (!fila) return;
+    var campo = el.getAttribute('data-campo');
+    if (campo === 'sel') { fila.sel = el.checked; refrescar(); return; }
+    if (campo === 'clase') {
+      fila.clase = el.value;
+      if (TIMER) clearTimeout(TIMER);
+      TIMER = setTimeout(revisar, 200);
+    }
+  });
+
+  $('pegado').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); analizar(); }
+  });
+
+  iniciar();
+</script>

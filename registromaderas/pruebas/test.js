@@ -4,7 +4,7 @@ const path = require('path');
 const { SS } = require('./mock');
 
 // Los mismos archivos que se pegan en el editor de Apps Script.
-const FUENTES = ['Config.gs', 'Catalogos.gs', 'Registro.gs', 'Setup.gs']
+const FUENTES = ['Config.gs', 'Catalogos.gs', 'Registro.gs', 'Xlsx.gs', 'Lote.gs', 'Setup.gs']
   .map(f => path.join(__dirname, '..', 'fuente', f));
 
 console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
@@ -387,6 +387,122 @@ seccion('Lo que no se puede guardar');
   const antes = SS.getSheetByName('PT').getLastRow();
   error(() => apiGuardar(con({ piezas: 0 })));
   ok(SS.getSheetByName('PT').getLastRow() === antes, 'un intento fallido no deja filas a medias');
+}
+
+seccion('Del código se deduce todo lo demás');
+{
+  const h = deducirDeCodigo_('RVMH032X180X3960');
+  ok(h.ok && h.origen === 'Trading' && h.centro === 'TCD2',
+    'con especie H es Trading y centro TCD2, sin preguntar nada');
+  ok(h.clase === 'PT', 'y con largo es producto terminado');
+  ok(h.esTerceros === true, 'queda marcado como madera de terceros');
+
+  const proceso = deducirDeCodigo_('RVM 032X180');
+  ok(proceso.clase === 'PP', 'tres letras y sin largo: producto de proceso');
+  ok(proceso.origen === 'Planta' && proceso.centro === 'TCP1', 'y entra por Planta, en TCP1');
+
+  const cepillado = deducirDeCodigo_('CSF 019X100');
+  ok(cepillado.clase === 'PCP', 'si además es cepillado, va a PCP');
+
+  ok(deducirDeCodigo_('RSFR037X130X3600').origen === 'Planta',
+    'un código de Radiata EERR no es de terceros: Planta');
+  ok(!deducirDeCodigo_('ZZZZ032X180X3960').ok, 'un prefijo desconocido no se deduce');
+}
+
+seccion('El lote: se pegan códigos y salen sus filas');
+{
+  const r = apiLote([
+    'RVMH032X180X3960',
+    'RVM 032X180',
+    'RVMH032X180X4000',
+    'ZZZZ032X180X3960',
+    ''
+  ].join('\n'));
+
+  ok(r.filas.length === 4, 'las líneas en blanco se saltan');
+  ok(r.filas[0].codigo === 'RVMH032X180X3960' && r.filas[0].clase === 'PT', 'la primera es PT');
+  ok(r.filas[0].opciones.aserradero.length === 2,
+    'trae las rutas de aserradero que hay para 032X180');
+  ok(!r.filas[0].ok && r.filas[0].problemas[0].indexOf('Falta la hoja de ruta') !== -1,
+    'y avisa que falta la ruta, porque hay dos y no puede elegir sola');
+
+  ok(r.filas[1].clase === 'PP' && r.filas[1].ok === false, 'la segunda es de proceso');
+  ok(r.filas[2].problemas[0].indexOf('Ya existe') !== -1, 'la tercera ya existe en la base');
+  ok(!r.filas[3].codigo && r.filas[3].problemas[0].indexOf('no está en la hoja SAP') !== -1,
+    'la cuarta no se pudo leer, y dice por qué');
+  ok(r.conProblemas === 4 && r.listas === 0, 'el resumen cuenta lo que falta');
+}
+{
+  // Con la ruta pegada al lado, la fila sale lista de una.
+  const r = apiLote('RVMH032X180X3960\tRVM 032X180\t248');
+  ok(r.filas[0].rutas.aserradero === 'RVM 032X180', 'toma la ruta que viene en la misma línea');
+  ok(r.filas[0].piezas === '248', 'y el número suelto es la cantidad');
+  ok(r.filas[0].ok && r.listas === 1, 'la fila queda lista');
+}
+{
+  // Cuando la escuadría tiene una sola ruta por etapa, se pone sola.
+  const r = apiLote('C4JH019X100X2440');
+  ok(r.filas[0].rutas.cepillado === 'CSF 019X100', 'elige sola la única ruta de cepillado');
+  ok(r.filas[0].etapas.secado && r.filas[0].etapas.aserradero, 'y pide las otras dos etapas');
+}
+
+seccion('Revisar el lote después de completar las rutas');
+{
+  const lote = apiLote('RVMH032X180X3960');
+  lote.filas[0].rutas.aserradero = 'RVM 032X180';
+  const revisado = apiRevisarLote(lote.filas);
+  ok(revisado.filas[0].ok && revisado.listas === 1, 'con la ruta puesta, la fila queda lista');
+
+  lote.filas[0].rutas.aserradero = 'RSFD032X180';
+  ok(apiRevisarLote(lote.filas).filas[0].problemas[0].indexOf('es de secado') !== -1,
+    'una ruta de secado en el aserradero se marca');
+}
+
+seccion('El Excel del batch input');
+{
+  const lote = apiLote('RVMH032X180X3960\tRVM 032X180\t248');
+  const r = apiExcelLote(lote.filas);
+  ok(r.ok && r.filas === 1, 'genera el archivo con la fila seleccionada');
+  ok(/^batch-input-maderas-\d{8}-\d{4}\.xlsx$/.test(r.nombre), 'con fecha y hora en el nombre');
+  ok(r.primeraFila === 3, 'los datos empiezan en la fila 3');
+  ok(r.base64.length > 100, 'y viene en base64 para descargarlo');
+
+  const hoja = armarXlsx_('Batch input', [['CL', 'TCD2'], ['CL', 'TCP1']], 3)
+    .__partes.filter(p => p.name === 'xl/worksheets/sheet1.xml')[0].bytes.toString('utf8');
+  ok(hoja.indexOf('<row r="3">') !== -1, 'la primera fila escrita es la 3');
+  ok(hoja.indexOf('<row r="4">') !== -1, 'la segunda es la 4');
+  ok(hoja.indexOf('<row r="1">') === -1 && hoja.indexOf('<row r="2">') === -1,
+    'la 1 y la 2 quedan en blanco');
+  ok(hoja.indexOf('r="A3"') !== -1 && hoja.indexOf('r="B3"') !== -1, 'las celdas van A3, B3…');
+
+  ok(columnaXlsx_(1) === 'A' && columnaXlsx_(26) === 'Z' && columnaXlsx_(28) === 'AB',
+    'las columnas llegan hasta AB, que es la última del batch input');
+  ok(escaparXml_('Cep. 2(C) & <Radiata>').indexOf('&amp;') !== -1, 'el XML va escapado');
+
+  const partes = armarXlsx_('X', [['a']], 3).__partes.map(p => p.name).sort().join(' ');
+  ok(partes === '[Content_Types].xml _rels/.rels xl/_rels/workbook.xml.rels ' +
+     'xl/workbook.xml xl/worksheets/sheet1.xml', 'el xlsx lleva sus cinco piezas');
+}
+
+seccion('Guardar el lote completo');
+{
+  const lote = apiLote([
+    'RVMH032X180X3660\tRVM 032X180\t120',
+    'RVMH032X180X4270\tRVM 032X180'
+  ].join('\n'));
+  ok(lote.listas === 2, 'las dos líneas quedan listas');
+
+  const r = apiGuardarLote(lote.filas);
+  ok(r.guardadas === 2 && r.fallidas === 0, 'se guardan las dos');
+  ok(celda('PT', r.resultados[0].fila, 24) === 120, 'la primera lleva su PAK');
+  ok(celda('PT', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
+  ok(celda('PT', r.resultados[1].fila, 7) === 'RVM', 'las dos con su ruta de aserradero');
+}
+{
+  const lote = apiLote('RVMH032X180X4000\tRVM 032X180');
+  const r = apiGuardarLote(lote.filas);
+  ok(r.fallidas === 1 && r.resultados[0].mensaje.indexOf('ya existe') !== -1,
+    'una fila que ya existe se rechaza y el lote sigue');
 }
 
 seccion('Sin identidad no hay registro');

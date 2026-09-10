@@ -353,9 +353,14 @@ function validar_(datos) {
       '. Este formulario crea materiales nuevos: no hace falta pedirlo de nuevo.');
   }
 
-  var piezas = Number(datos.piezas);
-  if (!isFinite(piezas) || piezas <= 0 || Math.floor(piezas) !== piezas) {
-    throw new Error('La cantidad de piezas debe ser un número entero mayor que cero.');
+  var piezas = '';
+  if (datos.piezas !== '' && datos.piezas !== null && datos.piezas !== undefined) {
+    piezas = Number(datos.piezas);
+    if (!isFinite(piezas) || piezas <= 0 || Math.floor(piezas) !== piezas) {
+      throw new Error('La cantidad de piezas debe ser un número entero mayor que cero.');
+    }
+  } else if (MEDIDAS.EXIGIR_PIEZAS) {
+    throw new Error('Falta la cantidad de piezas.');
   }
 
   var aplica = etapasAplicables_(agrupacion.agrupacion);

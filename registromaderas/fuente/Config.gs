@@ -97,7 +97,12 @@ const MEDIDAS = {
    * El batch input CREA el material, así que el código no puede existir
    * todavía en BD_Maderas. Si ya está, no hay nada que crear.
    */
-  EXIGIR_NUEVO: true
+  EXIGIR_NUEVO: true,
+  /**
+   * En la carga masiva PAK suele ir vacío: el batch input crea el maestro de
+   * material, no un pedido. Ponlo en true para exigirlo siempre.
+   */
+  EXIGIR_PIEZAS: false
 };
 
 /**
@@ -122,6 +127,33 @@ const RUTAS = {
 const TRADING = {
   ORIGEN: 'Trading',
   ESPECIE: 'H'
+};
+
+/**
+ * Lo que el código dice por sí solo, sin preguntar nada:
+ *
+ *   RVMH032X180X3960   especie H  -> Trading, y su centro en SAP es TCD2
+ *                      con largo  -> producto terminado, PT
+ *   RVM 032X180        3 letras y sin largo -> producto de proceso, PP
+ *   CSF 019X075        3 letras, empieza en C -> cepillado en proceso, PCP
+ *
+ * Solo queda por escribir lo que no está en el código: las hojas de ruta.
+ */
+const DEDUCCION = {
+  CLASE_CON_LARGO: 'PT',
+  CLASE_PROCESO_CEPILLADO: 'PCP',
+  CLASE_PROCESO: 'PP',
+  ORIGEN_SIN_TERCEROS: 'Planta'
+};
+
+/**
+ * El Excel de batch input: los datos entran desde la fila 3, con la 1 y la 2
+ * en blanco, que es como lo espera la carga.
+ */
+const EXPORTAR = {
+  PRIMERA_FILA: 3,
+  HOJA: 'Batch input',
+  NOMBRE: 'batch-input-maderas'
 };
 
 /** Columnas de BD_Maderas (Material | Grupo art. | TpMt | Texto breve | Ce). */
