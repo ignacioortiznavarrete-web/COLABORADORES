@@ -4,7 +4,7 @@ const path = require('path');
 const { SS } = require('./mock');
 
 // Los mismos archivos que se pegan en el editor de Apps Script.
-const FUENTES = ['Config.gs', 'Registro.gs', 'Xlsx.gs', 'Lote.gs', 'Setup.gs', 'Exportar.gs']
+const FUENTES = ['Config.gs', 'Registro.gs', 'Lote.gs', 'Setup.gs', 'Exportar.gs']
   .map(f => path.join(__dirname, '..', 'fuente', f));
 
 console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
@@ -18,44 +18,6 @@ function ok(cond, msg) {
   if (!cond) fallos++;
 }
 function seccion(t) { console.log('\n' + t); }
-
-/**
- * Abre el zip que devuelve armarXlsx_ leyendo su directorio central, igual
- * que lo haría Excel. Se revisan los bytes de verdad, no una imitación: el
- * empaquetado es justo la parte que no se puede probar ejecutando Apps Script.
- */
-function abrirZip(blob) {
-  const b = Buffer.from(blob.getBytes());
-  const fin = b.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-  if (fin < 0) throw new Error('no tiene fin de directorio central');
-  const cuantas = b.readUInt16LE(fin + 10);
-  let p = b.readUInt32LE(fin + 16);
-  const piezas = [];
-  for (let i = 0; i < cuantas; i++) {
-    if (b.readUInt32LE(p) !== 0x02014b50) throw new Error('entrada ' + i + ' corrupta');
-    const largoNombre = b.readUInt16LE(p + 28);
-    const nombre = b.slice(p + 46, p + 46 + largoNombre).toString('utf8');
-    const crc = b.readUInt32LE(p + 16);
-    const tam = b.readUInt32LE(p + 24);
-    const local = b.readUInt32LE(p + 42);
-    if (b.readUInt32LE(local) !== 0x04034b50) throw new Error(nombre + ': cabecera local mala');
-    const inicio = local + 30 + b.readUInt16LE(local + 26) + b.readUInt16LE(local + 28);
-    const datos = b.slice(inicio, inicio + tam);
-    piezas.push({ nombre, texto: datos.toString('utf8'), crc, bytes: datos });
-    p += 46 + largoNombre + b.readUInt16LE(p + 30) + b.readUInt16LE(p + 32);
-  }
-  return piezas;
-}
-
-/** El mismo CRC32 que exige el formato, calculado aparte para contrastarlo. */
-function crcDe(buf) {
-  let c = -1;
-  for (let i = 0; i < buf.length; i++) {
-    c ^= buf[i];
-    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
-  }
-  return (c ^ -1) >>> 0;
-}
 function error(fn) {
   try { fn(); } catch (err) { return err.message; }
   return '';
@@ -562,70 +524,33 @@ seccion('El Excel sale de las filas seleccionadas en la hoja');
   ok(error(() => filasSeleccionadas_()).indexOf('hoja de clase') !== -1,
     'desde una hoja que no es de clase, avisa dónde hay que pararse');
 
-  const hoja = abrirZip(armarXlsx_('Batch input', [['CL', 'TCD2'], ['CL', 'TCP1']], 3))
-    .filter(p => p.nombre === 'xl/worksheets/sheet1.xml')[0].texto;
-  ok(hoja.indexOf('<row r="3">') !== -1, 'la primera fila escrita es la 3');
-  ok(hoja.indexOf('<row r="4">') !== -1, 'la segunda es la 4');
-  ok(hoja.indexOf('<row r="1">') === -1 && hoja.indexOf('<row r="2">') === -1,
+  // El xlsx lo genera Google, no este codigo: se copian las filas a una hoja
+  // temporal y se pide su exportacion a Excel.
+  const exportado = () => JSON.parse(
+    exportarComoExcel_(filasSeleccionadas_().filas, 'prueba').getDataAsString());
+
+  SS.__seleccionar('PT', [[a.fila, 1], [c.fila, 1]]);
+  const x = exportado();
+  ok(x.hoja === 'Batch input', 'la hoja temporal se llama como el batch input');
+  ok(x.datos.length === 4 && !x.datos[0].length && !x.datos[1].length,
     'la 1 y la 2 quedan en blanco');
-  ok(hoja.indexOf('r="A3"') !== -1 && hoja.indexOf('r="B3"') !== -1, 'las celdas van A3, B3…');
+  ok(x.datos[2][0] === 'CL' && x.datos[3][0] === 'CL', 'y los datos empiezan en la fila 3');
+  ok(x.datos[2][22] === '3100' && x.datos[3][22] === '3500', 'en el orden de la hoja');
+  ok(x.formatos['3,1'] === '@' && x.formatos['3,9'] === '@',
+    'todo entra como texto, que es lo que salva los ceros a la izquierda');
+  ok(x.datos[2][8] === '037', 'y en efecto el 037 llega con su cero');
 
-  ok(columnaXlsx_(1) === 'A' && columnaXlsx_(26) === 'Z' && columnaXlsx_(28) === 'AB',
-    'las columnas llegan hasta AB, que es la última del batch input');
-  ok(escaparXml_('Cep. 2(C) & <Radiata>').indexOf('&amp;') !== -1, 'el XML va escapado');
+  ok(SpreadsheetApp.__temporales().every(t => t.enPapelera),
+    'la hoja temporal se borra despues de exportar');
 
-  // Excel es mas estricto que los lectores de scripting: pide estilos,
-  // propiedades y la dimension declarada, o dice que el formato no es valido.
-  const partes = abrirZip(armarXlsx_('X', [['a']], 3)).map(p => p.nombre);
-  ok(partes.slice().sort().join(' ') ===
-     '[Content_Types].xml _rels/.rels docProps/app.xml docProps/core.xml ' +
-     'xl/_rels/workbook.xml.rels xl/styles.xml xl/workbook.xml xl/worksheets/sheet1.xml',
-     'el xlsx lleva las piezas que Excel espera');
-  ok(partes[0] === '[Content_Types].xml', 'y [Content_Types].xml va primero en el paquete');
-
-  const piezas = abrirZip(armarXlsx_('X', [['a', 'b']], 3));
-  const uno = p => piezas.filter(x => x.nombre === p)[0].texto;
-  ok(uno('xl/worksheets/sheet1.xml').indexOf('<dimension ref="A3:B3"/>') !== -1,
-    'la hoja declara su dimensión');
-  ok(uno('xl/worksheets/sheet1.xml').indexOf('<dimension') <
-     uno('xl/worksheets/sheet1.xml').indexOf('<sheetData>'),
-    'y en el orden que exige el esquema: dimension antes que sheetData');
-  ok(uno('xl/styles.xml').indexOf('patternType="gray125"') !== -1,
-    'los estilos traen los dos rellenos que Excel da por sentados');
-  ok(/<dcterms:created[^>]*>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z</.test(uno('docProps/core.xml')),
-    'y las propiedades llevan la fecha en formato W3CDTF');
-
-  const tipos = uno('[Content_Types].xml');
-  ok(['/xl/workbook.xml', '/xl/worksheets/sheet1.xml', '/xl/styles.xml',
-      '/docProps/core.xml', '/docProps/app.xml']
-      .every(n => tipos.indexOf('PartName="' + n + '"') !== -1),
-    'cada pieza declara su content-type');
-}
-
-// El zip se arma a mano, así que las pruebas lo abren como lo abriría Excel:
-// por el directorio central, comprobando cada CRC.
-seccion('El zip que se entrega');
-{
-  const piezas = abrirZip(armarXlsx_('Batch input', [['CL', 'TCD2']], 3));
-  ok(piezas.length === 8, 'el directorio central declara las ocho piezas');
-  ok(piezas.every(p => crcDe(p.bytes) === p.crc), 'y el CRC de cada una cuadra');
-  ok(piezas[0].nombre === '[Content_Types].xml', 'la primera es [Content_Types].xml');
-
-  const b = Buffer.from(armarXlsx_('X', [['a']], 3).getBytes());
-  ok(b.readUInt32LE(0) === 0x04034b50, 'el archivo empieza con la firma de un zip');
-  ok(b.readUInt16LE(8) === 0, 'las piezas van sin comprimir, que es lo que se declara');
-  ok(b.readUInt16LE(12) !== 0 || b.readUInt16LE(14) !== 0,
-    'y con una fecha válida: la fecha 0 no existe en DOS');
-
-  // Con acentos el largo en bytes y en caracteres no coinciden: si se
-  // confunden, el zip queda descuadrado desde la primera pieza.
-  const conAcentos = abrirZip(armarXlsx_('Año Ñ', [['descripción especial']], 3));
-  ok(conAcentos.every(p => crcDe(p.bytes) === p.crc), 'los acentos no descuadran el zip');
-  ok(conAcentos.filter(x => x.nombre === 'xl/workbook.xml')[0].texto.indexOf('Año Ñ') !== -1,
-    'y llegan enteros al archivo');
-
-  ok(typeof apiExcelLote === 'undefined',
-    'y la pantalla ya no tiene por dónde bajarlo: solo registra');
+  const antes = SpreadsheetApp.__temporales().length;
+  global.__FALLA_EXPORTACION = 500;
+  ok(error(() => exportado()).indexOf('Google respondio 500') !== -1,
+    'si Google no exporta, se avisa en vez de entregar un archivo roto');
+  delete global.__FALLA_EXPORTACION;
+  ok(SpreadsheetApp.__temporales().length === antes + 1 &&
+     SpreadsheetApp.__temporales().every(t => t.enPapelera),
+    'y aun asi la temporal no queda tirada en el Drive');
 }
 
 seccion('Guardar el lote completo');

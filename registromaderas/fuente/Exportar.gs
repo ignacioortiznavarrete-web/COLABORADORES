@@ -20,8 +20,14 @@ function descargarSeleccion() {
     return;
   }
 
-  var blob = armarXlsx_(EXPORTAR.HOJA, elegidas.filas, EXPORTAR.PRIMERA_FILA);
   var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm');
+  var blob;
+  try {
+    blob = exportarComoExcel_(elegidas.filas, EXPORTAR.NOMBRE + '-' + sello);
+  } catch (err) {
+    avisar_('Descargar Excel', 'No se pudo generar el archivo.\n\n' + err.message);
+    return;
+  }
 
   var bytes = blob.getBytes();
   var t = HtmlService.createTemplateFromFile('Descarga');
@@ -35,6 +41,50 @@ function descargarSeleccion() {
 
   SpreadsheetApp.getUi().showModalDialog(
     t.evaluate().setWidth(460).setHeight(340), 'Descargar Excel');
+}
+
+/**
+ * Genera el xlsx sin escribir una sola linea del formato.
+ *
+ * Se copian las filas a una hoja de calculo temporal y se pide la exportacion
+ * a Excel que Google ya sabe hacer —la misma de Archivo > Descargar > Microsoft
+ * Excel—, que es un archivo hecho por el mismo motor que Excel abre todos los
+ * dias. Armar el xlsx a mano funcionaba en los lectores de scripting y Excel lo
+ * rechazaba, y no habia forma de probarlo sin tener Excel delante.
+ *
+ * La temporal se borra siempre, salga bien o mal.
+ *
+ * @param {Array<Array<string>>} filas  Todas del mismo ancho.
+ * @param {string} nombre               Nombre de la hoja temporal.
+ * @return {Blob} el xlsx.
+ */
+function exportarComoExcel_(filas, nombre) {
+  var temporal = SpreadsheetApp.create(nombre);
+  try {
+    var hoja = temporal.getSheets()[0];
+    hoja.setName(EXPORTAR.HOJA);
+
+    // Todo como texto: es lo que mantiene los ceros a la izquierda (032,
+    // 019X100) y la fecha 21.07.2026 sin que Sheets los lea como numeros.
+    var rango = hoja.getRange(EXPORTAR.PRIMERA_FILA, 1, filas.length, filas[0].length);
+    rango.setNumberFormat('@');
+    rango.setValues(filas);
+    SpreadsheetApp.flush();
+
+    var respuesta = UrlFetchApp.fetch(
+      'https://docs.google.com/spreadsheets/d/' + temporal.getId() + '/export?format=xlsx',
+      {
+        headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        muteHttpExceptions: true
+      });
+    if (respuesta.getResponseCode() !== 200) {
+      throw new Error('Google respondio ' + respuesta.getResponseCode() +
+        ' al exportar la hoja temporal.');
+    }
+    return respuesta.getBlob();
+  } finally {
+    DriveApp.getFileById(temporal.getId()).setTrashed(true);
+  }
 }
 
 /**

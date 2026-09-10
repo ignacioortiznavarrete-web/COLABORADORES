@@ -16,6 +16,7 @@ class Sheet {
     return row;
   }
   getName() { return this.name; }
+  setName(n) { this.name = n; return this; }
   getMaxRows() { return MAX_ROWS; }
   getLastRow() {
     let last = 0;
@@ -106,8 +107,14 @@ class Sheet {
         return finder;
       }
     });
-    // El formato se guarda solo para poder revisarlo en las pruebas.
-    rango.setNumberFormat = fmt => { sheet.formatos[r + ',' + c] = fmt; return rango; };
+    // El formato se guarda solo para poder revisarlo en las pruebas. Como el
+    // de verdad, setNumberFormat pinta TODO el rango, no solo la esquina.
+    rango.setNumberFormat = fmt => {
+      for (let i = 0; i < nr; i++) {
+        for (let j = 0; j < nc; j++) sheet.formatos[(r + i) + ',' + (c + j)] = fmt;
+      }
+      return rango;
+    };
     rango.setNumberFormats = m => {
       m.forEach((f, i) => f.forEach((fmt, j) => { sheet.formatos[(r + i) + ',' + (c + j)] = fmt; }));
       return rango;
@@ -140,9 +147,63 @@ class Spreadsheet {
 const SS = new Spreadsheet();
 const cache = {};
 
+/*
+  Las hojas temporales de la exportacion. Se guardan para que las pruebas
+  puedan mirar que quedo escrito adentro y si se borro al final.
+*/
+const TEMPORALES = {};
+let SIGUIENTE_ID = 1;
+
+class Temporal extends Spreadsheet {
+  constructor(nombre) {
+    super();
+    this.nombre = nombre;
+    this.id = 'temp-' + (SIGUIENTE_ID++);
+    this.enPapelera = false;
+    this.insertSheet('Hoja 1');
+    TEMPORALES[this.id] = this;
+  }
+  getId() { return this.id; }
+  getName() { return this.nombre; }
+  getSheets() { return Object.keys(this.sheets).map(n => this.sheets[n]); }
+}
+
+global.DriveApp = {
+  getFileById: id => ({
+    setTrashed: v => { TEMPORALES[id].enPapelera = v; },
+    getName: () => TEMPORALES[id].nombre
+  })
+};
+global.ScriptApp = global.ScriptApp || {};
+
+/*
+  La exportacion de Google, de mentira pero con la misma forma: entrega el
+  contenido de la hoja temporal para que las pruebas revisen que se le mando.
+  __FALLA_EXPORTACION simula que Google responde con un error.
+*/
+global.UrlFetchApp = {
+  fetch: (url, opciones) => {
+    const id = (url.match(/spreadsheets\/d\/([^/]+)\//) || [])[1];
+    const libro = TEMPORALES[id];
+    if (!libro) throw new Error('la exportación pidió un libro que no existe: ' + id);
+    if (!(opciones.headers || {}).Authorization) throw new Error('exportación sin credencial');
+    const codigo = global.__FALLA_EXPORTACION || 200;
+    const hoja = libro.getSheets()[0];
+    return {
+      getResponseCode: () => codigo,
+      getBlob: () => Utilities.newBlob(
+        JSON.stringify({ hoja: hoja.getName(), datos: hoja.data, formatos: hoja.formatos }),
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'export.xlsx')
+    };
+  }
+};
+
 global.SpreadsheetApp = {
   openById: () => SS,
   getActiveSheet: () => SS.getActiveSheet(),
+  create: nombre => new Temporal(nombre),
+  __temporales: () => Object.keys(TEMPORALES).map(k => TEMPORALES[k]),
   flush: () => {},
   getUi: () => { throw new Error('sin UI en pruebas'); }
 };
@@ -270,7 +331,10 @@ global.Utilities = {
   }
 };
 global.Logger = { log: () => {} };
-global.ScriptApp = { getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }) };
+global.ScriptApp = {
+  getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }),
+  getOAuthToken: () => 'token-de-prueba'
+};
 global.HtmlService = {
   createTemplateFromFile: () => ({ evaluate: () => ({ setTitle: () => ({ addMetaTag: () => ({}) }) }) }),
   createTemplate: () => ({ evaluate: () => ({ setTitle: () => ({ addMetaTag: () => ({}) }) }) }),

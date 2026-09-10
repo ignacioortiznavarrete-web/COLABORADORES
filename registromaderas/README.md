@@ -168,6 +168,14 @@ Sale un archivo `batch-input-maderas-pt-20260910-1630.xlsx` con los datos
 **desde la fila 3** —la 1 y la 2 en blanco— y las columnas **A hasta AB**, en el
 mismo orden que la hoja.
 
+**El archivo lo genera Google, no este código.** Las filas se copian a una hoja
+de cálculo temporal y se pide su exportación a Excel: la misma de *Archivo ›
+Descargar › Microsoft Excel*. La temporal se borra enseguida, salga bien o mal.
+Es un rodeo aparente, pero un xlsx escrito a mano abre en los lectores de
+scripting y Excel lo rechaza con *"el formato o la extensión no son válidos"*, y
+no hay forma de comprobarlo sin tener Excel delante. Así lo arma el mismo motor
+que Excel abre todos los días.
+
 Las filas se copian **tal como están escritas**, sin recalcular nada: lo que ves
 en la hoja es exactamente lo que llega al archivo. Por eso `Descripcion Especial
 EN/ES` (AA y AB), que el formulario no toca y se escriben a mano, también viajan.
@@ -214,13 +222,13 @@ y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son diez archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son nueve archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los diez archivos
+### 2. Crea los nueve archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -231,7 +239,6 @@ carpeta:
 |---|---|
 | `Config.gs` | `fuente/Config.gs` |
 | `Registro.gs` | `fuente/Registro.gs` |
-| `Xlsx.gs` | `fuente/Xlsx.gs` |
 | `Lote.gs` | `fuente/Lote.gs` |
 | `Exportar.gs` | `fuente/Exportar.gs` |
 | `Setup.gs` | `fuente/Setup.gs` |
@@ -319,6 +326,17 @@ mismos colores del resto, en `Estilos.html`.
 iframe de los diálogos de Apps Script no siempre lo permite, y un archivo que a
 veces sale y a veces no es peor que uno que siempre pide un clic.
 
+**El archivo no viaja en el `href`.** La impresión de plantilla escapa según el
+contexto, y en un `href` eso incluye sanear la URL: un `data:` con un xlsx
+adentro es justo lo que esa defensa bloquea, y el enlace queda apuntando a nada
+mientras el nombre del archivo sigue saliendo bien. El base64 va en un atributo
+común, el navegador arma un Blob y de ahí sale el enlace; el diálogo compara los
+bytes que recibió con los que dijo el servidor antes de ofrecerlos.
+
+**La exportación pide permiso de Drive.** Crear y borrar la hoja temporal, y
+pedirle a Google el xlsx, necesitan permisos que la primera versión no pedía.
+Google los va a pedir de nuevo la primera vez que uses el menú.
+
 ## Quién puede entrar
 
 Por defecto entra cualquiera con el enlace (dentro del dominio). Para limitarlo,
@@ -343,8 +361,7 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
 | `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. |
 | `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado y guardado en bloque. |
-| `fuente/Exportar.gs` | El Excel desde el menú, con lo seleccionado en la hoja. |
-| `fuente/Xlsx.gs` | Arma el .xlsx a mano, sin librerías: un zip con cinco XML. |
+| `fuente/Exportar.gs` | El Excel desde el menú: hoja temporal, exportación de Google y a la papelera. |
 | `fuente/Setup.gs` | Revisa las hojas y sus columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |
 | `fuente/Estilos.html` | El sistema visual. |
