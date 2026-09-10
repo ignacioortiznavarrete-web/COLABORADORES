@@ -230,9 +230,16 @@ global.Utilities = {
     __blob: true,
     name: nombre,
     type: tipo,
-    bytes: Buffer.from(String(contenido), 'utf8'),
+    // Como el de verdad: acepta texto o una lista de bytes con signo.
+    bytes: Array.isArray(contenido)
+      ? Buffer.from(contenido.map(b => b < 0 ? b + 256 : b))
+      : Buffer.from(String(contenido), 'utf8'),
     getName: function () { return this.name; },
-    getBytes: function () { return this.bytes; },
+    // Como el de verdad: una lista de bytes CON SIGNO, no un Buffer. La
+    // diferencia importa: sobre un Buffer, concat no expande.
+    getBytes: function () {
+      return Array.from(this.bytes).map(b => (b > 127 ? b - 256 : b));
+    },
     getDataAsString: function () { return this.bytes.toString('utf8'); }
   }),
   zip: partes => {

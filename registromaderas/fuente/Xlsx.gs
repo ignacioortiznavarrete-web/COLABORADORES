@@ -139,18 +139,141 @@ function armarXlsx_(nombreHoja, filas, primeraFila) {
     '</Types>';
 
   // [Content_Types].xml va primero: el paquete OPC se lee en orden.
-  var partes = [
-    Utilities.newBlob(tipos, 'application/xml', '[Content_Types].xml'),
-    Utilities.newBlob(relRaiz, 'application/xml', '_rels/.rels'),
-    Utilities.newBlob(propiedades, 'application/xml', 'docProps/core.xml'),
-    Utilities.newBlob(aplicacion, 'application/xml', 'docProps/app.xml'),
-    Utilities.newBlob(libro, 'application/xml', 'xl/workbook.xml'),
-    Utilities.newBlob(relLibro, 'application/xml', 'xl/_rels/workbook.xml.rels'),
-    Utilities.newBlob(estilos, 'application/xml', 'xl/styles.xml'),
-    Utilities.newBlob(hoja, 'application/xml', 'xl/worksheets/sheet1.xml')
-  ];
+  return armarZip_([
+    { nombre: '[Content_Types].xml', texto: tipos },
+    { nombre: '_rels/.rels', texto: relRaiz },
+    { nombre: 'docProps/core.xml', texto: propiedades },
+    { nombre: 'docProps/app.xml', texto: aplicacion },
+    { nombre: 'xl/workbook.xml', texto: libro },
+    { nombre: 'xl/_rels/workbook.xml.rels', texto: relLibro },
+    { nombre: 'xl/styles.xml', texto: estilos },
+    { nombre: 'xl/worksheets/sheet1.xml', texto: hoja }
+  ]);
+}
 
-  return Utilities.zip(partes);
+/* ------------------------------------------------------------------- el zip */
+
+/*
+  El zip se arma a mano en vez de con Utilities.zip.
+  No es por gusto: es la unica pieza del archivo que no se puede revisar sin
+  ejecutar Apps Script, y cuando Excel dice "el formato no es valido" no hay
+  como saber si el problema es el XML o el empaquetado. Armandolo aca, los
+  bytes que recibe Excel son exactamente los que revisan las pruebas.
+
+  Va sin comprimir (metodo 0, "stored"): deflate no viene en el entorno y
+  escribirlo a mano seria mucho codigo para ahorrar unos kilobytes. El
+  archivo pesa mas, pero un batch input son unas pocas decenas de filas.
+*/
+
+var CRC_TABLA_ = null;
+
+function crcTabla_() {
+  if (CRC_TABLA_) return CRC_TABLA_;
+  var t = [];
+  for (var n = 0; n < 256; n++) {
+    var c = n;
+    for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  CRC_TABLA_ = t;
+  return t;
+}
+
+function crc32_(bytes) {
+  var t = crcTabla_();
+  var c = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) c = t[(c ^ (bytes[i] & 0xFF)) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+/** Apps Script maneja los bytes con signo: 200 se escribe como -56. */
+function conSigno_(b) { return (b & 0xFF) > 127 ? (b & 0xFF) - 256 : (b & 0xFF); }
+
+function u16_(salida, v) {
+  salida.push(conSigno_(v), conSigno_(v >>> 8));
+}
+
+function u32_(salida, v) {
+  salida.push(conSigno_(v), conSigno_(v >>> 8), conSigno_(v >>> 16), conSigno_(v >>> 24));
+}
+
+function bytesUtf8_(texto) {
+  return Utilities.newBlob(texto, 'text/plain').getBytes();
+}
+
+/** Agrega una tira de bytes al final, sin depender de que sea un array. */
+function pegar_(salida, bytes) {
+  for (var i = 0; i < bytes.length; i++) salida.push(bytes[i]);
+}
+
+/**
+ * @param {Array<{nombre: string, texto: string}>} partes
+ * @return {Blob} el zip, en el orden en que vienen las partes.
+ */
+function armarZip_(partes) {
+  var HORA = 0;        // 00:00
+  var FECHA = 0x0021;  // 1980-01-01; la fecha 0 no es valida en DOS
+  var salida = [];
+  var directorio = [];
+  var desplazamientos = [];
+
+  partes.forEach(function (parte) {
+    var nombre = bytesUtf8_(parte.nombre);
+    var datos = bytesUtf8_(parte.texto);
+    var crc = crc32_(datos);
+    desplazamientos.push(salida.length);
+
+    u32_(salida, 0x04034b50);   // firma de cabecera local
+    u16_(salida, 20);           // version necesaria
+    u16_(salida, 0);            // sin banderas
+    u16_(salida, 0);            // metodo 0: sin comprimir
+    u16_(salida, HORA);
+    u16_(salida, FECHA);
+    u32_(salida, crc);
+    u32_(salida, datos.length);  // comprimido
+    u32_(salida, datos.length);  // sin comprimir
+    u16_(salida, nombre.length);
+    u16_(salida, 0);             // sin campo extra
+    pegar_(salida, nombre);
+    pegar_(salida, datos);
+
+    directorio.push({ nombre: nombre, crc: crc, largo: datos.length });
+  });
+
+  var inicioDirectorio = salida.length;
+  directorio.forEach(function (e, i) {
+    u32_(salida, 0x02014b50);   // firma de entrada del directorio central
+    u16_(salida, 20);           // version con la que se creo
+    u16_(salida, 20);           // version necesaria
+    u16_(salida, 0);
+    u16_(salida, 0);
+    u16_(salida, HORA);
+    u16_(salida, FECHA);
+    u32_(salida, e.crc);
+    u32_(salida, e.largo);
+    u32_(salida, e.largo);
+    u16_(salida, e.nombre.length);
+    u16_(salida, 0);            // extra
+    u16_(salida, 0);            // comentario
+    u16_(salida, 0);            // disco
+    u16_(salida, 0);            // atributos internos
+    u32_(salida, 0);            // atributos externos
+    u32_(salida, desplazamientos[i]);
+    pegar_(salida, e.nombre);
+  });
+
+  var largoDirectorio = salida.length - inicioDirectorio;
+  u32_(salida, 0x06054b50);     // fin del directorio central
+  u16_(salida, 0);
+  u16_(salida, 0);
+  u16_(salida, directorio.length);
+  u16_(salida, directorio.length);
+  u32_(salida, largoDirectorio);
+  u32_(salida, inicioDirectorio);
+  u16_(salida, 0);              // sin comentario
+
+  return Utilities.newBlob(salida,
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'batch-input.xlsx');
 }
 
 /** Fecha en el formato que piden las propiedades del paquete. */
