@@ -202,6 +202,17 @@ function motivoSinEtapa_(fila, etapaId) {
   return 'No aplica.';
 }
 
+/** Qué etapas pide al menos una fila del lote. La pantalla muestra solo esas. */
+function etapasDelLote_(filas) {
+  var usa = {};
+  ETAPAS.forEach(function (etapa) {
+    usa[etapa.id] = filas.some(function (f) {
+      return f.etapas && f.etapas[etapa.id];
+    });
+  });
+  return usa;
+}
+
 /** Si una etapa tiene una sola ruta posible, se pone sola. */
 function proponerRutas_(fila) {
   if (!fila.etapas) return fila;
@@ -248,6 +259,16 @@ function validarFila_(fila, existe) {
       fila.problemas.push('La ruta ' + ruta + ' es de ' + familia + ', no de ' + etapa.titulo + '.');
       return;
     }
+    // Bajando por el proceso la madera solo se achica: una etapa puede ir
+    // sobredimensionada, nunca por debajo del producto que sale de ella.
+    var escuadria = escuadriaDeRuta_(ruta);
+    if (Number(escuadria.substring(0, 3)) < Number(fila.espesor) ||
+        Number(escuadria.substring(4)) < Number(fila.ancho)) {
+      fila.problemas.push('La ruta ' + ruta + ' es de ' + escuadria + ', más chica que el ' +
+        'producto (' + fila.espesor + 'X' + fila.ancho + ').');
+      return;
+    }
+
     if (!existe(ruta) && exigeEnBD) {
       fila.problemas.push('La ruta ' + ruta + ' no existe en ' + CFG.HOJA_BD +
         ', y en ' + fila.clase + ' tiene que existir.');
@@ -346,6 +367,7 @@ function apiLote(entrada) {
   return {
     ok: true,
     filas: filas,
+    etapasUsadas: etapasDelLote_(filas),
     listas: filas.filter(function (f) { return f.ok; }).length,
     conProblemas: filas.filter(function (f) { return !f.ok; }).length
   };
@@ -363,6 +385,7 @@ function apiRevisarLote(filas) {
   return {
     ok: true,
     filas: salida,
+    etapasUsadas: etapasDelLote_(salida),
     listas: salida.filter(function (f) { return f.ok; }).length,
     conProblemas: salida.filter(function (f) { return !f.ok; }).length
   };

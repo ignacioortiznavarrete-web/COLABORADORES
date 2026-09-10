@@ -99,22 +99,27 @@ function armarCodigo_(agrupacion, espesor, ancho, largo) {
 /**
  * Qué etapas del proceso tiene el producto, leídas del propio prefijo:
  *
- *   carácter 4 = H  -> es Trading, madera comprada a terceros: no se fabrica
- *                      acá, así que no lleva hoja de ruta en ninguna etapa;
- *   carácter 1 = C  -> pasa por cepillado;
+ *   carácter 1 = C  -> es cepillado: se procesó acá, así que lleva las TRES
+ *                      hojas de ruta, aunque la madera venga de terceros;
+ *   carácter 4 = H  -> si no es cepillado, es madera comprada hecha a
+ *                      terceros y no lleva ninguna ruta;
  *   carácter 2 = V  -> es verde, no pasa por secado.
  *
- * Fuera de Trading, el aserradero va siempre.
+ * En el resto de los casos el aserradero va siempre.
  */
 function etapasAplicables_(agrupacion) {
   var p = prefijo_(agrupacion);
+
+  if (p.charAt(0) === 'C') {
+    return { aserradero: true, secado: true, cepillado: true };
+  }
   if (p.charAt(3) === TRADING.ESPECIE) {
     return { aserradero: false, secado: false, cepillado: false };
   }
   return {
     aserradero: true,
     secado: p.charAt(1) !== 'V',
-    cepillado: p.charAt(0) === 'C'
+    cepillado: false
   };
 }
 
@@ -331,6 +336,15 @@ function validar_(datos) {
     var familia = familiaDeRuta_(ruta);
     if (familia && familia !== etapa.id) {
       throw new Error('La ruta ' + ruta + ' es de ' + familia + ', no de ' + etapa.titulo + '.');
+    }
+
+    // Bajando por el proceso la madera solo se achica: una etapa puede ir
+    // sobredimensionada, nunca por debajo del producto que sale de ella.
+    if (Number(escuadria.substring(0, 3)) < Number(espesor) ||
+        Number(escuadria.substring(4)) < Number(ancho)) {
+      throw new Error('La ruta ' + ruta + ' de ' + etapa.titulo + ' es de ' + escuadria +
+        ', más chica que el producto (' + espesor + 'X' + ancho + '). Una etapa puede ir ' +
+        'sobredimensionada, nunca por debajo.');
     }
 
     desglose[etapa.id] = {

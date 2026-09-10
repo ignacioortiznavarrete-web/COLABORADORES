@@ -148,9 +148,9 @@ seccion('Qué etapas tiene cada producto, leídas del prefijo');
 {
   const etapas = c => etapasAplicables_(c);
   ok(!etapas('RVMH').aserradero && !etapas('RVMH').secado && !etapas('RVMH').cepillado,
-    'RVMH lleva H: es Trading, se compra hecha y no lleva ninguna hoja de ruta');
-  ok(!etapas('C4JH').aserradero && !etapas('C4JH').cepillado,
-    'C4JH también: la H manda por encima de todo lo demás');
+    'RVMH lleva H y no es cepillado: es Trading, se compra hecha y no lleva ruta');
+  ok(etapas('C4JH').aserradero && etapas('C4JH').secado && etapas('C4JH').cepillado,
+    'C4JH empieza con C: se cepilló acá, así que pide las tres aunque lleve H');
   ok(etapas('RVM ').aserradero && !etapas('RVM ').secado && !etapas('RVM ').cepillado,
     'RVM es verde y rústico: solo aserradero');
   ok(etapas('RSFR').aserradero && etapas('RSFR').secado && !etapas('RSFR').cepillado,
@@ -270,8 +270,8 @@ seccion('Trading elige centro, Planta no');
     origen: 'Planta', centro: 'TCD2', agrupacion: 'RSFR',
     espesor: '37', ancho: '130', largo: '3200',
     desglose: {
-      aserradero: { ruta: 'RVFD032X180' },
-      secado: { ruta: 'RSFD032X180' }
+      aserradero: { ruta: 'RVFD037X130' },
+      secado: { ruta: 'RSFD037X130' }
     }
   }));
   ok(celda('PT', r.fila, 2) === 'TCP1', 'Planta entra como TCP1 aunque pidan otro centro');
@@ -428,6 +428,25 @@ seccion('Las columnas van por línea');
     'con dos rutas posibles no elige ninguna, y la tabla ofrece las dos');
 }
 
+seccion('Qué columnas de ruta pide el lote');
+{
+  const soloTrading = apiLote({ codigos: 'RVMH032X180X3960' });
+  ok(!soloTrading.etapasUsadas.aserradero && !soloTrading.etapasUsadas.cepillado,
+    'un lote de puro Trading no pide ninguna columna');
+
+  const cepillado = apiLote({ codigos: 'C4JR019X100X2440' });
+  ok(cepillado.etapasUsadas.aserradero && cepillado.etapasUsadas.secado &&
+     cepillado.etapasUsadas.cepillado, 'uno con un cepillado pide las tres');
+
+  const rustico = apiLote({ codigos: 'RSJR032X180X3200' });
+  ok(rustico.etapasUsadas.aserradero && rustico.etapasUsadas.secado &&
+     !rustico.etapasUsadas.cepillado, 'y uno rústico y seco pide dos');
+
+  const mezcla = apiLote({ codigos: 'RVMH032X180X3960\nRSJR032X180X3200' });
+  ok(mezcla.etapasUsadas.aserradero && !mezcla.etapasUsadas.cepillado,
+    'con líneas mezcladas se piden las columnas que necesite alguna');
+}
+
 seccion('Revisar el lote después de completar las rutas');
 {
   const lote = apiLote('RSJR032X180X3200');
@@ -440,6 +459,29 @@ seccion('Revisar el lote después de completar las rutas');
   lote.filas[0].rutas.aserradero = 'RSFD032X180';
   ok(apiRevisarLote(lote.filas).filas[0].problemas[0].indexOf('es de secado') !== -1,
     'una ruta de secado en el aserradero se marca');
+}
+
+// En el batch input de verdad la escuadría solo baja: RVN 033X250 -> RSN 032X240 ->
+// producto 032X240. Nunca al revés: de una tabla de 19 mm no sale una de 32.
+seccion('Una ruta no puede ser más chica que el producto');
+{
+  const lote = apiLote('RSJR032X180X3200');
+
+  lote.filas[0].rutas.aserradero = 'RVM 019X100';
+  ok(apiRevisarLote(lote.filas).filas[0].problemas[0].indexOf('más chica que el producto') !== -1,
+    'una escuadría por debajo del producto se rechaza');
+
+  lote.filas[0].rutas.aserradero = 'RVM 033X250';
+  ok(apiRevisarLote(lote.filas).filas[0].ok, 'y una sobredimensionada pasa sin problema');
+
+  lote.filas[0].rutas.aserradero = 'RVM 032X180';
+  ok(apiRevisarLote(lote.filas).filas[0].ok, 'igual que una exacta');
+
+  // El guardado usa el mismo criterio, no solo la revisión.
+  ok(error(() => guardarUna(con({ desglose: {
+    aserradero: { ruta: 'RVF 019X100' }, secado: { ruta: 'RSF 037X130' }
+  } }))).indexOf('más chica que el producto') !== -1,
+    'y al guardar tampoco se cuela');
 }
 
 seccion('El Excel del batch input');

@@ -41,8 +41,10 @@ Nada de esto se pregunta:
 
 | En el código | Se deduce |
 |---|---|
-| Especie `H` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2**, y **sin hoja de ruta** |
+| Especie `H` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2** |
 | Cualquier otra especie | **Planta**, centro **TCP1** |
+| Empieza en `C` | Es cepillado: pide **las tres** hojas de ruta, sea de Trading o no |
+| Especie `H` y **no** empieza en `C` | Se compra hecha: **sin ninguna** hoja de ruta |
 | Lleva largo (16 caracteres) | Producto terminado: **PT** |
 | Tres letras y sin largo | Producto de proceso: **PP** |
 | Tres letras, sin largo y empieza en `C` | Cepillado en proceso: **PCP** |
@@ -58,10 +60,11 @@ Todo lo que el formulario decide solo sale de tus propias hojas:
 | Decisión | De dónde sale |
 |---|---|
 | Si el material es de **Trading** | Carácter 4 = `H`, Radiata Terceros: se compra a terceros |
-| Si lleva **hoja de ruta** | Trading no lleva ninguna: se compra hecha |
-| Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` |
+| Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C`, y entonces van las tres |
+| Si lleva **hoja de ruta** | Trading no lleva ninguna —salvo que empiece en `C`— porque se compra hecha |
 | Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
 | Etapa de **aserradero** | Va siempre, salvo en Trading |
+| Si una ruta **sirve** para el producto | Su escuadría no puede ser más chica que la del producto |
 | Si el prefijo vale | Si ya hay materiales de esa familia en `BD_Maderas`; si no, basta con que la nomenclatura explique sus cuatro caracteres |
 | Qué hojas de ruta se ofrecen | Las que `BD_Maderas` tiene para esa escuadría |
 | A qué etapa pertenece una ruta | Sus dos primeros caracteres: `RV` aserradero, `RS` secado, `C` cepillado |
@@ -87,11 +90,19 @@ La exigencia depende de la clase: en **PP** y **PCP** la ruta tiene que existir
 en `BD_Maderas`; en **PT** se puede indicar cualquiera que se recomiende, y el
 formulario solo avisa si todavía no está.
 
+**Y ninguna ruta puede ser más chica que el producto.** Bajando por el proceso
+la madera solo se achica, así que una etapa puede ir sobredimensionada pero
+nunca por debajo. En tu propio batch input se ve la escuadría bajando escalón a
+escalón: `RVN 033X250` → `RSN 032X240` → producto `032X240X3200`. Una ruta de
+`019X100` para un producto de `032X180` se rechaza: de una tabla de 19 mm no
+sale una de 32.
+
 Ejemplos, con los mismos códigos de tu archivo:
 
-- `RVMH` → **R**ústico **V**erde: solo aserradero. Secado y cepillado quedan en blanco.
+- `RVMH` → especie `H` y no empieza en `C`: es de Trading, **ninguna** ruta.
+- `RVM ` → **R**ústico **V**erde en proceso: solo aserradero; secado y cepillado quedan en blanco.
 - `RSFR` → Rústico **S**eco: aserradero y secado.
-- `C4JH` → **C**epillado: las tres etapas.
+- `C4JH` → **C**epillado: las tres etapas, aunque lleve `H`.
 
 Qué habilita cada combinación, hoy:
 
@@ -104,17 +115,20 @@ Qué habilita cada combinación, hoy:
 
 ## La carga masiva
 
-La pantalla son cinco columnas de texto, y **cada línea se lee junto con la
-misma línea de las demás**:
+Primero se pegan **solo los códigos**. Al pulsar *Analizar* aparecen las
+columnas de ruta que hagan falta —y nada más: un lote de puro Trading no muestra
+ninguna, uno de cepillados muestra las tres—. Desde ahí son cinco columnas de
+texto, y **cada línea se lee junto con la misma línea de las demás**:
 
 | Códigos | Aserradero | Secado | Cepillado | PAK |
 |---|---|---|---|---|
-| `RVMH032X180X3960` | `RVM 032X180` | | | `248` |
+| `RSJR032X180X3200` | `RVM 032X180` | `RSFD032X180` | | `248` |
 | `C4JH019X100X2440` | `RVF 019X100` | `RSF 019X100` | `CSF 019X100` | |
 
 Se pega una columna entera de una vez. Las cinco ruedan juntas, para que las
 líneas no dejen de calzar. Una línea en blanco no genera fila, pero **no
-renumera**: la fila 5 sigue siendo la línea 5.
+renumera**: la fila 5 sigue siendo la línea 5. Si cambias el código de una
+línea, su ruta se borra: la de otro producto no le sirve.
 
 Si los códigos vienen de Excel con más columnas pegadas en la misma línea,
 también se aprovechan: lo que tenga forma de ruta va a su etapa y un número

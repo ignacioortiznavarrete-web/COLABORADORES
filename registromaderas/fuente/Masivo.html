@@ -21,34 +21,34 @@
 
     <section class="pegar">
       <p class="pegar-nota" style="margin:0 0 14px">
-        Pega los códigos, uno por línea, y las rutas en la columna de su etapa.
-        Cada línea se lee junto con la misma línea de las demás columnas.
-        Del código salen la clase, el centro y las etapas: eso no se pregunta.
-        Los códigos con especie <b>H</b> son de Trading: se compran hechos y no llevan
-        hoja de ruta. La ruta va como tres letras, un espacio y la escuadría
-        (<b>RVM 019X020</b>); en producto terminado puede ser cualquiera, y en proceso
-        tiene que existir ya en la base.
+        Pega los códigos, uno por línea, y pulsa <b>Analizar</b>. Del código salen la clase,
+        el centro y las etapas, así que aparecen solo las columnas de ruta que hagan falta,
+        alineadas por línea con los códigos.
+        Los que empiezan con <b>C</b> son cepillados y piden las tres; los de especie <b>H</b>
+        que no son cepillados son de Trading y no piden ninguna.
+        La ruta va como tres letras, un espacio y la escuadría (<b>RVM 019X020</b>): en
+        producto terminado puede ser cualquiera, y en proceso tiene que existir ya en la base.
       </p>
 
       <div class="columnas" id="columnas">
         <label class="columna crece">
           <span class="tit">Códigos</span>
           <textarea id="colCodigos" rows="10" spellcheck="false"
-            placeholder="RVMH032X180X3960&#10;C4JH019X100X2440&#10;RVM 032X180"></textarea>
+            placeholder="RVMH032X180X3960&#10;C4JR019X100X2440&#10;RVM 032X180"></textarea>
         </label>
-        <label class="columna">
+        <label class="columna" id="cajaAserradero" hidden>
           <span class="tit">Aserradero</span>
           <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
         </label>
-        <label class="columna">
+        <label class="columna" id="cajaSecado" hidden>
           <span class="tit">Secado</span>
           <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
         </label>
-        <label class="columna">
+        <label class="columna" id="cajaCepillado" hidden>
           <span class="tit">Cepillado</span>
           <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
         </label>
-        <label class="columna estrecha">
+        <label class="columna estrecha" id="cajaPiezas" hidden>
           <span class="tit">PAK</span>
           <textarea id="colPiezas" rows="10" spellcheck="false" placeholder="248"></textarea>
         </label>
@@ -71,9 +71,9 @@
               <th class="col-sel"><input type="checkbox" id="todas" title="Seleccionar las listas"></th>
               <th class="col-n">Línea</th>
               <th>Código</th>
-              <th>Aserradero</th>
-              <th>Secado</th>
-              <th>Cepillado</th>
+              <th id="thAserradero">Aserradero</th>
+              <th id="thSecado">Secado</th>
+              <th id="thCepillado">Cepillado</th>
               <th class="col-pak">PAK</th>
               <th>Estado</th>
             </tr>
@@ -103,6 +103,7 @@
   var COLUMNAS_ETAPA = ['aserradero', 'secado', 'cepillado'];
   var CAMPOS = { aserradero: 'colAserradero', secado: 'colSecado', cepillado: 'colCepillado' };
   var TIMER = null;
+  var ULTIMOS_CODIGOS = [];   // para saber en qué líneas cambió el código
 
   function $(id) { return document.getElementById(id); }
 
@@ -185,7 +186,28 @@
     });
   }
 
-  /** Que las cinco columnas rueden juntas: si no, las líneas dejan de calzar. */
+  var CAJAS = {
+    aserradero: 'cajaAserradero', secado: 'cajaSecado', cepillado: 'cajaCepillado'
+  };
+
+  /** Las columnas de ruta aparecen recién cuando se sabe qué pide cada código. */
+  function mostrarColumnas(usadas) {
+    var alguna = false;
+    COLUMNAS_ETAPA.forEach(function (etapa) {
+      var pide = !!(usadas && usadas[etapa]);
+      $(CAJAS[etapa]).hidden = !pide;
+      if (pide) alguna = true;
+    });
+    $('cajaPiezas').hidden = false;
+    return alguna;
+  }
+
+  function ocultarColumnas() {
+    COLUMNAS_ETAPA.forEach(function (etapa) { $(CAJAS[etapa]).hidden = true; });
+    $('cajaPiezas').hidden = true;
+  }
+
+  /** Que las columnas rueden juntas: si no, las líneas dejan de calzar. */
   function sincronizarScroll() {
     var cajas = ['colCodigos', 'colAserradero', 'colSecado', 'colCepillado', 'colPiezas']
       .map(function (id) { return $(id); });
@@ -202,11 +224,30 @@
 
   /* ------------------------------------------------------------- analizar */
 
+  /**
+   * Si en una línea cambió el código, sus rutas ya no son de ese material:
+   * se borran antes de analizar, en vez de arrastrarse a la tanda siguiente.
+   */
+  function soltarRutasDeLineasCambiadas() {
+    var ahora = lineasDe('colCodigos').map(function (t) { return t.trim().toUpperCase(); });
+    if (ULTIMOS_CODIGOS.length) {
+      COLUMNAS_ETAPA.forEach(function (etapa) {
+        var lineas = lineasDe(CAMPOS[etapa]);
+        for (var i = 0; i < lineas.length; i++) {
+          if (ULTIMOS_CODIGOS[i] !== undefined && ULTIMOS_CODIGOS[i] !== ahora[i]) lineas[i] = '';
+        }
+        $(CAMPOS[etapa]).value = lineas.join('\n');
+      });
+    }
+    ULTIMOS_CODIGOS = ahora;
+  }
+
   function analizar() {
     if (!$('colCodigos').value.trim()) {
       aviso($('pegarAviso'), 'alerta', '', 'Pega al menos un código.');
       return;
     }
+    soltarRutasDeLineasCambiadas();
     $('btnAnalizar').disabled = true;
     $('analizando').hidden = false;
     aviso($('pegarAviso'), '', '', '');
@@ -216,6 +257,7 @@
         $('btnAnalizar').disabled = false;
         $('analizando').hidden = true;
         FILAS = r.filas.map(function (f) { f.sel = f.ok; return f; });
+        mostrarColumnas(r.etapasUsadas);
         escribirColumnas();
         dibujarTabla();
       })
@@ -243,6 +285,7 @@
           f.sel = f.ok && (previo.sel || !previo.ok);
           return f;
         });
+        mostrarColumnas(r.etapasUsadas);
         dibujarTabla();
       })
       .withFailureHandler(function (err) {
@@ -401,6 +444,8 @@
     ['colCodigos', 'colAserradero', 'colSecado', 'colCepillado', 'colPiezas']
       .forEach(function (id) { $(id).value = ''; });
     FILAS = [];
+    ULTIMOS_CODIGOS = [];
+    ocultarColumnas();
     $('cajaTabla').hidden = true;
     $('barra').hidden = true;
     $('resultados').innerHTML = '';
