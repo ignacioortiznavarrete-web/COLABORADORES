@@ -2,7 +2,9 @@
   Ingreso masivo. Columnas paralelas: la línea 5 de los códigos va con la
   línea 5 de cada ruta y con la 5 del PAK.
 
-  El batch input no se muestra: se baja como Excel con las filas elegidas.
+  El batch input no se muestra ni se baja desde acá: esta pantalla solo
+  registra. El Excel se baja desde el menú del spreadsheet, con las filas
+  seleccionadas en la hoja de la clase.
 -->
 <?!= include('Estilos') ?>
 
@@ -90,9 +92,18 @@
   <div class="barra-dentro">
     <span id="barraTexto"></span>
     <span class="derecha"></span>
-    <button type="button" class="secundario" id="btnGuardarLote">Guardar en las hojas</button>
-    <button type="button" class="primario" id="btnExcel">Descargar Excel</button>
-    <span id="trabajando" hidden style="font-size:13px">Preparando…</span>
+    <span id="trabajando" hidden style="font-size:13px">Registrando…</span>
+    <button type="button" class="primario" id="btnGuardarLote">Registrar</button>
+  </div>
+</div>
+
+<div class="modal-fondo" id="modalFondo" hidden>
+  <div class="modal ok" id="modal" role="alertdialog" aria-modal="true" aria-labelledby="modalTitulo">
+    <div class="marca" id="modalMarca"></div>
+    <h2 id="modalTitulo"></h2>
+    <p id="modalTexto"></p>
+    <div class="codigos" id="modalCodigos" hidden></div>
+    <div class="pie"><button type="button" class="primario" id="modalCerrar">Entendido</button></div>
   </div>
 </div>
 
@@ -104,6 +115,9 @@
   var CAMPOS = { aserradero: 'colAserradero', secado: 'colSecado', cepillado: 'colCepillado' };
   var TIMER = null;
   var ULTIMOS_CODIGOS = [];   // para saber en qué líneas cambió el código
+  // Lo ya registrado en esta sesión, por código. Un código pedido dos veces son
+  // dos materiales nuevos en SAP, así que la fila se marca y sale de la selección.
+  var REGISTRADAS = {};
 
   function $(id) { return document.getElementById(id); }
 
@@ -117,6 +131,39 @@
     if (!titulo && !texto) { caja.innerHTML = ''; return; }
     caja.innerHTML = '<div class="aviso ' + tipo + '">' +
       (titulo ? '<b>' + esc(titulo) + '</b>' : '') + esc(texto || '') + '</div>';
+  }
+
+  /*
+    El modal de confirmación. Se abre solo al terminar de registrar, así que
+    devuelve el foco a lo que estaba: quien registra dos tandas seguidas no
+    tiene que volver a buscar el cursor.
+  */
+  var FOCO_PREVIO = null;
+
+  var MARCAS = {
+    ok: '<svg viewBox="0 0 36 36" aria-hidden="true"><path d="M9 19 L15.5 25.5 L27 12"/></svg>',
+    alerta: '!',
+    error: '\u00d7'
+  };
+
+  function modal(tipo, titulo, texto, lineas, malas) {
+    FOCO_PREVIO = document.activeElement;
+    $('modal').className = 'modal ' + tipo;
+    $('modalMarca').innerHTML = MARCAS[tipo] || MARCAS.ok;
+    $('modalTitulo').textContent = titulo;
+    $('modalTexto').textContent = texto || '';
+    var caja = $('modalCodigos');
+    caja.className = 'codigos' + (malas ? ' mala' : '');
+    caja.hidden = !(lineas && lineas.length);
+    caja.textContent = lineas && lineas.length ? lineas.join('\n') : '';
+    $('modalFondo').hidden = false;
+    $('modalCerrar').focus();
+  }
+
+  function cerrarModal() {
+    $('modalFondo').hidden = true;
+    if (FOCO_PREVIO && FOCO_PREVIO.focus) FOCO_PREVIO.focus();
+    FOCO_PREVIO = null;
   }
 
   /* ---------------------------------------------------------- carga inicial */
@@ -333,6 +380,10 @@
   }
 
   function dibujarTabla() {
+    FILAS.forEach(function (f) {
+      f.guardada = f.codigo ? (REGISTRADAS[f.codigo] || null) : null;
+      if (f.guardada) f.sel = false;
+    });
     $('cajaTabla').hidden = false;
     $('cuerpoLote').innerHTML = FILAS.map(function (f) {
       if (!f.codigo) {
@@ -340,17 +391,20 @@
           '<td class="mono">' + esc(f.entrada) + '</td>' +
           '<td colspan="5" class="problema">' + esc(f.problemas.join(' ')) + '</td></tr>';
       }
-      return '<tr class="' + (f.ok ? '' : 'pendiente') + '">' +
+      return '<tr class="' + (f.guardada ? 'guardada' : (f.ok ? '' : 'pendiente')) + '">' +
         '<td class="col-sel"><input type="checkbox" data-fila="' + f.n + '"' +
-        (f.sel ? ' checked' : '') + (f.ok ? '' : ' disabled') + '></td>' +
+        (f.sel ? ' checked' : '') + (f.ok && !f.guardada ? '' : ' disabled') + '></td>' +
         '<td class="col-n">' + f.n + '</td>' +
         '<td><span class="mono fuerte">' + esc(f.codigo) + '</span>' +
         '<small>' + esc(f.clase) + ' · ' + esc(f.agrupacionTexto || '') + '</small></td>' +
         celdaRuta(f, 'aserradero') + celdaRuta(f, 'secado') + celdaRuta(f, 'cepillado') +
         '<td class="col-pak mono">' + esc(f.piezas || '—') + '</td>' +
-        '<td class="estado">' + (f.ok
-          ? '<span class="ok">Lista</span>'
-          : '<span class="problema">' + esc(f.problemas.join(' ')) + '</span>') + '</td>' +
+        '<td class="estado">' + (f.guardada
+          ? '<span class="ok">Registrada en ' + esc(f.guardada.hoja) +
+            ' fila ' + esc(f.guardada.fila) + '</span>'
+          : f.ok
+            ? '<span class="ok">Lista</span>'
+            : '<span class="problema">' + esc(f.problemas.join(' ')) + '</span>') + '</td>' +
         '</tr>';
     }).join('');
     refrescar();
@@ -362,7 +416,7 @@
   }
 
   function seleccionadas() {
-    return FILAS.filter(function (f) { return f.sel && f.ok; });
+    return FILAS.filter(function (f) { return f.sel && f.ok && !f.guardada; });
   }
 
   function refrescar() {
@@ -381,32 +435,6 @@
 
   /* ------------------------------------------------------------- acciones */
 
-  function descargar() {
-    var sel = seleccionadas();
-    if (!sel.length) return;
-    trabajando(true);
-    google.script.run
-      .withSuccessHandler(function (r) {
-        trabajando(false);
-        var enlace = document.createElement('a');
-        enlace.href = 'data:application/vnd.openxmlformats-officedocument.' +
-          'spreadsheetml.sheet;base64,' + r.base64;
-        enlace.download = r.nombre;
-        document.body.appendChild(enlace);
-        enlace.click();
-        document.body.removeChild(enlace);
-        aviso($('resultados'), 'ok', 'Excel listo. ',
-          r.filas + (r.filas === 1 ? ' fila' : ' filas') + ' en ' + r.nombre +
-          ', desde la fila ' + r.primeraFila + '.');
-      })
-      .withFailureHandler(function (err) {
-        trabajando(false);
-        aviso($('resultados'), 'error', 'No se pudo generar el Excel. ',
-          err && err.message ? err.message : err);
-      })
-      .apiExcelLote(sel);
-  }
-
   function guardarLote() {
     var sel = seleccionadas();
     if (!sel.length) return;
@@ -414,26 +442,41 @@
     google.script.run
       .withSuccessHandler(function (r) {
         trabajando(false);
+        var buenas = r.resultados.filter(function (x) { return x.ok; });
         var fallidas = r.resultados.filter(function (x) { return !x.ok; });
-        aviso($('resultados'), fallidas.length ? 'alerta' : 'ok',
-          r.guardadas + (r.guardadas === 1 ? ' fila guardada. ' : ' filas guardadas. '),
-          fallidas.length
-            ? 'No entraron: ' + fallidas.map(function (x) {
-                return x.codigo + ' (' + x.mensaje + ')';
-              }).join(' · ')
-            : 'Quedaron en su hoja y en ' + CTX.hojaRegistro + '.');
+
+        if (!fallidas.length) {
+          modal('ok',
+            buenas.length === 1 ? 'Código registrado correctamente'
+                                : buenas.length + ' códigos registrados correctamente',
+            'Quedaron en su hoja y en ' + CTX.hojaRegistro +
+              '. El Excel del batch input se baja desde el menú del spreadsheet.',
+            buenas.map(function (x) { return x.codigo + '  \u2192  ' + x.hoja + ' fila ' + x.fila; }));
+        } else {
+          modal(buenas.length ? 'alerta' : 'error',
+            buenas.length
+              ? buenas.length + ' de ' + r.resultados.length + ' registrados'
+              : 'No se registró ninguno',
+            buenas.length
+              ? 'Estos no entraron; el resto sí quedó guardado.'
+              : 'Corrige lo que falta y vuelve a intentarlo.',
+            fallidas.map(function (x) { return x.codigo + '  \u2192  ' + x.mensaje; }), true);
+        }
+
+        buenas.forEach(function (x) {
+          REGISTRADAS[x.codigo] = { hoja: x.hoja, fila: x.fila };
+        });
+        dibujarTabla();
       })
       .withFailureHandler(function (err) {
         trabajando(false);
-        aviso($('resultados'), 'error', 'No se pudo guardar. ',
-          err && err.message ? err.message : err);
+        modal('error', 'No se pudo registrar', err && err.message ? err.message : String(err));
       })
       .apiGuardarLote(sel);
   }
 
   function trabajando(activo) {
     $('trabajando').hidden = !activo;
-    $('btnExcel').disabled = activo;
     $('btnGuardarLote').disabled = activo;
   }
 
@@ -445,6 +488,7 @@
       .forEach(function (id) { $(id).value = ''; });
     FILAS = [];
     ULTIMOS_CODIGOS = [];
+    REGISTRADAS = {};
     ocultarColumnas();
     $('cajaTabla').hidden = true;
     $('barra').hidden = true;
@@ -452,8 +496,14 @@
     aviso($('pegarAviso'), '', '', '');
     $('colCodigos').focus();
   });
-  $('btnExcel').addEventListener('click', descargar);
   $('btnGuardarLote').addEventListener('click', guardarLote);
+  $('modalCerrar').addEventListener('click', cerrarModal);
+  $('modalFondo').addEventListener('click', function (ev) {
+    if (ev.target === $('modalFondo')) cerrarModal();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && !$('modalFondo').hidden) cerrarModal();
+  });
 
   COLUMNAS_ETAPA.forEach(function (e) { $(CAMPOS[e]).addEventListener('input', alEditarRutas); });
   $('colPiezas').addEventListener('input', alEditarRutas);

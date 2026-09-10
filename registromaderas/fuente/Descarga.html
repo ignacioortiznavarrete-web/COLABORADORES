@@ -1,0 +1,67 @@
+<!--
+  Diálogo del menú. La descarga NO se dispara sola: el iframe de los diálogos
+  de Apps Script no siempre deja bajar sin un clic de verdad, y un archivo que
+  a veces sale y a veces no es peor que uno que siempre pide un clic.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bosque-600: #1f6b46;
+      --bosque-700: #185639;
+      --bosque-050: #f3f8f5;
+      --bosque-200: #cbe3d6;
+      --tinta: #1d2b24;
+      --tinta-suave: #5c6b64;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 22px;
+      font: 14px/1.55 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+      color: var(--tinta); text-align: center;
+    }
+    .marca {
+      width: 56px; height: 56px; margin: 4px auto 16px; border-radius: 50%;
+      background: var(--bosque-050); border: 3px solid var(--bosque-600);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .marca svg { width: 26px; height: 26px; fill: none; stroke: var(--bosque-600);
+      stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+    h2 { margin: 0 0 6px; font-size: 18px; }
+    p { margin: 0; color: var(--tinta-suave); }
+    .archivo {
+      margin: 14px 0 0; padding: 9px 12px; border-radius: 8px;
+      background: var(--bosque-050); border: 1px solid var(--bosque-200);
+      font: 12.5px/1.5 ui-monospace, Consolas, monospace; word-break: break-all;
+    }
+    a.boton {
+      display: inline-block; margin-top: 20px; padding: 11px 26px;
+      background: var(--bosque-600); color: #fff; text-decoration: none;
+      border-radius: 8px; font-weight: 600; font-size: 14.5px;
+      transition: background 140ms ease;
+    }
+    a.boton:hover { background: var(--bosque-700); }
+    a.boton:focus-visible { outline: 3px solid var(--bosque-200); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div class="marca">
+    <svg viewBox="0 0 26 26" aria-hidden="true"><path d="M13 3 V17 M7 12 L13 18 L19 12 M4 22 H22"/></svg>
+  </div>
+  <h2><?= filas ?> <?= filas == 1 ? 'fila' : 'filas' ?> de <?= hoja ?></h2>
+  <p>El batch input empieza en la fila <?= primeraFila ?>; la 1 y la 2 van en blanco.</p>
+  <div class="archivo"><?= nombre ?></div>
+  <a class="boton" id="bajar" href="<?= href ?>" download="<?= nombre ?>">Descargar</a>
+
+  <script>
+    // Cerrar el diálogo al bajar, para volver a la hoja sin un clic de más.
+    document.getElementById('bajar').addEventListener('click', function () {
+      setTimeout(function () { google.script.host.close(); }, 900);
+    });
+    document.getElementById('bajar').focus();
+  </script>
+</body>
+</html>

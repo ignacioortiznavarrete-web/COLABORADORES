@@ -440,7 +440,17 @@ function escribirEnBloques_(hoja, fila, valoresPorColumna) {
     while (j + 1 < columnas.length && columnas[j + 1] === columnas[j] + 1) j++;
     var bloque = [];
     for (var c = columnas[i]; c <= columnas[j]; c++) bloque.push(valoresPorColumna[c]);
-    hoja.getRange(fila, columnas[i], 1, bloque.length).setValues([bloque]);
+
+    // Casi todo el batch input va con ceros a la izquierda: 032, 019X100,
+    // 21.07.2026. En una celda con formato General, Sheets los lee como número
+    // y se los come. El formato se pone ANTES de escribir, porque después ya
+    // no hay ceros que recuperar.
+    var formatos = bloque.map(function (v) {
+      return (typeof v === 'string' && v !== '') ? '@' : 'General';
+    });
+    var rango = hoja.getRange(fila, columnas[i], 1, bloque.length);
+    rango.setNumberFormats([formatos]);
+    rango.setValues([bloque]);
     i = j + 1;
   }
 }

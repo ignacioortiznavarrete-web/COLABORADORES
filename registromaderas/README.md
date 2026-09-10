@@ -13,8 +13,9 @@ RVMH  +  032 X 180 X 3960   ->   RVMH032X180X3960
 prefijo  espesor ancho  largo
 ```
 
-El batch input no tiene pantalla: vive en el spreadsheet y se baja como Excel
-con las filas que elijas.
+La pantalla web solo **registra**. El batch input no tiene interfaz: vive en el
+spreadsheet, y se baja como Excel desde su menú con las filas que dejes
+seleccionadas en PT, PCP o PP.
 
 ---
 
@@ -140,15 +141,41 @@ sola y se escribe de vuelta en su columna. Cuando hay varias, la tabla dice
 cuántas hay por elegir. Cada fila dice si está lista o qué le falta, y se revisa
 sola mientras escribes.
 
-Con las filas seleccionadas, la barra de abajo ofrece dos cosas:
+Con las filas seleccionadas, la barra de abajo ofrece una sola cosa:
+**Registrar**. La fila queda en la hoja de su clase y en la bitácora
+`Registro`, y sale un aviso con el código y dónde quedó.
 
-- **Descargar Excel** — el batch input. Los datos entran **desde la fila 3**, con
-  la 1 y la 2 en blanco, y las columnas en el mismo orden que PT/PCP/PP.
-- **Guardar en las hojas** — la misma fila, en la hoja de su clase y en la
-  bitácora `Registro`.
+Lo ya registrado se marca en la tabla (*Registrada en PT fila 3*) y sale de la
+selección: pedir dos veces el mismo código son dos materiales nuevos en SAP.
+El marcado dura hasta que pulses *Limpiar*.
+
+El Excel **no se baja desde acá** — está en el menú del spreadsheet, más abajo.
 
 En la carga masiva el PAK es opcional: el batch input crea el maestro de
 material, no un pedido. Para exigirlo, `MEDIDAS.EXIGIR_PIEZAS = true`.
+
+## El Excel del batch input
+
+Se baja desde el spreadsheet, no desde la pantalla web:
+
+1. Abre la hoja de la clase (**PT**, **PCP** o **PP**).
+2. Selecciona las filas que quieras cargar. Valen las selecciones sueltas con
+   `Ctrl` + clic, y seleccionar la hoja entera también sirve: los rótulos de las
+   filas 1 y 2 y las filas vacías se descartan solas.
+3. **Registro Maderas › Descargar filas seleccionadas como Excel**.
+
+Sale un archivo `batch-input-maderas-pt-20260910-1630.xlsx` con los datos
+**desde la fila 3** —la 1 y la 2 en blanco— y las columnas **A hasta AB**, en el
+mismo orden que la hoja.
+
+Las filas se copian **tal como están escritas**, sin recalcular nada: lo que ves
+en la hoja es exactamente lo que llega al archivo. Por eso `Descripcion Especial
+EN/ES` (AA y AB), que el formulario no toca y se escriben a mano, también viajan.
+
+Como casi todo el batch input lleva ceros a la izquierda (`032`, `019X100`,
+`21.07.2026`), el formulario deja esas celdas con formato de **texto** al
+escribirlas. En formato General, Sheets leería `032` como el número 32 y el
+código llegaría mal a SAP.
 
 ## Lo que se completa solo
 
@@ -187,13 +214,13 @@ y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son siete archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son diez archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los siete archivos
+### 2. Crea los diez archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -206,16 +233,18 @@ carpeta:
 | `Registro.gs` | `fuente/Registro.gs` |
 | `Xlsx.gs` | `fuente/Xlsx.gs` |
 | `Lote.gs` | `fuente/Lote.gs` |
+| `Exportar.gs` | `fuente/Exportar.gs` |
 | `Setup.gs` | `fuente/Setup.gs` |
 | `WebApp.gs` | `fuente/WebApp.gs` |
 | `Estilos.html` | `fuente/Estilos.html` |
 | `Masivo.html` | `fuente/Masivo.html` |
+| `Descarga.html` | `fuente/Descarga.html` |
 
 Borra el `Código.gs` que viene por defecto con su `function myFunction() {}`.
 Guarda con `Ctrl+S`.
 
-Los nombres `Estilos` y `Masivo` tienen que quedar tal cual: el código los llama
-por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
+Los nombres `Estilos`, `Masivo` y `Descarga` tienen que quedar tal cual: el
+código los llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
 importa, porque en Apps Script todos comparten el mismo espacio.
 
 ### 3. Prepara las hojas
@@ -248,6 +277,9 @@ anotar una solicitud sin solicitante.
 Copia la URL y mándala. El menú **Registro Maderas › Ver enlace del formulario**
 también la muestra.
 
+El menú aparece al abrir el spreadsheet. Si no está, recarga la pestaña: `onOpen`
+corre en cada apertura.
+
 ---
 
 ## Decisiones que conviene revisar
@@ -278,6 +310,15 @@ entrega de forma confiable y no se puede escribir a mano.
 **La fecha va como texto.** `21.07.2026`, no como fecha de Sheets, para que el
 batch input salga tal cual.
 
+**El aviso de "registrado" está hecho a mano.** Podría ser SweetAlert desde un
+CDN, pero es la única señal de que la solicitud quedó guardada, y si el proxy de
+la empresa bloquea el CDN el usuario se queda sin saber. Está armado con los
+mismos colores del resto, en `Estilos.html`.
+
+**La descarga del menú pide un clic.** El diálogo no baja el archivo solo: el
+iframe de los diálogos de Apps Script no siempre lo permite, y un archivo que a
+veces sale y a veces no es peor que uno que siempre pide un clic.
+
 ## Quién puede entrar
 
 Por defecto entra cualquiera con el enlace (dentro del dominio). Para limitarlo,
@@ -301,12 +342,14 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 |---|---|
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
 | `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. |
-| `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado, Excel y guardado en bloque. |
+| `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado y guardado en bloque. |
+| `fuente/Exportar.gs` | El Excel desde el menú, con lo seleccionado en la hoja. |
 | `fuente/Xlsx.gs` | Arma el .xlsx a mano, sin librerías: un zip con cinco XML. |
-| `fuente/Setup.gs` | Crea las hojas de catálogo y revisa las columnas. Menú. |
+| `fuente/Setup.gs` | Revisa las hojas y sus columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |
 | `fuente/Estilos.html` | El sistema visual. |
 | `fuente/Masivo.html` | Las cinco columnas, la tabla del lote y la barra de acciones. |
+| `fuente/Descarga.html` | El diálogo del menú, con el botón para bajar el archivo. |
 | `pruebas/` | Simulador de Apps Script + pruebas. |
 
 ```bash

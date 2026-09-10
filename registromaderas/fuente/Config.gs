@@ -160,7 +160,10 @@ const DEDUCCION = {
 const EXPORTAR = {
   PRIMERA_FILA: 3,
   HOJA: 'Batch input',
-  NOMBRE: 'batch-input-maderas'
+  NOMBRE: 'batch-input-maderas',
+  // Hasta AB. El formulario escribe hasta Z, pero AA y AB (Descripcion
+  // Especial EN/ES) se llenan a mano en la hoja y también van a SAP.
+  ULTIMA_COLUMNA: 28
 };
 
 /** Columnas de BD_Maderas (Material | Grupo art. | TpMt | Texto breve | Ce). */

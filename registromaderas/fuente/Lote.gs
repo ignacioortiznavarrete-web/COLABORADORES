@@ -302,19 +302,6 @@ function solicitudDeFila_(fila) {
   };
 }
 
-/** La fila de batch input, en el orden de las columnas de PT/PCP/PP. */
-function filaBatch_(v) {
-  var datos = datosParaHoja_(v);
-  var ancho = 0;
-  MAPEO_DESTINO.forEach(function (m) { ancho = Math.max(ancho, m.col); });
-  var fila = [];
-  for (var i = 0; i < ancho; i++) fila.push('');
-  MAPEO_DESTINO.forEach(function (m) {
-    var dato = datos[m.dato];
-    fila[m.col - 1] = (dato === undefined || dato === null) ? '' : dato;
-  });
-  return fila;
-}
 
 /* --------------------------------------------------------------------- API */
 
@@ -391,29 +378,6 @@ function apiRevisarLote(filas) {
   };
 }
 
-/** El Excel de batch input con las filas elegidas: en blanco hasta la fila 3. */
-function apiExcelLote(filas) {
-  if (!filas || !filas.length) throw new Error('No hay filas seleccionadas.');
-
-  var datos = filas.map(function (fila, i) {
-    try {
-      return filaBatch_(validar_(solicitudDeFila_(fila)));
-    } catch (err) {
-      throw new Error('Línea ' + (fila.n || (i + 1)) + ' (' + (fila.codigo || fila.entrada) +
-        '): ' + err.message);
-    }
-  });
-
-  var blob = armarXlsx_(EXPORTAR.HOJA, datos, EXPORTAR.PRIMERA_FILA);
-  var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm');
-  return {
-    ok: true,
-    nombre: EXPORTAR.NOMBRE + '-' + sello + '.xlsx',
-    filas: datos.length,
-    primeraFila: EXPORTAR.PRIMERA_FILA,
-    base64: Utilities.base64Encode(blob.getBytes())
-  };
-}
 
 /** Guarda las filas elegidas en su hoja y en la bitácora. */
 function apiGuardarLote(filas) {

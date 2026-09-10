@@ -22,6 +22,11 @@ class Sheet {
     this.data.forEach((row, i) => { if (row.some(v => v !== '' && v != null)) last = i + 1; });
     return last;
   }
+  getMaxColumns() { return 30; }
+  getActiveRangeList() {
+    return this.__seleccion ? { getRanges: () => this.__seleccion } : null;
+  }
+  getActiveRange() { return this.__seleccion ? this.__seleccion[0] : null; }
   getLastColumn() {
     let last = 0;
     this.data.forEach(row => {
@@ -45,6 +50,8 @@ class Sheet {
     const rango = chainable({
       getRow() { return r; },
       getColumn() { return c; },
+      getNumRows() { return nr; },
+      getNumColumns() { return nc; },
       getValue() { return sheet._cell(r, c)[c - 1]; },
       getDisplayValue() { const v = sheet._cell(r, c)[c - 1]; return v == null ? '' : String(v); },
       setValue(v) { sheet._cell(r, c)[c - 1] = v; return this; },
@@ -52,7 +59,12 @@ class Sheet {
         const out = [];
         for (let i = 0; i < nr; i++) {
           const row = sheet._cell(r + i, c + nc - 1);
-          out.push(row.slice(c - 1, c - 1 + nc).map(v => (v === undefined ? '' : v)));
+          const tramo = [];
+          for (let j = 0; j < nc; j++) {
+            const v = row[c - 1 + j];
+            tramo.push(v === undefined ? '' : v);
+          }
+          out.push(tramo);
         }
         return out;
       },
@@ -96,6 +108,17 @@ class Sheet {
     });
     // El formato se guarda solo para poder revisarlo en las pruebas.
     rango.setNumberFormat = fmt => { sheet.formatos[r + ',' + c] = fmt; return rango; };
+    rango.setNumberFormats = m => {
+      m.forEach((f, i) => f.forEach((fmt, j) => { sheet.formatos[(r + i) + ',' + (c + j)] = fmt; }));
+      return rango;
+    };
+    // Como Sheets: en una celda que no es texto, '032' se guarda como 32 y se
+    // muestra "32". Así las pruebas notan si se pierden los ceros.
+    rango.getDisplayValues = () => rango.getValues().map((f, i) => f.map((v, j) => {
+      if (sheet.formatos[(r + i) + ',' + (c + j)] === '@') return String(v == null ? '' : v);
+      if (typeof v === 'string' && v !== '' && !isNaN(Number(v))) return String(Number(v));
+      return String(v == null ? '' : v);
+    }));
     return rango;
   }
 }
@@ -103,6 +126,13 @@ class Sheet {
 class Spreadsheet {
   constructor() { this.sheets = {}; }
   getSheetByName(n) { return this.sheets[n] || null; }
+  /** La selección del usuario, para probar la bajada desde el menú. */
+  __seleccionar(nombre, tramos) {
+    this.__activa = this.sheets[nombre];
+    this.__activa.__seleccion = tramos.map(([fila, filas]) =>
+      this.__activa.getRange(fila, 1, filas, 1));
+  }
+  getActiveSheet() { return this.__activa; }
   insertSheet(n) { this.sheets[n] = new Sheet(n); return this.sheets[n]; }
   getSpreadsheetTimeZone() { return 'America/Santiago'; }
 }
@@ -112,6 +142,7 @@ const cache = {};
 
 global.SpreadsheetApp = {
   openById: () => SS,
+  getActiveSheet: () => SS.getActiveSheet(),
   flush: () => {},
   getUi: () => { throw new Error('sin UI en pruebas'); }
 };

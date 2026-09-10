@@ -4,7 +4,7 @@ const path = require('path');
 const { SS } = require('./mock');
 
 // Los mismos archivos que se pegan en el editor de Apps Script.
-const FUENTES = ['Config.gs', 'Registro.gs', 'Xlsx.gs', 'Lote.gs', 'Setup.gs']
+const FUENTES = ['Config.gs', 'Registro.gs', 'Xlsx.gs', 'Lote.gs', 'Setup.gs', 'Exportar.gs']
   .map(f => path.join(__dirname, '..', 'fuente', f));
 
 console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
@@ -484,14 +484,45 @@ seccion('Una ruta no puede ser más chica que el producto');
     'y al guardar tampoco se cuela');
 }
 
-seccion('El Excel del batch input');
+// El Excel ya no se baja desde la pantalla: se baja desde el menú del
+// spreadsheet, con lo que esté seleccionado en PT, PCP o PP.
+seccion('El Excel sale de las filas seleccionadas en la hoja');
 {
-  const lote = apiLote('RVMH032X180X3960\tRVM 032X180\t248');
-  const r = apiExcelLote(lote.filas);
-  ok(r.ok && r.filas === 1, 'genera el archivo con la fila seleccionada');
-  ok(/^batch-input-maderas-\d{8}-\d{4}\.xlsx$/.test(r.nombre), 'con fecha y hora en el nombre');
-  ok(r.primeraFila === 3, 'los datos empiezan en la fila 3');
-  ok(r.base64.length > 100, 'y viene en base64 para descargarlo');
+  const a = guardarUna(con({ largo: '3100' }));
+  const b = guardarUna(con({ largo: '3300' }));
+  const c = guardarUna(con({ largo: '3500' }));
+
+  SS.__seleccionar('PT', [[a.fila, 1], [c.fila, 1]]);
+  const sel = filasSeleccionadas_();
+  ok(sel.hoja === 'PT' && sel.filas.length === 2, 'baja solo las filas elegidas, no la de en medio');
+  ok(sel.filas[0][22] === '3100' && sel.filas[1][22] === '3500', 'y en el orden de la hoja');
+  ok(sel.filas[0].length === 28, 'cada fila llega hasta AB');
+
+  // Los ceros a la izquierda son media nomenclatura: si se pierden, el batch
+  // input entra mal a SAP.
+  ok(sel.filas[0][8] === '037' && sel.filas[0][9] === '130',
+    'los ceros a la izquierda sobreviven a la hoja');
+  ok(/^\d{2}\.\d{2}\.\d{4}$/.test(sel.filas[0][4]), 'y la fecha sigue siendo texto dd.mm.aaaa');
+
+  // El formulario escribe hasta Z; AA y AB se llenan a mano y también van.
+  SS.getSheetByName('PT').getRange(a.fila, 27, 1, 2)
+    .setValues([['Special EN', 'Especial ES']]);
+  SS.__seleccionar('PT', [[a.fila, 1]]);
+  const conNota = filasSeleccionadas_().filas[0];
+  ok(conNota[26] === 'Special EN' && conNota[27] === 'Especial ES',
+    'y se lleva las descripciones especiales escritas a mano');
+
+  SS.__seleccionar('PT', [[1, 2]]);
+  ok(error(() => filasSeleccionadas_()).indexOf('No hay filas con datos') !== -1,
+    'los rótulos de las filas 1 y 2 no se bajan');
+
+  SS.__seleccionar('PT', [[1, 200]]);
+  ok(filasSeleccionadas_().filas.length === SS.getSheetByName('PT').getLastRow() - 2,
+    'seleccionar la hoja entera baja los datos y nada más');
+
+  SS.__seleccionar('Registro', [[3, 1]]);
+  ok(error(() => filasSeleccionadas_()).indexOf('hoja de clase') !== -1,
+    'desde una hoja que no es de clase, avisa dónde hay que pararse');
 
   const hoja = armarXlsx_('Batch input', [['CL', 'TCD2'], ['CL', 'TCP1']], 3)
     .__partes.filter(p => p.name === 'xl/worksheets/sheet1.xml')[0].bytes.toString('utf8');
@@ -508,6 +539,9 @@ seccion('El Excel del batch input');
   const partes = armarXlsx_('X', [['a']], 3).__partes.map(p => p.name).sort().join(' ');
   ok(partes === '[Content_Types].xml _rels/.rels xl/_rels/workbook.xml.rels ' +
      'xl/workbook.xml xl/worksheets/sheet1.xml', 'el xlsx lleva sus cinco piezas');
+
+  ok(typeof apiExcelLote === 'undefined',
+    'y la pantalla ya no tiene por dónde bajarlo: solo registra');
 }
 
 seccion('Guardar el lote completo');

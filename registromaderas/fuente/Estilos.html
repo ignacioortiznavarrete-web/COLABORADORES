@@ -24,7 +24,7 @@
     --tinta-suave: oklch(0.46 0.018 157);
     --linea: oklch(0.89 0.008 157);
 
-    --ambar: oklch(0.58 0.115 72);
+    --ambar: oklch(0.515 0.115 68);
     --ambar-fondo: oklch(0.965 0.03 82);
     --rojo: oklch(0.51 0.17 27);
     --rojo-fondo: oklch(0.965 0.022 25);
@@ -42,6 +42,7 @@
     --z-banco: 20;
     --z-cabecera: 30;
     --z-aviso: 40;
+    --z-modal: 50;
   }
 
   * { box-sizing: border-box; }
@@ -193,6 +194,9 @@
   table.lote .estado .ok { color: var(--bosque-700); font-weight: 600; }
   table.lote .estado .problema, table.lote td.problema { color: var(--ambar); font-size: 12.5px; }
   table.lote tr.mala td.problema { color: var(--rojo); }
+  /* Ya registrada: sigue a la vista, pero fuera de juego. */
+  table.lote tr.guardada { background: var(--bosque-050); }
+  table.lote tr.guardada td:not(.estado) { opacity: .62; }
   table.lote input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--bosque-600); }
 
   /* Barra de acciones: aparece cuando hay algo seleccionado. */
@@ -245,6 +249,69 @@
     from { clip-path: inset(0 100% 0 0); }
     to   { clip-path: inset(0 0 0 0); }
   }
+
+  /* ------------------------------------------------------------- el modal */
+
+  /*
+    La confirmación de registro se muestra acá y no en un aviso al pie: el
+    usuario acaba de pulsar y tiene que enterarse sin buscar. Está hecho a
+    mano, con los mismos tokens del resto, para no colgar la única señal de
+    "quedó guardado" de una librería externa que un proxy corporativo puede
+    bloquear.
+  */
+  .modal-fondo {
+    position: fixed; inset: 0; z-index: var(--z-modal);
+    background: oklch(0.24 0.045 158 / .45);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+    animation: aparece 160ms var(--salida) both;
+  }
+  @keyframes aparece { from { opacity: 0; } to { opacity: 1; } }
+
+  .modal {
+    background: var(--papel); border-radius: var(--r-grande);
+    box-shadow: 0 18px 50px oklch(0.24 0.045 158 / .3);
+    width: 100%; max-width: 440px; padding: 30px 28px 22px;
+    text-align: center;
+    animation: entra-modal 260ms var(--salida) both;
+  }
+  @keyframes entra-modal {
+    from { opacity: 0; transform: scale(0.92) translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .modal .marca {
+    width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; line-height: 1; font-weight: 700;
+    border: 3px solid currentColor;
+  }
+  .modal.ok .marca { color: var(--bosque-600); background: var(--bosque-100); }
+  .modal.alerta .marca { color: var(--ambar); background: var(--ambar-fondo); }
+  .modal.error .marca { color: var(--rojo); background: var(--rojo-fondo); }
+
+  /* El trazo del visto se dibuja solo: confirma sin tener que leer. */
+  .modal .marca svg { width: 34px; height: 34px; }
+  .modal .marca svg path {
+    fill: none; stroke: currentColor; stroke-width: 3.4;
+    stroke-linecap: round; stroke-linejoin: round;
+    stroke-dasharray: 34; stroke-dashoffset: 34;
+    animation: traza 420ms var(--salida) 140ms both;
+  }
+  @keyframes traza { to { stroke-dashoffset: 0; } }
+
+  .modal h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -0.01em; }
+  .modal p { margin: 0; color: var(--tinta-suave); font-size: 14.5px; }
+  .modal .codigos {
+    margin: 16px 0 0; padding: 12px 14px; max-height: 190px; overflow-y: auto;
+    background: var(--bosque-050); border: 1px solid var(--bosque-200);
+    border-radius: var(--r); font: 13px/1.7 var(--mono); text-align: left;
+    color: var(--bosque-800); word-break: break-all;
+  }
+  .modal .codigos.mala {
+    background: var(--rojo-fondo); border-color: oklch(0.86 0.06 25); color: var(--rojo);
+  }
+  .modal .pie { margin-top: 22px; }
+  .modal .pie button { min-width: 130px; }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

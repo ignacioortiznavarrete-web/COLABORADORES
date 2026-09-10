@@ -10,8 +10,10 @@ function onOpen() {
   try {
     SpreadsheetApp.getUi()
       .createMenu('Registro Maderas')
-      .addItem('Preparar hojas', 'instalarRegistro')
+      .addItem('Descargar filas seleccionadas como Excel', 'descargarSeleccion')
+      .addSeparator()
       .addItem('Ver enlace del formulario', 'mostrarEnlace')
+      .addItem('Preparar hojas', 'instalarRegistro')
       .addToUi();
   } catch (err) {
     // Sin interfaz (trigger o editor): no hay menú que crear.
