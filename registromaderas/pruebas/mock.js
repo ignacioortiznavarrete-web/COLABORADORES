@@ -248,13 +248,18 @@ global.Utilities = {
   base64Encode: bytes => Buffer.from(bytes).toString('base64'),
   formatDate: (d, tz, fmt) => {
     const p = n => String(n).padStart(2, '0');
-    return fmt
-      .replace('yyyy', d.getFullYear())
-      .replace('MM', p(d.getMonth() + 1))
-      .replace('dd', p(d.getDate()))
-      .replace('HH', p(d.getHours()))
-      .replace('mm', p(d.getMinutes()))
-      .replace('ss', p(d.getSeconds()));
+    const utc = String(tz).toUpperCase() === 'UTC';
+    const partes = {
+      yyyy: utc ? d.getUTCFullYear() : d.getFullYear(),
+      MM: p((utc ? d.getUTCMonth() : d.getMonth()) + 1),
+      dd: p(utc ? d.getUTCDate() : d.getDate()),
+      HH: p(utc ? d.getUTCHours() : d.getHours()),
+      mm: p(utc ? d.getUTCMinutes() : d.getMinutes()),
+      ss: p(utc ? d.getUTCSeconds() : d.getSeconds())
+    };
+    // Como SimpleDateFormat: lo que va entre comillas simples es literal.
+    return fmt.replace(/'([^']*)'|yyyy|MM|dd|HH|mm|ss/g,
+      (m, literal) => (literal !== undefined ? literal : partes[m]));
   }
 };
 global.Logger = { log: () => {} };

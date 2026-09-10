@@ -536,9 +536,32 @@ seccion('El Excel sale de las filas seleccionadas en la hoja');
     'las columnas llegan hasta AB, que es la última del batch input');
   ok(escaparXml_('Cep. 2(C) & <Radiata>').indexOf('&amp;') !== -1, 'el XML va escapado');
 
-  const partes = armarXlsx_('X', [['a']], 3).__partes.map(p => p.name).sort().join(' ');
-  ok(partes === '[Content_Types].xml _rels/.rels xl/_rels/workbook.xml.rels ' +
-     'xl/workbook.xml xl/worksheets/sheet1.xml', 'el xlsx lleva sus cinco piezas');
+  // Excel es mas estricto que los lectores de scripting: pide estilos,
+  // propiedades y la dimension declarada, o dice que el formato no es valido.
+  const partes = armarXlsx_('X', [['a']], 3).__partes.map(p => p.name);
+  ok(partes.slice().sort().join(' ') ===
+     '[Content_Types].xml _rels/.rels docProps/app.xml docProps/core.xml ' +
+     'xl/_rels/workbook.xml.rels xl/styles.xml xl/workbook.xml xl/worksheets/sheet1.xml',
+     'el xlsx lleva las piezas que Excel espera');
+  ok(partes[0] === '[Content_Types].xml', 'y [Content_Types].xml va primero en el paquete');
+
+  const uno = p => armarXlsx_('X', [['a', 'b']], 3)
+    .__partes.filter(x => x.name === p)[0].bytes.toString('utf8');
+  ok(uno('xl/worksheets/sheet1.xml').indexOf('<dimension ref="A3:B3"/>') !== -1,
+    'la hoja declara su dimensión');
+  ok(uno('xl/worksheets/sheet1.xml').indexOf('<dimension') <
+     uno('xl/worksheets/sheet1.xml').indexOf('<sheetData>'),
+    'y en el orden que exige el esquema: dimension antes que sheetData');
+  ok(uno('xl/styles.xml').indexOf('patternType="gray125"') !== -1,
+    'los estilos traen los dos rellenos que Excel da por sentados');
+  ok(/<dcterms:created[^>]*>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z</.test(uno('docProps/core.xml')),
+    'y las propiedades llevan la fecha en formato W3CDTF');
+
+  const tipos = uno('[Content_Types].xml');
+  ok(['/xl/workbook.xml', '/xl/worksheets/sheet1.xml', '/xl/styles.xml',
+      '/docProps/core.xml', '/docProps/app.xml']
+      .every(n => tipos.indexOf('PartName="' + n + '"') !== -1),
+    'cada pieza declara su content-type');
 
   ok(typeof apiExcelLote === 'undefined',
     'y la pantalla ya no tiene por dónde bajarlo: solo registra');

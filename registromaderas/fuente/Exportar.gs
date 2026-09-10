@@ -23,10 +23,12 @@ function descargarSeleccion() {
   var blob = armarXlsx_(EXPORTAR.HOJA, elegidas.filas, EXPORTAR.PRIMERA_FILA);
   var sello = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmm');
 
+  var bytes = blob.getBytes();
   var t = HtmlService.createTemplateFromFile('Descarga');
   t.nombre = EXPORTAR.NOMBRE + '-' + elegidas.hoja.toLowerCase() + '-' + sello + '.xlsx';
-  t.href = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' +
-    Utilities.base64Encode(blob.getBytes());
+  // El archivo va como base64 en un atributo comun, no en el href: ver Descarga.html.
+  t.base64 = Utilities.base64Encode(bytes);
+  t.bytes = bytes.length;
   t.filas = elegidas.filas.length;
   t.hoja = elegidas.hoja;
   t.primeraFila = EXPORTAR.PRIMERA_FILA;
