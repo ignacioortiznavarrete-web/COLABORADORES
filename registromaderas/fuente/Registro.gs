@@ -60,6 +60,10 @@ function puedeAcceder_(correo) {
 
 /* ------------------------------------------------------- armado del código */
 
+function texto_(v) {
+  return String(v == null ? '' : v).trim();
+}
+
 function normalizarCodigo_(codigo) {
   return String(codigo == null ? '' : codigo).trim().toUpperCase();
 }
@@ -94,12 +98,19 @@ function armarCodigo_(agrupacion, espesor, ancho, largo) {
 
 /**
  * Qué etapas del proceso tiene el producto, leídas del propio prefijo:
- *   carácter 1 = C  -> pasa por cepillado
- *   carácter 2 = V  -> es verde, no pasa por secado
- * El aserradero va siempre.
+ *
+ *   carácter 4 = H  -> es Trading, madera comprada a terceros: no se fabrica
+ *                      acá, así que no lleva hoja de ruta en ninguna etapa;
+ *   carácter 1 = C  -> pasa por cepillado;
+ *   carácter 2 = V  -> es verde, no pasa por secado.
+ *
+ * Fuera de Trading, el aserradero va siempre.
  */
 function etapasAplicables_(agrupacion) {
   var p = prefijo_(agrupacion);
+  if (p.charAt(3) === TRADING.ESPECIE) {
+    return { aserradero: false, secado: false, cepillado: false };
+  }
   return {
     aserradero: true,
     secado: p.charAt(1) !== 'V',
@@ -250,10 +261,10 @@ function validar_(datos) {
   var tipoMaterial = tipoMaterialEfectivo_(datos.tipoMaterial);
 
   // La condicional de fondo: el centro y el tipo de material mandan la lista.
-  var agrupacion = agrupacionPorCodigo_(centro, tipoMaterial, datos.agrupacion);
-  if (!agrupacion) {
-    throw new Error('La agrupación "' + (datos.agrupacion || '') + '" no está habilitada para ' +
-      centro + ' + ' + tipoMaterial + ' en la hoja ' + CFG.HOJA_SAP + '.');
+  var agrupacion = normalizarCodigo_(datos.agrupacion);
+  if (!/^[A-Z0-9]{3,4}$/.test(agrupacion)) {
+    throw new Error('La agrupación "' + (datos.agrupacion || '') + '" no tiene la forma de un ' +
+      'prefijo: tres o cuatro caracteres, como RVM o RVMH.');
   }
 
   var espesor = rellenar_(datos.espesor, MEDIDAS.DIGITOS_ESPESOR, 'espesor');
@@ -263,13 +274,13 @@ function validar_(datos) {
 
   // Trading compra a terceros: eso va escrito en la especie del código.
   if (normalizar_(origen.id) === normalizar_(TRADING.ORIGEN) &&
-      prefijo_(agrupacion.agrupacion).charAt(3) !== TRADING.ESPECIE) {
+      prefijo_(agrupacion).charAt(3) !== TRADING.ESPECIE) {
     throw new Error('En Trading la especie del código tiene que ser ' + TRADING.ESPECIE +
-      ' (Radiata Terceros), y ' + agrupacion.agrupacion + ' termina en "' +
-      prefijo_(agrupacion.agrupacion).charAt(3).replace(' ', '␣') + '".');
+      ' (Radiata Terceros), y ' + agrupacion + ' termina en "' +
+      prefijo_(agrupacion).charAt(3).replace(' ', '␣') + '".');
   }
 
-  var codigo = armarCodigo_(agrupacion.agrupacion, espesor, ancho, largo);
+  var codigo = armarCodigo_(agrupacion, espesor, ancho, largo);
   var ficha = buscarEnBD_(codigo);
   if (ficha && MEDIDAS.EXIGIR_NUEVO) {
     throw new Error('El código ' + codigo + ' ya existe en ' + CFG.HOJA_BD +
@@ -287,7 +298,7 @@ function validar_(datos) {
     throw new Error('Falta la cantidad de piezas.');
   }
 
-  var aplica = etapasAplicables_(agrupacion.agrupacion);
+  var aplica = etapasAplicables_(agrupacion);
   var exigeRuta = RUTAS.DEBE_EXISTIR_EN.indexOf(clase.id) !== -1;
   var pedido = datos.desglose || {};
   var desglose = {};
@@ -340,8 +351,8 @@ function validar_(datos) {
     origen: origen.id,
     centro: centro,
     tipoMaterial: tipoMaterial,
-    agrupacion: agrupacion.agrupacion,
-    agrupacionTexto: agrupacion.textoLargo,
+    agrupacion: agrupacion,
+    agrupacionTexto: texto_(datos.agrupacionTexto),
     codigo: ficha ? ficha.codigo : codigo,
     descripcion: ficha ? ficha.descripcion : '',
     grupo: ficha ? ficha.grupo : '',
@@ -493,7 +504,6 @@ function apiContexto() {
     },
     porDefecto: POR_DEFECTO,
     hojaBD: CFG.HOJA_BD,
-    hojaSAP: CFG.HOJA_SAP,
     hojaRegistro: CFG.HOJA_REGISTRO,
     exigeCodigoNuevo: MEDIDAS.EXIGIR_NUEVO,
     rutaObligatoria: RUTAS.OBLIGATORIA,

@@ -24,6 +24,10 @@
         Pega los códigos, uno por línea, y las rutas en la columna de su etapa.
         Cada línea se lee junto con la misma línea de las demás columnas.
         Del código salen la clase, el centro y las etapas: eso no se pregunta.
+        Los códigos con especie <b>H</b> son de Trading: se compran hechos y no llevan
+        hoja de ruta. La ruta va como tres letras, un espacio y la escuadría
+        (<b>RVM 019X020</b>); en producto terminado puede ser cualquiera, y en proceso
+        tiene que existir ya en la base.
       </p>
 
       <div class="columnas" id="columnas">
@@ -34,15 +38,15 @@
         </label>
         <label class="columna">
           <span class="tit">Aserradero</span>
-          <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVFD032X180"></textarea>
+          <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
         </label>
         <label class="columna">
           <span class="tit">Secado</span>
-          <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSFD032X180"></textarea>
+          <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
         </label>
         <label class="columna">
           <span class="tit">Cepillado</span>
-          <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSF 019X100"></textarea>
+          <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
         </label>
         <label class="columna estrecha">
           <span class="tit">PAK</span>
@@ -256,13 +260,33 @@
   /* --------------------------------------------------------------- tabla */
 
   function celdaRuta(fila, etapa) {
-    if (!fila.etapas || !fila.etapas[etapa]) return '<td class="no-aplica">—</td>';
-    var ruta = (fila.rutas && fila.rutas[etapa]) || '';
-    if (!ruta) {
-      var n = (fila.opciones[etapa] || []).length;
-      return '<td class="falta">' + (n ? n + ' por elegir' : 'sin rutas') + '</td>';
+    if (!fila.etapas || !fila.etapas[etapa]) {
+      var motivo = (fila.motivos || {})[etapa] || '';
+      return '<td class="no-aplica" title="' + esc(motivo) + '">—</td>';
     }
-    return '<td class="mono">' + esc(ruta) + '</td>';
+    var ruta = (fila.rutas && fila.rutas[etapa]) || '';
+    if (ruta) return '<td class="mono">' + esc(ruta) + '</td>';
+
+    // Sin ruta: se ofrecen las que la base tiene para esa escuadría.
+    var opciones = fila.opciones[etapa] || [];
+    if (!opciones.length) return '<td class="falta">sin rutas para esta escuadría</td>';
+    return '<td class="candidatas">' + opciones.slice(0, 5).map(function (o) {
+      return '<button type="button" class="chip-ruta" data-poner="' + esc(o.codigo) + '" ' +
+        'data-fila="' + fila.n + '" data-etapa="' + etapa + '" title="' + esc(o.descripcion) +
+        '">' + esc(o.codigo) + '</button>';
+    }).join('') + (opciones.length > 5 ? '<small>y ' + (opciones.length - 5) + ' más</small>' : '') +
+      '</td>';
+  }
+
+  /** Pone una ruta en su línea de la columna que corresponde. */
+  function ponerRuta(n, etapa, ruta) {
+    var lineas = lineasDe(CAMPOS[etapa]);
+    while (lineas.length < n) lineas.push('');
+    lineas[n - 1] = ruta;
+    $(CAMPOS[etapa]).value = lineas.join('\n');
+    var fila = filaPorN(n);
+    if (fila) fila.rutas[etapa] = ruta;
+    revisar();
   }
 
   function dibujarTabla() {
@@ -396,6 +420,14 @@
     var marcar = $('todas').checked;
     FILAS.forEach(function (f) { f.sel = marcar && f.ok; });
     dibujarTabla();
+  });
+
+  $('cuerpoLote').addEventListener('click', function (ev) {
+    var b = ev.target;
+    while (b && b !== $('cuerpoLote') && !b.hasAttribute('data-poner')) b = b.parentNode;
+    if (!b || b === $('cuerpoLote')) return;
+    ponerRuta(Number(b.getAttribute('data-fila')), b.getAttribute('data-etapa'),
+      b.getAttribute('data-poner'));
   });
 
   $('cuerpoLote').addEventListener('change', function (ev) {

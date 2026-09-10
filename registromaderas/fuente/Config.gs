@@ -20,12 +20,12 @@
  *
  * LAS CONDICIONALES
  * -----------------
- * · Centro + Tipo de material deciden QUÉ agrupaciones se pueden pedir; sale de
- *   la hoja SAP (Ce. + TpMt -> AgrupMad).
- * · El carácter 1 del prefijo decide si hay etapa de CEPILLADO (solo si es C).
+ * · El carácter 4 decide TODO lo de arriba: si es H el material se compra a
+ *   terceros, así que es Trading, entra por TCD2 y no lleva hoja de ruta.
+ * · El carácter 1 decide si hay etapa de CEPILLADO (solo si es C).
  * · El carácter 2 decide si hay etapa de SECADO (no la hay si es V, verde).
- * · La etapa de ASERRADERO va siempre.
- * Las plantillas de cada etapa salen de la hoja Agrupamiento.
+ * · La etapa de ASERRADERO va siempre, salvo en Trading.
+ * Las hojas de ruta salen de BD_Maderas, que es la única hoja que se consulta.
  *
  * LO QUE SE ESCRIBE
  * -----------------
@@ -37,7 +37,6 @@ const CFG = {
   SPREADSHEET_ID: '15THGajqCDH0YuBaoEUt9uLM8s-6iKsUf9_-vY8bABmE',
 
   HOJA_BD: 'BD_Maderas',
-  HOJA_SAP: 'SAP',
   HOJA_REGISTRO: 'Registro',
 
   /** En PT/PCP/PP la fila 1 es la numeración y la fila 2 son los rótulos. */
@@ -71,6 +70,13 @@ const ORIGENES = [
 ];
 
 const TIPOS_MATERIAL = ['TTAS', 'TPAS'];
+
+/** Las etapas del proceso, en orden. */
+const ETAPAS = [
+  { id: 'aserradero', titulo: 'Aserradero' },
+  { id: 'secado', titulo: 'Secado' },
+  { id: 'cepillado', titulo: 'Cepillado' }
+];
 
 /** Columna Z: de dónde sale el material. */
 const STOCK_PEDIDO = [
@@ -125,13 +131,14 @@ const RUTAS = {
  */
 const TRADING = {
   ORIGEN: 'Trading',
-  ESPECIE: 'H'
+  ESPECIE: 'H',
+  CENTRO: 'TCD2'
 };
 
 /**
  * Lo que el código dice por sí solo, sin preguntar nada:
  *
- *   RVMH032X180X3960   especie H  -> Trading, y su centro en SAP es TCD2
+ *   RVMH032X180X3960   especie H  -> Trading, centro TCD2, y sin hoja de ruta
  *                      con largo  -> producto terminado, PT
  *   RVM 032X180        3 letras y sin largo -> producto de proceso, PP
  *   CSF 019X075        3 letras, empieza en C -> cepillado en proceso, PCP
@@ -139,6 +146,7 @@ const TRADING = {
  * Solo queda por escribir lo que no está en el código: las hojas de ruta.
  */
 const DEDUCCION = {
+  CENTRO_PLANTA: 'TCP1',
   CLASE_CON_LARGO: 'PT',
   CLASE_PROCESO_CEPILLADO: 'PCP',
   CLASE_PROCESO: 'PP',
@@ -229,7 +237,7 @@ const NOMENCLATURA = [
     posicion: 2, titulo: 'Estado',
     valores: {
       '2': 'Dos caras', '3': 'Tres caras', '4': 'Cuatro caras',
-      'B': 'CTS Bisel', 'C': 'CTS', 'S': 'Estufada', 'V': 'Verde'
+      'B': 'CTS Bisel', 'C': 'CTS', 'S': 'Seco', 'V': 'Verde'
     }
   },
   {

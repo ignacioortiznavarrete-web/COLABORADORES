@@ -4,7 +4,7 @@ const path = require('path');
 const { SS } = require('./mock');
 
 // Los mismos archivos que se pegan en el editor de Apps Script.
-const FUENTES = ['Config.gs', 'Catalogos.gs', 'Registro.gs', 'Xlsx.gs', 'Lote.gs', 'Setup.gs']
+const FUENTES = ['Config.gs', 'Registro.gs', 'Xlsx.gs', 'Lote.gs', 'Setup.gs']
   .map(f => path.join(__dirname, '..', 'fuente', f));
 
 console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
@@ -45,9 +45,11 @@ const MATERIALES = [
   ['RVM 032X180', 'X9000', 'TPAS', 'Rústico Verde Médula 032X180', 'X'],
   ['RVFD032X180', 'X9000', 'TPAS', 'Rústico Verde Col Mix 032X180', 'X'],
   ['RSFD032X180', 'X9000', 'TPAS', 'Rús. Seco COL MIX Radiata 032X180', 'X'],
-  ['RVF 021X105', 'X9000', 'TPAS', 'Rústico Verde COL MIX 021X105', 'X'],
-  ['RSF 020X102', 'X9000', 'TPAS', 'Rústico Seco COL MIX 020X102', 'X'],
+  ['RVF 019X100', 'X9000', 'TPAS', 'Rústico Verde COL MIX 019X100', 'X'],
+  ['RSF 019X100', 'X9000', 'TPAS', 'Rústico Seco COL MIX 019X100', 'X'],
   ['CSF 019X100', 'X11000', 'TPAS', 'Cepillado Seco COL MIX 019X100', 'X'],
+  ['RVF 037X130', 'X9000', 'TPAS', 'Rústico Verde COL MIX 037X130', 'X'],
+  ['RSF 037X130', 'X9000', 'TPAS', 'Rústico Seco COL MIX 037X130', 'X'],
   // Un producto que ya está creado: no se puede volver a pedir.
   ['RVMH032X180X4000', 'X9000', 'TTAS', 'Rús. Verde Médula Radiata 032X180X4000', 'X'],
   // Señuelo antes del bueno, y el espacio duro del final.
@@ -82,22 +84,34 @@ function registro(fila, encabezado) {
   return hoja.getRange(fila, col).getValue();
 }
 
+// Un producto que sí se fabrica acá: RSFR es Radiata EERR, no terceros.
 const SOLICITUD = {
-  clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
-  agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960',
-  desglose: { aserradero: { ruta: 'RVM 032X180', espesor: '032', ancho: '180' } },
+  clase: 'PT', origen: 'Planta', centro: 'TCP1', tipoMaterial: 'TTAS',
+  agrupacion: 'RSFR', espesor: '37', ancho: '130', largo: '3200',
+  desglose: {
+    aserradero: { ruta: 'RVF 037X130' },
+    secado: { ruta: 'RSF 037X130' }
+  },
   piezas: 248, umb: 'PZA', stockPedido: 'P'
 };
 
+// Cepillado: pasa por las tres etapas.
 const CEPILLADO = {
-  clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
-  agrupacion: 'C4JH', espesor: '19', ancho: '100', largo: '2440',
+  clase: 'PT', origen: 'Planta', centro: 'TCP1', tipoMaterial: 'TTAS',
+  agrupacion: 'C4JR', espesor: '19', ancho: '100', largo: '2440',
   desglose: {
-    aserradero: { ruta: 'RVF 021X105' },
-    secado: { ruta: 'RSF 020X102' },
+    aserradero: { ruta: 'RVF 019X100' },
+    secado: { ruta: 'RSF 019X100' },
     cepillado: { ruta: 'CSF 019X100' }
   },
   piezas: 60, umb: 'PZA', stockPedido: 'S'
+};
+
+// De Trading: se compra hecha, no lleva ninguna hoja de ruta.
+const TRADING_LISTA = {
+  clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
+  agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960',
+  desglose: {}, piezas: 120, umb: 'PZA', stockPedido: 'P'
 };
 
 function con(cambios) { return Object.assign({}, SOLICITUD, cambios); }
@@ -123,31 +137,26 @@ seccion('Contexto que recibe el formulario');
   ok(ctx.exigeCodigoNuevo === true, 'el código que se pide tiene que ser nuevo');
   ok(ctx.clasesConRutaEnBD.join() === 'PP,PCP', 'en PP y PCP la ruta tiene que existir');
   ok(ctx.trading.especie === 'H', 'Trading exige especie H');
+  ok(ctx.hojaBD === 'BD_Maderas', 'y la única hoja que consulta es BD_Maderas');
   ok(ctx.porDefecto.TIPO_REQUERIMIENTO === 'NO', 'Tipo Requerimiento va en NO, como el ejemplo');
   ok(!ctx.hojasFaltantes.length, 'no falta ninguna hoja');
 }
 
 /* ------------------------------------ la condicional: centro + tipo material */
 
-seccion('Qué agrupaciones habilita cada centro y tipo de material');
-{
-  const codigos = (c, t) => agrupacionesDe_(c, t).map(a => a.agrupacion);
-
-  const tcd2 = codigos('TCD2', 'TTAS');
-  ok(tcd2.length === 9 && tcd2.indexOf('RVMH') !== -1, 'TCD2 + TTAS habilita 9, entre ellas RVMH');
-  ok(codigos('TCP1', 'TPAS').length === 16, 'TCP1 + TPAS habilita 16, las de proceso');
-  ok(codigos('TCP1', 'TTAS').length === 8, 'TCP1 + TTAS habilita 8');
-  ok(codigos('TCD2', 'TPAS').length === 0, 'TCD2 + TPAS no habilita ninguna');
-}
-
 seccion('Qué etapas tiene cada producto, leídas del prefijo');
 {
   const etapas = c => etapasAplicables_(c);
-  ok(etapas('RVMH').aserradero && !etapas('RVMH').secado && !etapas('RVMH').cepillado,
-    'RVMH es verde y rústico: solo aserradero');
-  ok(etapas('RSFR').secado && !etapas('RSFR').cepillado,
+  ok(!etapas('RVMH').aserradero && !etapas('RVMH').secado && !etapas('RVMH').cepillado,
+    'RVMH lleva H: es Trading, se compra hecha y no lleva ninguna hoja de ruta');
+  ok(!etapas('C4JH').aserradero && !etapas('C4JH').cepillado,
+    'C4JH también: la H manda por encima de todo lo demás');
+  ok(etapas('RVM ').aserradero && !etapas('RVM ').secado && !etapas('RVM ').cepillado,
+    'RVM es verde y rústico: solo aserradero');
+  ok(etapas('RSFR').aserradero && etapas('RSFR').secado && !etapas('RSFR').cepillado,
     'RSFR es seco y rústico: aserradero y secado');
-  ok(etapas('C4JH').cepillado && etapas('C4JH').secado, 'C4JH es cepillado: pasa por las tres');
+  ok(etapas('CSF').cepillado && etapas('CSF').secado && etapas('CSF').aserradero,
+    'CSF es cepillado: pasa por las tres');
 }
 
 seccion('Cómo se arma y se desarma el código');
@@ -184,24 +193,23 @@ seccion('La fila de batch input en la hoja de la clase');
   ok(r.ok && r.hoja === 'PT' && r.fila === 3, 'la solicitud PT entra en la fila 3');
 
   ok(celda('PT', 3, 1) === 'CL', 'A País = CL');
-  ok(celda('PT', 3, 2) === 'TCD2', 'B Centro = el elegido');
+  ok(celda('PT', 3, 2) === 'TCP1', 'B Centro = el que dice SAP para esa agrupación');
   ok(celda('PT', 3, 3) === 'PT', 'C Clase Requerimiento = PT');
   ok(celda('PT', 3, 4) === 'NO', 'D Tipo Requerimiento = NO');
   ok(/^\d{2}\.\d{2}\.\d{4}$/.test(celda('PT', 3, 5)), 'E Llegada requerimiento, texto dd.mm.aaaa');
   ok(celda('PT', 3, 6) === 'test@masisa.com', 'F Usuario Solicitante = el correo');
 
-  ok(celda('PT', 3, 7) === 'RVM', 'G Aserradero(Template) sale del prefijo de la ruta');
-  ok(celda('PT', 3, 8) === '032X180', 'H Tamaño Dimensión sale de la escuadría de la ruta');
-  ok(celda('PT', 3, 9) === '032' && celda('PT', 3, 10) === '180', 'I y J: EE y AA del aserradero');
+  ok(celda('PT', 3, 7) === 'RVF', 'G Aserradero(Template) sale del prefijo de la ruta');
+  ok(celda('PT', 3, 8) === '037X130', 'H Tamaño Dimensión sale de la escuadría de la ruta');
+  ok(celda('PT', 3, 9) === '037' && celda('PT', 3, 10) === '130', 'I y J: EE y AA del aserradero');
 
-  ok(celda('PT', 3, 11) === '' && celda('PT', 3, 12) === '',
-    'K y L vacías: RVMH es verde, no pasa por secado');
+  ok(celda('PT', 3, 11) === 'RSF' && celda('PT', 3, 12) === '037X130', 'K y L: la etapa de secado');
   ok(celda('PT', 3, 15) === '' && celda('PT', 3, 16) === '',
-    'O y P vacías: es rústico, no pasa por cepillado');
+    'O y P vacías: RSFR es rústico, no pasa por cepillado');
 
-  ok(celda('PT', 3, 19) === 'RVMH', 'S Empaquetado = la agrupación');
-  ok(celda('PT', 3, 20) === '032X180X3960', 'T Tamaño dimensión completa');
-  ok(celda('PT', 3, 21) === '032' && celda('PT', 3, 22) === '180' && celda('PT', 3, 23) === '3960',
+  ok(celda('PT', 3, 19) === 'RSFR', 'S Empaquetado = la agrupación');
+  ok(celda('PT', 3, 20) === '037X130X3200', 'T Tamaño dimensión completa');
+  ok(celda('PT', 3, 21) === '037' && celda('PT', 3, 22) === '130' && celda('PT', 3, 23) === '3200',
     'U, V y W: espesor, ancho y largo');
   ok(celda('PT', 3, 24) === 248 && celda('PT', 3, 25) === 'PZA' && celda('PT', 3, 26) === 'P',
     'X, Y y Z: PAK, UMB y Stock/Pedido');
@@ -212,21 +220,20 @@ seccion('La fila de batch input en la hoja de la clase');
 seccion('Un producto cepillado llena las tres etapas');
 {
   const r = guardarUna(CEPILLADO);
-  ok(celda('PT', r.fila, 7) === 'RVF' && celda('PT', r.fila, 8) === '021X105',
-    'aserradero sobredimensionado, con su propia ruta');
-  ok(celda('PT', r.fila, 11) === 'RSF' && celda('PT', r.fila, 12) === '020X102', 'secado');
+  ok(celda('PT', r.fila, 7) === 'RVF' && celda('PT', r.fila, 8) === '019X100', 'aserradero');
+  ok(celda('PT', r.fila, 11) === 'RSF' && celda('PT', r.fila, 12) === '019X100', 'secado');
   ok(celda('PT', r.fila, 15) === 'CSF' && celda('PT', r.fila, 16) === '019X100', 'cepillado');
-  ok(celda('PT', r.fila, 19) === 'C4JH', 'y el empaquetado es la agrupación pedida');
+  ok(celda('PT', r.fila, 19) === 'C4JR', 'y el empaquetado es la agrupación pedida');
 }
 
 seccion('La bitácora Registro');
 {
   ok(registro(1, 'Fecha') === 'Fecha', 'estrena sus encabezados');
   ok(registro(2, 'Solicitante') === 'test@masisa.com', 'guarda el correo');
-  ok(registro(2, 'Agrupación') === 'RVMH', 'guarda la agrupación');
-  ok(registro(2, 'Código') === 'RVMH032X180X3960', 'guarda el código armado');
-  ok(registro(2, 'Aserradero') === 'RVM 032X180', 'guarda la ruta completa, no solo el prefijo');
-  ok(registro(2, 'Secado') === '', 'y deja en blanco la etapa que no aplica');
+  ok(registro(2, 'Agrupación') === 'RSFR', 'guarda la agrupación');
+  ok(registro(2, 'Código') === 'RSFR037X130X3200', 'guarda el código armado');
+  ok(registro(2, 'Aserradero') === 'RVF 037X130', 'guarda la ruta completa, no solo el prefijo');
+  ok(registro(2, 'Cepillado') === '', 'y deja en blanco la etapa que no aplica');
   ok(registro(2, 'Hoja Destino') === 'PT' && registro(2, 'Fila Destino') === 3,
     'deja la pista de dónde quedó la fila');
 }
@@ -242,10 +249,13 @@ seccion('Cada clase a su hoja');
 
 seccion('En PT la ruta se avisa; en PP y PCP tiene que existir');
 {
-  const inventada = { aserradero: { ruta: 'RVM 999X999' } };
+  const inventada = {
+    aserradero: { ruta: 'RVF 999X999' },   // no está en la base
+    secado: { ruta: 'RSF 037X130' }
+  };
   const pt = guardarUna(con({ desglose: inventada }));
   ok(pt.ok, 'en PT se puede indicar una ruta que todavía no está en la base');
-  ok(celda('PT', pt.fila, 7) === 'RVM' && celda('PT', pt.fila, 8) === '999X999',
+  ok(celda('PT', pt.fila, 7) === 'RVF' && celda('PT', pt.fila, 8) === '999X999',
     'y se escribe igual');
 
   ok(error(() => guardarUna(con({ clase: 'PP', desglose: inventada })))
@@ -265,13 +275,14 @@ seccion('Trading elige centro, Planta no');
     }
   }));
   ok(celda('PT', r.fila, 2) === 'TCP1', 'Planta entra como TCP1 aunque pidan otro centro');
-  ok(error(() => guardarUna(con({ centro: 'TCP9' }))).indexOf('no corresponde a Trading') !== -1,
+  ok(error(() => guardarUna(Object.assign({}, TRADING_LISTA, { centro: 'TCP9' })))
+    .indexOf('no corresponde a Trading') !== -1,
     'Trading con un centro que no existe no guarda');
 }
 
 seccion('Lo que no se puede guardar');
 {
-  ok(error(() => guardarUna(con({ largo: '4000' }))).indexOf('ya existe') !== -1,
+  ok(error(() => guardarUna(con({ largo: '3600' }))).indexOf('ya existe') !== -1,
     'un código que ya está creado');
   ok(error(() => guardarUna(con({
     origen: 'Trading', centro: 'TCP1', tipoMaterial: 'TTAS', agrupacion: 'RSFR',
@@ -279,16 +290,15 @@ seccion('Lo que no se puede guardar');
     desglose: { aserradero: { ruta: 'RVFD032X180' }, secado: { ruta: 'RSFD032X180' } }
   }))).indexOf('la especie del código tiene que ser H') !== -1,
     'una agrupación sin H pedida desde Trading');
-  ok(error(() => guardarUna(con({ centro: 'TCP1' }))).indexOf('no está habilitada') !== -1,
-    'RVMH no se puede pedir en TCP1: la hoja SAP no lo permite');
-  ok(error(() => guardarUna(con({ agrupacion: 'XXXX' }))).indexOf('no está habilitada') !== -1,
-    'una agrupación inventada');
+
+  ok(error(() => guardarUna(con({ agrupacion: 'X X' }))).indexOf('no tiene la forma') !== -1,
+    'una agrupación con una forma imposible');
   ok(error(() => guardarUna(con({ desglose: {} }))).indexOf('Falta la hoja de ruta') !== -1,
     'sin hoja de ruta');
-  ok(error(() => guardarUna(con({ desglose: { aserradero: { ruta: 'RSFD032X180' } } })))
+  ok(error(() => guardarUna(con({ desglose: { aserradero: { ruta: 'RSF 037X130' } } })))
     .indexOf('es de secado, no de Aserradero') !== -1,
     'una ruta de secado puesta en el aserradero');
-  ok(error(() => guardarUna(con({ desglose: { aserradero: { ruta: 'RVM' } } })))
+  ok(error(() => guardarUna(con({ desglose: { aserradero: { ruta: 'RVF' } } })))
     .indexOf('no tiene la forma de una ruta') !== -1, 'una ruta sin escuadría');
   ok(error(() => guardarUna(con({ piezas: 0 }))).indexOf('mayor que cero') !== -1, 'piezas en 0');
   ok(error(() => guardarUna(con({ piezas: 2.5 }))).indexOf('entero') !== -1, 'piezas con decimales');
@@ -297,6 +307,9 @@ seccion('Lo que no se puede guardar');
   ok(error(() => guardarUna(con({ clase: 'XX' }))).indexOf('Clase de requerimiento desconocida') !== -1,
     'clase inventada');
 
+  ok(guardarUna(TRADING_LISTA).ok,
+    'y en cambio uno de Trading se guarda sin ninguna hoja de ruta');
+
   const antes = SS.getSheetByName('PT').getLastRow();
   error(() => guardarUna(con({ piezas: 0 })));
   ok(SS.getSheetByName('PT').getLastRow() === antes, 'un intento fallido no deja filas a medias');
@@ -304,22 +317,35 @@ seccion('Lo que no se puede guardar');
 
 seccion('Del código se deduce todo lo demás');
 {
-  const h = deducirDeCodigo_('RVMH032X180X3960');
+  const bd = leerBD_();
+  const deducir = c => deducirDeCodigo_(c, bd);
+  const h = deducir('RVMH032X180X3960');
   ok(h.ok && h.origen === 'Trading' && h.centro === 'TCD2',
     'con especie H es Trading y centro TCD2, sin preguntar nada');
   ok(h.clase === 'PT', 'y con largo es producto terminado');
   ok(h.esTerceros === true, 'queda marcado como madera de terceros');
 
-  const proceso = deducirDeCodigo_('RVM 032X180');
+  const proceso = deducir('RVM 032X180');
   ok(proceso.clase === 'PP', 'tres letras y sin largo: producto de proceso');
   ok(proceso.origen === 'Planta' && proceso.centro === 'TCP1', 'y entra por Planta, en TCP1');
 
-  const cepillado = deducirDeCodigo_('CSF 019X100');
+  const cepillado = deducir('CSF 019X100');
   ok(cepillado.clase === 'PCP', 'si además es cepillado, va a PCP');
 
-  ok(deducirDeCodigo_('RSFR037X130X3600').origen === 'Planta',
+  ok(deducir('RSFR037X130X3600').origen === 'Planta',
     'un código de Radiata EERR no es de terceros: Planta');
-  ok(!deducirDeCodigo_('ZZZZ032X180X3960').ok, 'un prefijo desconocido no se deduce');
+  ok(h.familiaConocida && h.agrupacionTexto.indexOf('Médula') !== -1,
+    'el texto de la familia sale de la descripción de la propia base');
+
+  const nueva = deducir('RVQR032X180X3960');
+  ok(nueva.ok && !nueva.familiaConocida,
+    'una familia que todavía no existe se acepta si la nomenclatura la explica');
+  ok(nueva.agrupacionTexto === 'Rústico Verde Construcción Radiata EERR',
+    'y su texto se arma con el significado de cada carácter');
+
+  const mala = deducir('ZZZZ032X180X3960');
+  ok(!mala.ok && mala.mensaje.indexOf('elaboración') !== -1,
+    'y una que ni existe ni se explica dice qué carácter no reconoce');
 }
 
 seccion('El lote: se pegan códigos y salen sus filas');
@@ -334,29 +360,36 @@ seccion('El lote: se pegan códigos y salen sus filas');
 
   ok(r.filas.length === 4, 'las líneas en blanco se saltan');
   ok(r.filas[0].codigo === 'RVMH032X180X3960' && r.filas[0].clase === 'PT', 'la primera es PT');
-  ok(r.filas[0].opciones.aserradero.length === 2,
-    'trae las rutas de aserradero que hay para 032X180');
-  ok(!r.filas[0].ok && r.filas[0].problemas[0].indexOf('Falta la hoja de ruta') !== -1,
-    'y avisa que falta la ruta, porque hay dos y no puede elegir sola');
+  ok(r.filas[0].ok, 'y queda lista sola: lleva H, es de Trading y no pide rutas');
 
   ok(r.filas[1].clase === 'PP' && r.filas[1].ok === false, 'la segunda es de proceso');
   ok(r.filas[2].problemas[0].indexOf('Ya existe') !== -1, 'la tercera ya existe en la base');
-  ok(!r.filas[3].codigo && r.filas[3].problemas[0].indexOf('no está en la hoja SAP') !== -1,
+  ok(!r.filas[3].codigo && r.filas[3].problemas[0].indexOf('no existe en BD_Maderas') !== -1,
     'la cuarta no se pudo leer, y dice por qué');
-  ok(r.conProblemas === 4 && r.listas === 0, 'el resumen cuenta lo que falta');
+  ok(r.conProblemas === 3 && r.listas === 1, 'el resumen cuenta lo que falta');
 }
 {
   // Con la ruta pegada al lado, la fila sale lista de una.
-  const r = apiLote('RVMH032X180X3960\tRVM 032X180\t248');
-  ok(r.filas[0].rutas.aserradero === 'RVM 032X180', 'toma la ruta que viene en la misma línea');
-  ok(r.filas[0].piezas === '248', 'y el número suelto es la cantidad');
+  const r = apiLote('RSFR037X130X3200\tRVF 037X130\tRSF 037X130\t248');
+  ok(r.filas[0].rutas.aserradero === 'RVF 037X130', 'toma la ruta que viene en la misma línea');
+  ok(r.filas[0].rutas.secado === 'RSF 037X130', 'y cada una va a su etapa, sin importar el orden');
+  ok(r.filas[0].piezas === '248', 'el número suelto es la cantidad');
   ok(r.filas[0].ok && r.listas === 1, 'la fila queda lista');
 }
 {
   // Cuando la escuadría tiene una sola ruta por etapa, se pone sola.
-  const r = apiLote('C4JH019X100X2440');
+  const r = apiLote('C4JR019X100X2440');
   ok(r.filas[0].rutas.cepillado === 'CSF 019X100', 'elige sola la única ruta de cepillado');
-  ok(r.filas[0].etapas.secado && r.filas[0].etapas.aserradero, 'y pide las otras dos etapas');
+  ok(r.filas[0].rutas.aserradero === 'RVF 019X100' && r.filas[0].rutas.secado === 'RSF 019X100',
+    'y las de las otras dos etapas');
+  ok(r.filas[0].ok, 'así que la fila queda lista sin escribir nada');
+}
+{
+  // Trading no pide ninguna ruta, y la pantalla explica por qué.
+  const r = apiLote('RVMH032X180X3960');
+  ok(r.filas[0].ok, 'un código de Trading queda listo tal cual');
+  ok(r.filas[0].motivos.aserradero.indexOf('Trading') !== -1,
+    'y dice que se compra hecha, no que falte algo');
 }
 
 seccion('Las columnas van por línea');
@@ -390,14 +423,16 @@ seccion('Las columnas van por línea');
     'la columna gana sobre la ruta pegada en la misma línea del código');
 }
 {
-  const r = apiLote({ codigos: 'RVMH032X180X3960' });
+  const r = apiLote({ codigos: 'RSJR032X180X3200' });
   ok(r.filas[0].opciones.aserradero.length === 2 && !r.filas[0].rutas.aserradero,
-    'con dos rutas posibles no elige ninguna, y la tabla dice cuántas faltan');
+    'con dos rutas posibles no elige ninguna, y la tabla ofrece las dos');
 }
 
 seccion('Revisar el lote después de completar las rutas');
 {
-  const lote = apiLote('RVMH032X180X3960');
+  const lote = apiLote('RSJR032X180X3200');
+  ok(!lote.filas[0].ok, 'de entrada le falta el aserradero: hay dos rutas posibles');
+
   lote.filas[0].rutas.aserradero = 'RVM 032X180';
   const revisado = apiRevisarLote(lote.filas);
   ok(revisado.filas[0].ok && revisado.listas === 1, 'con la ruta puesta, la fila queda lista');
@@ -436,16 +471,21 @@ seccion('El Excel del batch input');
 seccion('Guardar el lote completo');
 {
   const lote = apiLote([
-    'RVMH032X180X3660\tRVM 032X180\t120',
-    'RVMH032X180X4270\tRVM 032X180'
+    'RVMH032X180X3660\t120',
+    'RVMH032X180X4270',
+    'C4JR019X100X3050\t60'
   ].join('\n'));
-  ok(lote.listas === 2, 'las dos líneas quedan listas');
+  ok(lote.listas === 3, 'las tres líneas quedan listas');
 
   const r = apiGuardarLote(lote.filas);
-  ok(r.guardadas === 2 && r.fallidas === 0, 'se guardan las dos');
+  ok(r.guardadas === 3 && r.fallidas === 0, 'se guardan las tres');
   ok(celda('PT', r.resultados[0].fila, 24) === 120, 'la primera lleva su PAK');
   ok(celda('PT', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
-  ok(celda('PT', r.resultados[1].fila, 7) === 'RVM', 'las dos con su ruta de aserradero');
+  ok(celda('PT', r.resultados[0].fila, 7) === '' && celda('PT', r.resultados[0].fila, 11) === '',
+    'las de Trading van sin ninguna ruta');
+  ok(celda('PT', r.resultados[2].fila, 7) === 'RVF' &&
+     celda('PT', r.resultados[2].fila, 15) === 'CSF',
+    'y la de planta con las suyas, elegidas solas');
 }
 {
   const lote = apiLote('RVMH032X180X4000\tRVM 032X180');
@@ -463,15 +503,11 @@ seccion('Sin identidad no hay registro');
   ok(guardarUna(SOLICITUD).ok, 'con el correo de vuelta, se puede guardar otra vez');
 }
 
-seccion('instalarRegistro deja los catálogos en el spreadsheet');
+seccion('instalarRegistro deja la bitácora lista');
 {
-  ok(!SS.getSheetByName('SAP'), 'antes de instalar no existe la hoja SAP');
-  instalarRegistro();
-  const sap = SS.getSheetByName('SAP');
-  ok(!!sap && sap.getLastRow() === 34, 'crea SAP con sus 33 filas de agrupaciones');
-  ok(sap.getRange(1, 4).getValue() === 'AgrupMad', 'con AgrupMad en la columna D');
-  ok(agrupacionesDe_('TCD2', 'TTAS').length === 9,
-    'y desde ahí en adelante las agrupaciones salen de la hoja');
+  const resumen = instalarRegistro();
+  ok(resumen.indexOf('Registro') !== -1, 'deja la hoja Registro en orden');
+  ok(!SS.getSheetByName('SAP'), 'y no inventa ninguna hoja de catálogo');
 }
 
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));

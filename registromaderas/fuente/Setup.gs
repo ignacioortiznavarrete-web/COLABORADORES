@@ -2,8 +2,8 @@
  * Preparación del spreadsheet y menú.
  *
  * `instalarRegistro` se ejecuta UNA vez desde el editor de Apps Script:
- * revisa las hojas, crea SAP y Agrupamiento con los catálogos si no existen,
- * y deja la hoja Registro con sus encabezados.
+ * revisa que estén BD_Maderas, PT, PCP y PP con sus columnas donde se esperan,
+ * y deja la hoja Registro con sus encabezados. No crea ninguna hoja más.
  */
 
 function onOpen() {
@@ -26,11 +26,6 @@ function instalarRegistro() {
   if (!libro.getSheetByName(CFG.HOJA_BD)) {
     problemas.push('Falta la hoja "' + CFG.HOJA_BD + '" (la base de códigos).');
   }
-
-  if (crearCatalogo_(libro, CFG.HOJA_SAP, SAP_ENCABEZADOS, SAP_SEMILLA)) {
-    hechos.push('Se creó la hoja "' + CFG.HOJA_SAP + '" con las agrupaciones por centro y tipo de material.');
-  }
-  olvidarCatalogos_();
 
   CLASES.forEach(function (clase) {
     var hoja = libro.getSheetByName(clase.hoja);
@@ -60,20 +55,6 @@ function instalarRegistro() {
 
   avisar_('Preparar hojas', resumen);
   return resumen;
-}
-
-/** Crea una hoja de catálogo con su semilla. Devuelve true si la creó. */
-function crearCatalogo_(libro, nombre, encabezados, filas) {
-  if (libro.getSheetByName(nombre)) return false;
-  var hoja = libro.insertSheet(nombre);
-  hoja.getRange(1, 1, 1, encabezados.length)
-    .setValues([encabezados])
-    .setFontWeight('bold')
-    .setBackground('#14352a')
-    .setFontColor('#ffffff');
-  hoja.getRange(2, 1, filas.length, encabezados.length).setValues(filas);
-  hoja.setFrozenRows(1);
-  return true;
 }
 
 function mostrarEnlace() {

@@ -41,8 +41,8 @@ Nada de esto se pregunta:
 
 | En el código | Se deduce |
 |---|---|
-| Especie `H` (4º carácter) | Es madera de terceros: **Trading**, y su centro en SAP es **TCD2** |
-| Cualquier otra especie | El centro que diga SAP, y **Planta** |
+| Especie `H` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2**, y **sin hoja de ruta** |
+| Cualquier otra especie | **Planta**, centro **TCP1** |
 | Lleva largo (16 caracteres) | Producto terminado: **PT** |
 | Tres letras y sin largo | Producto de proceso: **PP** |
 | Tres letras, sin largo y empieza en `C` | Cepillado en proceso: **PCP** |
@@ -53,13 +53,16 @@ La clase queda editable en la tabla por si algún caso no calza.
 
 Todo lo que el formulario decide solo sale de tus propias hojas:
 
+**`BD_Maderas` es la única hoja que se consulta.** No hay catálogos aparte.
+
 | Decisión | De dónde sale |
 |---|---|
-| Qué agrupaciones se pueden pedir | Hoja **SAP**: `Ce.` + `TpMt` → `AgrupMad` |
-| En **Trading**, cuáles de esas | Solo las de especie `H`, Radiata Terceros: es madera de terceros |
+| Si el material es de **Trading** | Carácter 4 = `H`, Radiata Terceros: se compra a terceros |
+| Si lleva **hoja de ruta** | Trading no lleva ninguna: se compra hecha |
 | Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` |
 | Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
-| Etapa de **aserradero** | Va siempre |
+| Etapa de **aserradero** | Va siempre, salvo en Trading |
+| Si el prefijo vale | Si ya hay materiales de esa familia en `BD_Maderas`; si no, basta con que la nomenclatura explique sus cuatro caracteres |
 | Qué hojas de ruta se ofrecen | Las que `BD_Maderas` tiene para esa escuadría |
 | A qué etapa pertenece una ruta | Sus dos primeros caracteres: `RV` aserradero, `RS` secado, `C` cepillado |
 
@@ -76,9 +79,13 @@ confundirlas:
 Si el código ya existe, el formulario lo dice con su descripción y no deja
 seguir. Y para no chocar, muestra qué largos de esa escuadría ya están creados.
 
-La exigencia sobre la ruta depende de la clase: en **PP** y **PCP** tiene que
-existir en la base; en **PT** se puede indicar una que todavía no esté, y el
-formulario solo avisa.
+La ruta se escribe como **tres letras, un espacio y la escuadría**: `RVM 019X020`.
+Así es el 89% de las que hay en la base. Las de cuatro letras (`RVFD032X180`)
+también valen.
+
+La exigencia depende de la clase: en **PP** y **PCP** la ruta tiene que existir
+en `BD_Maderas`; en **PT** se puede indicar cualquiera que se recomiende, y el
+formulario solo avisa si todavía no está.
 
 Ejemplos, con los mismos códigos de tu archivo:
 
@@ -166,13 +173,13 @@ y `Fila Destino` para poder ir de la bitácora a la fila original.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son ocho archivos, los de la carpeta `fuente/`.
+Cinco pasos, una sola vez. Son siete archivos, los de la carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los ocho archivos
+### 2. Crea los siete archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -182,7 +189,6 @@ carpeta:
 | Archivo en Apps Script | Contenido |
 |---|---|
 | `Config.gs` | `fuente/Config.gs` |
-| `Catalogos.gs` | `fuente/Catalogos.gs` |
 | `Registro.gs` | `fuente/Registro.gs` |
 | `Xlsx.gs` | `fuente/Xlsx.gs` |
 | `Lote.gs` | `fuente/Lote.gs` |
@@ -206,8 +212,8 @@ Google pedirá permisos: *Revisar permisos › elige tu cuenta › Configuració
 avanzada › Ir a (nombre del proyecto) › Permitir*. La pantalla de "app no
 verificada" es normal en scripts propios.
 
-Eso crea la hoja **SAP** con el catálogo del archivo de Jorge, deja `Registro`
-con sus encabezados y avisa si alguna columna de PT/PCP/PP se movió de lugar.
+Revisa que estén `BD_Maderas`, `PT`, `PCP` y `PP` con sus columnas donde se
+esperan, y deja `Registro` con sus encabezados. **No crea ninguna hoja más.**
 
 ### 4. Publica
 
@@ -229,16 +235,6 @@ Copia la URL y mándala. El menú **Registro Maderas › Ver enlace del formular
 también la muestra.
 
 ---
-
-## Mantener el catálogo
-
-**Se edita en Sheets, no en el código.** La hoja `SAP` es la fuente de verdad:
-agregar una agrupación nueva es pegar una fila con su `Ce.`, `TpMt` y
-`AgrupMad`, y aparece en el formulario. Las hojas de ruta salen de
-`BD_Maderas`, así que tampoco hay nada que mantener en el código.
-
-El catálogo se recuerda seis horas para no releer la planilla en cada clic. Si
-acabas de cambiarlo y quieres verlo ya, ejecuta `instalarRegistro`.
 
 ## Decisiones que conviene revisar
 
@@ -290,7 +286,6 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 | Archivo | Qué hay |
 |---|---|
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
-| `fuente/Catalogos.gs` | Lectura de la hoja SAP, con su semilla. |
 | `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. |
 | `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado, Excel y guardado en bloque. |
 | `fuente/Xlsx.gs` | Arma el .xlsx a mano, sin librerías: un zip con cinco XML. |

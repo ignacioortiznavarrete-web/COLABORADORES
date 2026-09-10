@@ -176,6 +176,19 @@
   }
   table.lote td.no-aplica { color: var(--tinta-suave); text-align: center; }
   table.lote td.falta { color: var(--ambar); font-size: 12.5px; font-style: italic; }
+
+  /* Las rutas que la base ofrece para esa escuadría: un clic y quedan puestas. */
+  table.lote td.candidatas { white-space: nowrap; }
+  .chip-ruta {
+    appearance: none; cursor: pointer; font: 500 12px/1 var(--mono); letter-spacing: .03em;
+    color: var(--bosque-800); background: var(--bosque-050);
+    border: 1px dashed var(--bosque-200); border-radius: 999px;
+    padding: 5px 10px; margin: 2px 4px 2px 0;
+    transition: background 140ms var(--salida), border-color 140ms var(--salida);
+  }
+  .chip-ruta:hover { background: var(--bosque-100); border-style: solid; border-color: var(--bosque-500); }
+  .chip-ruta:focus-visible { outline: 2px solid var(--bosque-600); outline-offset: 1px; }
+  table.lote td.candidatas small { display: inline; margin-left: 4px; }
   table.lote .estado { max-width: 34ch; }
   table.lote .estado .ok { color: var(--bosque-700); font-weight: 600; }
   table.lote .estado .problema, table.lote td.problema { color: var(--ambar); font-size: 12.5px; }

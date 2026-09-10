@@ -3,7 +3,7 @@
  * batch input.
  *
  * Todo lo que el código dice, se deduce y no se pregunta:
- *   · especie H  -> Trading, y el centro que SAP tenga para esa agrupación
+ *   · especie H  -> Trading, y su centro es TCD2
  *   · con largo  -> PT · sin largo -> PP, o PCP si el producto es cepillado
  * Lo único que hay que escribir son las hojas de ruta de las etapas que apliquen.
  */
@@ -18,7 +18,7 @@
 function leerBD_() {
   var hoja = hoja_(CFG.HOJA_BD);
   var ultima = hoja.getLastRow();
-  var bd = { codigos: {}, rutas: {} };
+  var bd = { codigos: {}, rutas: {}, prefijos: {} };
   if (ultima < 2) return bd;
 
   var valores = hoja.getRange(2, 1, ultima - 1, 4).getValues();
@@ -26,6 +26,16 @@ function leerBD_() {
     var codigo = normalizarCodigo_(valores[i][BD.MATERIAL - 1]);
     if (!codigo) continue;
     var descripcion = texto_(valores[i][BD.DESCRIPCION - 1]);
+
+    // Qué familias existen: el prefijo de un material ya creado es válido,
+    // y su TpMt y su descripción sirven para los que se creen igual.
+    var pre = codigo.substring(0, 4);
+    if (pre.length === 4 && !bd.prefijos[pre]) {
+      bd.prefijos[pre] = {
+        tipoMaterial: texto_(valores[i][BD.TIPO_MATERIAL - 1]),
+        descripcion: sinMedida_(descripcion)
+      };
+    }
 
     bd.codigos[codigo] = {
       codigo: codigo,
@@ -50,6 +60,11 @@ function leerBD_() {
 
 /* -------------------------------------------------------------- deducción */
 
+/** La descripción sin su medida final, que es lo que describe a la familia. */
+function sinMedida_(descripcion) {
+  return texto_(descripcion).replace(/\s*\d{2,4}\s*[xX]\s*\d{2,4}(\s*[xX]\s*\d{3,5})?\s*\S*\s*$/, '').trim();
+}
+
 /** El origen que usa ese centro sin ser Trading; Trading exige especie H. */
 function origenSinTerceros_(centro) {
   var candidatos = ORIGENES.filter(function (o) {
@@ -61,8 +76,15 @@ function origenSinTerceros_(centro) {
   return (candidatos[0] || {}).id || DEDUCCION.ORIGEN_SIN_TERCEROS;
 }
 
-/** Todo lo que el código dice por sí solo. */
-function deducirDeCodigo_(texto) {
+/**
+ * Todo lo que el código dice por sí solo, sin más fuente que BD_Maderas.
+ *
+ * Un prefijo vale si ya hay materiales de esa familia en la base. Si no los
+ * hay, se acepta igual siempre que la nomenclatura explique sus cuatro
+ * caracteres: eso permite estrenar una familia sin dejar pasar un código
+ * inventado.
+ */
+function deducirDeCodigo_(texto, bd) {
   var partes = descomponerCodigo_(texto);
   if (!partes) {
     return {
@@ -72,27 +94,43 @@ function deducirDeCodigo_(texto) {
     };
   }
 
-  var agrupacion = buscarAgrupacion_(partes.agrupacion);
-  if (!agrupacion) {
-    return {
-      ok: false,
-      mensaje: 'El prefijo ' + partes.agrupacion + ' no está en la hoja ' + CFG.HOJA_SAP + '.'
-    };
+  var prefijo = prefijo_(partes.agrupacion);
+  var descompuesto = descomponerPrefijo_(partes.agrupacion);
+  var familia = (bd && bd.prefijos) ? bd.prefijos[prefijo] : null;
+
+  if (!familia) {
+    var sinGlosa = descompuesto.filter(function (x) {
+      return x.caracter !== ' ' && !x.significado;
+    });
+    if (sinGlosa.length) {
+      var x = sinGlosa[0];
+      return {
+        ok: false,
+        mensaje: 'El prefijo ' + partes.agrupacion + ' no existe en ' + CFG.HOJA_BD +
+          ' y su ' + x.titulo.toLowerCase() + ' ("' + x.caracter + '") tampoco está en la ' +
+          'nomenclatura.'
+      };
+    }
   }
 
-  var prefijo = prefijo_(agrupacion.agrupacion);
   var esTerceros = prefijo.charAt(3) === TRADING.ESPECIE;
+  var centro = esTerceros ? TRADING.CENTRO : DEDUCCION.CENTRO_PLANTA;
 
   return {
     ok: true,
-    codigo: armarCodigo_(agrupacion.agrupacion, partes.espesor, partes.ancho, partes.largo),
-    agrupacion: agrupacion.agrupacion,
-    agrupacionTexto: agrupacion.textoLargo,
+    codigo: armarCodigo_(partes.agrupacion, partes.espesor, partes.ancho, partes.largo),
+    agrupacion: partes.agrupacion,
+    agrupacionTexto: familia ? familia.descripcion : descompuesto.map(function (x) {
+      return x.significado;
+    }).filter(Boolean).join(' '),
+    familiaConocida: !!familia,
     prefijo: prefijo,
-    partes: descomponerPrefijo_(agrupacion.agrupacion),
-    centro: agrupacion.centro,
-    tipoMaterial: agrupacion.tipoMaterial,
-    origen: esTerceros ? TRADING.ORIGEN : origenSinTerceros_(agrupacion.centro),
+    partes: descompuesto,
+    centro: centro,
+    tipoMaterial: familia && familia.tipoMaterial
+      ? familia.tipoMaterial
+      : (prefijo.charAt(3) === ' ' ? 'TPAS' : 'TTAS'),
+    origen: esTerceros ? TRADING.ORIGEN : origenSinTerceros_(centro),
     esTerceros: esTerceros,
     clase: partes.largo
       ? DEDUCCION.CLASE_CON_LARGO
@@ -100,7 +138,7 @@ function deducirDeCodigo_(texto) {
     espesor: partes.espesor,
     ancho: partes.ancho,
     largo: partes.largo,
-    etapas: etapasAplicables_(agrupacion.agrupacion)
+    etapas: etapasAplicables_(partes.agrupacion)
   };
 }
 
@@ -128,7 +166,7 @@ function leerLinea_(linea, numero, bd) {
     ok: false
   };
 
-  var base = deducirDeCodigo_(campos[0] || '');
+  var base = deducirDeCodigo_(campos[0] || '', bd);
   if (!base.ok) {
     fila.problemas.push(base.mensaje);
     return fila;
@@ -144,11 +182,24 @@ function leerLinea_(linea, numero, bd) {
 
   // Rutas de la escuadría del producto, separadas por etapa.
   var disponibles = bd.rutas[fila.espesor + 'X' + fila.ancho] || [];
+  fila.motivos = {};
   ETAPAS.forEach(function (etapa) {
-    if (!fila.etapas[etapa.id]) return;
+    if (!fila.etapas[etapa.id]) {
+      fila.motivos[etapa.id] = motivoSinEtapa_(fila, etapa.id);
+      return;
+    }
     fila.opciones[etapa.id] = disponibles.filter(function (r) { return r.etapa === etapa.id; });
   });
   return fila;
+}
+
+/** Por qué una etapa no pide ruta. Lo usa la pantalla para explicarlo. */
+function motivoSinEtapa_(fila, etapaId) {
+  var p = fila.prefijo || '';
+  if (p.charAt(3) === TRADING.ESPECIE) return 'Trading: se compra hecha, no lleva ruta.';
+  if (etapaId === 'cepillado') return 'Es rústico, no pasa por cepillado.';
+  if (etapaId === 'secado') return 'Es verde, no pasa por secado.';
+  return 'No aplica.';
 }
 
 /** Si una etapa tiene una sola ruta posible, se pone sola. */
@@ -189,7 +240,7 @@ function validarFila_(fila, existe) {
     }
     if (!escuadriaDeRuta_(ruta)) {
       fila.problemas.push('La ruta de ' + etapa.titulo + ' ("' + ruta + '") no tiene la forma ' +
-        'de una ruta: prefijo más escuadría, como RVFD032X180.');
+        'de una ruta: tres letras, un espacio y la escuadría, como RVM 019X020.');
       return;
     }
     var familia = familiaDeRuta_(ruta);
@@ -219,6 +270,7 @@ function solicitudDeFila_(fila) {
     centro: fila.centro,
     tipoMaterial: fila.tipoMaterial,
     agrupacion: fila.agrupacion,
+    agrupacionTexto: fila.agrupacionTexto,
     espesor: fila.espesor,
     ancho: fila.ancho,
     largo: fila.largo,
