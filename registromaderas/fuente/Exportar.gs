@@ -32,7 +32,7 @@ function descargarSeleccion() {
   t.primeraFila = EXPORTAR.PRIMERA_FILA;
 
   SpreadsheetApp.getUi().showModalDialog(
-    t.evaluate().setWidth(460).setHeight(300), 'Descargar Excel');
+    t.evaluate().setWidth(460).setHeight(340), 'Descargar Excel');
 }
 
 /**
