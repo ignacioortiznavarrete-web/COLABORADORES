@@ -47,6 +47,7 @@ viajes detectó, y qué columnas opcionales encontró.
 | — | Exportación a CSV de la vista y del plan de acción |
 | — | Cada gráfico se descarga como PNG, y un botón arma una presentación de Google Slides con todos |
 | — | Tocar un mes despliega ese mes desglosado por proveedor, sin salir del Resumen |
+| — | Las distribuciones se leen en m³, trozos o porcentaje del total, a elección |
 | — | Tema claro y oscuro |
 
 ### Datos que antes se ignoraban
@@ -143,11 +144,16 @@ mostrar los m³ recibidos y nada más.
 - **Ningún gráfico de doble eje.** El Pareto de proveedores pone barras y
   acumulado en una sola escala 0-100%; viajes y carga media, que son medidas
   distintas, se separaron en dos gráficos.
-- La **distribución diamétrica** muestra m³ por clase, sin línea de acumulado, y
-  llega hasta 48 cm (`DIAM_MAX_GRAFICO` en `Index.html`). Las clases mayores son
-  marginales y solo estiraban el eje; siguen contando en el diámetro medio, la
-  mediana y los porcentajes de la nota, y ahí se indica cuánto volumen quedó
-  fuera del gráfico.
+- Las dos **distribuciones** (diamétrica y por largo) tienen selector de medida:
+  `m³`, `% del volumen`, `Trozos` y `% de los trozos`. Los dos porcentajes suman
+  100% sobre la distribución completa. No es lo mismo mirar una que otra: los
+  trozos finos son muchas piezas y poco volumen, así que la mediana se corre
+  varios centímetros entre una lectura y la otra.
+- La diamétrica trae además un selector de clases: `Todas` (por defecto) o
+  `Hasta 48 cm` (`DIAM_MAX_GRAFICO`), para cuando las clases gruesas estiran el
+  eje. Con el recorte las barras ya no suman 100%, y la nota dice cuánto quedó
+  fuera y cómo volver al 100%. Ninguna de las cifras de la nota depende del
+  recorte: describen la madera recibida, no lo que se está dibujando.
 - El plan dejó de ser una barra que compite con lo ingresado y pasó a ser una
   **línea de meta**; la barra de cada mes se pinta según su distancia al plan.
 - En el gráfico mensual cada mes muestra su cifra: los m³ ingresados en blanco

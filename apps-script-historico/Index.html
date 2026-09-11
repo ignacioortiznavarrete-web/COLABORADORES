@@ -412,6 +412,8 @@
     }
     h3 .meta{color:var(--muted);font-size:11px;font-weight:500;display:flex;align-items:center;gap:7px;letter-spacing:0}
     h3 select{width:auto;min-width:148px;padding:4px 7px;font-size:11.5px;border-radius:var(--radius-xs)}
+    h3 .sel{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);font-weight:500}
+    h3 .sel select{min-width:104px;font-weight:600;color:var(--ink)}
 
     .chart-dl{
       background:transparent;color:var(--muted);border:1px solid var(--line);
@@ -939,13 +941,41 @@
 
     <div class="grid">
       <div class="card full">
-        <h3>Distribución diamétrica <span class="meta">m³ por clase de diámetro, hasta 48 cm</span></h3>
+        <h3>Distribución diamétrica
+          <span class="meta">
+            <label class="sel">Medida
+              <select id="medDiam" onchange="drawDiametro()">
+                <option value="cub">m³</option>
+                <option value="cubPct">% del volumen</option>
+                <option value="qty">Trozos</option>
+                <option value="qtyPct">% de los trozos</option>
+              </select>
+            </label>
+            <label class="sel">Clases
+              <select id="rangoDiam" onchange="drawDiametro()">
+                <option value="todas">Todas</option>
+                <option value="48">Hasta 48 cm</option>
+              </select>
+            </label>
+          </span>
+        </h3>
         <div id="chDiam" class="chart tall"></div>
         <div class="note" id="notaDiam"></div>
       </div>
 
       <div class="card">
-        <h3>Distribución por largo</h3>
+        <h3>Distribución por largo
+          <span class="meta">
+            <label class="sel">Medida
+              <select id="medLargo" onchange="drawLargo()">
+                <option value="cub">m³</option>
+                <option value="cubPct">% del volumen</option>
+                <option value="qty">Trozos</option>
+                <option value="qtyPct">% de los trozos</option>
+              </select>
+            </label>
+          </span>
+        </h3>
         <div id="chLargo" class="chart"></div>
       </div>
 
@@ -1564,7 +1594,7 @@ function newAgg(){
     provSeen:{}, comSeen:{}, predSeen:{},
     viajes:{}, nViajes:0, dias:{}, nDias:0, pats:{}, nPats:0,
     byMonth:{}, byMonthDet:{}, byProv:{}, byPred:{}, byCom:{}, byCal:{}, byReg:{}, byRegionCom:{},
-    byLargo:{}, byDiam:{}, byTur:{}, byHora:{}, byDow:{}, byEst:{}, byCalMes:{},
+    byLargo:{}, byLargoQty:{}, byDiam:{}, byDiamQty:{}, byTur:{}, byHora:{}, byDow:{}, byEst:{}, byCalMes:{},
     minYmd:0, maxYmd:0
   };
 }
@@ -1598,7 +1628,9 @@ function accum(A, i, c){
   add(A.byCal, c.cal[i], cub);
   add(A.byReg, ri, cub);
   add(A.byLargo, c.lar[i], cub);
+  add(A.byLargoQty, c.lar[i], q);
   add(A.byDiam, c.dia[i], cub);
+  add(A.byDiamQty, c.dia[i], q);
   add(A.byTur, c.tur[i], cub);
   add(A.byEst, c.est[i], cub);
   add(A.byDow, B.dow[i], cub);
@@ -3334,58 +3366,99 @@ function renderOperacionKPIs(){
   setText('oPredios', fmt0(Object.keys(P.predSeen).length));
 }
 
-/* Sobre este diámetro las clases son marginales y solo estiran el eje. */
+/* Tope de la opción "Hasta 48 cm": sobre ese diámetro las clases son marginales. */
 var DIAM_MAX_GRAFICO = 48;
 
+/**
+ * Traduce el selector de medida a lo que hay que leer y cómo rotularlo.
+ * El porcentaje siempre se calcula sobre TODAS las clases, no sobre las
+ * visibles, para que "% del total" signifique lo mismo con y sin recorte.
+ */
+function medidaDistribucion(idSelect, agregado, agregadoQty){
+  var modo = val(idSelect) || 'cub';
+  var porTrozos = modo === 'qty' || modo === 'qtyPct';
+  var enPct = modo === 'cubPct' || modo === 'qtyPct';
+
+  return {
+    modo: modo,
+    enPct: enPct,
+    fuente: porTrozos ? agregadoQty : agregado,
+    unidad: porTrozos ? 'trozos' : 'm³',
+    universo: porTrozos ? 'de los trozos' : 'del volumen',
+    eje: enPct ? (porTrozos ? '% de los trozos' : '% del volumen') : (porTrozos ? 'trozos' : 'm³'),
+    fmt: porTrozos ? fmt0 : fmt
+  };
+}
+
 function drawDiametro(){
-  var claves = Object.keys(V.P.byDiam).map(Number).filter(function(d){ return d > 0; })
+  if(!V || !CHARTS_OK) return;
+
+  var med = medidaDistribucion('medDiam', V.P.byDiam, V.P.byDiamQty);
+  var soloHasta48 = val('rangoDiam') === '48';
+
+  var claves = Object.keys(med.fuente).map(Number)
+    .filter(function(d){ return d > 0 && med.fuente[d] > 0; })
     .sort(function(a,b){ return a-b; });
 
   if(!claves.length) return empty('chDiam');
 
-  // El total se calcula sobre todas las clases: los porcentajes siguen
-  // refiriéndose al volumen completo aunque el gráfico se corte antes.
-  var total = claves.reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0) || 1;
+  var total = claves.reduce(function(s2,d){ return s2 + med.fuente[d]; }, 0) || 1;
+  var visibles = soloHasta48 ? claves.filter(function(d){ return d <= DIAM_MAX_GRAFICO; }) : claves;
 
-  var visibles = claves.filter(function(d){ return d <= DIAM_MAX_GRAFICO; });
-  if(!visibles.length) return empty('chDiam', 'No hay clases bajo ' + DIAM_MAX_GRAFICO + ' cm en este periodo.');
+  if(!visibles.length){
+    return empty('chDiam', 'No hay clases bajo ' + DIAM_MAX_GRAFICO + ' cm en este periodo.');
+  }
 
   var filas = visibles.map(function(d){
+    var v = med.fuente[d];
+    var parte = v / total;
     return [
       String(d),
-      V.P.byDiam[d],
-      d + ' cm: ' + fmt(V.P.byDiam[d]) + ' m³ (' + fmtPct(V.P.byDiam[d] / total) + ' del volumen)'
+      med.enPct ? parte * 100 : v,
+      d + ' cm: ' + med.fmt(v) + ' ' + med.unidad + ' (' + fmtPct(parte) + ' ' + med.universo + ')'
     ];
   });
 
+  var ejeY = { title: med.eje };
+  if(med.enPct){ ejeY.minValue = 0; ejeY.format = "#'%'"; }
+
   drawOn('chDiam', 'ColumnChart',
-    [['Diámetro (cm)', 'm³', {role:'tooltip', type:'string'}]].concat(filas),
+    [['Diámetro (cm)', med.eje, {role:'tooltip', type:'string'}]].concat(filas),
     chartOpts({
       colors: [palette().real],
       legend: { position:'none' },
-      vAxis: { title:'m³' },
+      vAxis: ejeY,
       bar: { groupWidth:'78%' },
       chartArea: { width:'86%', height:'72%' }
     }));
 
-  // Mediana ponderada por volumen: la mitad del volumen está bajo este diámetro.
+  setHtml('notaDiam', notaDiametro(claves, med, total, soloHasta48));
+}
+
+/** La nota describe la madera recibida, así que se calcula sobre todas las clases. */
+function notaDiametro(claves, med, total, soloHasta48){
   var mitad = total / 2, corrido = 0, mediana = claves[0];
   for(var i=0;i<claves.length;i++){
-    corrido += V.P.byDiam[claves[i]];
+    corrido += med.fuente[claves[i]];
     if(corrido >= mitad){ mediana = claves[i]; break; }
   }
 
-  var finos = claves.filter(function(d){ return d < 20; }).reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0);
-  var gruesos = claves.filter(function(d){ return d >= 30; }).reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0);
-  var fuera = claves.filter(function(d){ return d > DIAM_MAX_GRAFICO; })
-                    .reduce(function(s2,d){ return s2 + V.P.byDiam[d]; }, 0);
+  function parte(filtro){
+    return claves.filter(filtro).reduce(function(s2,d){ return s2 + med.fuente[d]; }, 0) / total;
+  }
+
+  var finos = parte(function(d){ return d < 20; });
+  var gruesos = parte(function(d){ return d >= 30; });
+  var fuera = soloHasta48 ? parte(function(d){ return d > DIAM_MAX_GRAFICO; }) : 0;
 
   var prom = V.P.qty ? V.P.diaW / V.P.qty : 0;
   var promC = V.C.qty ? V.C.diaW / V.C.qty : 0;
 
-  var texto = '<b>Diámetro medio ponderado</b> ' + fmt1(prom) + ' cm · <b>mediana de volumen</b> ' + mediana + ' cm. ' +
-              '<b>' + fmtPct(finos / total) + '</b> del volumen viene bajo 20 cm y ' +
-              '<b>' + fmtPct(gruesos / total) + '</b> sobre 30 cm.';
+  var texto = '<b>Diámetro medio ponderado</b> ' + fmt1(prom) + ' cm · <b>mediana</b> ' + mediana +
+              ' cm, que es donde se acumula la mitad ' + med.universo + '. ' +
+              '<b>' + fmtPct(finos) + '</b> ' + med.universo + ' viene bajo 20 cm y ' +
+              '<b>' + fmtPct(gruesos) + '</b> sobre 30 cm. ' +
+              'El total de la distribución es ' + med.fmt(total) + ' ' + med.unidad + ' = 100%.';
 
   if(V.hayComparacion && promC){
     var dd = prom - promC;
@@ -3394,29 +3467,55 @@ function drawDiametro(){
       (dd < -.5 ? 'Una caída sostenida del diámetro golpea el rendimiento de planta: conviene revisar qué predios están entrando.' : '');
   }
 
-  if(fuera){
-    texto += ' El gráfico llega hasta ' + DIAM_MAX_GRAFICO + ' cm: quedan fuera ' + fmt(fuera) +
-             ' m³ (' + fmtPct(fuera / total) + ' del volumen) en clases mayores, ' +
-             'que sí están incluidos en las cifras de arriba.';
+  if(fuera > 0){
+    texto += ' El gráfico está recortado en ' + DIAM_MAX_GRAFICO + ' cm: queda fuera ' +
+             fmtPct(fuera) + ' ' + med.universo + ' en clases mayores, que sí cuenta en estas cifras. ' +
+             'Elige «Todas» en Clases para que las barras sumen 100%.';
   }
 
-  setHtml('notaDiam', texto.replace(/\s+/g, ' ').trim());
+  return texto.replace(/\s+/g, ' ').trim();
 }
 
 function drawLargo(){
-  var pal = palette();
-  var filas = Object.keys(V.P.byLargo).map(Number).filter(function(l){ return l > 0; })
-    .sort(function(a,b){ return a-b; })
-    .map(function(l){ return [fmt1(l) + ' m', V.P.byLargo[l]]; });
+  if(!V || !CHARTS_OK) return;
 
-  if(!filas.length) return empty('chLargo');
+  var med = medidaDistribucion('medLargo', V.P.byLargo, V.P.byLargoQty);
 
-  drawOn('chLargo', 'ColumnChart', [['Largo','m³']].concat(filas), chartOpts({
-    colors: [pal.real],
-    legend: { position:'none' },
-    vAxis: { title:'m³' },
-    bar: { groupWidth:'62%' }
-  }));
+  var claves = Object.keys(med.fuente).map(Number)
+    .filter(function(l){ return l > 0 && med.fuente[l] > 0; })
+    .sort(function(a,b){ return a-b; });
+
+  if(!claves.length) return empty('chLargo');
+
+  var total = claves.reduce(function(s2,l){ return s2 + med.fuente[l]; }, 0) || 1;
+
+  var filas = claves.map(function(l){
+    var v = med.fuente[l];
+    var parte = v / total;
+    return [
+      fmt1(l) + ' m',
+      med.enPct ? parte * 100 : v,
+      fmt1(l) + ' m: ' + med.fmt(v) + ' ' + med.unidad + ' (' + fmtPct(parte) + ' ' + med.universo + ')',
+      med.enPct ? fmtPct(parte) : med.fmt(v)
+    ];
+  });
+
+  var ejeY = { title: med.eje };
+  if(med.enPct){ ejeY.minValue = 0; ejeY.format = "#'%'"; }
+
+  drawOn('chLargo', 'ColumnChart',
+    [['Largo', med.eje, {role:'tooltip', type:'string'}, {role:'annotation'}]].concat(filas),
+    chartOpts({
+      colors: [palette().real],
+      legend: { position:'none' },
+      vAxis: ejeY,
+      bar: { groupWidth:'62%' },
+      annotations: {
+        alwaysOutside: true,
+        stem: { color:'transparent', length:5 },
+        textStyle: { fontSize:10, bold:true, color:cssVar('--chart-text'), auraColor:'none' }
+      }
+    }));
 }
 
 function drawCalMes(){
