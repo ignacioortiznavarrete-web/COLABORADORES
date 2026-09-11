@@ -177,7 +177,7 @@ function leerLinea_(linea, numero, bd) {
     var campo = campos[i];
     if (/^\d+$/.test(campo)) { fila.piezas = campo; continue; }
     var familia = familiaDeRuta_(campo);
-    if (escuadriaDeRuta_(campo) && familia) fila.rutas[familia] = normalizarCodigo_(campo);
+    if (escuadriaDeRuta_(campo) && familia) fila.rutas[familia] = normalizarRuta_(campo);
   }
 
   // Rutas de la escuadría del producto, separadas por etapa.
@@ -244,7 +244,10 @@ function validarFila_(fila, existe) {
   var exigeEnBD = RUTAS.DEBE_EXISTIR_EN.indexOf(fila.clase) !== -1;
   ETAPAS.forEach(function (etapa) {
     if (!fila.etapas[etapa.id]) return;
-    var ruta = normalizarCodigo_(fila.rutas[etapa.id]);
+    // Se guarda de vuelta ya completa, para que la columna muestre la ruta
+    // como queda escrita y no como se tecleó.
+    var ruta = normalizarRuta_(fila.rutas[etapa.id]);
+    fila.rutas[etapa.id] = ruta;
     if (!ruta) {
       if (RUTAS.OBLIGATORIA) fila.problemas.push('Falta la hoja de ruta de ' + etapa.titulo + '.');
       return;

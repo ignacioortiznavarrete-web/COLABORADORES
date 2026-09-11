@@ -31,8 +31,29 @@ Los cuatro caracteres del prefijo salen de la hoja *MAderas Trading Estructura*:
 | 4 | Especie | `H` Radiata Terceros · `R` Radiata EERR · `« »` producto en proceso |
 
 Después van espesor (3 dígitos), `X`, ancho (3) y, si el producto lo lleva, `X`
-y largo (4). Con largo el código mide **16 caracteres**; sin largo, **11**. Los
-ceros a la izquierda los pone el formulario: escribes `32` y queda `032`.
+y largo (4). Con largo el código mide **16 caracteres**; sin largo, **11**.
+
+**Los ceros a la izquierda los pone el formulario.** Se pega el código como se
+tenga a mano y sale completo:
+
+| Se pega | Queda |
+|---|---|
+| `RVMH32X180X3960` | `RVMH032X180X3960` |
+| `RVMH32X18X396` | `RVMH032X018X0396` |
+| `RVM32X180` | `RVM 032X180` |
+| `RVF 19X100` (una ruta) | `RVF 019X100` |
+
+Los ceros no son cosmética: viajan a cada columna del batch input. De
+`RSFR37X130X3200` con la ruta `RVF 37X130` sale `037X130` en *Tamaño
+Dimensión*, `037` en *EE*, `130` en *AA*, `037X130X3200` en la medida final y
+`037`, `130`, `3200` en espesor, ancho y largo.
+
+Y una ruta escrita corta encuentra igual su material en la base: se busca
+`RVF 019X100`, no `RVF 19X100`.
+
+Para desambiguar `RVM32X180` —que sin más podría leerse como prefijo `RVM3` y
+espesor `002`— se usa la nomenclatura: el 4º carácter del prefijo es la especie,
+y una especie nunca es un dígito.
 
 De las 41.816 filas de `BD_Maderas`, 40.066 siguen exactamente este patrón.
 

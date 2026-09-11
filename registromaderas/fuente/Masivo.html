@@ -204,6 +204,18 @@
   /** Devuelve lo resuelto a las columnas, para que se vea lo que se completó solo. */
   function escribirColumnas() {
     var alto = lineasDe('colCodigos').length;
+
+    // Los códigos vuelven con sus ceros: quien pegó RVMH32X180X3960 ve
+    // RVMH032X180X3960, que es lo que va a entrar al batch input. Las líneas
+    // que no se entendieron quedan como estaban, para poder corregirlas.
+    var codigos = lineasDe('colCodigos');
+    FILAS.forEach(function (f) {
+      if (f.codigo && f.n <= alto) codigos[f.n - 1] = f.codigo;
+    });
+    $('colCodigos').value = codigos.join('\n');
+    // Se refresca la memoria del cambio: si no, el propio relleno de ceros
+    // parecería un código distinto y borraría las rutas recién puestas.
+    ULTIMOS_CODIGOS = codigos.map(function (t) { return t.trim().toUpperCase(); });
     COLUMNAS_ETAPA.forEach(function (etapa) {
       var lineas = [];
       for (var i = 0; i < alto; i++) lineas.push('');

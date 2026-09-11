@@ -247,6 +247,44 @@ seccion('Cada clase a su hoja');
   ok(celda('PP', 3, 3) === 'PP', 'y la clase queda escrita en su fila');
 }
 
+// Nadie deberia tener que acordarse de los ceros para pegar un codigo: se
+// escriben cortos y entran completos, que es como los pide SAP.
+seccion('Los ceros se ponen solos');
+{
+  const arma = t => { const d = descomponerCodigo_(t);
+    return d ? armarCodigo_(d.agrupacion, d.espesor, d.ancho, d.largo) : null; };
+
+  ok(arma('RVMH32X180X3960') === 'RVMH032X180X3960', 'el espesor corto se completa');
+  ok(arma('RVMH32X18X396') === 'RVMH032X018X0396', 'y el ancho y el largo también');
+  ok(arma('RVMH032X180X3960') === 'RVMH032X180X3960', 'uno ya completo no se toca');
+  ok(arma('C4JR19X100X2440') === 'C4JR019X100X2440', 'con prefijo de cuatro');
+  ok(arma('RVM 32X180') === 'RVM 032X180', 'y de tres con espacio');
+
+  // Sin esta regla "RVM32X180" se leería como prefijo RVM3 y espesor 002: el
+  // 4º caracter del prefijo es la especie, y una especie nunca es un dígito.
+  ok(arma('RVM32X180') === 'RVM 032X180', 'sin espacio, el prefijo no se come un dígito');
+
+  ok(normalizarRuta_('RVF 19X100') === 'RVF 019X100', 'la ruta también se completa');
+  ok(normalizarRuta_('RVFD32X180') === 'RVFD032X180', 'con prefijo de cuatro');
+  ok(escuadriaDeRuta_('RVM 32X180') === '032X180', 'y su escuadría sale completa');
+
+  // Una ruta tecleada corta tiene que encontrar su material igual.
+  const corta = guardarUna(con({ clase: 'PP', largo: '', desglose: {
+    aserradero: { ruta: 'RVF 37X130' }, secado: { ruta: 'RSF 37X130' }
+  } }));
+  ok(corta.ok, 'una ruta escrita corta encuentra la que existe en la base');
+  ok(celda('PP', corta.fila, 8) === '037X130', 'y entra al batch input con sus ceros');
+  ok(celda('PP', corta.fila, 9) === '037' && celda('PP', corta.fila, 10) === '130',
+    'igual que su EE y su AA');
+
+  // Y por el camino del lote, que es el que se usa de verdad.
+  const lote = apiLote({ codigos: 'RSJR32X180X3200', rutas: { aserradero: 'RVM 32X180' } });
+  ok(lote.filas[0].codigo === 'RSJR032X180X3200', 'pegando el código corto, sale completo');
+  ok(lote.filas[0].rutas.aserradero === 'RVM 032X180',
+    'y la ruta vuelve completa a su columna');
+  ok(lote.filas[0].ok, 'la fila queda lista');
+}
+
 seccion('En PT la ruta se avisa; en PP y PCP tiene que existir');
 {
   const inventada = {

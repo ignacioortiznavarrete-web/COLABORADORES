@@ -147,21 +147,40 @@ function descomponerPrefijo_(agrupacion) {
  * el espacio del cuarto lugar (CSF019X075), se reintenta con tres.
  * Devuelve null si el resto no tiene la forma EEEXAAA[XLLLL].
  */
+/** Los ceros a la izquierda, sin reclamar: 32 -> 032, 396 -> 0396. */
+function ceros_(valor, digitos) {
+  var n = String(valor);
+  while (n.length < digitos) n = '0' + n;
+  return n;
+}
+
+/**
+ * Desarma un código en prefijo y medidas.
+ *
+ * Acepta las medidas escritas cortas —32X180X3960— y devuelve siempre la forma
+ * completa —032X180X3960—, que es la que entra al batch input. Nadie deberia
+ * tener que acordarse de los ceros para pegar un código.
+ */
 function descomponerCodigo_(texto) {
   var limpio = normalizarCodigo_(texto).replace(/\u00a0/g, ' ').replace(/ {2,}/g, ' ');
-  var intentos = [
-    { prefijo: limpio.substring(0, 4), resto: limpio.substring(4) },
-    { prefijo: limpio.substring(0, 3) + ' ', resto: limpio.substring(3) }
-  ];
+
+  var intentos = [];
+  // El 4º caracter del prefijo es la especie: letra o espacio, nunca un dígito.
+  // Sin esa regla, "RVM32X180" se leería como prefijo "RVM3" y espesor 002.
+  if (!/\d/.test(limpio.charAt(3))) {
+    intentos.push({ prefijo: limpio.substring(0, 4), resto: limpio.substring(4) });
+  }
+  intentos.push({ prefijo: limpio.substring(0, 3) + ' ', resto: limpio.substring(3) });
+
   for (var i = 0; i < intentos.length; i++) {
-    var m = /^(\d{3})X(\d{3})(?:X(\d{4}))?$/.exec(intentos[i].resto);
+    var m = /^(\d{1,3})X(\d{1,3})(?:X(\d{1,4}))?$/.exec(intentos[i].resto);
     if (!m) continue;
     return {
       prefijo: intentos[i].prefijo,
       agrupacion: intentos[i].prefijo.trim(),
-      espesor: m[1],
-      ancho: m[2],
-      largo: m[3] || ''
+      espesor: ceros_(m[1], MEDIDAS.DIGITOS_ESPESOR),
+      ancho: ceros_(m[2], MEDIDAS.DIGITOS_ANCHO),
+      largo: m[3] ? ceros_(m[3], MEDIDAS.DIGITOS_LARGO) : ''
     };
   }
   return null;
@@ -241,8 +260,20 @@ function familiaDeRuta_(codigo) {
 
 /** La escuadría de una ruta: los 7 caracteres finales, EEEXAAA. */
 function escuadriaDeRuta_(codigo) {
-  var c = normalizarCodigo_(codigo);
-  return /^.{4}\d{3}X\d{3}$/.test(c) ? c.substring(4) : '';
+  var d = descomponerCodigo_(codigo);
+  return (d && !d.largo) ? d.espesor + 'X' + d.ancho : '';
+}
+
+/**
+ * La ruta en su forma completa: "RVM 32X180" -> "RVM 032X180".
+ *
+ * Es la que se busca en BD_Maderas y la que queda escrita, asi que una ruta
+ * tecleada corta encuentra igual su material en vez de darse por inexistente.
+ */
+function normalizarRuta_(codigo) {
+  var d = descomponerCodigo_(codigo);
+  if (!d || d.largo) return normalizarCodigo_(codigo);
+  return d.prefijo + d.espesor + 'X' + d.ancho;
 }
 
 /* -------------------------------------------------------------- validación */
@@ -312,7 +343,7 @@ function validar_(datos) {
       desglose[etapa.id] = { ruta: '', plantilla: '', dimension: '', espesor: '', ancho: '' };
       return;
     }
-    var ruta = normalizarCodigo_((pedido[etapa.id] || {}).ruta);
+    var ruta = normalizarRuta_((pedido[etapa.id] || {}).ruta);
     if (!ruta) {
       if (!RUTAS.OBLIGATORIA) {
         desglose[etapa.id] = { ruta: '', plantilla: '', dimension: '', espesor: '', ancho: '' };
