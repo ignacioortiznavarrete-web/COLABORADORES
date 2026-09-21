@@ -1,32 +1,49 @@
 /***********************************************************************
- PENDIENTE LICITACIONES — DIAGNÓSTICO Y RED DE SEGURIDAD
+ PENDIENTE LICITACIONES — QUIÉN ENVÍA Y POR QUÉ NO SALIÓ
  ---------------------------------------------------------------------
  Archivo independiente. No modifica el código existente: se apoya en las
- funciones que ya están en el archivo de notificaciones
- (notifEnviarCorreoLicitaciones_, notifResolverColumnasRegistro_,
- notifClaveEstado_) y en las mismas marcas "NOTIF_LICIT_<rut>", así que
- nunca reenvía un correo que el disparador onEdit ya mandó.
+ funciones del archivo de notificaciones (notifEnviarCorreoLicitaciones_,
+ notifResolverColumnasRegistro_, notifClaveEstado_) y en las mismas
+ marcas "NOTIF_LICIT_<rut>", así que nunca manda dos veces el mismo aviso.
 
- QUÉ HACER, EN ORDEN
-   1) diagnosticarLicitaciones()
+ EL CORREO SIGUE SALIENDO SOLO CUANDO SE EDITA EL ESTADO.
+ Acá no hay ningún disparador por tiempo. Lo único automático sigue
+ siendo alCambiarEstadoRegistro, igual que hasta ahora.
+
+ DE QUÉ CUENTA SALEN LOS CORREOS
+   Un disparador instalable corre SIEMPRE con la cuenta de quien lo
+   instaló, no con la de quien edita. Si lo instalas tú, Juan cambia el
+   estado y el correo sale igual desde tu casilla y contra tu cuota.
+
+   El problema es el reverso: si dos personas ejecutaron alguna vez
+   instalarDisparadoresNotificaciones(), quedan DOS disparadores y sale
+   UN CORREO POR CADA UNO. Dos avisos a licitaciones por cada cambio y
+   dos resúmenes diarios.
+
+   ScriptApp.getProjectTriggers() solo devuelve los disparadores de la
+   cuenta que ejecuta, así que desde tu cuenta no puedes ver los de otra
+   persona. Cada uno tiene que revisar los suyos.
+
+ QUÉ EJECUTAR
+   1) quienEnviaLosCorreos()
+      Solo lee. Dice con qué cuenta saldrían los correos y qué
+      disparadores tiene esta cuenta.
+
+   2) diagnosticarLicitaciones()
       Solo lee. Dice por qué no salió el correo.
 
-   2) reenviarLicitacionesPendientes()
-      ENVÍA CORREO de verdad a licitaciones por cada proveedor que está
-      en "Pendiente Licitaciones" y nunca fue notificado.
+   3) reenviarLicitacionesPendientes()
+      ENVÍA CORREO de verdad, una sola vez, por los proveedores que
+      quedaron en "Pendiente Licitaciones" sin aviso. Sale desde la
+      cuenta de quien ejecuta la función.
 
-   3) instalarRedDeSeguridadLicitaciones()
-      Deja un disparador por tiempo que revisa cada 15 minutos. Desde ahí
-      el aviso ya no depende de que el onEdit alcance a correr: si alguien
-      pega el estado, lo cambia otro script o el onEdit falla, el correo
-      igual sale con algunos minutos de atraso.
-
- POR QUÉ HACE FALTA LA RED DE SEGURIDAD
-   El disparador onEdit no se ejecuta cuando el valor lo escribe un script
-   ni cuando llega por importación o por la API. Tampoco corre si el
-   disparador instalable no existe, si quedó apuntando a otra planilla o
-   si al dueño se le revocó la autorización. En todos esos casos el estado
-   queda en "Pendiente Licitaciones" y nadie se entera.
+ PARA DEJAR UNA SOLA CUENTA ENVIANDO
+   a) Cada persona que alguna vez instaló los disparadores entra al
+      proyecto y ejecuta, DESDE SU CUENTA:
+         desinstalarDisparadoresNotificaciones()
+   b) Después, y solo tú, ejecutas:
+         instalarDisparadoresNotificaciones()
+   c) Confirmas con quienEnviaLosCorreos().
 ***********************************************************************/
 
 
@@ -37,9 +54,6 @@
 // Sirve para detectar el caso en que el código quedó pegado en el
 // proyecto equivocado, que es un error que no da ningún mensaje.
 const LIC_SPREADSHEET_ESPERADO = "1QH4y2H5b0wZ-03Jn7GuSionNKFJI-83D_DSSnj95SlU";
-
-// Cada cuántos minutos revisa la red de seguridad (1, 5, 10, 15 o 30).
-const LIC_MINUTOS_RED = 15;
 
 
 /*************************
@@ -121,15 +135,90 @@ function licFilasEnEstado_(sh, cols) {
 
 
 /*************************
- 1) DIAGNÓSTICO
+ 1) ¿DE QUÉ CUENTA SALEN LOS CORREOS?
+ Solo lee. No envía nada.
+**************************/
+function quienEnviaLosCorreos() {
+  const cuenta = Session.getEffectiveUser().getEmail();
+  const triggers = ScriptApp.getProjectTriggers();
+
+  const mios = {
+    edicion: triggers.filter(function (t) { return t.getHandlerFunction() === "alCambiarEstadoRegistro"; }),
+    resumen: triggers.filter(function (t) { return t.getHandlerFunction() === "enviarResumenSolicitandoVB"; }),
+    respaldo: triggers.filter(function (t) { return t.getHandlerFunction() === "verificarEnvioDiario"; })
+  };
+
+  let out = "¿DE QUÉ CUENTA SALEN LOS CORREOS?\n";
+  out += "======================================================\n\n";
+  out += "Cuenta que ejecuta esta función : " + cuenta + "\n\n";
+
+  out += "DISPARADORES DE ESTA CUENTA\n";
+  if (triggers.length === 0) {
+    out += "  Ninguno.\n";
+  } else {
+    triggers.forEach(function (t) {
+      let origen = "";
+      try { origen = " · origen " + t.getTriggerSourceId(); } catch (e) { origen = ""; }
+      out += "  - " + t.getHandlerFunction() + " [" + t.getEventType() + "]" + origen + "\n";
+    });
+  }
+  out += "\n";
+
+  out += "AVISO A LICITACIONES (cambio de estado)\n";
+  if (mios.edicion.length === 0) {
+    out += "  Esta cuenta NO tiene el disparador.\n";
+    out += "  Los correos NO salen desde " + cuenta + ".\n";
+    out += "  O los envía otra persona, o no los envía nadie.\n";
+    out += "  → Para que salgan desde tu cuenta, ejecuta tú\n";
+    out += "    instalarDisparadoresNotificaciones().\n";
+  } else if (mios.edicion.length === 1) {
+    out += "  Esta cuenta tiene 1 disparador: los correos que dispare\n";
+    out += "  este proyecto salen desde " + cuenta + ",\n";
+    out += "  sin importar quién edite la planilla.\n";
+  } else {
+    out += "  ⚠ Esta cuenta tiene " + mios.edicion.length + " disparadores iguales.\n";
+    out += "  Cada cambio de estado manda " + mios.edicion.length + " correos.\n";
+    out += "  → Ejecuta desinstalarDisparadoresNotificaciones() y después\n";
+    out += "    instalarDisparadoresNotificaciones() una sola vez.\n";
+  }
+  out += "\n";
+
+  out += "RESUMEN DIARIO V°B\n";
+  out += "  Disparadores de envío en esta cuenta  : " + mios.resumen.length + "\n";
+  out += "  Disparadores de respaldo en esta cuenta: " + mios.respaldo.length + "\n";
+  if (mios.resumen.length > 1) {
+    out += "  ⚠ Hay más de uno: se manda el resumen repetido.\n";
+  }
+  out += "\n";
+
+  out += "CUOTA DE CORREO DE ESTA CUENTA\n";
+  out += "  Correos disponibles hoy : " + MailApp.getRemainingDailyQuota() + "\n\n";
+
+  out += "LO QUE ESTA FUNCIÓN NO PUEDE VER\n";
+  out += "  Los disparadores de OTRAS cuentas. Si Juan también instaló los\n";
+  out += "  suyos, existen y envían, pero no aparecen en la lista de arriba.\n\n";
+  out += "  Prueba práctica: cambia un estado y cuenta los correos que llegan\n";
+  out += "  a licitaciones. Si llegan dos, hay dos cuentas con disparador, y\n";
+  out += "  el remitente de cada correo dice cuáles son. La persona que sobra\n";
+  out += "  entra al proyecto y ejecuta, desde su cuenta,\n";
+  out += "  desinstalarDisparadoresNotificaciones().";
+
+  Logger.log(out);
+  return out;
+}
+
+
+/*************************
+ 2) DIAGNÓSTICO
  Solo lee. No envía nada. Lee el resultado en el registro de ejecución.
 **************************/
 function diagnosticarLicitaciones() {
   const problemas = [];
+  const cuenta = Session.getEffectiveUser().getEmail();
+
   let out = "DIAGNÓSTICO — PENDIENTE LICITACIONES\n";
   out += "======================================================\n\n";
-
-  out += "Usuario que ejecuta : " + Session.getEffectiveUser().getEmail() + "\n";
+  out += "Cuenta que ejecuta  : " + cuenta + "\n";
   out += "Destino configurado : " + (licDestino_() || "(vacío)") + "\n";
   out += "Estado que dispara  : \"" + licEstado_() + "\"\n\n";
 
@@ -172,11 +261,10 @@ function diagnosticarLicitaciones() {
   out += "ARCHIVO DE NOTIFICACIONES\n";
   if (faltantes.length) {
     out += "  Funciones que faltan  : " + faltantes.join(", ") + "\n\n";
-    problemas.push(
-      "El archivo de notificaciones no está en este proyecto.\n" +
-      "     Faltan: " + faltantes.join(", ") + "\n" +
-      "     → Pega el archivo de notificaciones en ESTE mismo proyecto.");
-    Logger.log(out + "\nCONCLUSIÓN\n  1) " + problemas[problemas.length - 1]);
+    out += "CONCLUSIÓN\n";
+    out += "  1) El archivo de notificaciones no está en este proyecto.\n" +
+           "     → Pega el archivo de notificaciones en ESTE mismo proyecto.\n";
+    Logger.log(out);
     return out;
   }
   out += "  Presente              : sí\n\n";
@@ -224,7 +312,7 @@ function diagnosticarLicitaciones() {
     return t.getHandlerFunction() === "alCambiarEstadoRegistro";
   });
 
-  out += "DISPARADORES (solo se ven los del usuario que ejecuta)\n";
+  out += "DISPARADORES (solo se ven los de " + cuenta + ")\n";
   if (triggers.length === 0) {
     out += "  Ninguno instalado.\n";
   } else {
@@ -238,12 +326,19 @@ function diagnosticarLicitaciones() {
 
   if (edicion.length === 0) {
     problemas.push(
-      "NO existe el disparador instalable alCambiarEstadoRegistro para\n" +
-      "     este usuario. Sin él no hay correo: el onEdit simple de Code.gs\n" +
-      "     no tiene permiso para enviar correos.\n" +
-      "     → Ejecuta instalarDisparadoresNotificaciones().\n" +
-      "     → Ojo: los disparadores son POR USUARIO. Si lo instaló otra\n" +
-      "       persona, no aparece en esta lista aunque exista y funcione.");
+      "Esta cuenta NO tiene el disparador instalable alCambiarEstadoRegistro.\n" +
+      "     Sin él no hay correo: el onEdit simple de Code.gs no tiene\n" +
+      "     permiso para enviar correos.\n" +
+      "     → Ejecútalo tú para que además salgan desde tu casilla:\n" +
+      "       instalarDisparadoresNotificaciones()\n" +
+      "     → Los disparadores son POR CUENTA. Si lo instaló otra persona,\n" +
+      "       no aparece acá aunque exista, y los correos salen de su casilla.");
+  } else if (edicion.length > 1) {
+    problemas.push(
+      "Esta cuenta tiene " + edicion.length + " disparadores alCambiarEstadoRegistro.\n" +
+      "     Cada cambio de estado manda " + edicion.length + " correos.\n" +
+      "     → desinstalarDisparadoresNotificaciones() y después\n" +
+      "       instalarDisparadoresNotificaciones() una sola vez.");
   } else {
     edicion.forEach(function (t) {
       let origen = "";
@@ -295,7 +390,7 @@ function diagnosticarLicitaciones() {
 
   // ── 7. Cuota de correo ──
   const cuota = MailApp.getRemainingDailyQuota();
-  out += "\nCUOTA DE CORREO\n";
+  out += "\nCUOTA DE CORREO DE ESTA CUENTA\n";
   out += "  Correos disponibles   : " + cuota + "\n";
   if (cuota <= 0) {
     problemas.push(
@@ -307,14 +402,15 @@ function diagnosticarLicitaciones() {
   // ── Conclusión ──
   out += "\nCONCLUSIÓN\n";
   if (problemas.length === 0) {
-    out += "  Todo lo que se puede revisar desde acá está bien.\n\n" +
-           "  Si aun así no llegó el correo, quedan dos causas posibles:\n" +
+    out += "  Todo lo que se puede revisar desde esta cuenta está bien.\n\n" +
+           "  Si aun así no llegó el correo, quedan dos causas:\n" +
            "   a) El estado no se escribió con una edición manual. El onEdit no\n" +
            "      corre si el valor lo puso un script, una importación o la API.\n" +
+           "      En ese caso hay que cambiar el estado a mano en la celda.\n" +
            "   b) El envío falló. Revisa Ejecuciones en el menú izquierdo del\n" +
            "      editor y busca alCambiarEstadoRegistro en rojo.\n\n" +
-           "  En los dos casos la solución es la misma:\n" +
-           "   instalarRedDeSeguridadLicitaciones()";
+           "  Para recuperar los avisos que no salieron:\n" +
+           "   reenviarLicitacionesPendientes()";
   } else {
     problemas.forEach(function (p, i) {
       out += "  " + (i + 1) + ") " + p + "\n";
@@ -327,62 +423,12 @@ function diagnosticarLicitaciones() {
 
 
 /*************************
- 2) REENVIAR LO QUE QUEDÓ PENDIENTE
- ⚠ ESTO ENVÍA CORREO DE VERDAD a licitaciones.
- Ignora la marca: sirve para recuperar los avisos que nunca salieron.
+ 3) REENVIAR LO QUE QUEDÓ PENDIENTE
+ ⚠ ESTO ENVÍA CORREO DE VERDAD a licitaciones, una vez por proveedor.
+ Sale desde la cuenta de quien ejecuta la función.
+ Se ejecuta a mano cuando hace falta: no queda nada corriendo solo.
 **************************/
 function reenviarLicitacionesPendientes() {
-  return licProcesarPendientes_(true);
-}
-
-
-/*************************
- 3) RED DE SEGURIDAD
- Revisa cada LIC_MINUTOS_RED minutos y envía solo lo que no tiene marca.
-**************************/
-function revisarLicitacionesPendientes() {
-  try {
-    licProcesarPendientes_(false);
-  } catch (error) {
-    Logger.log("Error en revisarLicitacionesPendientes: " + error + " | " + (error.stack || ""));
-  }
-}
-
-function instalarRedDeSeguridadLicitaciones() {
-  desinstalarRedDeSeguridadLicitaciones();
-
-  ScriptApp.newTrigger("revisarLicitacionesPendientes")
-    .timeBased()
-    .everyMinutes(LIC_MINUTOS_RED)
-    .create();
-
-  const msg = "Red de seguridad instalada: revisa cada " + LIC_MINUTOS_RED + " minutos.\n" +
-              "Desde ahora el aviso a licitaciones ya no depende solo del onEdit.";
-  Logger.log(msg);
-  return msg;
-}
-
-function desinstalarRedDeSeguridadLicitaciones() {
-  let borrados = 0;
-
-  ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === "revisarLicitacionesPendientes") {
-      ScriptApp.deleteTrigger(t);
-      borrados++;
-    }
-  });
-
-  Logger.log("Disparadores de la red de seguridad eliminados: " + borrados);
-  return borrados;
-}
-
-
-/*************************
- MOTOR COMÚN
- forzar = true  → envía aunque la marca ya esté puesta (recuperación manual)
- forzar = false → envía solo lo que nunca se notificó (red de seguridad)
-**************************/
-function licProcesarPendientes_(forzar) {
   const ss = SpreadsheetApp.getActive();
   if (!ss) throw new Error("Este proyecto no está ligado a una planilla. Ejecuta diagnosticarLicitaciones().");
 
@@ -396,43 +442,38 @@ function licProcesarPendientes_(forzar) {
   try {
     lock.waitLock(30000);
   } catch (e) {
-    Logger.log("Otra ejecución tiene el bloqueo. Se intentará en la próxima pasada.");
-    return "ocupado";
+    return "El sistema está ocupado, intenta de nuevo en un momento.";
   }
 
   try {
     const filas = licFilasEnEstado_(sh, cols);
     const props = licAlmacenEscritura_();
     const enviados = [];
-    const omitidos = [];
     const errores = [];
 
     filas.forEach(function (f) {
-      if (f.notificado && !forzar) {
-        omitidos.push(f.razonSocial || f.rut || ("fila " + f.fila));
-        return;
-      }
-
       try {
         notifEnviarCorreoLicitaciones_(sh, f.datos, cols);
         props.setProperty(f.marca, new Date().toISOString());
         enviados.push((f.razonSocial || "sin razón social") + " (" + (f.rut || "sin RUT") + ")");
       } catch (error) {
-        // No se pone la marca: así la próxima pasada lo vuelve a intentar.
+        // No se pone la marca: así queda pendiente para un próximo intento.
         errores.push((f.razonSocial || ("fila " + f.fila)) + " → " + error);
         Logger.log("Falló el envío de la fila " + f.fila + ": " + error + " | " + (error.stack || ""));
       }
     });
 
-    let msg = "Pendiente Licitaciones — revisión\n" +
-              "  En ese estado : " + filas.length + "\n" +
-              "  Enviados      : " + enviados.length + (enviados.length ? "\n    · " + enviados.join("\n    · ") : "") + "\n" +
-              "  Ya notificados: " + omitidos.length + (omitidos.length ? "\n    · " + omitidos.join("\n    · ") : "") + "\n" +
-              "  Con error     : " + errores.length + (errores.length ? "\n    · " + errores.join("\n    · ") : "");
+    const msg =
+      "Reenvío de avisos a licitaciones\n" +
+      "  Remitente        : " + Session.getEffectiveUser().getEmail() + "\n" +
+      "  Destino          : " + (licDestino_() || "(vacío)") + "\n" +
+      "  En ese estado    : " + filas.length + "\n" +
+      "  Correos enviados : " + enviados.length +
+        (enviados.length ? "\n    · " + enviados.join("\n    · ") : "") + "\n" +
+      "  Con error        : " + errores.length +
+        (errores.length ? "\n    · " + errores.join("\n    · ") : "");
 
-    // Solo deja rastro en el registro cuando hubo algo que contar.
-    if (enviados.length || errores.length || forzar) Logger.log(msg);
-
+    Logger.log(msg);
     return msg;
 
   } finally {
