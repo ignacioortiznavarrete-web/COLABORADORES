@@ -49,7 +49,9 @@ function instalarRegistro() {
   });
 
   asegurarEncabezadosRegistro_(hojaRegistro_());
-  hechos.push('La hoja "' + CFG.HOJA_REGISTRO + '" quedó lista.');
+  hechos.push('La hoja "' + CFG.HOJA_REGISTRO + '" quedó lista (una fila por solicitud).');
+  asegurarEncabezadosDetalle_(hojaDetalle_());
+  hechos.push('La hoja "' + CFG.HOJA_DETALLE + '" quedó lista (una fila por código).');
 
   var resumen = hechos.join('\n· ');
   resumen = '· ' + resumen;

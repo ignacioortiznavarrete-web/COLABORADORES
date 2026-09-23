@@ -251,8 +251,36 @@ escriben como valor: una fila de batch input no debería depender de fórmulas.
 
 `Descripcion Especial EN/ES` y los rendimientos **no se tocan**.
 
-Además, cada solicitud deja una línea en la hoja `Registro`, con `Hoja Destino`
-y `Fila Destino` para poder ir de la bitácora a la fila original.
+## Las dos bitácoras
+
+Guardar deja tres rastros, cada uno con su oficio:
+
+| Dónde | Cuántas filas | Para qué |
+|---|---|---|
+| `PT` · `PCP` · `PP` · `PE` | una por código | la fila de batch input que va a SAP |
+| **`Registro`** | **una por solicitud** | la cabecera: quién, cuándo, cuántos códigos |
+| `Registro Detalle` | una por código | qué código es cada uno, y dónde quedó |
+
+`Registro` no lleva una fila por código sino **una por solicitud**, con su
+número —`SOL-00001`, `SOL-00002`…—, el tipo, cuántos códigos entraron, la
+observación y el estado, que nace en `Ingresada`.
+
+La columna **`Filas del batch input`** es la que cierra el círculo: dice qué
+tramo ocupa esa solicitud, como `PT 3-7`. Si una tanda toca dos hojas —en PP,
+los que empiezan con `C` van a `PCP`— salen las dos: `PP 3-5; PCP 3-4`. Con eso
+se va de la solicitud a sus filas sin buscarlas a mano.
+
+`Registro Detalle` guarda el código, su agrupación, sus rutas y su fila de
+destino, y lleva el **mismo número de solicitud** en cada línea: filtrando por
+él salen exactamente los códigos de esa solicitud.
+
+El número sale de la última fila de `Registro`, no de un contador aparte: si
+alguien copia la hoja o borra filas, el número sigue siendo el que se ve. Se
+toma dentro del mismo bloqueo con que se escribe, así que dos personas
+guardando a la vez no se llevan el mismo.
+
+Si no entra ningún código, **no se anota la solicitud**: no queda una fila vacía
+de algo que no ocurrió.
 
 ---
 
@@ -320,8 +348,9 @@ Google pedirá permisos: *Revisar permisos › elige tu cuenta › Configuració
 avanzada › Ir a (nombre del proyecto) › Permitir*. La pantalla de "app no
 verificada" es normal en scripts propios.
 
-Revisa que estén `BD_Maderas`, `PT`, `PCP` y `PP` con sus columnas donde se
-esperan, y deja `Registro` con sus encabezados. **No crea ninguna hoja más.**
+Revisa que estén `BD_Maderas`, `PT`, `PCP`, `PP` y `PE` con sus columnas donde
+se esperan, y deja `Registro` y `Registro Detalle` con sus encabezados. **No
+crea ninguna hoja más.**
 
 Después elige **`revisarPermisos`** y **Ejecutar**. Hace el viaje completo de la
 exportación con una fila de mentira y dice dónde se corta, si se corta. Sirve

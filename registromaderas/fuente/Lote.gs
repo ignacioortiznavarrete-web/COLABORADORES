@@ -161,6 +161,7 @@ function deducirDeCodigo_(texto, bd, tipo) {
     origen: esTerceros ? TRADING.ORIGEN : origenSinTerceros_(centro),
     esTerceros: esTerceros,
     clase: clase,
+    tipo: tipo ? tipo.id : '',
     espesor: partes.espesor,
     ancho: partes.ancho,
     largo: partes.largo,
@@ -304,6 +305,7 @@ function solicitudDeFila_(fila) {
   });
   return {
     observacion: fila.observacion || '',
+    tipo: fila.tipo || '',
     clase: fila.clase,
     origen: fila.origen,
     centro: fila.centro,
@@ -403,6 +405,17 @@ function apiRevisarLote(filas) {
 
 
 /** Guarda las filas elegidas en su hoja y en la bitácora. */
+/**
+ * Guarda la tanda entera como UNA solicitud.
+ *
+ * Deja tres rastros distintos, cada uno con su oficio:
+ *   la hoja de la clase   la fila de batch input que va a SAP
+ *   Registro Detalle      una fila por código, con el número de su solicitud
+ *   Registro              UNA fila por solicitud, con el tramo que ocupa
+ *
+ * El número se toma dentro del lock, junto con la escritura: si no, dos
+ * personas guardando a la vez se llevarían el mismo.
+ */
 function apiGuardarLote(filas, observacion) {
   if (!filas || !filas.length) throw new Error('No hay filas seleccionadas.');
   // La observación es de la solicitud entera, no de cada línea.
@@ -413,14 +426,28 @@ function apiGuardarLote(filas, observacion) {
     throw new Error('Hay otro registro guardándose en este momento. Inténtalo de nuevo.');
   }
   try {
+    var resumen = hojaRegistro_();
+    asegurarEncabezadosRegistro_(resumen);
+    var numero = siguienteNumeroSolicitud_(resumen);
+
+    var destinos = [];
+    var cabecera = null;
     var resultados = filas.map(function (fila, i) {
       try {
         var v = validar_(solicitudDeFila_(fila));
         var destino = guardarEnClase_(v);
-        var filaRegistro = guardarEnRegistro_(v, destino);
+        guardarDetalle_(v, destino, numero);
+        destinos.push(destino);
+        if (!cabecera) {
+          cabecera = {
+            fechaTexto: v.fechaTexto, solicitante: v.solicitante, pais: v.pais,
+            tipoRequerimiento: v.tipoRequerimiento, observacion: v.observacion,
+            tipo: fila.tipo || v.clase
+          };
+        }
         return {
           n: fila.n || (i + 1), ok: true, codigo: v.codigo,
-          hoja: destino.hoja, fila: destino.fila, filaRegistro: filaRegistro
+          hoja: destino.hoja, fila: destino.fila
         };
       } catch (err) {
         return {
@@ -429,9 +456,18 @@ function apiGuardarLote(filas, observacion) {
         };
       }
     });
+
+    // Si no entró ninguna no hay solicitud que anotar: no se inventa una vacía.
+    var filaResumen = destinos.length
+      ? guardarResumen_(resumen, numero, cabecera, destinos)
+      : 0;
+
     SpreadsheetApp.flush();
     return {
       ok: true,
+      solicitud: destinos.length ? numero : '',
+      filaResumen: filaResumen,
+      tramos: tramosDeDestino_(destinos),
       resultados: resultados,
       guardadas: resultados.filter(function (r) { return r.ok; }).length,
       fallidas: resultados.filter(function (r) { return !r.ok; }).length

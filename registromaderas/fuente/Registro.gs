@@ -23,10 +23,13 @@ function hoja_(nombre) {
   return hoja;
 }
 
-function hojaRegistro_() {
+function hojaRegistro_() { return hojaBitacora_(CFG.HOJA_REGISTRO); }
+function hojaDetalle_() { return hojaBitacora_(CFG.HOJA_DETALLE); }
+
+function hojaBitacora_(nombre) {
   var libro = ss_();
-  var hoja = libro.getSheetByName(CFG.HOJA_REGISTRO);
-  if (!hoja) hoja = libro.insertSheet(CFG.HOJA_REGISTRO);
+  var hoja = libro.getSheetByName(nombre);
+  if (!hoja) hoja = libro.insertSheet(nombre);
   return hoja;
 }
 
@@ -524,34 +527,97 @@ function guardarEnClase_(v) {
   return { hoja: hoja.getName(), fila: fila };
 }
 
-function asegurarEncabezadosRegistro_(hoja) {
+function asegurarEncabezadosRegistro_(hoja) { return encabezados_(hoja, COL_REGISTRO); }
+function asegurarEncabezadosDetalle_(hoja) { return encabezados_(hoja, COL_DETALLE); }
+
+function encabezados_(hoja, columnas) {
   var ultima = hoja.getLastRow();
   if (ultima > 1) return;  // ya tiene datos: no se toca
 
   if (ultima === 1) {
     var actuales = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1)).getValues()[0];
-    if (normalizar_(actuales.join('|')) === normalizar_(COL_REGISTRO.join('|'))) return;
+    if (normalizar_(actuales.join('|')) === normalizar_(columnas.join('|'))) return;
   }
-  hoja.getRange(1, 1, 1, COL_REGISTRO.length)
-    .setValues([COL_REGISTRO])
+  hoja.getRange(1, 1, 1, columnas.length)
+    .setValues([columnas])
     .setFontWeight('bold')
     .setBackground('#14352a')
     .setFontColor('#ffffff');
   hoja.setFrozenRows(1);
 }
 
-function guardarEnRegistro_(v, destino) {
-  var hoja = hojaRegistro_();
-  asegurarEncabezadosRegistro_(hoja);
+/**
+ * El número de la próxima solicitud: SOL-00001, SOL-00002…
+ *
+ * Sale de la última fila de `Registro`, no de un contador aparte: si alguien
+ * copia la hoja o borra filas, el número sigue siendo el que se ve.
+ */
+function siguienteNumeroSolicitud_(hoja) {
+  var ultima = hoja.getLastRow();
+  var mayor = 0;
+  if (ultima > 1) {
+    hoja.getRange(2, 1, ultima - 1, 1).getValues().forEach(function (f) {
+      var n = parseInt(String(f[0]).replace(/\D/g, ''), 10);
+      if (isFinite(n) && n > mayor) mayor = n;
+    });
+  }
+  var numero = String(mayor + 1);
+  while (numero.length < NUMERACION.DIGITOS) numero = '0' + numero;
+  return NUMERACION.PREFIJO + numero;
+}
+
+/** Una fila por código, con el número de su solicitud para poder volver. */
+function guardarDetalle_(v, destino, numero) {
+  var hoja = hojaDetalle_();
+  asegurarEncabezadosDetalle_(hoja);
   hoja.appendRow([
-    v.fechaTexto, v.solicitante, v.pais, v.clase, v.tipoRequerimiento,
+    numero, v.fechaTexto, v.solicitante, v.clase,
     v.origen, v.centro, v.tipoMaterial, v.agrupacion, v.agrupacionTexto,
     v.codigo, v.descripcion, v.grupo,
     v.espesor, v.ancho, v.largo, v.piezas, v.umb, v.stockPedido,
     v.desglose.aserradero.ruta, v.desglose.secado.ruta, v.desglose.cepillado.ruta,
-    v.observacion, destino.hoja, destino.fila
+    destino.hoja, destino.fila
   ]);
   return hoja.getLastRow();
+}
+
+/**
+ * Una fila por solicitud, con el tramo que ocupa en el batch input.
+ *
+ * `destinos` son las filas que se escribieron, y se resumen por hoja en algo
+ * legible: "PT 3-7" o "PP 3-5; PCP 3-4". Con eso se llega de la solicitud a
+ * sus filas sin tener que buscarlas.
+ */
+function guardarResumen_(hoja, numero, cabecera, destinos) {
+  asegurarEncabezadosRegistro_(hoja);
+  hoja.appendRow([
+    numero, cabecera.fechaTexto, cabecera.solicitante, cabecera.tipo,
+    cabecera.pais, cabecera.tipoRequerimiento,
+    destinos.length, cabecera.observacion, tramosDeDestino_(destinos),
+    NUMERACION.ESTADO_INICIAL
+  ]);
+  return hoja.getLastRow();
+}
+
+function tramosDeDestino_(destinos) {
+  var porHoja = {};
+  var orden = [];
+  destinos.forEach(function (d) {
+    if (!porHoja[d.hoja]) { porHoja[d.hoja] = []; orden.push(d.hoja); }
+    porHoja[d.hoja].push(d.fila);
+  });
+  return orden.map(function (nombre) {
+    var filas = porHoja[nombre].slice().sort(function (a, b) { return a - b; });
+    var tramos = [];
+    var desde = filas[0], previa = filas[0];
+    for (var i = 1; i <= filas.length; i++) {
+      if (filas[i] === previa + 1) { previa = filas[i]; continue; }
+      tramos.push(desde === previa ? String(desde) : desde + '-' + previa);
+      desde = filas[i];
+      previa = filas[i];
+    }
+    return nombre + ' ' + tramos.join(', ');
+  }).join('; ');
 }
 
 /* --------------------------------------------------------------------- API */

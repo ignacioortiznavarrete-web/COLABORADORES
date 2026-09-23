@@ -496,9 +496,9 @@
 
         if (!fallidas.length) {
           modal('ok',
-            buenas.length === 1 ? 'Código registrado correctamente'
-                                : buenas.length + ' códigos registrados correctamente',
-            'Quedaron en su hoja y en ' + CTX.hojaRegistro +
+            'Solicitud ' + r.solicitud,
+            (buenas.length === 1 ? 'Un código registrado' : buenas.length + ' códigos registrados') +
+              '. Quedaron en ' + r.tramos + ', y la solicitud en ' + CTX.hojaRegistro +
               '. El Excel del batch input se baja desde el menú del spreadsheet.',
             buenas.map(function (x) { return x.codigo + '  \u2192  ' + x.hoja + ' fila ' + x.fila; }));
         } else {

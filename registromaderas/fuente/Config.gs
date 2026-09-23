@@ -37,7 +37,10 @@ const CFG = {
   SPREADSHEET_ID: '15THGajqCDH0YuBaoEUt9uLM8s-6iKsUf9_-vY8bABmE',
 
   HOJA_BD: 'BD_Maderas',
+  /** Una fila por solicitud: la cabecera de lo que se pidió. */
   HOJA_REGISTRO: 'Registro',
+  /** Una fila por código, con el número de su solicitud. */
+  HOJA_DETALLE: 'Registro Detalle',
 
   /** En PT/PCP/PP la fila 1 es la numeración y la fila 2 son los rótulos. */
   FILA_ENCABEZADOS: 2,
@@ -260,13 +263,33 @@ const MAPEO_DESTINO = [
 ];
 
 /** Encabezados de la hoja Registro. Se crean solos la primera vez. */
+/**
+ * `Registro`: UNA fila por solicitud, no por código.
+ *
+ * Es la cabecera: quién pidió, qué tipo, cuántos códigos y dónde quedaron sus
+ * filas del batch input. El detalle código por código vive en HOJA_DETALLE,
+ * enlazado por el mismo número de solicitud.
+ */
 const COL_REGISTRO = [
-  'Fecha', 'Solicitante', 'País', 'Clase Requerimiento', 'Tipo Requerimiento',
+  'N° Solicitud', 'Fecha', 'Solicitante', 'Tipo Solicitud', 'País', 'Tipo Requerimiento',
+  'Códigos', 'Observación', 'Filas del batch input', 'Estado'
+];
+
+/** `Registro Detalle`: una fila por código, con el número de su solicitud. */
+const COL_DETALLE = [
+  'N° Solicitud', 'Fecha', 'Solicitante', 'Clase Requerimiento',
   'Origen', 'Centro', 'Tipo Material', 'Agrupación', 'Descripción Agrupación',
   'Código', 'Descripción Material', 'Grupo Artículo',
   'Espesor', 'Ancho', 'Largo', 'Piezas', 'UMB', 'Stock/Pedido',
-  'Aserradero', 'Secado', 'Cepillado', 'Observación', 'Hoja Destino', 'Fila Destino'
+  'Aserradero', 'Secado', 'Cepillado', 'Hoja Destino', 'Fila Destino'
 ];
+
+/** Cómo se numera cada solicitud, y con qué estado nace. */
+const NUMERACION = {
+  PREFIJO: 'SOL-',
+  DIGITOS: 5,
+  ESTADO_INICIAL: 'Ingresada'
+};
 
 /**
  * Significado de cada carácter del prefijo, según la hoja

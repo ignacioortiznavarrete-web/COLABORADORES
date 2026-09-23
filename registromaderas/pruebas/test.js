@@ -86,13 +86,16 @@ function celda(nombreHoja, fila, columna) {
   return SS.getSheetByName(nombreHoja).getRange(fila, columna).getValue();
 }
 
-function registro(fila, encabezado) {
-  const hoja = SS.getSheetByName('Registro');
+/** Una celda de una bitácora, buscada por el nombre de su columna. */
+function deLaHoja(nombre, fila, encabezado) {
+  const hoja = SS.getSheetByName(nombre);
   const enc = hoja.getRange(1, 1, 1, hoja.getLastColumn()).getValues()[0];
   const col = enc.findIndex(h => normalizar_(h) === normalizar_(encabezado)) + 1;
-  if (!col) throw new Error('No existe la columna ' + encabezado + ' en Registro');
+  if (!col) throw new Error('No existe la columna ' + encabezado + ' en ' + nombre);
   return hoja.getRange(fila, col).getValue();
 }
+const registro = (fila, enc) => deLaHoja('Registro', fila, enc);
+const detalle = (fila, enc) => deLaHoja('Registro Detalle', fila, enc);
 
 // Un producto que sí se fabrica acá: RSFR es Radiata EERR, no terceros.
 const SOLICITUD = {
@@ -130,8 +133,9 @@ function con(cambios) { return Object.assign({}, SOLICITUD, cambios); }
 function guardarUna(datos) {
   const v = validar_(datos);
   const destino = guardarEnClase_(v);
-  const filaRegistro = guardarEnRegistro_(v, destino);
-  return { ok: true, hoja: destino.hoja, fila: destino.fila, filaRegistro: filaRegistro, codigo: v.codigo };
+  const filaDetalle = guardarDetalle_(v, destino, 'SOL-PRUEBA');
+  return { ok: true, hoja: destino.hoja, fila: destino.fila,
+    filaDetalle: filaDetalle, codigo: v.codigo };
 }
 
 crearHojasReales();
@@ -238,16 +242,17 @@ seccion('Un producto cepillado llena las tres etapas');
   ok(celda('PT', r.fila, 19) === 'C4JR', 'y el empaquetado es la agrupación pedida');
 }
 
-seccion('La bitácora Registro');
+seccion('La bitácora de detalle: una fila por código');
 {
-  ok(registro(1, 'Fecha') === 'Fecha', 'estrena sus encabezados');
-  ok(registro(2, 'Solicitante') === 'test@masisa.com', 'guarda el correo');
-  ok(registro(2, 'Agrupación') === 'RSFR', 'guarda la agrupación');
-  ok(registro(2, 'Código') === 'RSFR037X130X3200', 'guarda el código armado');
-  ok(registro(2, 'Aserradero') === 'RVF 037X130', 'guarda la ruta completa, no solo el prefijo');
-  ok(registro(2, 'Cepillado') === '', 'y deja en blanco la etapa que no aplica');
-  ok(registro(2, 'Hoja Destino') === 'PT' && registro(2, 'Fila Destino') === 3,
-    'deja la pista de dónde quedó la fila');
+  ok(detalle(1, 'Código') === 'Código', 'estrena sus encabezados');
+  ok(detalle(2, 'Solicitante') === 'test@masisa.com', 'guarda el correo');
+  ok(detalle(2, 'Agrupación') === 'RSFR', 'guarda la agrupación');
+  ok(detalle(2, 'Código') === 'RSFR037X130X3200', 'guarda el código armado');
+  ok(detalle(2, 'Aserradero') === 'RVF 037X130', 'guarda la ruta completa, no solo el prefijo');
+  ok(detalle(2, 'Cepillado') === '', 'y deja en blanco la etapa que no aplica');
+  ok(detalle(2, 'Hoja Destino') === 'PT' && detalle(2, 'Fila Destino') === 3,
+    'deja la pista de dónde quedó la fila del batch input');
+  ok(detalle(2, 'N° Solicitud') === 'SOL-PRUEBA', 'y el número de la solicitud a la que pertenece');
 }
 
 seccion('Cada clase a su hoja');
@@ -708,23 +713,62 @@ seccion('Guardar el lote completo');
     'una fila que ya existe se rechaza y el lote sigue');
 }
 
-seccion('La observación va a la bitácora');
+// Registro es la cabecera —una fila por solicitud— y Registro Detalle guarda
+// codigo por codigo, enlazado por el mismo numero.
+seccion('Una fila por solicitud, y el detalle aparte');
 {
-  const lote = lote_('RVMH032X180X3800');
-  const r = apiGuardarLote(lote.filas, '  Urgente, va para el pedido de Osorno  ');
-  ok(r.guardadas === 1, 'se guarda');
-  ok(registro(r.resultados[0].filaRegistro, 'Observación') ===
-     '  Urgente, va para el pedido de Osorno  '.trim() ||
-     registro(r.resultados[0].filaRegistro, 'Observación').indexOf('Osorno') !== -1,
-    'y la observación queda escrita en Registro');
+  const antesRegistro = SS.getSheetByName('Registro').getLastRow();
+  const antesDetalle = SS.getSheetByName('Registro Detalle').getLastRow();
 
-  const sin = apiGuardarLote(lote_('RVMH032X180X3900').filas);
-  ok(registro(sin.resultados[0].filaRegistro, 'Observación') === '',
-    'sin observación, la celda queda vacía');
+  const lote = lote_('RVMH032X180X3800\nRVMH032X180X3850\nRVMH032X180X3900');
+  const r = apiGuardarLote(lote.filas, 'Urgente, va para el pedido de Osorno');
+
+  ok(r.guardadas === 3, 'entran los tres códigos');
+  ok(SS.getSheetByName('Registro').getLastRow() === antesRegistro + 1,
+    'y Registro crece UNA sola fila, no tres');
+  ok(SS.getSheetByName('Registro Detalle').getLastRow() === antesDetalle + 3,
+    'mientras el detalle crece una por código');
+
+  ok(/^SOL-\d{5}$/.test(r.solicitud), 'la solicitud se numera: ' + r.solicitud);
+  ok(registro(r.filaResumen, 'N° Solicitud') === r.solicitud, 'y el número queda escrito');
+  ok(registro(r.filaResumen, 'Códigos') === 3, 'la fila dice cuántos códigos lleva');
+  ok(registro(r.filaResumen, 'Observación').indexOf('Osorno') !== -1,
+    'y la observación, que es de la solicitud entera');
+  ok(registro(r.filaResumen, 'Estado') === NUMERACION.ESTADO_INICIAL, 'nace Ingresada');
+
+  // Lo que pidió el usuario: desde la solicitud se llega a sus filas del batch input.
+  const tramo = registro(r.filaResumen, 'Filas del batch input');
+  ok(/^PT \d+-\d+$/.test(tramo), 'guarda el tramo que ocupa en el batch input: ' + tramo);
+  const desde = Number(tramo.match(/(\d+)-/)[1]);
+  ok(r.resultados[0].fila === desde, 'y ese tramo empieza justo donde quedó la primera');
+
+  const filaDetalle = SS.getSheetByName('Registro Detalle').getLastRow();
+  ok(detalle(filaDetalle, 'N° Solicitud') === r.solicitud,
+    'cada línea del detalle apunta a su solicitud');
+  ok(detalle(filaDetalle, 'Hoja Destino') === 'PT' &&
+     detalle(filaDetalle, 'Fila Destino') === r.resultados[2].fila,
+    'y dice en qué fila del batch input quedó');
+
+  // Los numeros no se repiten ni se saltan.
+  const otra = apiGuardarLote(lote_('RVMH032X180X3950').filas, '');
+  ok(Number(otra.solicitud.replace(/\D/g, '')) === Number(r.solicitud.replace(/\D/g, '')) + 1,
+    'la siguiente solicitud toma el número siguiente');
+  ok(registro(otra.filaResumen, 'Observación') === '', 'sin observación, la celda queda vacía');
 
   ok(COL_REGISTRO.indexOf('Observación') !== -1 &&
      MAPEO_DESTINO.every(m => m.encabezado !== 'Observación'),
     'la observación es para codificación: va a la bitácora, no al batch input');
+}
+
+seccion('Tramos: de la solicitud a sus filas');
+{
+  ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }, { hoja: 'PT', fila: 4 }, { hoja: 'PT', fila: 5 }])
+     === 'PT 3-5', 'filas seguidas se resumen en un tramo');
+  ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }]) === 'PT 3', 'una sola va sola');
+  ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }, { hoja: 'PT', fila: 7 }]) === 'PT 3, 7',
+    'y con un hueco, los dos tramos');
+  ok(tramosDeDestino_([{ hoja: 'PP', fila: 3 }, { hoja: 'PCP', fila: 3 }]) === 'PP 3; PCP 3',
+    'una tanda que toca dos hojas las nombra a las dos');
 }
 
 seccion('Sin identidad no hay registro');
