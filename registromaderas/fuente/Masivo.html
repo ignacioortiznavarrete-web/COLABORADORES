@@ -21,11 +21,20 @@
   <main id="app" hidden>
     <div id="mensaje"></div>
 
-    <section class="pegar">
+    <section class="pegar" id="elegirTipo">
       <p class="pegar-nota" style="margin:0 0 14px">
-        Pega los códigos, uno por línea, y pulsa <b>Analizar</b>. Del código salen la clase,
-        el centro y las etapas, así que aparecen solo las columnas de ruta que hagan falta,
-        alineadas por línea con los códigos.
+        ¿Qué vas a pedir? Toda la tanda va del mismo tipo, porque de él dependen
+        las hojas de ruta que se abren.
+      </p>
+      <div class="tipos" id="tipos" role="radiogroup" aria-label="Tipo de solicitud"></div>
+    </section>
+
+    <section class="pegar" id="pegar" hidden>
+      <p class="pegar-nota" style="margin:0 0 14px">
+        <b id="tipoElegido"></b> ·
+        <button type="button" class="enlace" id="btnCambiarTipo">cambiar tipo</button><br>
+        Pega los códigos, uno por línea, y pulsa <b>Analizar</b>. Aparecen solo las columnas
+        de ruta que hagan falta, alineadas por línea con los códigos.
         Los que empiezan con <b>C</b> son cepillados y piden las tres; los de especie <b>H</b>
         que no son cepillados son de Trading y no piden ninguna.
         La ruta va como tres letras, un espacio y la escuadría (<b>RVM 019X020</b>): en
@@ -121,6 +130,7 @@
   var CAMPOS = { aserradero: 'colAserradero', secado: 'colSecado', cepillado: 'colCepillado' };
   var TIMER = null;
   var ULTIMOS_CODIGOS = [];   // para saber en qué líneas cambió el código
+  var TIPO = '';              // toda la tanda va de un solo tipo
   // Lo ya registrado en esta sesión, por código. Un código pedido dos veces son
   // dos materiales nuevos en SAP, así que la fila se marca y sale de la selección.
   var REGISTRADAS = {};
@@ -172,6 +182,37 @@
     FOCO_PREVIO = null;
   }
 
+  /* ----------------------------------------------------------- el tipo */
+
+  /*
+    El tipo se elige antes de pegar y vale para toda la tanda: de él dependen
+    las columnas de ruta que se abren, y mezclar tipos las pediría distintas
+    línea por línea.
+  */
+  function pintarTipos(tipos) {
+    $('tipos').innerHTML = tipos.map(function (t) {
+      return '<button type="button" class="tipo" role="radio" aria-checked="false" ' +
+        'data-tipo="' + esc(t.id) + '">' +
+        '<b>' + esc(t.id) + '</b><span>' + esc(t.titulo) + '</span>' +
+        '<small>' + esc(t.descripcion) + '</small></button>';
+    }).join('');
+  }
+
+  function elegirTipo(id, titulo) {
+    TIPO = id;
+    $('tipoElegido').textContent = titulo || id;
+    $('elegirTipo').hidden = true;
+    $('pegar').hidden = false;
+    $('colCodigos').focus();
+  }
+
+  function volverAlTipo() {
+    TIPO = '';
+    limpiarTodo();
+    $('pegar').hidden = true;
+    $('elegirTipo').hidden = false;
+  }
+
   /* ---------------------------------------------------------- carga inicial */
 
   function iniciar() {
@@ -188,7 +229,7 @@
           aviso($('mensaje'), 'error', 'No se pudo identificar tu cuenta. ',
             'Entra con tu correo corporativo: cada solicitud queda a nombre de quien la ingresa.');
         }
-        $('colCodigos').focus();
+        pintarTipos(ctx.tipos || []);
       })
       .withFailureHandler(function (err) {
         $('cargando').innerHTML = '<div class="aviso error"><b>No se pudo cargar</b>' +
@@ -204,7 +245,8 @@
   function columnas() {
     var rutas = {};
     COLUMNAS_ETAPA.forEach(function (e) { rutas[e] = $(CAMPOS[e]).value; });
-    return { codigos: $('colCodigos').value, rutas: rutas, piezas: $('colPiezas').value };
+    return { tipo: TIPO, codigos: $('colCodigos').value, rutas: rutas,
+      piezas: $('colPiezas').value };
   }
 
   /** Devuelve lo resuelto a las columnas, para que se vea lo que se completó solo. */
@@ -312,6 +354,7 @@
   }
 
   function analizar() {
+    if (!TIPO) { volverAlTipo(); return; }
     if (!$('colCodigos').value.trim()) {
       aviso($('pegarAviso'), 'alerta', '', 'Pega al menos un código.');
       return;
@@ -489,8 +532,8 @@
   /* -------------------------------------------------------------- eventos */
 
   $('btnAnalizar').addEventListener('click', analizar);
-  $('btnLimpiar').addEventListener('click', function () {
-    ['colCodigos', 'colAserradero', 'colSecado', 'colCepillado', 'colPiezas']
+  function limpiarTodo() {
+    ['colCodigos', 'colAserradero', 'colSecado', 'colCepillado', 'colPiezas', 'obs']
       .forEach(function (id) { $(id).value = ''; });
     FILAS = [];
     ULTIMOS_CODIGOS = [];
@@ -500,8 +543,23 @@
     $('barra').hidden = true;
     $('resultados').innerHTML = '';
     aviso($('pegarAviso'), '', '', '');
+  }
+
+  $('btnLimpiar').addEventListener('click', function () {
+    limpiarTodo();
     $('colCodigos').focus();
   });
+
+  $('tipos').addEventListener('click', function (ev) {
+    var b = ev.target;
+    while (b && b !== $('tipos') && !b.hasAttribute('data-tipo')) b = b.parentNode;
+    if (!b || b === $('tipos')) return;
+    var id = b.getAttribute('data-tipo');
+    var suyo = (CTX.tipos || []).filter(function (t) { return t.id === id; })[0];
+    elegirTipo(id, suyo ? suyo.titulo : id);
+  });
+
+  $('btnCambiarTipo').addEventListener('click', volverAlTipo);
   $('btnGuardarLote').addEventListener('click', guardarLote);
   $('modalCerrar').addEventListener('click', cerrarModal);
   $('modalFondo').addEventListener('click', function (ev) {

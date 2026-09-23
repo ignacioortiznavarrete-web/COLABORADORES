@@ -566,6 +566,9 @@ function apiContexto() {
   });
 
   return {
+    tipos: TIPOS_SOLICITUD.map(function (t) {
+      return { id: t.id, titulo: t.titulo, descripcion: t.descripcion };
+    }),
     clases: CLASES.map(function (c) {
       return { id: c.id, hoja: c.hoja, titulo: c.titulo, descripcion: c.descripcion };
     }),

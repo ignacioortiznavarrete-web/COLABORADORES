@@ -137,7 +137,22 @@ Qué habilita cada combinación, hoy:
 
 ## La carga masiva
 
-Primero se pegan **solo los códigos**. Al pulsar *Analizar* aparecen las
+**Primero se elige el tipo: PT, PP o PE.** Toda la tanda va de ese tipo, y no es
+un rótulo: de él dependen las hojas de ruta que se abren. Mezclar terminados con
+material de proceso pediría rutas distintas línea por línea, así que un código
+que no sea del tipo elegido se rechaza y dice por qué.
+
+| Tipo | Qué es | Forma del código | Unidad |
+|---|---|---|---|
+| **PT** | Producto Terminado | con largo (16 caracteres) | PZA |
+| **PP** | Producto de Proceso | sin largo (11) | m3 |
+| **PE** | Producto Especial | no se revisa | m3 |
+
+En **PP**, el que empieza con `C` es cepillado y va a la hoja `PCP`; el resto a
+`PP`. **PE** escribe en una hoja `PE`, y es el único tipo que no se deduce del
+código: es especial porque quien pide lo dice.
+
+Elegido el tipo, se pegan **solo los códigos**. Al pulsar *Analizar* aparecen las
 columnas de ruta que hagan falta —y nada más: un lote de puro Trading no muestra
 ninguna, uno de cepillados muestra las tres—. Desde ahí son cinco columnas de
 texto, y **cada línea se lee junto con la misma línea de las demás**:

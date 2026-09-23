@@ -84,7 +84,17 @@ function origenSinTerceros_(centro) {
  * caracteres: eso permite estrenar una familia sin dejar pasar un código
  * inventado.
  */
-function deducirDeCodigo_(texto, bd) {
+/** El tipo elegido para la tanda. */
+function tipoSolicitud_(id) {
+  var elegido = TIPOS_SOLICITUD.filter(function (t) { return t.id === normalizarCodigo_(id); })[0];
+  if (!elegido) {
+    throw new Error('Elige primero qué tipo de solicitud es: ' +
+      TIPOS_SOLICITUD.map(function (t) { return t.id; }).join(', ') + '.');
+  }
+  return elegido;
+}
+
+function deducirDeCodigo_(texto, bd, tipo) {
   var partes = descomponerCodigo_(texto);
   if (!partes) {
     return {
@@ -113,11 +123,26 @@ function deducirDeCodigo_(texto, bd) {
     }
   }
 
+  // La tanda es de un solo tipo, y el código tiene que ser de ese tipo: si no,
+  // pediría rutas distintas que el resto y la carga dejaría de ser una sola cosa.
+  if (tipo && tipo.exigeLargo !== null && !!partes.largo !== tipo.exigeLargo) {
+    return {
+      ok: false,
+      mensaje: tipo.exigeLargo
+        ? 'La tanda es de ' + tipo.titulo + ' y este código no lleva largo. ' +
+          'Un terminado va con espesor, ancho y largo, como RVMH032X180X3960.'
+        : 'La tanda es de ' + tipo.titulo + ' y este código lleva largo. ' +
+          'Uno de proceso va sin él, como RVM 032X180.'
+    };
+  }
+
   var esTerceros = prefijo.charAt(3) === TRADING.ESPECIE;
   var centro = esTerceros ? TRADING.CENTRO : DEDUCCION.CENTRO_PLANTA;
-  var clase = partes.largo
-    ? DEDUCCION.CLASE_CON_LARGO
-    : (prefijo.charAt(0) === 'C' ? DEDUCCION.CLASE_PROCESO_CEPILLADO : DEDUCCION.CLASE_PROCESO);
+  var clase = tipo
+    ? ((tipo.claseCepillado && prefijo.charAt(0) === 'C') ? tipo.claseCepillado : tipo.clase)
+    : (partes.largo
+        ? DEDUCCION.CLASE_CON_LARGO
+        : (prefijo.charAt(0) === 'C' ? DEDUCCION.CLASE_PROCESO_CEPILLADO : DEDUCCION.CLASE_PROCESO));
 
   return {
     ok: true,
@@ -155,7 +180,7 @@ function deducirDeCodigo_(texto, bd) {
  * forma de ruta se asigna a su etapa y un número suelto es la cantidad de
  * piezas. Así da igual el orden en que vengan.
  */
-function leerLinea_(linea, numero, bd) {
+function leerLinea_(linea, numero, bd, tipo) {
   var campos = String(linea).split(/\t|;|\|/)
     .map(function (c) { return c.trim(); })
     .filter(function (c) { return c !== ''; });
@@ -169,7 +194,7 @@ function leerLinea_(linea, numero, bd) {
     ok: false
   };
 
-  var base = deducirDeCodigo_(campos[0] || '', bd);
+  var base = deducirDeCodigo_(campos[0] || '', bd, tipo);
   if (!base.ok) {
     fila.problemas.push(base.mensaje);
     return fila;
@@ -324,13 +349,14 @@ function apiLote(entrada) {
     rutas[etapa.id] = porLineas_((datos.rutas || {})[etapa.id]);
   });
 
+  var tipo = tipoSolicitud_(datos.tipo);
   var bd = leerBD_();
   var enBD = function (codigo) { return bd.codigos[codigo]; };
   var filas = [];
 
   codigos.forEach(function (linea, i) {
     if (!linea.trim()) return;
-    var fila = leerLinea_(linea, i + 1, bd);
+    var fila = leerLinea_(linea, i + 1, bd, tipo);
 
     // Lo escrito en la columna de la etapa manda sobre lo que venga pegado
     // en la misma línea del código.
@@ -346,6 +372,8 @@ function apiLote(entrada) {
 
   return {
     ok: true,
+    tipo: tipo.id,
+    tipoTitulo: tipo.titulo,
     filas: filas,
     etapasUsadas: etapasDelLote_(filas),
     pideAlgunPak: filas.some(function (f) { return f.pidePak; }),
@@ -367,6 +395,7 @@ function apiRevisarLote(filas) {
     ok: true,
     filas: salida,
     etapasUsadas: etapasDelLote_(salida),
+    pideAlgunPak: salida.some(function (f) { return f.pidePak; }),
     listas: salida.filter(function (f) { return f.ok; }).length,
     conProblemas: salida.filter(function (f) { return !f.ok; }).length
   };

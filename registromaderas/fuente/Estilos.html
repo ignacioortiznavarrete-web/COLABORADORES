@@ -219,6 +219,29 @@
   .barra button.secundario:hover:not(:disabled) { border-color: #fff; }
   .barra #trabajando { color: oklch(0.85 0.03 157) !important; }
 
+  /* El tipo: se elige antes de pegar, y manda sobre toda la tanda. */
+  .tipos { display: flex; gap: 12px; flex-wrap: wrap; }
+  .tipo {
+    flex: 1 1 220px; min-width: 0; text-align: left; cursor: pointer;
+    padding: 16px 18px; border: 1px solid var(--linea); border-radius: var(--r);
+    background: var(--papel); color: var(--tinta); font: inherit;
+    transition: border-color 140ms ease, transform 140ms var(--salida);
+  }
+  .tipo:hover { border-color: var(--bosque-500); transform: translateY(-1px); }
+  .tipo:focus-visible { outline: 3px solid var(--bosque-200); outline-offset: 2px; }
+  .tipo b {
+    display: block; font: 700 22px/1.1 var(--mono); color: var(--bosque-700);
+    letter-spacing: .02em;
+  }
+  .tipo span { display: block; margin-top: 4px; font-weight: 600; font-size: 14.5px; }
+  .tipo small { display: block; margin-top: 4px; color: var(--tinta-suave); font-size: 13px; }
+
+  button.enlace {
+    background: none; border: 0; padding: 0; cursor: pointer;
+    color: var(--bosque-700); font: inherit; text-decoration: underline;
+  }
+  button.enlace:hover { color: var(--bosque-600); }
+
   /* La observación: una sola caja para toda la solicitud. */
   .observacion { display: block; margin-top: 16px; }
   .observacion .tit {

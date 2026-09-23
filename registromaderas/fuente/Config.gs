@@ -56,7 +56,36 @@ const CFG = {
 const CLASES = [
   { id: 'PT', hoja: 'PT', titulo: 'Producto Terminado', descripcion: 'Listo para despacho.' },
   { id: 'PCP', hoja: 'PCP', titulo: 'Producto Cepillado Proceso', descripcion: 'Cepillado que sigue en proceso.' },
-  { id: 'PP', hoja: 'PP', titulo: 'Producto de Proceso', descripcion: 'Material en proceso.' }
+  { id: 'PP', hoja: 'PP', titulo: 'Producto de Proceso', descripcion: 'Material en proceso.' },
+  { id: 'PE', hoja: 'PE', titulo: 'Producto Especial', descripcion: 'Fuera de la nomenclatura corriente.' }
+];
+
+/**
+ * El tipo se elige ANTES de pegar, y vale para toda la tanda.
+ *
+ * No es un adorno: de él dependen qué columnas de ruta se abren. Mezclar
+ * terminados con material de proceso en la misma carga pediría rutas
+ * distintas por línea, así que cada tanda es de un solo tipo.
+ *
+ *   exigeLargo true   el código tiene que llevar largo (16 caracteres)
+ *   exigeLargo false  el código NO puede llevarlo (11)
+ *   exigeLargo null   no se revisa la forma
+ */
+const TIPOS_SOLICITUD = [
+  {
+    id: 'PT', titulo: 'Producto Terminado', exigeLargo: true, clase: 'PT',
+    descripcion: 'Lleva largo y se cuenta por piezas.'
+  },
+  {
+    id: 'PP', titulo: 'Producto de Proceso', exigeLargo: false, clase: 'PP',
+    // Un código de proceso que empieza con C es cepillado, y va a su propia hoja.
+    claseCepillado: 'PCP',
+    descripcion: 'Sin largo: es una etapa de la cadena. Va en m3.'
+  },
+  {
+    id: 'PE', titulo: 'Producto Especial', exigeLargo: null, clase: 'PE',
+    descripcion: 'Fuera de la nomenclatura corriente. Va en m3.'
+  }
 ];
 
 /**
@@ -103,7 +132,8 @@ const POR_DEFECTO = {
 const UNIDAD_POR_CLASE = {
   PT: 'PZA',
   PP: 'M3',
-  PCP: 'M3'
+  PCP: 'M3',
+  PE: 'M3'
 };
 
 const MEDIDAS = {
