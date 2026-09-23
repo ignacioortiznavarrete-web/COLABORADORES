@@ -7,7 +7,7 @@
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Masivo').evaluate()
-    .setTitle('Ingreso de maderas')
+    .setTitle('Entrada')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 

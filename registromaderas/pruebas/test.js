@@ -278,7 +278,8 @@ seccion('Los ceros se ponen solos');
     'igual que su EE y su AA');
 
   // Y por el camino del lote, que es el que se usa de verdad.
-  const lote = apiLote({ codigos: 'RSJR32X180X3200', rutas: { aserradero: 'RVM 32X180' } });
+  const lote = apiLote({ codigos: 'RSJR32X180X3200',
+    rutas: { aserradero: 'RVM 32X180', secado: 'RSFD32X180' } });
   ok(lote.filas[0].codigo === 'RSJR032X180X3200', 'pegando el código corto, sale completo');
   ok(lote.filas[0].rutas.aserradero === 'RVM 032X180',
     'y la ruta vuelve completa a su columna');
@@ -415,12 +416,13 @@ seccion('El lote: se pegan códigos y salen sus filas');
   ok(r.filas[0].ok && r.listas === 1, 'la fila queda lista');
 }
 {
-  // Cuando la escuadría tiene una sola ruta por etapa, se pone sola.
+  // Ya no se recomiendan rutas: la ruta la pone quien pide.
   const r = apiLote('C4JR019X100X2440');
-  ok(r.filas[0].rutas.cepillado === 'CSF 019X100', 'elige sola la única ruta de cepillado');
-  ok(r.filas[0].rutas.aserradero === 'RVF 019X100' && r.filas[0].rutas.secado === 'RSF 019X100',
-    'y las de las otras dos etapas');
-  ok(r.filas[0].ok, 'así que la fila queda lista sin escribir nada');
+  ok(!r.filas[0].rutas.aserradero && !r.filas[0].rutas.secado && !r.filas[0].rutas.cepillado,
+    'no se rellena ninguna ruta sola');
+  ok(!r.filas[0].opciones, 'ni se ofrece una lista de candidatas');
+  ok(!r.filas[0].ok && r.filas[0].problemas.length === 3,
+    'y las tres quedan pedidas, una por etapa');
 }
 {
   // Trading no pide ninguna ruta, y la pantalla explica por qué.
@@ -462,8 +464,9 @@ seccion('Las columnas van por línea');
 }
 {
   const r = apiLote({ codigos: 'RSJR032X180X3200' });
-  ok(r.filas[0].opciones.aserradero.length === 2 && !r.filas[0].rutas.aserradero,
-    'con dos rutas posibles no elige ninguna, y la tabla ofrece las dos');
+  ok(!r.filas[0].rutas.aserradero &&
+     r.filas[0].problemas.some(p => p.indexOf('Falta la hoja de ruta de Aserradero') !== -1),
+    'sin ruta escrita, la pide y no la inventa');
 }
 
 seccion('Qué columnas de ruta pide el lote');
@@ -485,12 +488,55 @@ seccion('Qué columnas de ruta pide el lote');
     'con líneas mezcladas se piden las columnas que necesite alguna');
 }
 
+// Un producto terminado se pide con toda su cadena; un codigo de proceso ES
+// una etapa, asi que solo abre la que viene ANTES de el.
+seccion('Qué rutas abre cada tipo de código');
+{
+  const abre = t => {
+    const e = apiLote(t).filas[0].etapas;
+    return ETAPAS.filter(x => e[x.id]).map(x => x.id).join('+') || 'ninguna';
+  };
+
+  ok(abre('C4JR019X100X2440') === 'aserradero+secado+cepillado',
+    'cepillado terminado: la ruta completa');
+  ok(abre('CSF 019X100') === 'aserradero+secado+cepillado',
+    'y cepillado de proceso también, que sigue siendo cepillado');
+  ok(abre('RSJR032X180X3200') === 'aserradero+secado', 'terminado seco: aserradero y secado');
+  ok(abre('RVMR032X180X3200') === 'aserradero', 'terminado verde: solo aserradero');
+  ok(abre('RVMH032X180X3960') === 'ninguna', 'Trading: ninguna, se compra hecho');
+
+  ok(abre('RSF 037X130') === 'aserradero',
+    'proceso seco: solo la de verde, que es de donde sale');
+  ok(abre('RVF 037X130') === 'ninguna',
+    'proceso verde: ninguna, es el principio de la cadena');
+}
+
+// El PAK solo tiene sentido en producto terminado: lo de proceso va en m3.
+seccion('Proceso va en m3, y no se le piden piezas');
+{
+  const pt = apiLote('RSJR032X180X3200');
+  ok(pt.filas[0].umb === 'PZA' && pt.filas[0].pidePak, 'el terminado se cuenta por piezas');
+  ok(pt.pideAlgunPak, 'y la pantalla muestra la columna de PAK');
+
+  const proceso = apiLote('RSF 037X130');
+  ok(proceso.filas[0].umb === 'M3', 'el de proceso va en m3');
+  ok(!proceso.filas[0].pidePak, 'así que no se le pide PAK');
+  ok(!proceso.pideAlgunPak, 'y la columna no aparece');
+
+  const cepilladoProceso = apiLote('CSF 019X100');
+  ok(cepilladoProceso.filas[0].umb === 'M3', 'el cepillado de proceso, igual');
+
+  ok(apiLote('RSF 037X130\nRSJR032X180X3200').pideAlgunPak,
+    'mezclando, basta que una fila lo pida para que la columna esté');
+}
+
 seccion('Revisar el lote después de completar las rutas');
 {
   const lote = apiLote('RSJR032X180X3200');
-  ok(!lote.filas[0].ok, 'de entrada le falta el aserradero: hay dos rutas posibles');
+  ok(!lote.filas[0].ok, 'de entrada le faltan las rutas: nadie se las inventa');
 
   lote.filas[0].rutas.aserradero = 'RVM 032X180';
+  lote.filas[0].rutas.secado = 'RSFD032X180';
   const revisado = apiRevisarLote(lote.filas);
   ok(revisado.filas[0].ok && revisado.listas === 1, 'con la ruta puesta, la fila queda lista');
 
@@ -504,6 +550,7 @@ seccion('Revisar el lote después de completar las rutas');
 seccion('Una ruta no puede ser más chica que el producto');
 {
   const lote = apiLote('RSJR032X180X3200');
+  lote.filas[0].rutas.secado = 'RSFD032X180';
 
   lote.filas[0].rutas.aserradero = 'RVM 019X100';
   ok(apiRevisarLote(lote.filas).filas[0].problemas[0].indexOf('más chica que el producto') !== -1,
@@ -596,7 +643,7 @@ seccion('Guardar el lote completo');
   const lote = apiLote([
     'RVMH032X180X3660\t120',
     'RVMH032X180X4270',
-    'C4JR019X100X3050\t60'
+    'C4JR019X100X3050\tRVF 019X100\tRSF 019X100\tCSF 019X100\t60'
   ].join('\n'));
   ok(lote.listas === 3, 'las tres líneas quedan listas');
 
@@ -615,6 +662,25 @@ seccion('Guardar el lote completo');
   const r = apiGuardarLote(lote.filas);
   ok(r.fallidas === 1 && r.resultados[0].mensaje.indexOf('ya existe') !== -1,
     'una fila que ya existe se rechaza y el lote sigue');
+}
+
+seccion('La observación va a la bitácora');
+{
+  const lote = apiLote('RVMH032X180X3800');
+  const r = apiGuardarLote(lote.filas, '  Urgente, va para el pedido de Osorno  ');
+  ok(r.guardadas === 1, 'se guarda');
+  ok(registro(r.resultados[0].filaRegistro, 'Observación') ===
+     '  Urgente, va para el pedido de Osorno  '.trim() ||
+     registro(r.resultados[0].filaRegistro, 'Observación').indexOf('Osorno') !== -1,
+    'y la observación queda escrita en Registro');
+
+  const sin = apiGuardarLote(apiLote('RVMH032X180X3900').filas);
+  ok(registro(sin.resultados[0].filaRegistro, 'Observación') === '',
+    'sin observación, la celda queda vacía');
+
+  ok(COL_REGISTRO.indexOf('Observación') !== -1 &&
+     MAPEO_DESTINO.every(m => m.encabezado !== 'Observación'),
+    'la observación es para codificación: va a la bitácora, no al batch input');
 }
 
 seccion('Sin identidad no hay registro');

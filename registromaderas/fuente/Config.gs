@@ -94,6 +94,18 @@ const POR_DEFECTO = {
   STOCK_PEDIDO: 'P'
 };
 
+/**
+ * La unidad con que se mide cada clase.
+ *
+ * Lo de proceso va en metros cúbicos, así que no se le piden piezas: el PAK
+ * solo tiene sentido en producto terminado, que se cuenta por unidades.
+ */
+const UNIDAD_POR_CLASE = {
+  PT: 'PZA',
+  PP: 'M3',
+  PCP: 'M3'
+};
+
 const MEDIDAS = {
   DIGITOS_ESPESOR: 3,
   DIGITOS_ANCHO: 3,
@@ -223,7 +235,7 @@ const COL_REGISTRO = [
   'Origen', 'Centro', 'Tipo Material', 'Agrupación', 'Descripción Agrupación',
   'Código', 'Descripción Material', 'Grupo Artículo',
   'Espesor', 'Ancho', 'Largo', 'Piezas', 'UMB', 'Stock/Pedido',
-  'Aserradero', 'Secado', 'Cepillado', 'Hoja Destino', 'Fila Destino'
+  'Aserradero', 'Secado', 'Cepillado', 'Observación', 'Hoja Destino', 'Fila Destino'
 ];
 
 /**

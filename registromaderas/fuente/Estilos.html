@@ -219,6 +219,21 @@
   .barra button.secundario:hover:not(:disabled) { border-color: #fff; }
   .barra #trabajando { color: oklch(0.85 0.03 157) !important; }
 
+  /* La observación: una sola caja para toda la solicitud. */
+  .observacion { display: block; margin-top: 16px; }
+  .observacion .tit {
+    display: block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--tinta-suave); margin-bottom: 6px;
+  }
+  .observacion textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--linea);
+    border-radius: var(--r); background: var(--papel); color: var(--tinta);
+    font: 14px/1.5 var(--sans); resize: vertical;
+  }
+  .observacion textarea:focus-visible {
+    outline: 2px solid var(--bosque-500); outline-offset: 1px; border-color: var(--bosque-500);
+  }
+
   /* --------------------------------------------------------------- avisos */
 
   .aviso {

@@ -107,20 +107,42 @@ function armarCodigo_(agrupacion, espesor, ancho, largo) {
  *
  * En el resto de los casos el aserradero va siempre.
  */
-function etapasAplicables_(agrupacion) {
+/**
+ * Qué hojas de ruta abre una solicitud.
+ *
+ * La diferencia de fondo es qué ES el código: un producto terminado se pide
+ * con toda su cadena, y un código de proceso ES una etapa, asi que solo abre
+ * la que viene ANTES de él.
+ *
+ *   Cepillado             las tres, sea terminado o de proceso
+ *   Trading (especie H)   ninguna: se compra hecho
+ *   Terminado seco        aserradero y secado
+ *   Terminado verde       aserradero
+ *   Proceso seco          aserradero: la ruta de verde de la que sale
+ *   Proceso verde         ninguna: es el principio de la cadena
+ *
+ * @param {string} agrupacion  El prefijo.
+ * @param {boolean} esProceso  Sin largo: el código es una etapa, no un producto.
+ */
+function etapasAplicables_(agrupacion, esProceso) {
   var p = prefijo_(agrupacion);
+  var nada = { aserradero: false, secado: false, cepillado: false };
 
   if (p.charAt(0) === 'C') {
     return { aserradero: true, secado: true, cepillado: true };
   }
-  if (p.charAt(3) === TRADING.ESPECIE) {
-    return { aserradero: false, secado: false, cepillado: false };
+  if (p.charAt(3) === TRADING.ESPECIE) return nada;
+
+  var verde = p.charAt(1) === 'V';
+  if (esProceso) {
+    return verde ? nada : { aserradero: true, secado: false, cepillado: false };
   }
-  return {
-    aserradero: true,
-    secado: p.charAt(1) !== 'V',
-    cepillado: false
-  };
+  return { aserradero: true, secado: !verde, cepillado: false };
+}
+
+/** La unidad de la clase: lo de proceso se mide en m3, no en piezas. */
+function unidadDeClase_(clase) {
+  return UNIDAD_POR_CLASE[clase] || POR_DEFECTO.UMB;
 }
 
 /** Cada carácter del prefijo con su significado, para explicarlo en pantalla. */
@@ -334,7 +356,7 @@ function validar_(datos) {
     throw new Error('Falta la cantidad de piezas.');
   }
 
-  var aplica = etapasAplicables_(agrupacion);
+  var aplica = etapasAplicables_(agrupacion, !largo);
   var exigeRuta = RUTAS.DEBE_EXISTIR_EN.indexOf(clase.id) !== -1;
   var pedido = datos.desglose || {};
   var desglose = {};
@@ -390,6 +412,8 @@ function validar_(datos) {
   });
 
   return {
+    // Va en la bitácora, no en el batch input: es para codificación, no para SAP.
+    observacion: texto_(datos.observacion).substring(0, 500),
     clase: clase.id,
     claseTitulo: clase.titulo,
     hojaDestino: clase.hoja,
@@ -406,7 +430,7 @@ function validar_(datos) {
     largo: largo,
     dimension: dimension_(espesor, ancho, largo),
     piezas: piezas,
-    umb: unoDe_(datos.umb, UNIDADES, POR_DEFECTO.UMB),
+    umb: unoDe_(datos.umb, UNIDADES, unidadDeClase_(clase.id)),
     stockPedido: unoDe_(datos.stockPedido, STOCK_PEDIDO.map(function (o) { return o.id; }),
       POR_DEFECTO.STOCK_PEDIDO),
     desglose: desglose,
@@ -525,7 +549,7 @@ function guardarEnRegistro_(v, destino) {
     v.codigo, v.descripcion, v.grupo,
     v.espesor, v.ancho, v.largo, v.piezas, v.umb, v.stockPedido,
     v.desglose.aserradero.ruta, v.desglose.secado.ruta, v.desglose.cepillado.ruta,
-    destino.hoja, destino.fila
+    v.observacion, destino.hoja, destino.fila
   ]);
   return hoja.getLastRow();
 }

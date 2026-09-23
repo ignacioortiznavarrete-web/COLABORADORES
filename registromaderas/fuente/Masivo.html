@@ -10,7 +10,7 @@
 
 <header class="app">
   <div class="cabecera-fila">
-    <h1>Ingreso de maderas</h1>
+    <h1>Entrada</h1>
     <span class="quien" id="quien"></span>
   </div>
 </header>
@@ -38,23 +38,29 @@
           <textarea id="colCodigos" rows="10" spellcheck="false"
             placeholder="RVMH032X180X3960&#10;C4JR019X100X2440&#10;RVM 032X180"></textarea>
         </label>
-        <label class="columna" id="cajaAserradero" hidden>
-          <span class="tit">Aserradero</span>
-          <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
-        </label>
-        <label class="columna" id="cajaSecado" hidden>
-          <span class="tit">Secado</span>
-          <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
-        </label>
-        <label class="columna" id="cajaCepillado" hidden>
-          <span class="tit">Cepillado</span>
-          <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
-        </label>
         <label class="columna estrecha" id="cajaPiezas" hidden>
           <span class="tit">PAK</span>
           <textarea id="colPiezas" rows="10" spellcheck="false" placeholder="248"></textarea>
         </label>
+        <label class="columna" id="cajaAserradero" hidden>
+          <span class="tit">Ruta de aserradero</span>
+          <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
+        </label>
+        <label class="columna" id="cajaSecado" hidden>
+          <span class="tit">Ruta de secado</span>
+          <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
+        </label>
+        <label class="columna" id="cajaCepillado" hidden>
+          <span class="tit">Ruta de cepillado</span>
+          <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
+        </label>
       </div>
+
+      <label class="observacion">
+        <span class="tit">Observación</span>
+        <textarea id="obs" rows="2" maxlength="500"
+          placeholder="Lo que codificación deba saber de esta solicitud (opcional)"></textarea>
+      </label>
 
       <div class="pegar-fila" style="margin-top:14px">
         <button type="button" class="primario" id="btnAnalizar">Analizar</button>
@@ -73,10 +79,10 @@
               <th class="col-sel"><input type="checkbox" id="todas" title="Seleccionar las listas"></th>
               <th class="col-n">Línea</th>
               <th>Código</th>
-              <th id="thAserradero">Aserradero</th>
-              <th id="thSecado">Secado</th>
-              <th id="thCepillado">Cepillado</th>
               <th class="col-pak">PAK</th>
+              <th id="thAserradero">Ruta de aserradero</th>
+              <th id="thSecado">Ruta de secado</th>
+              <th id="thCepillado">Ruta de cepillado</th>
               <th>Estado</th>
             </tr>
           </thead>
@@ -249,15 +255,19 @@
     aserradero: 'cajaAserradero', secado: 'cajaSecado', cepillado: 'cajaCepillado'
   };
 
-  /** Las columnas de ruta aparecen recién cuando se sabe qué pide cada código. */
-  function mostrarColumnas(usadas) {
+  /**
+   * Las columnas aparecen recién cuando se sabe qué pide cada código: las de
+   * ruta según la etapa, y la del PAK solo si hay producto terminado —lo de
+   * proceso va en m3 y no se cuenta por piezas—.
+   */
+  function mostrarColumnas(usadas, pidePak) {
     var alguna = false;
     COLUMNAS_ETAPA.forEach(function (etapa) {
       var pide = !!(usadas && usadas[etapa]);
       $(CAJAS[etapa]).hidden = !pide;
       if (pide) alguna = true;
     });
-    $('cajaPiezas').hidden = false;
+    $('cajaPiezas').hidden = !pidePak;
     return alguna;
   }
 
@@ -316,7 +326,7 @@
         $('btnAnalizar').disabled = false;
         $('analizando').hidden = true;
         FILAS = r.filas.map(function (f) { f.sel = f.ok; return f; });
-        mostrarColumnas(r.etapasUsadas);
+        mostrarColumnas(r.etapasUsadas, r.pideAlgunPak);
         escribirColumnas();
         dibujarTabla();
       })
@@ -344,7 +354,7 @@
           f.sel = f.ok && (previo.sel || !previo.ok);
           return f;
         });
-        mostrarColumnas(r.etapasUsadas);
+        mostrarColumnas(r.etapasUsadas, r.pideAlgunPak);
         dibujarTabla();
       })
       .withFailureHandler(function (err) {
@@ -367,28 +377,10 @@
       return '<td class="no-aplica" title="' + esc(motivo) + '">—</td>';
     }
     var ruta = (fila.rutas && fila.rutas[etapa]) || '';
-    if (ruta) return '<td class="mono">' + esc(ruta) + '</td>';
-
-    // Sin ruta: se ofrecen las que la base tiene para esa escuadría.
-    var opciones = fila.opciones[etapa] || [];
-    if (!opciones.length) return '<td class="falta">sin rutas para esta escuadría</td>';
-    return '<td class="candidatas">' + opciones.slice(0, 5).map(function (o) {
-      return '<button type="button" class="chip-ruta" data-poner="' + esc(o.codigo) + '" ' +
-        'data-fila="' + fila.n + '" data-etapa="' + etapa + '" title="' + esc(o.descripcion) +
-        '">' + esc(o.codigo) + '</button>';
-    }).join('') + (opciones.length > 5 ? '<small>y ' + (opciones.length - 5) + ' más</small>' : '') +
-      '</td>';
-  }
-
-  /** Pone una ruta en su línea de la columna que corresponde. */
-  function ponerRuta(n, etapa, ruta) {
-    var lineas = lineasDe(CAMPOS[etapa]);
-    while (lineas.length < n) lineas.push('');
-    lineas[n - 1] = ruta;
-    $(CAMPOS[etapa]).value = lineas.join('\n');
-    var fila = filaPorN(n);
-    if (fila) fila.rutas[etapa] = ruta;
-    revisar();
+    // No se recomienda ninguna: la ruta la pone quien pide.
+    return ruta
+      ? '<td class="mono">' + esc(ruta) + '</td>'
+      : '<td class="falta">falta</td>';
   }
 
   function dibujarTabla() {
@@ -409,8 +401,10 @@
         '<td class="col-n">' + f.n + '</td>' +
         '<td><span class="mono fuerte">' + esc(f.codigo) + '</span>' +
         '<small>' + esc(f.clase) + ' · ' + esc(f.agrupacionTexto || '') + '</small></td>' +
+        '<td class="col-pak mono">' +
+          (f.pidePak ? esc(f.piezas || '—') : '<span class="no-aplica" title="' +
+            'Va en m3: el PAK es solo para producto terminado.">m3</span>') + '</td>' +
         celdaRuta(f, 'aserradero') + celdaRuta(f, 'secado') + celdaRuta(f, 'cepillado') +
-        '<td class="col-pak mono">' + esc(f.piezas || '—') + '</td>' +
         '<td class="estado">' + (f.guardada
           ? '<span class="ok">Registrada en ' + esc(f.guardada.hoja) +
             ' fila ' + esc(f.guardada.fila) + '</span>'
@@ -484,7 +478,7 @@
         trabajando(false);
         modal('error', 'No se pudo registrar', err && err.message ? err.message : String(err));
       })
-      .apiGuardarLote(sel);
+      .apiGuardarLote(sel, $('obs').value.trim());
   }
 
   function trabajando(activo) {
@@ -527,14 +521,6 @@
     var marcar = $('todas').checked;
     FILAS.forEach(function (f) { f.sel = marcar && f.ok; });
     dibujarTabla();
-  });
-
-  $('cuerpoLote').addEventListener('click', function (ev) {
-    var b = ev.target;
-    while (b && b !== $('cuerpoLote') && !b.hasAttribute('data-poner')) b = b.parentNode;
-    if (!b || b === $('cuerpoLote')) return;
-    ponerRuta(Number(b.getAttribute('data-fila')), b.getAttribute('data-etapa'),
-      b.getAttribute('data-poner'));
   });
 
   $('cuerpoLote').addEventListener('change', function (ev) {

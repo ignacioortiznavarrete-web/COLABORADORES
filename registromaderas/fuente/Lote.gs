@@ -115,6 +115,9 @@ function deducirDeCodigo_(texto, bd) {
 
   var esTerceros = prefijo.charAt(3) === TRADING.ESPECIE;
   var centro = esTerceros ? TRADING.CENTRO : DEDUCCION.CENTRO_PLANTA;
+  var clase = partes.largo
+    ? DEDUCCION.CLASE_CON_LARGO
+    : (prefijo.charAt(0) === 'C' ? DEDUCCION.CLASE_PROCESO_CEPILLADO : DEDUCCION.CLASE_PROCESO);
 
   return {
     ok: true,
@@ -132,13 +135,14 @@ function deducirDeCodigo_(texto, bd) {
       : (prefijo.charAt(3) === ' ' ? 'TPAS' : 'TTAS'),
     origen: esTerceros ? TRADING.ORIGEN : origenSinTerceros_(centro),
     esTerceros: esTerceros,
-    clase: partes.largo
-      ? DEDUCCION.CLASE_CON_LARGO
-      : (prefijo.charAt(0) === 'C' ? DEDUCCION.CLASE_PROCESO_CEPILLADO : DEDUCCION.CLASE_PROCESO),
+    clase: clase,
     espesor: partes.espesor,
     ancho: partes.ancho,
     largo: partes.largo,
-    etapas: etapasAplicables_(partes.agrupacion)
+    // Proceso va en m3, asi que no se le pide PAK.
+    umb: unidadDeClase_(clase),
+    pidePak: unidadDeClase_(clase) === POR_DEFECTO.UMB,
+    etapas: etapasAplicables_(partes.agrupacion, !partes.largo)
   };
 }
 
@@ -160,7 +164,6 @@ function leerLinea_(linea, numero, bd) {
     n: numero,
     entrada: campos[0] || '',
     rutas: { aserradero: '', secado: '', cepillado: '' },
-    opciones: { aserradero: [], secado: [], cepillado: [] },
     piezas: '',
     problemas: [],
     ok: false
@@ -180,15 +183,11 @@ function leerLinea_(linea, numero, bd) {
     if (escuadriaDeRuta_(campo) && familia) fila.rutas[familia] = normalizarRuta_(campo);
   }
 
-  // Rutas de la escuadría del producto, separadas por etapa.
-  var disponibles = bd.rutas[fila.espesor + 'X' + fila.ancho] || [];
+  // No se recomiendan rutas: la ruta la pone quien pide, y acá solo se revisa.
+  // Lo único que se guarda es por qué una etapa no abre ruta.
   fila.motivos = {};
   ETAPAS.forEach(function (etapa) {
-    if (!fila.etapas[etapa.id]) {
-      fila.motivos[etapa.id] = motivoSinEtapa_(fila, etapa.id);
-      return;
-    }
-    fila.opciones[etapa.id] = disponibles.filter(function (r) { return r.etapa === etapa.id; });
+    if (!fila.etapas[etapa.id]) fila.motivos[etapa.id] = motivoSinEtapa_(fila, etapa.id);
   });
   return fila;
 }
@@ -213,16 +212,6 @@ function etapasDelLote_(filas) {
   return usa;
 }
 
-/** Si una etapa tiene una sola ruta posible, se pone sola. */
-function proponerRutas_(fila) {
-  if (!fila.etapas) return fila;
-  ETAPAS.forEach(function (etapa) {
-    if (!fila.etapas[etapa.id] || fila.rutas[etapa.id]) return;
-    var suyas = fila.opciones[etapa.id] || [];
-    if (suyas.length === 1) fila.rutas[etapa.id] = suyas[0].codigo;
-  });
-  return fila;
-}
 
 /**
  * Juzga una fila: el código no puede existir todavía y las rutas sí.
@@ -289,6 +278,7 @@ function solicitudDeFila_(fila) {
     desglose[etapa.id] = { ruta: (fila.rutas || {})[etapa.id] || '' };
   });
   return {
+    observacion: fila.observacion || '',
     clase: fila.clase,
     origen: fila.origen,
     centro: fila.centro,
@@ -300,7 +290,7 @@ function solicitudDeFila_(fila) {
     largo: fila.largo,
     desglose: desglose,
     piezas: fila.piezas,
-    umb: fila.umb || POR_DEFECTO.UMB,
+    umb: fila.umb || unidadDeClase_(fila.clase),
     stockPedido: fila.stockPedido || POR_DEFECTO.STOCK_PEDIDO
   };
 }
@@ -351,13 +341,14 @@ function apiLote(entrada) {
     var pak = (piezas[i] || '').trim();
     if (pak) fila.piezas = pak.replace(/\D/g, '');
 
-    filas.push(validarFila_(proponerRutas_(fila), enBD));
+    filas.push(validarFila_(fila, enBD));
   });
 
   return {
     ok: true,
     filas: filas,
     etapasUsadas: etapasDelLote_(filas),
+    pideAlgunPak: filas.some(function (f) { return f.pidePak; }),
     listas: filas.filter(function (f) { return f.ok; }).length,
     conProblemas: filas.filter(function (f) { return !f.ok; }).length
   };
@@ -383,8 +374,10 @@ function apiRevisarLote(filas) {
 
 
 /** Guarda las filas elegidas en su hoja y en la bitácora. */
-function apiGuardarLote(filas) {
+function apiGuardarLote(filas, observacion) {
   if (!filas || !filas.length) throw new Error('No hay filas seleccionadas.');
+  // La observación es de la solicitud entera, no de cada línea.
+  filas.forEach(function (f) { f.observacion = observacion || ''; });
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(CFG.SEGUNDOS_LOCK * 1000)) {
