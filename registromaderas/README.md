@@ -152,7 +152,13 @@ En **PP**, el que empieza con `C` es cepillado y va a la hoja `PCP`; el resto a
 `PP`. **PE** escribe en una hoja `PE`, y es el único tipo que no se deduce del
 código: es especial porque quien pide lo dice.
 
-Elegido el tipo, se pegan **solo los códigos**. Al pulsar *Analizar* aparecen las
+Elegido el tipo, se pegan **solo los códigos**. **No hay botón de analizar**:
+la tanda se revisa sola mientras escribes. Si cambian los códigos se relee todo
+—de ellos salen la clase, las etapas y qué columnas se abren—; si solo cambia
+una ruta o un PAK alcanza con revisar, que no relee la base. Al salir de una
+caja no se espera: lo pendiente se resuelve ahí mismo, y con la respuesta se
+acomodan los ceros y las rutas, que es lo que no se puede escribir mientras el
+cursor está dentro. Al pulsar *Analizar* aparecen las
 columnas de ruta que hagan falta —y nada más: un lote de puro Trading no muestra
 ninguna, uno de cepillados muestra las tres—. Desde ahí son cinco columnas de
 texto, y **cada línea se lee junto con la misma línea de las demás**:
@@ -177,8 +183,9 @@ sola y se escribe de vuelta en su columna. Cuando hay varias, la tabla dice
 cuántas hay por elegir. Cada fila dice si está lista o qué le falta, y se revisa
 sola mientras escribes.
 
-Con las filas seleccionadas, la barra de abajo ofrece una sola cosa:
-**Registrar**. La fila queda en la hoja de su clase y en la bitácora
+**No se eligen líneas: es todo o nada.** La tabla no tiene casillas; se
+registra lo que esté listo, y lo que tenga algo pendiente se queda fuera y dice
+qué le falta. La barra de abajo ofrece una sola cosa: **Registrar**. La fila queda en la hoja de su clase y en la bitácora
 `Registro`, y sale un aviso con el código y dónde quedó.
 
 Lo ya registrado se marca en la tabla (*Registrada en PT fila 3*) y sale de la

@@ -33,8 +33,8 @@
       <p class="pegar-nota" style="margin:0 0 14px">
         <b id="tipoElegido"></b> ·
         <button type="button" class="enlace" id="btnCambiarTipo">cambiar tipo</button><br>
-        Pega los códigos, uno por línea, y pulsa <b>Analizar</b>. Aparecen solo las columnas
-        de ruta que hagan falta, alineadas por línea con los códigos.
+        Pega los códigos, uno por línea. Se revisan solos mientras escribes, y aparecen
+        solo las columnas de ruta que hagan falta, alineadas por línea con los códigos.
         Los que empiezan con <b>C</b> son cepillados y piden las tres; los de especie <b>H</b>
         que no son cepillados son de Trading y no piden ninguna.
         La ruta va como tres letras, un espacio y la escuadría (<b>RVM 019X020</b>): en
@@ -72,7 +72,6 @@
       </label>
 
       <div class="pegar-fila" style="margin-top:14px">
-        <button type="button" class="primario" id="btnAnalizar">Analizar</button>
         <button type="button" class="secundario" id="btnLimpiar">Limpiar</button>
         <span id="analizando" hidden class="pegar-nota">Leyendo la base…</span>
       </div>
@@ -85,7 +84,6 @@
         <table class="lote">
           <thead>
             <tr>
-              <th class="col-sel"><input type="checkbox" id="todas" title="Seleccionar las listas"></th>
               <th class="col-n">Línea</th>
               <th>Código</th>
               <th class="col-pak">PAK</th>
@@ -250,6 +248,16 @@
   }
 
   /** Devuelve lo resuelto a las columnas, para que se vea lo que se completó solo. */
+  /**
+   * Escribe en una columna sin estropear lo que se está tecleando: si el cursor
+   * está ahí, se deja como está y se acomoda en la próxima vuelta.
+   */
+  function ponerValor(id, texto) {
+    var el = $(id);
+    if (el.value === texto || document.activeElement === el) return;
+    el.value = texto;
+  }
+
   function escribirColumnas() {
     var alto = lineasDe('colCodigos').length;
 
@@ -260,23 +268,27 @@
     FILAS.forEach(function (f) {
       if (f.codigo && f.n <= alto) codigos[f.n - 1] = f.codigo;
     });
-    $('colCodigos').value = codigos.join('\n');
-    // Se refresca la memoria del cambio: si no, el propio relleno de ceros
-    // parecería un código distinto y borraría las rutas recién puestas.
-    ULTIMOS_CODIGOS = codigos.map(function (t) { return t.trim().toUpperCase(); });
+    ponerValor('colCodigos', codigos.join('\n'));
+    // Se refresca la memoria del cambio con lo que quedó de verdad en la caja:
+    // si no, el propio relleno de ceros parecería un código distinto y borraría
+    // las rutas recién puestas.
+    ULTIMO_TEXTO_CODIGOS = $('colCodigos').value;
+    ULTIMOS_CODIGOS = lineasDe('colCodigos').map(function (t) {
+      return t.trim().toUpperCase();
+    });
     COLUMNAS_ETAPA.forEach(function (etapa) {
       var lineas = [];
       for (var i = 0; i < alto; i++) lineas.push('');
       FILAS.forEach(function (f) {
         if (f.n <= alto) lineas[f.n - 1] = (f.rutas && f.rutas[etapa]) || '';
       });
-      $(CAMPOS[etapa]).value = lineas.join('\n');
+      ponerValor(CAMPOS[etapa], lineas.join('\n'));
     });
 
     var pak = [];
     for (var i = 0; i < alto; i++) pak.push('');
     FILAS.forEach(function (f) { if (f.n <= alto) pak[f.n - 1] = f.piezas || ''; });
-    $('colPiezas').value = pak.join('\n');
+    ponerValor('colPiezas', pak.join('\n'));
   }
 
   /** Toma lo escrito en las columnas y lo pasa a las filas ya analizadas. */
@@ -339,15 +351,29 @@
    * Si en una línea cambió el código, sus rutas ya no son de ese material:
    * se borran antes de analizar, en vez de arrastrarse a la tanda siguiente.
    */
+  /*
+    Para saber si la línea cambió de código se comparan sin los ceros a la
+    izquierda: RVMH32X180X3800 y RVMH032X180X3800 son el mismo material, y
+    volver a escribirlo corto no es motivo para perder sus rutas.
+  */
+  function mismoCodigo(a, b) {
+    var pelado = function (t) {
+      return String(t).replace(/\d+/g, function (n) { return String(Number(n)); });
+    };
+    return pelado(a) === pelado(b);
+  }
+
   function soltarRutasDeLineasCambiadas() {
     var ahora = lineasDe('colCodigos').map(function (t) { return t.trim().toUpperCase(); });
     if (ULTIMOS_CODIGOS.length) {
       COLUMNAS_ETAPA.forEach(function (etapa) {
         var lineas = lineasDe(CAMPOS[etapa]);
         for (var i = 0; i < lineas.length; i++) {
-          if (ULTIMOS_CODIGOS[i] !== undefined && ULTIMOS_CODIGOS[i] !== ahora[i]) lineas[i] = '';
+          if (ULTIMOS_CODIGOS[i] !== undefined && !mismoCodigo(ULTIMOS_CODIGOS[i], ahora[i])) {
+            lineas[i] = '';
+          }
         }
-        $(CAMPOS[etapa]).value = lineas.join('\n');
+        ponerValor(CAMPOS[etapa], lineas.join('\n'));
       });
     }
     ULTIMOS_CODIGOS = ahora;
@@ -356,25 +382,25 @@
   function analizar() {
     if (!TIPO) { volverAlTipo(); return; }
     if (!$('colCodigos').value.trim()) {
-      aviso($('pegarAviso'), 'alerta', '', 'Pega al menos un código.');
+      FILAS = [];
+      ocultarColumnas();
+      $('cajaTabla').hidden = true;
+      $('barra').hidden = true;
       return;
     }
     soltarRutasDeLineasCambiadas();
-    $('btnAnalizar').disabled = true;
     $('analizando').hidden = false;
     aviso($('pegarAviso'), '', '', '');
 
     google.script.run
       .withSuccessHandler(function (r) {
-        $('btnAnalizar').disabled = false;
         $('analizando').hidden = true;
-        FILAS = r.filas.map(function (f) { f.sel = f.ok; return f; });
+        FILAS = r.filas;
         mostrarColumnas(r.etapasUsadas, r.pideAlgunPak);
         escribirColumnas();
         dibujarTabla();
       })
       .withFailureHandler(function (err) {
-        $('btnAnalizar').disabled = false;
         $('analizando').hidden = true;
         aviso($('pegarAviso'), 'error', 'No se pudo analizar. ',
           err && err.message ? err.message : err);
@@ -386,17 +412,9 @@
   function revisar() {
     if (!FILAS.length) return;
     aplicarColumnas();
-    var antes = {};
-    FILAS.forEach(function (f) { antes[f.n] = { sel: f.sel, ok: f.ok }; });
-
     google.script.run
       .withSuccessHandler(function (r) {
-        FILAS = r.filas.map(function (f) {
-          var previo = antes[f.n] || {};
-          // Si acaba de quedar lista, entra en la selección: para eso se arregló.
-          f.sel = f.ok && (previo.sel || !previo.ok);
-          return f;
-        });
+        FILAS = r.filas;
         mostrarColumnas(r.etapasUsadas, r.pideAlgunPak);
         dibujarTabla();
       })
@@ -407,9 +425,48 @@
       .apiRevisarLote(FILAS);
   }
 
-  function alEditarRutas() {
+  /*
+    Ya no hay botón: la tanda se revisa sola al escribir.
+
+    Si cambiaron los códigos hay que releer todo —de ellos salen la clase, las
+    etapas y qué columnas se abren—; si solo cambió una ruta o un PAK alcanza
+    con revisar, que no relee la base entera. La espera deja terminar de
+    escribir antes de salir a preguntar.
+  */
+  var ULTIMO_TEXTO_CODIGOS = null;
+
+  function repasar() {
+    TIMER = null;
+    if (!TIPO) return;
+    var ahora = $('colCodigos').value;
+    if (ahora !== ULTIMO_TEXTO_CODIGOS || !FILAS.length) {
+      ULTIMO_TEXTO_CODIGOS = ahora;
+      analizar();
+    } else {
+      revisar();
+    }
+  }
+
+  function alEditar() {
     if (TIMER) clearTimeout(TIMER);
-    TIMER = setTimeout(revisar, 450);
+    TIMER = setTimeout(repasar, 550);
+  }
+
+  /**
+   * Al salir de una caja.
+   *
+   * Si quedaba un repaso pendiente no se espera más: se adelanta, y con su
+   * respuesta se acomodan los ceros y las rutas. Si no quedaba ninguno, las
+   * filas ya están al día y basta con escribirlas: eso es justo lo que no se
+   * pudo hacer mientras el cursor estaba dentro.
+   */
+  function alSalir() {
+    if (TIMER) {
+      clearTimeout(TIMER);
+      repasar();
+    } else if (FILAS.length) {
+      escribirColumnas();
+    }
   }
 
   /* --------------------------------------------------------------- tabla */
@@ -429,18 +486,15 @@
   function dibujarTabla() {
     FILAS.forEach(function (f) {
       f.guardada = f.codigo ? (REGISTRADAS[f.codigo] || null) : null;
-      if (f.guardada) f.sel = false;
     });
     $('cajaTabla').hidden = false;
     $('cuerpoLote').innerHTML = FILAS.map(function (f) {
       if (!f.codigo) {
-        return '<tr class="mala"><td class="col-sel"></td><td class="col-n">' + f.n + '</td>' +
+        return '<tr class="mala"><td class="col-n">' + f.n + '</td>' +
           '<td class="mono">' + esc(f.entrada) + '</td>' +
           '<td colspan="5" class="problema">' + esc(f.problemas.join(' ')) + '</td></tr>';
       }
       return '<tr class="' + (f.guardada ? 'guardada' : (f.ok ? '' : 'pendiente')) + '">' +
-        '<td class="col-sel"><input type="checkbox" data-fila="' + f.n + '"' +
-        (f.sel ? ' checked' : '') + (f.ok && !f.guardada ? '' : ' disabled') + '></td>' +
         '<td class="col-n">' + f.n + '</td>' +
         '<td><span class="mono fuerte">' + esc(f.codigo) + '</span>' +
         '<small>' + esc(f.clase) + ' · ' + esc(f.agrupacionTexto || '') + '</small></td>' +
@@ -464,8 +518,9 @@
     return null;
   }
 
+  /** Todo o nada: se registra lo que esté listo, sin elegir línea por línea. */
   function seleccionadas() {
-    return FILAS.filter(function (f) { return f.sel && f.ok && !f.guardada; });
+    return FILAS.filter(function (f) { return f.ok && !f.guardada; });
   }
 
   function refrescar() {
@@ -478,8 +533,9 @@
 
     var n = seleccionadas().length;
     $('barra').hidden = n === 0;
-    $('barraTexto').textContent = n + (n === 1 ? ' fila seleccionada' : ' filas seleccionadas');
-    $('todas').checked = listas > 0 && n === listas;
+    $('barraTexto').textContent = malas
+      ? n + (n === 1 ? ' línea lista' : ' líneas listas') + ', ' + malas + ' sin resolver'
+      : n + (n === 1 ? ' línea lista' : ' líneas listas');
   }
 
   /* ------------------------------------------------------------- acciones */
@@ -531,8 +587,8 @@
 
   /* -------------------------------------------------------------- eventos */
 
-  $('btnAnalizar').addEventListener('click', analizar);
   function limpiarTodo() {
+    ULTIMO_TEXTO_CODIGOS = null;
     ['colCodigos', 'colAserradero', 'colSecado', 'colCepillado', 'colPiezas', 'obs']
       .forEach(function (id) { $(id).value = ''; });
     FILAS = [];
@@ -569,24 +625,15 @@
     if (ev.key === 'Escape' && !$('modalFondo').hidden) cerrarModal();
   });
 
-  COLUMNAS_ETAPA.forEach(function (e) { $(CAMPOS[e]).addEventListener('input', alEditarRutas); });
-  $('colPiezas').addEventListener('input', alEditarRutas);
-  $('colCodigos').addEventListener('keydown', function (ev) {
-    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); analizar(); }
-  });
-
-  $('todas').addEventListener('change', function () {
-    var marcar = $('todas').checked;
-    FILAS.forEach(function (f) { f.sel = marcar && f.ok; });
-    dibujarTabla();
-  });
-
-  $('cuerpoLote').addEventListener('change', function (ev) {
-    var fila = filaPorN(ev.target.getAttribute('data-fila'));
-    if (!fila) return;
-    fila.sel = ev.target.checked;
-    refrescar();
-  });
+  ['colCodigos', 'colPiezas'].concat(COLUMNAS_ETAPA.map(function (e) { return CAMPOS[e]; }))
+    .forEach(function (id) {
+      $(id).addEventListener('input', alEditar);
+      // Al salir se adelanta el repaso pendiente, y con su respuesta se acomoda
+      // lo que no se pudo escribir con el cursor dentro: los ceros, las rutas
+      // completas. Escribirlo acá sin preguntar pisaría lo recién tecleado con
+      // el estado viejo.
+      $(id).addEventListener('blur', alSalir);
+    });
 
   sincronizarScroll();
   iniciar();
