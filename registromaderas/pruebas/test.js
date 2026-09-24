@@ -12,6 +12,10 @@ FUENTES.forEach(f => {
   vm.runInThisContext(fs.readFileSync(f, 'utf8'), { filename: path.basename(f) });
 });
 
+// Las pruebas cambian la casilla para simular el "sin dirección", así que el
+// valor configurado se guarda antes de tocarlo.
+const CODIFICACION_CONFIGURADA = CORREOS.CODIFICACION;
+
 let fallos = 0;
 function ok(cond, msg) {
   console.log((cond ? '  ✓ ' : '  ✗ ') + msg);
@@ -609,10 +613,50 @@ seccion('Qué rutas abre cada tipo de código');
   ok(abre('RVMR032X180X3200') === 'aserradero', 'terminado verde: solo aserradero');
   ok(abre('RVMH032X180X3960') === 'ninguna', 'Trading: ninguna, se compra hecho');
 
+  // El cepillado manda sobre la especie: un C con H sigue siendo de Trading
+  // —se compra a terceros— pero igual se cepilla, y eso pide las tres rutas.
+  const cepilladoH = lote_('C23H019X125X4005').filas[0];
+  ok(abre('C23H019X125X4005') === 'aserradero+secado+cepillado',
+    'un cepillado con H pide la ruta completa igual');
+  ok(cepilladoH.origen === 'Trading' && cepilladoH.centro === 'TCD2',
+    'y sigue siendo Trading, con su centro');
+
   ok(abre('RSF 037X130', 'PP') === 'aserradero',
     'proceso seco: solo la de verde, que es de donde sale');
   ok(abre('RVF 037X130', 'PP') === 'ninguna',
     'proceso verde: ninguna, es el principio de la cadena');
+}
+
+// Trading se compra hecho y planta se fabrica: distinto centro, distinto
+// origen y distinto costo. Una solicitud termina en una sola carga.
+seccion('Trading y planta no van en la misma solicitud');
+{
+  const mezcla = f => (f.problemas || []).indexOf(MENSAJES.MEZCLA_DE_ORIGEN) !== -1;
+
+  const soloH = lote_('RVMH032X180X3960\nC23H019X125X4005');
+  ok(!soloH.filas.some(mezcla), 'una tanda toda de Trading no se reclama');
+
+  const soloPlanta = lote_('RSJR032X180X3200\nRVMR032X180X3200');
+  ok(!soloPlanta.filas.some(mezcla), 'y una toda de planta, tampoco');
+
+  const mezclada = lote_('RVMH032X180X3960\nRSJR032X180X3200');
+  ok(mezclada.filas.every(mezcla), 'mezcladas, se marcan las dos: el problema es de la tanda');
+  ok(mezclada.filas[0].problemas[0] === MENSAJES.MEZCLA_DE_ORIGEN &&
+     MENSAJES.MEZCLA_DE_ORIGEN.indexOf('otra solicitud') !== -1,
+    'y el aviso dice que se pidan por separado');
+  ok(mezclada.listas === 0, 'ninguna queda lista, aunque de por sí estuviera completa');
+
+  // El cepillado con H pide rutas, pero eso no lo saca de Trading.
+  ok(lote_('C23H019X125X4005\nCSFR019X125X4005').filas.every(mezcla),
+    'un cepillado H y uno de planta también se marcan');
+
+  // El de proceso no tiene especie —va en blanco— y no entra en la cuenta.
+  ok(!lote_('RVM 032X180\nCSF 019X100', 'PP').filas.some(mezcla),
+    'entre códigos de proceso no hay mezcla que reclamar');
+
+  // Y aunque la pantalla lo dejara pasar, no se guarda.
+  ok(error(() => apiGuardarLote(mezclada.filas, '')) === MENSAJES.MEZCLA_DE_ORIGEN,
+    'guardar una tanda mezclada se rechaza en el servidor');
 }
 
 // El PAK solo tiene sentido en producto terminado: lo de proceso va en m3.
@@ -745,10 +789,12 @@ seccion('El Excel sale de las filas seleccionadas en la hoja');
 
 seccion('Guardar el lote completo');
 {
+  // Las tres de Trading, que es lo único que puede ir junto: la tercera es
+  // cepillada, así que aun siendo H lleva sus tres rutas.
   const lote = lote_([
     'RVMH032X180X3660\t120',
     'RVMH032X180X4270',
-    'C4JR019X100X3050\tRVF 019X100\tRSF 019X100\tCSF 019X100\t60'
+    'C4JH019X100X3050\tRVF 019X100\tRSF 019X100\tCSF 019X100\t60'
   ].join('\n'));
   ok(lote.listas === 3, 'las tres líneas quedan listas');
 
@@ -757,10 +803,10 @@ seccion('Guardar el lote completo');
   ok(celda('PT', r.resultados[0].fila, 24) === 120, 'la primera lleva su PAK');
   ok(celda('PT', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
   ok(celda('PT', r.resultados[0].fila, 7) === '' && celda('PT', r.resultados[0].fila, 11) === '',
-    'las de Trading van sin ninguna ruta');
+    'las rústicas de Trading van sin ninguna ruta');
   ok(celda('PT', r.resultados[2].fila, 7) === 'RVF' &&
      celda('PT', r.resultados[2].fila, 15) === 'CSF',
-    'y la de planta con las suyas, elegidas solas');
+    'y la cepillada con las suyas, aunque también sea de Trading');
 }
 {
   const lote = lote_('RVMH032X180X4000\tRVM 032X180');
@@ -893,10 +939,10 @@ seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
   ok(global.__CORREOS[0].para === 'codificacion@masisa.com', 'a codificación');
   ok(global.__CORREOS[0].asunto.indexOf(r.solicitud) !== -1, 'con el número en el asunto');
   ok(global.__CORREOS[0].cuerpo.indexOf('RSJR032X180X4400') !== -1, 'y los códigos adentro');
-  // Apps Script manda desde la cuenta que corre el script y no hay otro
-  // remitente posible, así que al responder se le contesta a quien pidió.
-  ok(global.__CORREOS[0].opciones.replyTo === 'jose.ortiz@masisa.com',
-    'responder le escribe a quien pidió, no al buzón desde el que salió');
+  // Publicado como "el usuario que accede", el correo ya sale de quien pide:
+  // no hay a quién redirigir la respuesta.
+  ok(global.__CORREOS[0].opciones.replyTo === undefined,
+    'y sale de quien pide, así que no necesita responder-a');
 
   // Ahora se cierra.
   global.__CORREOS = [];
@@ -953,6 +999,33 @@ seccion('Un correo que no sale no tumba nada');
   ok(r.guardadas === 1, 'la solicitud se guarda igual');
   ok(registro(r.filaResumen, 'N° Solicitud') === r.solicitud, 'y queda escrita');
   ok(global.__CORREOS.length === 0, 'aunque el correo no salió');
+}
+
+// De quién sale el correo de ingreso no se decide en el código sino al
+// publicar: sale de la cuenta con la que corre el script.
+seccion('El aviso de ingreso sale de quien pide');
+{
+  ok(CODIFICACION_CONFIGURADA === 'codificacion.corporativa@masisa.com',
+    'y va a codificación corporativa');
+  CORREOS.CODIFICACION = CODIFICACION_CONFIGURADA;
+
+  // Publicado como "el usuario que accede": remitente y solicitante son el
+  // mismo, y el correo sale de él.
+  global.__CORREOS = [];
+  apiGuardarLote(lote_('RVMH032X180X4500').filas, '');
+  ok(global.__CORREOS[0].para === 'codificacion.corporativa@masisa.com',
+    'con la casilla de verdad, llega ahí');
+  ok(global.__CORREOS[0].opciones.replyTo === undefined,
+    'y sin responder-a: el remitente ya es quien pidió');
+
+  // Publicado de la otra forma, el remitente es el buzón que publicó; ahí sí
+  // hace falta decir a quién contestar.
+  global.__CORREOS = [];
+  global.__CUENTA_QUE_CORRE = 'buzon.que.publico@masisa.com';
+  apiGuardarLote(lote_('RVMH032X180X4550').filas, '');
+  ok(global.__CORREOS[0].opciones.replyTo === 'jose.ortiz@masisa.com',
+    'si el script corre con otra cuenta, responder le escribe igual a quien pidió');
+  delete global.__CUENTA_QUE_CORRE;
 }
 
 seccion('Sin dirección, no se manda nada');

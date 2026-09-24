@@ -51,9 +51,14 @@ function armarAvisoDeIngreso_(numero, cabecera, skus) {
  * Manda un correo.
  *
  * Apps Script siempre lo manda desde la cuenta con la que corre el script; no
- * hay forma de poner otro remitente. Por eso va `responderA`: codificación
- * recibe el aviso y al responder le escribe a quien pidió, no al buzón desde
- * el que salió.
+ * hay forma de poner otro remitente. Con el formulario publicado como
+ * "Ejecutar como: el usuario que accede", esa cuenta es la de quien pide, y
+ * el aviso de ingreso sale de él sin más.
+ *
+ * Si está publicado de la otra forma, el remitente es el buzón que publicó, y
+ * ahí sirve `responderA`: codificación recibe el aviso y al responder le
+ * escribe a quien pidió, no al buzón desde el que salió. Cuando el remitente
+ * ya es esa persona, `responderA` sobra y no se pone.
  *
  * @param {string} responderA  A quién contesta el que reciba, si no es el remitente.
  */
@@ -97,7 +102,7 @@ function enviar_(para, asunto, cuerpo, responderA) {
   try {
     var opciones = { name: 'Solicitud Código Maderas' };
     if (CORREOS.COPIA) opciones.cc = CORREOS.COPIA;
-    if (responderA) {
+    if (responderA && !esLaCuentaQueCorre_(responderA)) {
       opciones.replyTo = responderA;
       opciones.name = 'Solicitud Código Maderas · ' + responderA;
     }
@@ -105,6 +110,16 @@ function enviar_(para, asunto, cuerpo, responderA) {
   } catch (err) {
     // Un correo que no sale no puede tumbar un registro que ya quedó escrito.
     Logger.log('No se pudo enviar "' + asunto + '" a ' + para + ': ' + err.message);
+  }
+}
+
+/** Si el correo ya sale de esa persona, no hay a quién redirigir la respuesta. */
+function esLaCuentaQueCorre_(correo) {
+  try {
+    var remitente = String(Session.getEffectiveUser().getEmail() || '').trim();
+    return !!remitente && remitente.toLowerCase() === String(correo).trim().toLowerCase();
+  } catch (err) {
+    return false;
   }
 }
 

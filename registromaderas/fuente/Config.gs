@@ -73,7 +73,9 @@ const CLASES = [
  * existe, que falta la hoja de ruta— porque de eso depende qué corregir.
  */
 const MENSAJES = {
-  TIPO_QUE_NO_CALZA: 'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar'
+  TIPO_QUE_NO_CALZA: 'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar',
+  MEZCLA_DE_ORIGEN: 'En una misma solicitud no se puede mezclar Trading (especie H) con planta. ' +
+    'Deja uno solo y pide el otro en otra solicitud.'
 };
 
 /**
@@ -346,15 +348,19 @@ const MONITOR = {
 /**
  * Los dos correos que salen solos.
  *
- * Al ingresar: a codificación, para que sepa que hay algo que crear.
- * Al finalizar: a quien pidió, para que sepa que ya está.
+ * Al ingresar: de quien pide a codificación, para que sepa que hay algo que
+ * crear. Al finalizar: de codificación a quien pidió, para que sepa que ya está.
+ *
+ * Que el de ingreso salga de quien pide no se decide acá sino al publicar: un
+ * correo sale de la cuenta con la que corre el script, así que el formulario
+ * tiene que estar publicado como "Ejecutar como: el usuario que accede".
  *
  * Una dirección vacía es "no mandar": el formulario no falla por eso, solo no
  * avisa. Así se puede instalar antes de tener la casilla definitiva.
  */
 const CORREOS = {
   /** Codificación corporativa: recibe cada solicitud nueva. */
-  CODIFICACION: '',
+  CODIFICACION: 'codificacion.corporativa@masisa.com',
   /** En copia, si hace falta. */
   COPIA: '',
   ASUNTO_INGRESO: 'Nueva solicitud de código de maderas',
@@ -415,8 +421,14 @@ const NOMENCLATURA = [
  * Registro de quién ingresa cada solicitud.
  *
  * El correo sale de Session.getActiveUser(): con la aplicación web publicada
- * como "Ejecutar como: Yo" y acceso limitado a tu dominio, Google entrega el
- * correo real de quien está usando el formulario.
+ * y el acceso limitado al dominio, Google entrega el correo real de quien
+ * está usando el formulario.
+ *
+ * Para que el aviso a codificación salga además DESDE esa persona, hay que
+ * publicarla como "Ejecutar como: el usuario que accede": el remitente de un
+ * correo es siempre la cuenta con la que corre el script. Publicada como
+ * "Yo", el registro igual queda a nombre de quien entra, pero el aviso sale
+ * del buzón que publicó y solo lleva su dirección en responder-a.
  */
 const AUDITORIA = {
   EXIGIR_IDENTIDAD: true

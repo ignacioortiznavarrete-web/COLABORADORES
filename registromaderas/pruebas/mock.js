@@ -247,6 +247,13 @@ global.Session = {
   getActiveUser: () => ({
     getEmail: () => (global.__USUARIO === undefined ? 'jose.ortiz@masisa.com' : global.__USUARIO)
   }),
+  // Con la aplicación publicada como "el usuario que accede", los dos son el
+  // mismo. __CUENTA_QUE_CORRE simula la otra publicación.
+  getEffectiveUser: () => ({
+    getEmail: () => (global.__CUENTA_QUE_CORRE === undefined
+      ? Session.getActiveUser().getEmail()
+      : global.__CUENTA_QUE_CORRE)
+  }),
   getScriptTimeZone: () => 'America/Santiago'
 };
 /* --- ZIP mínimo, sin comprimir: alcanza para revisar que el xlsx abra. --- */

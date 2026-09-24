@@ -289,6 +289,44 @@ function validarFila_(fila, existe) {
   return fila;
 }
 
+/**
+ * Trading y planta no viajan en la misma solicitud.
+ *
+ * Lo que se compra hecho a terceros (especie H) y lo que sale de planta son
+ * dos cosas distintas aunque el código se parezca: distinto centro, distinto
+ * origen y distinto costo. Una solicitud termina en una sola carga, así que
+ * mezclarlos obliga a deshacerla después.
+ *
+ * Se revisa sobre la tanda entera, no fila por fila: el problema no es de un
+ * código sino de la mezcla, y por eso se marcan todos los que la forman. El
+ * de proceso no participa —no tiene especie, va en blanco— y queda como está.
+ */
+function marcarMezclaDeOrigen_(filas) {
+  var conEspecie = (filas || []).filter(function (f) {
+    return f.codigo && f.prefijo && f.prefijo.charAt(3) !== ' ';
+  });
+  var hayTerceros = conEspecie.some(function (f) { return f.esTerceros; });
+  var hayPlanta = conEspecie.some(function (f) { return !f.esTerceros; });
+  if (!hayTerceros || !hayPlanta) return filas;
+
+  conEspecie.forEach(function (fila) {
+    fila.problemas = fila.problemas || [];
+    if (fila.problemas.indexOf(MENSAJES.MEZCLA_DE_ORIGEN) === -1) {
+      fila.problemas.push(MENSAJES.MEZCLA_DE_ORIGEN);
+    }
+    fila.ok = false;
+  });
+  return filas;
+}
+
+/** Si la tanda mezcla orígenes, no se guarda: se corrige antes. */
+function exigirUnSoloOrigen_(filas) {
+  var mezcla = (filas || []).some(function (f) {
+    return (f.problemas || []).indexOf(MENSAJES.MEZCLA_DE_ORIGEN) !== -1;
+  });
+  if (mezcla) throw new Error(MENSAJES.MEZCLA_DE_ORIGEN);
+}
+
 /** La solicitud que espera `validar_`, armada desde una fila del lote. */
 function solicitudDeFila_(fila) {
   var desglose = {};
@@ -363,6 +401,7 @@ function apiLote(entrada) {
 
     filas.push(validarFila_(fila, enBD));
   });
+  marcarMezclaDeOrigen_(filas);
 
   return {
     ok: true,
@@ -384,6 +423,7 @@ function apiRevisarLote(filas) {
   var salida = (filas || []).map(function (fila) {
     return validarFila_(fila, existe);
   });
+  marcarMezclaDeOrigen_(salida);
 
   return {
     ok: true,
@@ -410,6 +450,10 @@ function apiRevisarLote(filas) {
  */
 function apiGuardarLote(filas, observacion) {
   if (!filas || !filas.length) throw new Error('No hay filas seleccionadas.');
+  // La pantalla ya lo avisa, pero acá se vuelve a mirar: lo que llega es lo
+  // que mandó el navegador, y una solicitud mezclada no se guarda.
+  marcarMezclaDeOrigen_(filas);
+  exigirUnSoloOrigen_(filas);
   // La observación es de la solicitud entera, no de cada línea.
   filas.forEach(function (f) { f.observacion = observacion || ''; });
 
