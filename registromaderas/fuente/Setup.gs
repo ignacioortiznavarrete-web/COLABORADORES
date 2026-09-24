@@ -14,7 +14,7 @@ function onOpen() {
       .addSeparator()
       .addItem('Ver enlace del formulario', 'mostrarEnlace')
       .addItem('Preparar hojas', 'instalarRegistro')
-      .addItem('Activar el paso a la base al finalizar', 'instalarDisparador')
+      .addItem('Activar el cierre al finalizar', 'instalarDisparador')
       .addItem('Revisar permisos', 'revisarPermisos')
       .addToUi();
   } catch (err) {
@@ -90,10 +90,15 @@ function instalarDisparador() {
     .onEdit()
     .create();
 
-  avisar_('Activar el paso a la base al finalizar',
+  avisar_('Activar el cierre al finalizar',
     'Listo.\n\nDe ahora en adelante, al poner "' + NUMERACION.ESTADO_FINAL + '" en la ' +
-    'columna Estado de "' + CFG.HOJA_REGISTRO + '", los códigos de esa solicitud y sus ' +
-    'hojas de ruta se agregan a ' + CFG.HOJA_BD + ' (los que ya estén, no).' +
+    'columna Estado de "' + CFG.HOJA_REGISTRO + '":\n' +
+    '· los códigos de esa solicitud y sus hojas de ruta se agregan a ' + CFG.HOJA_BD +
+    ' (los que ya estén, no)\n' +
+    '· se le avisa por correo a quien la pidió\n\n' +
+    'Ese correo sale de TU cuenta (' + usuario_() + '), porque es la que acaba de ' +
+    'instalar el disparador. Si debe salir de codificación, que lo instale ' +
+    'codificación desde su cuenta.' +
     (repetidos ? '\n\nSe quitó ' + repetidos + ' disparador repetido.' : ''));
 }
 

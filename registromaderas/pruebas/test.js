@@ -861,7 +861,7 @@ seccion('Tramos: de la solicitud a sus filas');
 
 // Al poner Finalizado, los materiales de la solicitud entran a BD_Maderas y
 // se le avisa a quien pidio.
-seccion('Cerrar una solicitud: los materiales entran a la base');
+seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
 {
   CORREOS.CODIFICACION = 'codificacion@masisa.com';
   global.__CORREOS = [];
@@ -896,15 +896,29 @@ seccion('Cerrar una solicitud: los materiales entran a la base');
   ok(enBd.indexOf('RVM 032X180') === -1,
     'la ruta que ya existía NO se agrega de nuevo');
 
-  // Por ahora finalizar solo da de alta los materiales: el aviso a quien pidió
-  // queda para cuando se defina.
-  ok(global.__CORREOS.length === 0, 'al finalizar todavía no sale ningún correo');
+  ok(global.__CORREOS.length === 1, 'al finalizar sale un correo');
+  ok(global.__CORREOS[0].para === 'jose.ortiz@masisa.com', 'a quien pidió');
+  ok(global.__CORREOS[0].asunto.indexOf('costo plan liberado') !== -1,
+    'con el asunto de código registrado y costo plan liberado');
+  ok(global.__CORREOS[0].asunto.indexOf(r.solicitud) !== -1, 'y el número de su solicitud');
+  ok(global.__CORREOS[0].opciones.replyTo === 'codificacion@masisa.com',
+    'responder le escribe a codificación');
+  ok(global.__CORREOS[0].cuerpo.indexOf('1 código y 1 hoja de ruta') !== -1,
+    'y dice qué se dio de alta: ' +
+    (global.__CORREOS[0].cuerpo.match(/Se dieron de alta[^\n]*/) || [''])[0]);
 
   // Cerrarla dos veces no duplica nada.
   global.__CORREOS = [];
   const otraVez = cerrarSolicitud_(hoja, r.filaResumen);
   ok(otraVez.codigos === 0 && otraVez.rutas === 0, 'volver a cerrarla no agrega nada');
   ok(bd.getLastRow() === antesBd + 2, 'la base queda igual');
+
+  // Un correo que no sale no puede dejar los materiales sin dar de alta.
+  global.__FALLA_CORREO = true;
+  const conFallo = apiGuardarLote(lote_('RVMH032X180X4700').filas, '');
+  const puestos = cerrarSolicitud_(hoja, conFallo.filaResumen);
+  delete global.__FALLA_CORREO;
+  ok(puestos.codigos === 1, 'y si el correo del cierre falla, el material entra igual');
 
   CORREOS.CODIFICACION = '';
 }

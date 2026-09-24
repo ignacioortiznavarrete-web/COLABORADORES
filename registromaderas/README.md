@@ -522,12 +522,16 @@ menú toma los permisos nuevos apenas se acepta la pantalla de autorización,
 pero **la aplicación web se queda con los de la implementación que está
 publicada**: hay que crear una implementación nueva para que los tome.
 
-## El correo de ingreso
+## Los dos correos
 
-Al **ingresar** una solicitud sale un correo a **codificación corporativa**, con
-el número, quién pidió, cuántos códigos y cuáles.
+Al **ingresar** una solicitud sale uno a **codificación corporativa**, con el
+número, quién pidió, cuántos códigos y cuáles.
 
-La dirección está en `CORREOS.CODIFICACION` (`Config.gs`). **Vacía es «no
+Al ponerla en **Finalizado** sale otro a **quien la pidió**: *Código registrado
+· costo plan liberado*, con sus códigos y qué se dio de alta en la base.
+
+La dirección de codificación está en `CORREOS.CODIFICACION` (`Config.gs`). La
+de quien pidió sale de `Registro Detalle`. **Una dirección vacía es «no
 mandar»**: el formulario no falla por eso, solo no avisa, así que se puede
 instalar antes de tener la casilla definitiva.
 
@@ -538,22 +542,25 @@ ejecución.
 ### De quién sale cada correo
 
 Apps Script **siempre manda desde la cuenta con la que corre el script**. No
-hay forma de poner otro remitente.
+hay forma de poner otro remitente. Por eso los dos correos salen de cuentas
+distintas aunque vivan en el mismo proyecto:
 
-El formulario está publicado como *Ejecutar como: Yo*, así que el aviso de
-ingreso sale de la cuenta que lo publicó. Para que codificación igual le
-conteste a quien pidió, el correo lleva **`replyTo`** con su dirección y su
-nombre en el remitente: *Solicitud Código Maderas · jose.ortiz@masisa.com*.
+| Correo | Lo dispara | Sale de | Responder le escribe a |
+|---|---|---|---|
+| Ingreso | el formulario web | la cuenta que **publicó** el formulario | quien pidió |
+| Finalizado | el disparador de edición | la cuenta que **instaló** el disparador | codificación |
 
-Si hace falta que salga **de verdad** desde la cuenta de cada quien, hay que
-publicar el formulario como *Ejecutar como: el usuario que accede*. Eso pide
-que cada persona autorice el script y tenga permiso de edición sobre el
+Eso es lo que resuelve el asunto sin necesidad de un Apps Script aparte: **si
+codificación instala el disparador desde su cuenta, el aviso de finalizado sale
+de codificación**. Por eso el menú avisa con qué cuenta lo estás instalando.
+
+El de ingreso no puede salir de cada solicitante mientras el formulario esté
+publicado como *Ejecutar como: Yo*, así que lleva **`replyTo`** con su dirección
+y su nombre en el remitente: *Solicitud Código Maderas ·
+jose.ortiz@masisa.com*. Si hace falta que salga de verdad desde su cuenta, hay
+que publicarlo como *Ejecutar como: el usuario que accede*, y entonces cada
+persona tiene que autorizar el script y tener permiso de edición sobre el
 spreadsheet.
-
-> El aviso al **finalizar** todavía no está. Cuando se haga, **va en este mismo
-> proyecto**: un disparador instalable corre con la cuenta de quien lo instaló,
-> así que si lo instala codificación, ese correo sale de codificación. No hace
-> falta un Apps Script aparte.
 
 ### Al finalizar, los materiales entran a BD_Maderas
 
@@ -563,9 +570,14 @@ nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
 tener un material dos veces—, y cerrar la misma solicitud otra vez no agrega
 nada.
 
-Para que corra hay que activarlo una vez: **Registro Maderas › Activar el paso
-a la base al finalizar**. Instala un disparador con permisos; el `onEdit`
-simple no sirve, porque corre sin ellos y no podría escribir en la base.
+Para que corra hay que activarlo una vez: **Registro Maderas › Activar el
+cierre al finalizar**. Instala un disparador con permisos; el `onEdit` simple
+no sirve, porque corre sin ellos y no podría escribir en la base ni mandar
+correos.
+
+**Quien lo instale es de quien saldrá el correo de finalizado**, así que
+debería instalarlo codificación. Si el correo falla, los materiales entran a la
+base igual.
 
 ## Quién puede entrar
 

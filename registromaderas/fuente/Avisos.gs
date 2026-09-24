@@ -1,12 +1,16 @@
 /**
- * El aviso a codificación, y lo que pasa cuando una solicitud se termina.
+ * Los dos avisos, y lo que pasa cuando una solicitud se termina.
  *
- * Por ahora sale un solo correo: el de ingreso. El de finalizado queda para
- * cuando se defina a quién y con qué texto.
+ * Van en el mismo proyecto aunque salgan de cuentas distintas, y eso no es un
+ * descuido: un correo sale de la cuenta con la que corre el script, y los dos
+ * caminos corren con cuentas distintas. El de ingreso lo dispara el formulario
+ * web, que corre como quien lo publicó. El de finalizado lo dispara el
+ * disparador de edición, que corre como quien lo instaló: si lo instala
+ * codificación, ese correo sale de codificación.
  *
  * Nada de esto detiene un registro: si el correo no sale, la solicitud ya
- * quedó guardada igual. Por eso el aviso va envuelto y solo deja una línea en
- * el registro de ejecución si falla.
+ * quedó guardada igual. Por eso cada aviso va envuelto y solo deja una línea
+ * en el registro de ejecución si falla.
  */
 
 /**
@@ -53,6 +57,42 @@ function armarAvisoDeIngreso_(numero, cabecera, skus) {
  *
  * @param {string} responderA  A quién contesta el que reciba, si no es el remitente.
  */
+/**
+ * Avisa a quien pidió que sus códigos quedaron creados.
+ *
+ * Sale de la cuenta que instaló el disparador —codificación—, y contesta ahí
+ * mismo: quien recibe puede responder con una duda sin buscar a quién.
+ */
+function avisarFinalizado_(numero, correo, skus, agregado) {
+  try {
+    armarAvisoDeFinalizado_(numero, correo, skus, agregado);
+  } catch (err) {
+    Logger.log('avisarFinalizado_: ' + err.message);
+  }
+}
+
+function armarAvisoDeFinalizado_(numero, correo, skus, agregado) {
+  if (!correo) return;
+  var cuerpo = [
+    'Tu solicitud ' + numero + ' quedó finalizada.',
+    '',
+    'Los códigos están registrados y su costo plan, liberado.',
+    '',
+    skus.join('\n')
+  ];
+  if (agregado && (agregado.codigos || agregado.rutas)) {
+    cuerpo.push('', 'Se dieron de alta en ' + CFG.HOJA_BD + ': ' +
+      agregado.codigos + (agregado.codigos === 1 ? ' código' : ' códigos') +
+      (agregado.rutas
+        ? ' y ' + agregado.rutas + (agregado.rutas === 1 ? ' hoja de ruta' : ' hojas de ruta')
+        : '') + '.');
+  }
+  if (MONITOR.URL) cuerpo.push('', 'Monitor: ' + MONITOR.URL);
+
+  enviar_(correo, CORREOS.ASUNTO_FINALIZADO + ' · ' + numero, cuerpo.join('\n'),
+    CORREOS.CODIFICACION);
+}
+
 function enviar_(para, asunto, cuerpo, responderA) {
   try {
     var opciones = { name: 'Solicitud Código Maderas' };
@@ -113,9 +153,14 @@ function cerrarSolicitud_(hojaRegistro, fila) {
   var lineas = lineasDeSolicitud_(numero);
   if (!lineas.length) return { codigos: 0, rutas: 0 };
 
-  // Por ahora finalizar solo da de alta los materiales. El aviso a quien pidió
-  // queda para cuando se defina.
-  return agregarABd_(lineas);
+  var agregado = agregarABd_(lineas);
+
+  // El aviso va después de dar de alta: si el correo no sale, los materiales
+  // ya quedaron en la base igual.
+  avisarFinalizado_(numero, lineas[0].correo,
+    lineas.map(function (l) { return l.codigo; }), agregado);
+
+  return agregado;
 }
 
 /** Las líneas de `Registro Detalle` que son de esa solicitud. */

@@ -331,20 +331,21 @@ const MONITOR = {
 };
 
 /**
- * El correo que sale solo: el de ingreso.
+ * Los dos correos que salen solos.
+ *
+ * Al ingresar: a codificación, para que sepa que hay algo que crear.
+ * Al finalizar: a quien pidió, para que sepa que ya está.
  *
  * Una dirección vacía es "no mandar": el formulario no falla por eso, solo no
  * avisa. Así se puede instalar antes de tener la casilla definitiva.
- *
- * El aviso de finalizado todavía no está: queda para cuando se defina a quién
- * va y qué dice.
  */
 const CORREOS = {
   /** Codificación corporativa: recibe cada solicitud nueva. */
   CODIFICACION: '',
   /** En copia, si hace falta. */
   COPIA: '',
-  ASUNTO_INGRESO: 'Nueva solicitud de código de maderas'
+  ASUNTO_INGRESO: 'Nueva solicitud de código de maderas',
+  ASUNTO_FINALIZADO: 'Código registrado · costo plan liberado'
 };
 
 /** Cómo se numera cada solicitud, y con qué estado nace. */
