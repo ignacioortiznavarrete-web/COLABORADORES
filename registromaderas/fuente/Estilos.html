@@ -74,7 +74,7 @@
     display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
   }
   header.app h1 {
-    margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+    margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.015em;
   }
   header.app .quien {
     margin-left: auto; font-size: 12.5px; color: oklch(0.83 0.03 157);
@@ -342,7 +342,9 @@
     margin: 16px 0 0; padding: 12px 14px; max-height: 190px; overflow-y: auto;
     background: var(--bosque-050); border: 1px solid var(--bosque-200);
     border-radius: var(--r); font: 13px/1.7 var(--mono); text-align: left;
-    color: var(--bosque-800); word-break: break-all;
+    color: var(--bosque-800); overflow-wrap: anywhere;
+    /* Una línea por código: los saltos del texto son parte de la lista. */
+    white-space: pre-line;
   }
   .modal .codigos.mala {
     background: var(--rojo-fondo); border-color: oklch(0.86 0.06 25); color: var(--rojo);

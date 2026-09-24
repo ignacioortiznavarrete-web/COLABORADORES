@@ -7,7 +7,7 @@
 
 function doGet() {
   return HtmlService.createTemplateFromFile('Masivo').evaluate()
-    .setTitle('Entrada')
+    .setTitle('Solicitud Código Maderas')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 

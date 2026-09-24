@@ -304,9 +304,20 @@ de algo que no ocurrió.
 
 ## Ver las solicitudes
 
-**Apenas se registra, la pantalla salta al monitor.** No hay aviso de por
-medio: la confirmación es llegar y ver la solicitud recién hecha arriba de todo.
-Los errores sí se avisan, y de ahí no se salta a ninguna parte.
+**Si todo entró, la pantalla salta al monitor apenas se registra.** No hay
+aviso de por medio: la confirmación es llegar y ver la solicitud recién hecha
+arriba de todo.
+
+**Si algo quedó fuera, sí hay aviso**, con la cuenta por delante:
+
+> **4 códigos registrados**
+> y 2 no fueron ingresados porque ya existían. Por favor comunicarse con
+> codificación. La solicitud quedó como SOL-00001.
+
+Abajo se listan cuáles, uno por línea. De ahí el botón lleva al monitor; no
+salta solo, porque si el aviso está en pantalla es porque algo hay que leer.
+Cuenta también las líneas que ni se intentaron guardar: para quien pegó treinta
+códigos, esas son parte de lo que pidió.
 
 La dirección está en `MONITOR.URL` (`Config.gs`); si el monitor se vuelve a
 publicar, hay que cambiarla ahí. Y `MONITOR.SEGUNDOS` decide la pausa: en `0`

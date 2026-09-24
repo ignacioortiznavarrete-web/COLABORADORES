@@ -10,7 +10,7 @@
 
 <header class="app">
   <div class="cabecera-fila">
-    <h1>Entrada</h1>
+    <h1>Solicitud Código Maderas</h1>
     <span class="quien" id="quien"></span>
   </div>
 </header>
@@ -173,7 +173,8 @@
     navegador bloquea el salto automático —pasa cuando ya no cuenta el clic que
     lo originó—, un clic de verdad siempre lo deja pasar.
   */
-  var IR_AL_MONITOR = null;
+  var IR_AL_MONITOR = null;      // el salto automático, si lo hay
+  var BOTON_AL_MONITOR = false;  // si el botón del aviso lleva al monitor
 
   function hayMonitor() { return !!(CTX.monitor || {}).url; }
 
@@ -190,6 +191,7 @@
   function cancelarSalto() {
     if (IR_AL_MONITOR) clearTimeout(IR_AL_MONITOR);
     IR_AL_MONITOR = null;
+    BOTON_AL_MONITOR = false;
   }
 
   function modal(tipo, titulo, texto, lineas, malas) {
@@ -585,27 +587,28 @@
         trabajando(false);
         var buenas = r.resultados.filter(function (x) { return x.ok; });
         var fallidas = r.resultados.filter(function (x) { return !x.ok; });
+        // Lo que ni siquiera se intentó guardar: las líneas que quedaron fuera
+        // por tener algo pendiente. Hay que contarlas igual, porque para quien
+        // pegó treinta códigos esas son parte de lo que pidió.
+        var fuera = FILAS.filter(function (f) {
+          return f.codigo && !f.ok && !f.guardada;
+        });
+        var existian = fuera.filter(function (f) { return f.existe; })
+          .concat(fallidas.filter(function (x) {
+            return (x.mensaje || '').toLowerCase().indexOf('ya existe') !== -1;
+          }));
+        var pendientes = fuera.filter(function (f) { return !f.existe; });
+        var otrosFallos = fallidas.filter(function (x) {
+          return (x.mensaje || '').toLowerCase().indexOf('ya existe') === -1;
+        });
 
-        if (!fallidas.length) {
-          // Sin espera, al monitor derecho: no se alcanza a ver ningún aviso.
-          if (hayMonitor() && !esperaDelMonitor()) { alMonitor(); return; }
-          modal('ok',
-            'Solicitud ' + r.solicitud,
-            (buenas.length === 1 ? 'Un código registrado' : buenas.length + ' códigos registrados') +
-              '. Quedaron en ' + r.tramos + ', y la solicitud en ' + CTX.hojaRegistro +
-              '. El Excel del batch input se baja desde el menú del spreadsheet.',
-            buenas.map(function (x) { return x.codigo + '  \u2192  ' + x.hoja + ' fila ' + x.fila; }));
-          ofrecerElMonitor();
-        } else {
-          modal(buenas.length ? 'alerta' : 'error',
-            buenas.length
-              ? buenas.length + ' de ' + r.resultados.length + ' registrados'
-              : 'No se registró ninguno',
-            buenas.length
-              ? 'Estos no entraron; el resto sí quedó guardado.'
-              : 'Corrige lo que falta y vuelve a intentarlo.',
-            fallidas.map(function (x) { return x.codigo + '  \u2192  ' + x.mensaje; }), true);
+        // Todo entró y nada quedó fuera: derecho al monitor, sin aviso.
+        if (!existian.length && !pendientes.length && !otrosFallos.length &&
+            hayMonitor() && !esperaDelMonitor()) {
+          alMonitor();
+          return;
         }
+        avisoDelResultado(r, buenas, existian, pendientes, otrosFallos);
 
         buenas.forEach(function (x) {
           REGISTRADAS[x.codigo] = { hoja: x.hoja, fila: x.fila };
@@ -656,15 +659,65 @@
 
   $('btnCambiarTipo').addEventListener('click', volverAlTipo);
   $('btnGuardarLote').addEventListener('click', guardarLote);
-  /** Con la solicitud ya guardada, el aviso lleva al monitor. */
+  /**
+   * El resumen de lo que pasó, en palabras y con la cuenta por delante:
+   * "14 códigos registrados", y si algunos quedaron fuera, cuántos y por qué.
+   */
+  function avisoDelResultado(r, buenas, existian, pendientes, otrosFallos) {
+    var cuantos = function (n, uno, varios) {
+      return n + ' ' + (n === 1 ? uno : varios);
+    };
+
+    var titulo = buenas.length
+      ? cuantos(buenas.length, 'código registrado', 'códigos registrados')
+      : 'No se registró ningún código';
+
+    var partes = [];
+    if (existian.length) {
+      partes.push('y ' + cuantos(existian.length, 'no fue ingresado', 'no fueron ingresados') +
+        ' porque ya ' + (existian.length === 1 ? 'existía' : 'existían') +
+        '. Por favor comunicarse con codificación.');
+    }
+    if (pendientes.length) {
+      partes.push(cuantos(pendientes.length, 'quedó fuera', 'quedaron fuera') +
+        ' por tener algo pendiente.');
+    }
+    if (otrosFallos.length) {
+      partes.push('Y ' + cuantos(otrosFallos.length, 'no se pudo guardar', 'no se pudieron guardar') +
+        '.');
+    }
+    if (buenas.length) partes.push('La solicitud quedó como ' + r.solicitud + '.');
+
+    var detalle = existian.map(function (f) {
+      return (f.codigo || '') + '  \u2192  ya existía';
+    }).concat(pendientes.map(function (f) {
+      return (f.codigo || '') + '  \u2192  ' + (f.problemas || []).join(' ');
+    })).concat(otrosFallos.map(function (x) {
+      return (x.codigo || '') + '  \u2192  ' + x.mensaje;
+    }));
+
+    modal(buenas.length ? 'alerta' : 'error', titulo, partes.join(' '), detalle, true);
+    if (buenas.length) ofrecerElMonitor();
+  }
+
+  /**
+   * Con la solicitud ya guardada, el aviso lleva al monitor.
+   *
+   * El salto automático solo corre si hay una espera configurada: si el aviso
+   * está en pantalla es porque algo hay que leer, y irse al instante lo haría
+   * inútil. El botón siempre lleva.
+   */
   function ofrecerElMonitor() {
     if (!hayMonitor()) return;
+    BOTON_AL_MONITOR = true;
     $('modalCerrar').textContent = 'Ir al monitor';
-    IR_AL_MONITOR = setTimeout(alMonitor, esperaDelMonitor() * 1000);
+    if (esperaDelMonitor() > 0) {
+      IR_AL_MONITOR = setTimeout(alMonitor, esperaDelMonitor() * 1000);
+    }
   }
 
   $('modalCerrar').addEventListener('click', function () {
-    if (IR_AL_MONITOR) alMonitor(); else cerrarModal();
+    if (BOTON_AL_MONITOR) alMonitor(); else cerrarModal();
   });
   $('modalFondo').addEventListener('click', function (ev) {
     if (ev.target === $('modalFondo')) cerrarModal();
