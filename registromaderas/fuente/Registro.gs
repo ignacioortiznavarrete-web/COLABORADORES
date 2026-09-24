@@ -527,7 +527,35 @@ function guardarEnClase_(v) {
   return { hoja: hoja.getName(), fila: fila };
 }
 
-function asegurarEncabezadosRegistro_(hoja) { return encabezados_(hoja, COL_REGISTRO); }
+function asegurarEncabezadosRegistro_(hoja) {
+  encabezados_(hoja, COL_REGISTRO);
+  asegurarComboEstado_(hoja);
+}
+
+/**
+ * El combo de la columna Estado: una lista desplegable en la propia hoja.
+ *
+ * El estado lo mueve codificación, y lo mueve acá, no desde el monitor —que
+ * se reparte a quien deba mirar y no debería poder cambiar nada—. Con la lista
+ * puesta no hay que acordarse de cómo se escribe cada uno ni quedan variantes
+ * sueltas: se elige de las cinco y se acabó.
+ */
+function comboDeEstado_() {
+  return SpreadsheetApp.newDataValidation()
+    .requireValueInList(ESTADOS, true)
+    .setAllowInvalid(false)
+    .setHelpText('Elige uno de los estados por los que pasa una solicitud.')
+    .build();
+}
+
+/** Pone el combo en toda la columna Estado, de la primera fila de datos abajo. */
+function asegurarComboEstado_(hoja) {
+  var columna = COL_REGISTRO.indexOf('Estado') + 1;
+  if (!columna) return;
+  var filas = hoja.getMaxRows() - 1;
+  if (filas < 1) return;
+  hoja.getRange(2, columna, filas, 1).setDataValidation(comboDeEstado_());
+}
 function asegurarEncabezadosDetalle_(hoja) { return encabezados_(hoja, COL_DETALLE); }
 
 function encabezados_(hoja, columnas) {
@@ -594,7 +622,13 @@ function guardarResumen_(hoja, numero, cabecera, skus) {
     numero, cabecera.fechaTexto, cabecera.solicitante, cabecera.tipo,
     NUMERACION.ESTADO_INICIAL, '', skus.join(', '), cabecera.observacion, ''
   ]);
-  return hoja.getLastRow();
+
+  // La fila recién agregada puede caer fuera del rango que ya tenía el combo,
+  // así que se le pone a ella: una llamada, y queda con su lista como el resto.
+  var fila = hoja.getLastRow();
+  var columna = COL_REGISTRO.indexOf('Estado') + 1;
+  if (columna) hoja.getRange(fila, columna).setDataValidation(comboDeEstado_());
+  return fila;
 }
 
 function tramosDeDestino_(destinos) {

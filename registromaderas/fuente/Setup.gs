@@ -49,7 +49,9 @@ function instalarRegistro() {
   });
 
   asegurarEncabezadosRegistro_(hojaRegistro_());
-  hechos.push('La hoja "' + CFG.HOJA_REGISTRO + '" quedó lista (una fila por solicitud).');
+  asegurarComboEstado_(hojaRegistro_());
+  hechos.push('La hoja "' + CFG.HOJA_REGISTRO + '" quedó lista (una fila por solicitud), ' +
+    'con el combo de Estado en su columna: ' + ESTADOS.join(', ') + '.');
   asegurarEncabezadosDetalle_(hojaDetalle_());
   hechos.push('La hoja "' + CFG.HOJA_DETALLE + '" quedó lista (una fila por código).');
 

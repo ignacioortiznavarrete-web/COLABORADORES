@@ -783,6 +783,38 @@ seccion('Una fila por solicitud, y el detalle aparte');
     'la observación es para codificación: va a la bitácora, no al batch input');
 }
 
+// El estado se elige de una lista en la propia hoja: lo mueve codificacion
+// ahi, no desde el monitor, que se reparte a quien deba mirar.
+seccion('El combo de la columna Estado');
+{
+  const hoja = SS.getSheetByName('Registro');
+  const columna = COL_REGISTRO.indexOf('Estado') + 1;
+
+  const combo = hoja.getRange(3, columna).getDataValidation();
+  ok(!!combo, 'la columna Estado tiene lista desplegable');
+  ok(combo.valores.join(' > ') ===
+     'Solicitando > Validando información > Pendiente > Creando > Finalizado',
+    'con los cinco estados, en orden');
+  ok(combo.permiteOtros === false, 'y no deja escribir uno que no esté en la lista');
+  ok(combo.desplegable === true, 'se muestra como desplegable en la celda');
+
+  // La fila que se acaba de agregar también, aunque caiga fuera del rango viejo.
+  const nueva = apiGuardarLote(lote_('RVMH032X180X4200').filas, '');
+  ok(!!hoja.getRange(nueva.filaResumen, columna).getDataValidation(),
+    'y cada solicitud nueva nace con su combo puesto');
+
+  ok(!hoja.getRange(1, columna).getDataValidation(),
+    'el rótulo no lleva combo: no es un estado');
+  ok(!hoja.getRange(3, COL_REGISTRO.indexOf('Observación') + 1).getDataValidation(),
+    'ni las columnas de texto libre');
+
+  // Y el monitor sigue sin poder tocarlo: el combo está en la hoja, no en la web.
+  const monitor = require('fs').readFileSync(
+    __dirname + '/../monitor/fuente/Index.html', 'utf8');
+  ok(monitor.indexOf('<select class="estado') === -1,
+    'el index muestra el estado, no lo ofrece para cambiar');
+}
+
 seccion('Tramos: de la solicitud a sus filas');
 {
   ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }, { hoja: 'PT', fila: 4 }, { hoja: 'PT', fila: 5 }])

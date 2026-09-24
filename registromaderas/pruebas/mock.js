@@ -3,12 +3,16 @@ const MAX_ROWS = 5000;
 
 function chainable(obj) {
   ['setFontWeight', 'setBackground', 'setFontColor', 'setVerticalAlignment', 'setHorizontalAlignment',
-   'setWrap', 'setNumberFormat', 'setDataValidation'].forEach(m => { obj[m] = () => obj; });
+   'setWrap', 'setNumberFormat'].forEach(m => { obj[m] = () => obj; });
   return obj;
 }
 
 class Sheet {
-  constructor(name) { this.name = name; this.data = []; this.formatos = {}; }
+  constructor(name) {
+    this.name = name; this.data = []; this.formatos = {};
+    // Las listas desplegables, por celda, para poder revisarlas.
+    this.validaciones = {};
+  }
   _cell(r, c) {
     while (this.data.length < r) this.data.push([]);
     const row = this.data[r - 1];
@@ -115,6 +119,14 @@ class Sheet {
       }
       return rango;
     };
+    // Como el de verdad: la validación se aplica a TODAS las celdas del rango.
+    rango.setDataValidation = v => {
+      for (let i = 0; i < nr; i++) {
+        for (let j = 0; j < nc; j++) sheet.validaciones[(r + i) + ',' + (c + j)] = v;
+      }
+      return rango;
+    };
+    rango.getDataValidation = () => sheet.validaciones[r + ',' + c] || null;
     rango.setNumberFormats = m => {
       m.forEach((f, i) => f.forEach((fmt, j) => { sheet.formatos[(r + i) + ',' + (c + j)] = fmt; }));
       return rango;
@@ -201,6 +213,19 @@ global.UrlFetchApp = {
 
 global.SpreadsheetApp = {
   openById: () => SS,
+  /** La lista desplegable, con lo justo para revisar qué valores admite. */
+  newDataValidation: () => {
+    const v = { __validacion: true, valores: null, permiteOtros: true, ayuda: '' };
+    const constructor = {
+      requireValueInList: (lista, desplegable) => {
+        v.valores = lista.slice(); v.desplegable = desplegable !== false; return constructor;
+      },
+      setAllowInvalid: permite => { v.permiteOtros = permite; return constructor; },
+      setHelpText: t => { v.ayuda = t; return constructor; },
+      build: () => v
+    };
+    return constructor;
+  },
   getActiveSheet: () => SS.getActiveSheet(),
   create: nombre => new Temporal(nombre),
   __temporales: () => Object.keys(TEMPORALES).map(k => TEMPORALES[k]),

@@ -277,7 +277,7 @@ estas nueve columnas, en este orden:
 | 2 | `Fecha` | cuándo se ingresó, como texto `dd.mm.aaaa` |
 | 3 | `Usuario` | el correo de quien la pidió |
 | 4 | `Tipo Solicitud` | `PT`, `PP` o `PE` |
-| 5 | `Estado` | nace en `Ingresada` |
+| 5 | `Estado` | nace en `Solicitando`, y la celda trae su lista |
 | 6 | `Fecha de creación` | **en blanco**: la llena codificación |
 | 7 | `SKU` | los códigos de la solicitud, separados por coma |
 | 8 | `Observación` | la del solicitante |
@@ -285,6 +285,26 @@ estas nueve columnas, en este orden:
 
 Las dos columnas en blanco nacen vacías a propósito: son de codificación, y el
 formulario no tiene nada que poner ahí todavía.
+
+### El estado se elige de una lista
+
+La columna `Estado` lleva una **lista desplegable en la propia hoja**, con los
+cinco estados por los que pasa una solicitud:
+
+**Solicitando** → **Validando información** → **Pendiente** → **Creando** →
+**Finalizado**
+
+Nace en `Solicitando`, y de ahí en adelante lo mueve **codificación, en la
+hoja**: clic en la celda y se elige. No admite escribir uno que no esté en la
+lista, así que no quedan variantes sueltas ni hay que acordarse de cómo se
+escribe cada uno.
+
+El combo va ahí y no en el monitor a propósito: el monitor se reparte a quien
+deba mirar —quien pidió, quien espera— y ninguno de ellos debería poder cambiar
+una solicitud. Ahí el estado solo se ve y se filtra.
+
+La lista se pone al correr `instalarRegistro`, y cada solicitud nueva nace con
+la suya.
 
 Todo lo demás —país, tipo de requerimiento, origen, centro, medidas, rutas—
 está en **`Registro Detalle`**, que tiene una línea por material y sitio donde
