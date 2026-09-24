@@ -39,13 +39,28 @@ function armarAvisoDeIngreso_(numero, cabecera, skus) {
   if (cabecera.observacion) cuerpo.push('', 'Observación: ' + cabecera.observacion);
   if (MONITOR.URL) cuerpo.push('', 'Monitor: ' + MONITOR.URL);
 
-  enviar_(CORREOS.CODIFICACION, CORREOS.ASUNTO_INGRESO + ' · ' + numero, cuerpo.join('\n'));
+  enviar_(CORREOS.CODIFICACION, CORREOS.ASUNTO_INGRESO + ' · ' + numero,
+    cuerpo.join('\n'), cabecera.correo);
 }
 
-function enviar_(para, asunto, cuerpo) {
+/**
+ * Manda un correo.
+ *
+ * Apps Script siempre lo manda desde la cuenta con la que corre el script; no
+ * hay forma de poner otro remitente. Por eso va `responderA`: codificación
+ * recibe el aviso y al responder le escribe a quien pidió, no al buzón desde
+ * el que salió.
+ *
+ * @param {string} responderA  A quién contesta el que reciba, si no es el remitente.
+ */
+function enviar_(para, asunto, cuerpo, responderA) {
   try {
     var opciones = { name: 'Solicitud Código Maderas' };
     if (CORREOS.COPIA) opciones.cc = CORREOS.COPIA;
+    if (responderA) {
+      opciones.replyTo = responderA;
+      opciones.name = 'Solicitud Código Maderas · ' + responderA;
+    }
     MailApp.sendEmail(para, asunto, cuerpo, opciones);
   } catch (err) {
     // Un correo que no sale no puede tumbar un registro que ya quedó escrito.

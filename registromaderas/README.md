@@ -535,8 +535,25 @@ Ningún correo puede tumbar un registro: la solicitud ya quedó escrita cuando e
 aviso se intenta, y si algo falla solo deja una línea en el registro de
 ejecución.
 
-> El aviso al **finalizar** todavía no está. Queda para cuando se defina a
-> quién va y qué dice.
+### De quién sale cada correo
+
+Apps Script **siempre manda desde la cuenta con la que corre el script**. No
+hay forma de poner otro remitente.
+
+El formulario está publicado como *Ejecutar como: Yo*, así que el aviso de
+ingreso sale de la cuenta que lo publicó. Para que codificación igual le
+conteste a quien pidió, el correo lleva **`replyTo`** con su dirección y su
+nombre en el remitente: *Solicitud Código Maderas · jose.ortiz@masisa.com*.
+
+Si hace falta que salga **de verdad** desde la cuenta de cada quien, hay que
+publicar el formulario como *Ejecutar como: el usuario que accede*. Eso pide
+que cada persona autorice el script y tenga permiso de edición sobre el
+spreadsheet.
+
+> El aviso al **finalizar** todavía no está. Cuando se haga, **va en este mismo
+> proyecto**: un disparador instalable corre con la cuenta de quien lo instaló,
+> así que si lo instala codificación, ese correo sale de codificación. No hace
+> falta un Apps Script aparte.
 
 ### Al finalizar, los materiales entran a BD_Maderas
 

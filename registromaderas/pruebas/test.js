@@ -876,6 +876,10 @@ seccion('Cerrar una solicitud: los materiales entran a la base');
   ok(global.__CORREOS[0].para === 'codificacion@masisa.com', 'a codificación');
   ok(global.__CORREOS[0].asunto.indexOf(r.solicitud) !== -1, 'con el número en el asunto');
   ok(global.__CORREOS[0].cuerpo.indexOf('RSJR032X180X4400') !== -1, 'y los códigos adentro');
+  // Apps Script manda desde la cuenta que corre el script y no hay otro
+  // remitente posible, así que al responder se le contesta a quien pidió.
+  ok(global.__CORREOS[0].opciones.replyTo === 'jose.ortiz@masisa.com',
+    'responder le escribe a quien pidió, no al buzón desde el que salió');
 
   // Ahora se cierra.
   global.__CORREOS = [];
