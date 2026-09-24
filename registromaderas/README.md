@@ -304,25 +304,27 @@ de algo que no ocurrió.
 
 ## Ver las solicitudes
 
-**Si todo entró, la pantalla salta al monitor apenas se registra.** No hay
-aviso de por medio: la confirmación es llegar y ver la solicitud recién hecha
-arriba de todo.
+**Al registrar sale un aviso, y al aceptarlo se pasa al monitor.** Nunca solo:
+el aviso dice cuántos entraron y cuántos no, y saltar sin esperar dejaría eso
+sin leer.
 
-**Si algo quedó fuera, sí hay aviso**, con la cuenta por delante:
+Cuando todo entra, es corto:
+
+> **2 códigos registrados**
+> La solicitud quedó como SOL-00001.
+
+Y cuando algo quedó fuera, lo dice con la cuenta por delante:
 
 > **4 códigos registrados**
 > y 2 no fueron ingresados porque ya existían. Por favor comunicarse con
 > codificación. La solicitud quedó como SOL-00001.
 
-Abajo se listan cuáles, uno por línea. De ahí el botón lleva al monitor; no
-salta solo, porque si el aviso está en pantalla es porque algo hay que leer.
-Cuenta también las líneas que ni se intentaron guardar: para quien pegó treinta
-códigos, esas son parte de lo que pidió.
+Abajo se listan cuáles, uno por línea. Cuenta también las líneas que ni se
+intentaron guardar: para quien pegó treinta códigos, esas son parte de lo que
+pidió.
 
 La dirección está en `MONITOR.URL` (`Config.gs`); si el monitor se vuelve a
-publicar, hay que cambiarla ahí. Y `MONITOR.SEGUNDOS` decide la pausa: en `0`
-va derecho, y con cualquier otro número el aviso queda ese rato en pantalla,
-se va solo y el botón lo adelanta.
+publicar, hay que cambiarla ahí.
 
 El **monitor** es un Apps Script aparte, en `monitor/`, que muestra `Registro`
 con sus códigos desplegables. **Solo lee**: el estado lo mueve codificación en

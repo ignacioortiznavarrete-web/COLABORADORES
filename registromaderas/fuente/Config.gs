@@ -306,22 +306,14 @@ const ESTADOS = [
 ];
 
 /**
- * El monitor: adonde se va al terminar de registrar.
+ * El monitor: adonde se va al aceptar el aviso de que quedó registrada.
  *
  * Es otro proyecto de Apps Script, publicado aparte, así que su dirección no
  * se puede deducir: va escrita acá. Si se vuelve a publicar cambia, y hay que
  * cambiarla también en esta línea. Vacía, no se ofrece ir a ninguna parte.
  */
 const MONITOR = {
-  URL: 'https://script.google.com/a/macros/masisa.com/s/AKfycbw_EpqnZ262uD-5k-tnrfpjEC-d3VTlEpRF_5heoujkCZhdu2e53V8z78SlihjKBAMsLw/exec',
-  /**
-   * Segundos que queda el aviso en pantalla antes de irse al monitor.
-   *
-   * En 0 se va de inmediato, sin aviso: la confirmación es llegar al monitor
-   * y ver la solicitud recién hecha arriba de todo. Los avisos de error se
-   * muestran igual, que para eso están.
-   */
-  SEGUNDOS: 0
+  URL: 'https://script.google.com/a/macros/masisa.com/s/AKfycbw_EpqnZ262uD-5k-tnrfpjEC-d3VTlEpRF_5heoujkCZhdu2e53V8z78SlihjKBAMsLw/exec'
 };
 
 /** Cómo se numera cada solicitud, y con qué estado nace. */

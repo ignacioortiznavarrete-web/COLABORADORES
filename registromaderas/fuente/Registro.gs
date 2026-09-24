@@ -630,7 +630,7 @@ function apiContexto() {
   });
 
   return {
-    monitor: { url: MONITOR.URL, segundos: MONITOR.SEGUNDOS },
+    monitor: { url: MONITOR.URL },
     tipos: TIPOS_SOLICITUD.map(function (t) {
       return { id: t.id, titulo: t.titulo, descripcion: t.descripcion };
     }),
