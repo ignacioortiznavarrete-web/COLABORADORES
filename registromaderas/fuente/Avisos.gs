@@ -1,9 +1,12 @@
 /**
- * Los correos que salen solos, y lo que pasa cuando una solicitud se termina.
+ * El aviso a codificación, y lo que pasa cuando una solicitud se termina.
+ *
+ * Por ahora sale un solo correo: el de ingreso. El de finalizado queda para
+ * cuando se defina a quién y con qué texto.
  *
  * Nada de esto detiene un registro: si el correo no sale, la solicitud ya
- * quedó guardada igual. Por eso cada aviso va envuelto y solo deja una línea
- * en el registro de ejecución si falla.
+ * quedó guardada igual. Por eso el aviso va envuelto y solo deja una línea en
+ * el registro de ejecución si falla.
  */
 
 /**
@@ -37,28 +40,6 @@ function armarAvisoDeIngreso_(numero, cabecera, skus) {
   if (MONITOR.URL) cuerpo.push('', 'Monitor: ' + MONITOR.URL);
 
   enviar_(CORREOS.CODIFICACION, CORREOS.ASUNTO_INGRESO + ' · ' + numero, cuerpo.join('\n'));
-}
-
-/** Avisa a quien pidió que sus códigos quedaron creados. */
-function avisarFinalizado_(numero, correo, skus) {
-  try {
-    armarAvisoDeFinalizado_(numero, correo, skus);
-  } catch (err) {
-    Logger.log('avisarFinalizado_: ' + err.message);
-  }
-}
-
-function armarAvisoDeFinalizado_(numero, correo, skus) {
-  if (!correo) return;
-  var cuerpo = [
-    'Tu solicitud ' + numero + ' quedó finalizada.',
-    '',
-    'Los códigos ya están creados, con su costo plan liberado.',
-    '',
-    skus.join('\n')
-  ];
-  if (MONITOR.URL) cuerpo.push('', 'Monitor: ' + MONITOR.URL);
-  enviar_(correo, CORREOS.ASUNTO_FINALIZADO + ' · ' + numero, cuerpo.join('\n'));
 }
 
 function enviar_(para, asunto, cuerpo) {
@@ -117,12 +98,9 @@ function cerrarSolicitud_(hojaRegistro, fila) {
   var lineas = lineasDeSolicitud_(numero);
   if (!lineas.length) return { codigos: 0, rutas: 0 };
 
-  var agregado = agregarABd_(lineas);
-
-  var correo = lineas[0].correo;
-  avisarFinalizado_(numero, correo, lineas.map(function (l) { return l.codigo; }));
-
-  return agregado;
+  // Por ahora finalizar solo da de alta los materiales. El aviso a quien pidió
+  // queda para cuando se defina.
+  return agregarABd_(lineas);
 }
 
 /** Las líneas de `Registro Detalle` que son de esa solicitud. */

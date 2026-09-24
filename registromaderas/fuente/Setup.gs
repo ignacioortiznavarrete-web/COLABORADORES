@@ -14,7 +14,7 @@ function onOpen() {
       .addSeparator()
       .addItem('Ver enlace del formulario', 'mostrarEnlace')
       .addItem('Preparar hojas', 'instalarRegistro')
-      .addItem('Activar el aviso al finalizar', 'instalarDisparador')
+      .addItem('Activar el paso a la base al finalizar', 'instalarDisparador')
       .addItem('Revisar permisos', 'revisarPermisos')
       .addToUi();
   } catch (err) {
@@ -90,12 +90,10 @@ function instalarDisparador() {
     .onEdit()
     .create();
 
-  avisar_('Activar el aviso al finalizar',
+  avisar_('Activar el paso a la base al finalizar',
     'Listo.\n\nDe ahora en adelante, al poner "' + NUMERACION.ESTADO_FINAL + '" en la ' +
-    'columna Estado de "' + CFG.HOJA_REGISTRO + '":\n' +
-    '· los códigos de esa solicitud y sus hojas de ruta se agregan a ' + CFG.HOJA_BD +
-    ' (los que ya estén, no)\n' +
-    '· se le avisa por correo a quien la pidió' +
+    'columna Estado de "' + CFG.HOJA_REGISTRO + '", los códigos de esa solicitud y sus ' +
+    'hojas de ruta se agregan a ' + CFG.HOJA_BD + ' (los que ya estén, no).' +
     (repetidos ? '\n\nSe quitó ' + repetidos + ' disparador repetido.' : ''));
 }
 

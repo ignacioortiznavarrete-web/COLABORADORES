@@ -861,7 +861,7 @@ seccion('Tramos: de la solicitud a sus filas');
 
 // Al poner Finalizado, los materiales de la solicitud entran a BD_Maderas y
 // se le avisa a quien pidio.
-seccion('Cerrar una solicitud: a la base y por correo');
+seccion('Cerrar una solicitud: los materiales entran a la base');
 {
   CORREOS.CODIFICACION = 'codificacion@masisa.com';
   global.__CORREOS = [];
@@ -892,10 +892,9 @@ seccion('Cerrar una solicitud: a la base y por correo');
   ok(enBd.indexOf('RVM 032X180') === -1,
     'la ruta que ya existía NO se agrega de nuevo');
 
-  ok(global.__CORREOS.length === 1 && global.__CORREOS[0].para === 'jose.ortiz@masisa.com',
-    'y se le avisa a quien pidió');
-  ok(global.__CORREOS[0].asunto.indexOf('costo plan liberado') !== -1,
-    'con el asunto de código registrado y costo plan liberado');
+  // Por ahora finalizar solo da de alta los materiales: el aviso a quien pidió
+  // queda para cuando se defina.
+  ok(global.__CORREOS.length === 0, 'al finalizar todavía no sale ningún correo');
 
   // Cerrarla dos veces no duplica nada.
   global.__CORREOS = [];

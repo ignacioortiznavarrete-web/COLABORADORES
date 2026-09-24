@@ -522,20 +522,21 @@ menú toma los permisos nuevos apenas se acepta la pantalla de autorización,
 pero **la aplicación web se queda con los de la implementación que está
 publicada**: hay que crear una implementación nueva para que los tome.
 
-## Los correos y el cierre
+## El correo de ingreso
 
-Al **ingresar** una solicitud sale un correo a codificación con el número, quién
-pidió, cuántos códigos y cuáles. Al ponerla en **Finalizado** sale otro a quien
-la pidió: *código registrado, costo plan liberado*.
+Al **ingresar** una solicitud sale un correo a **codificación corporativa**, con
+el número, quién pidió, cuántos códigos y cuáles.
 
-Las direcciones están en `CORREOS` (`Config.gs`). **Una dirección vacía es «no
+La dirección está en `CORREOS.CODIFICACION` (`Config.gs`). **Vacía es «no
 mandar»**: el formulario no falla por eso, solo no avisa, así que se puede
-instalar antes de tener las casillas definitivas. Hay que llenar
-`CORREOS.CODIFICACION`.
+instalar antes de tener la casilla definitiva.
 
 Ningún correo puede tumbar un registro: la solicitud ya quedó escrita cuando el
 aviso se intenta, y si algo falla solo deja una línea en el registro de
 ejecución.
+
+> El aviso al **finalizar** todavía no está. Queda para cuando se defina a
+> quién va y qué dice.
 
 ### Al finalizar, los materiales entran a BD_Maderas
 
@@ -545,9 +546,9 @@ nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
 tener un material dos veces—, y cerrar la misma solicitud otra vez no agrega
 nada.
 
-Para que corra hay que activarlo una vez: **Registro Maderas › Activar el aviso
-al finalizar**. Instala un disparador con permisos; el `onEdit` simple no
-sirve, porque corre sin ellos y no podría escribir en la base ni mandar correos.
+Para que corra hay que activarlo una vez: **Registro Maderas › Activar el paso
+a la base al finalizar**. Instala un disparador con permisos; el `onEdit`
+simple no sirve, porque corre sin ellos y no podría escribir en la base.
 
 ## Quién puede entrar
 
