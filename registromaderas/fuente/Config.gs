@@ -291,11 +291,25 @@ const COL_DETALLE = [
   'Aserradero', 'Secado', 'Cepillado', 'Hoja Destino', 'Fila Destino'
 ];
 
+/**
+ * Por dónde pasa una solicitud, en orden.
+ *
+ * El monitor los ofrece en un combo; acá están para que el estado con que nace
+ * sea el mismo nombre que después se elige, y no dos listas que se separan.
+ */
+const ESTADOS = [
+  'Solicitando',
+  'Validando información',
+  'Pendiente',
+  'Creando',
+  'Finalizado'
+];
+
 /** Cómo se numera cada solicitud, y con qué estado nace. */
 const NUMERACION = {
   PREFIJO: 'SOL-',
   DIGITOS: 5,
-  ESTADO_INICIAL: 'Ingresada'
+  ESTADO_INICIAL: ESTADOS[0]
 };
 
 /**

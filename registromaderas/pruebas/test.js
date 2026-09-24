@@ -735,7 +735,10 @@ seccion('Una fila por solicitud, y el detalle aparte');
   ok(registro(r.filaResumen, 'Tipo Solicitud') === 'PT', 'y de qué tipo era la tanda');
   ok(registro(r.filaResumen, 'Observación').indexOf('Osorno') !== -1,
     'la observación, que es de la solicitud entera');
-  ok(registro(r.filaResumen, 'Estado') === NUMERACION.ESTADO_INICIAL, 'nace Ingresada');
+  ok(registro(r.filaResumen, 'Estado') === 'Solicitando', 'nace Solicitando');
+  ok(ESTADOS.join(' > ') ===
+     'Solicitando > Validando información > Pendiente > Creando > Finalizado',
+    'y ese es el primero de los estados por los que pasa');
 
   // El SKU lista los códigos de la solicitud, que es lo que se va a crear.
   const sku = registro(r.filaResumen, 'SKU');

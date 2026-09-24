@@ -18,6 +18,10 @@ function ok(cond, msg) {
   if (!cond) fallos++;
 }
 function seccion(t) { console.log('\n' + t); }
+function error(fn) {
+  try { fn(); } catch (err) { return err.message; }
+  return '';
+}
 
 /* ------------------------------------------- las bitácoras, como quedan hoy */
 
@@ -51,11 +55,11 @@ function unCodigo(numero, codigo, extra) {
 
 escribir('Registro', REG, [
   { 'N° Solicitud': 'SOL-00001', 'Fecha': '24.09.2026', 'Usuario': 'barbara@masisa.com',
-    'Tipo Solicitud': 'PT', 'Estado': 'Ingresada',
+    'Tipo Solicitud': 'PT', 'Estado': 'Solicitando',
     'SKU': 'RVMH032X180X3800, RVMH032X180X3850, RVMH032X180X3900',
     'Observación': 'Urgente para Osorno' },
   { 'N° Solicitud': 'SOL-00002', 'Fecha': '24.09.2026', 'Usuario': 'jorge@masisa.com',
-    'Tipo Solicitud': 'PP', 'Estado': 'Creada', 'Fecha de creación': '25.09.2026',
+    'Tipo Solicitud': 'PP', 'Estado': 'Finalizado', 'Fecha de creación': '25.09.2026',
     'SKU': 'RVM 032X180', 'Observación codificación': 'Creado en SAP' },
   // Una vieja, sin detalle guardado: solo tiene su columna SKU.
   { 'N° Solicitud': 'SOL-00003', 'Fecha': '20.09.2026', 'Usuario': 'ana@masisa.com',
@@ -92,7 +96,7 @@ seccion('Las solicitudes, con sus códigos adentro');
   ok(r.solicitudes[2].numero === 'SOL-00001', 'y la más vieja al final');
 
   const uno = r.solicitudes.filter(s => s.numero === 'SOL-00001')[0];
-  ok(uno.usuario === 'barbara@masisa.com' && uno.tipo === 'PT' && uno.estado === 'Ingresada',
+  ok(uno.usuario === 'barbara@masisa.com' && uno.tipo === 'PT' && uno.estado === 'Solicitando',
     'la cabecera trae lo que Registro guarda');
   ok(uno.observacion === 'Urgente para Osorno', 'con su observación');
   ok(uno.fechaCreacion === '', 'y la fecha de creación vacía mientras no la llenen');
@@ -104,6 +108,10 @@ seccion('Las solicitudes, con sus códigos adentro');
     'y son los códigos del batch input, no las filas donde quedaron');
   ok(uno.codigos[0]['Fila Destino'] === '3' && uno.deDetalle,
     'la fila del batch input está, pero como un dato más del código');
+
+  ok(r.estados.join(' > ') ===
+     'Solicitando > Validando información > Pendiente > Creando > Finalizado',
+    'y llegan los estados por los que pasa, en orden');
 
   const dos = r.solicitudes.filter(s => s.numero === 'SOL-00002')[0];
   ok(dos.cuantos === 1 && dos.codigos[0]['UMB'] === 'M3',
@@ -120,18 +128,57 @@ seccion('Una solicitud sin detalle se apaña con su SKU');
     'partiendo la columna SKU por sus separadores');
 }
 
-seccion('Lo que el monitor no hace');
+// El combo del index: lo unico que el monitor escribe.
+seccion('Cambiar el estado desde el monitor');
 {
-  const antes = SS.getSheetByName('Registro').getLastRow();
+  const estadoDe = n => apiSolicitudes().solicitudes.filter(s => s.numero === n)[0];
+
+  const r = apiCambiarEstado('SOL-00001', 'Validando información');
+  ok(r.ok && r.estado === 'Validando información', 'responde con el estado nuevo');
+  ok(estadoDe('SOL-00001').estado === 'Validando información', 'y queda escrito en la hoja');
+
+  ok(apiCambiarEstado('SOL-00001', 'Creando').ok, 'se puede seguir avanzando');
+  ok(estadoDe('SOL-00001').estado === 'Creando', 'y el último manda');
+
+  // Al terminar se estampa la fecha sola, que es lo que nadie quiere escribir a mano.
+  ok(estadoDe('SOL-00001').fechaCreacion === '', 'antes de terminar no hay fecha de creación');
+  const fin = apiCambiarEstado('SOL-00001', 'Finalizado');
+  ok(/^\d{2}\.\d{2}\.\d{4}$/.test(fin.fechaCreacion),
+    'al finalizar se estampa la fecha: ' + fin.fechaCreacion);
+  ok(estadoDe('SOL-00001').fechaCreacion === fin.fechaCreacion, 'y queda en la hoja');
+
+  // Pero no se pisa la que ya estaba: la primera vez que se terminó manda.
+  apiCambiarEstado('SOL-00002', 'Creando');
+  apiCambiarEstado('SOL-00002', 'Finalizado');
+  ok(estadoDe('SOL-00002').fechaCreacion === '25.09.2026',
+    'una fecha ya puesta no se pisa al volver a finalizar');
+}
+
+seccion('Lo que el monitor rechaza');
+{
+  ok(error(() => apiCambiarEstado('SOL-00001', 'Inventado')).indexOf('no es uno de los que existen') !== -1,
+    'un estado que no está en la lista');
+  ok(error(() => apiCambiarEstado('SOL-99999', 'Pendiente')).indexOf('No encuentro la solicitud') !== -1,
+    'una solicitud que no existe');
+  ok(error(() => apiCambiarEstado('', 'Pendiente')).indexOf('Falta el número') !== -1,
+    'y una llamada sin número');
+}
+
+seccion('Lo que el monitor no toca');
+{
+  const filas = SS.getSheetByName('Registro').getLastRow();
+  const detalle = SS.getSheetByName('Registro Detalle').getLastRow();
   apiSolicitudes();
-  ok(SS.getSheetByName('Registro').getLastRow() === antes, 'no escribe una sola fila');
-  ok(fs.readFileSync(path.join(__dirname, '..', 'fuente', 'Monitor.gs'), 'utf8')
-     .indexOf('setValue') === -1, 'ni tiene con qué: no usa setValue en ninguna parte');
-  const permisos = JSON.parse(fs.readFileSync(
-    path.join(__dirname, '..', 'fuente', 'appsscript.json'), 'utf8')).oauthScopes;
-  ok(permisos.indexOf('https://www.googleapis.com/auth/spreadsheets.readonly') !== -1 &&
-     permisos.indexOf('https://www.googleapis.com/auth/spreadsheets') === -1,
-    'y pide permiso de solo lectura, no de escritura');
+  apiCambiarEstado('SOL-00003', 'Pendiente');
+  ok(SS.getSheetByName('Registro').getLastRow() === filas, 'no agrega ni quita solicitudes');
+  ok(SS.getSheetByName('Registro Detalle').getLastRow() === detalle,
+    'ni toca el detalle: los códigos no se editan desde acá');
+
+  const fuente = fs.readFileSync(path.join(__dirname, '..', 'fuente', 'Monitor.gs'), 'utf8');
+  ok((fuente.match(/setValue\(/g) || []).length === 2,
+    'solo escribe en dos celdas: el estado y su fecha');
+  ok(fuente.indexOf(HOJAS.DETALLE + "'") === -1 || fuente.indexOf('appendRow') === -1,
+    'y nunca agrega filas');
 }
 
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));

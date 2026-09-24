@@ -87,15 +87,23 @@
   .apagado { color: var(--tinta-suave); }
   .obs { max-width: 260px; font-size: 13.5px; color: var(--tinta-suave); }
 
-  .pastilla {
-    display: inline-block; padding: 3px 10px; border-radius: 999px;
-    font-size: 12px; font-weight: 700; white-space: nowrap;
-    background: var(--bosque-100); color: var(--bosque-800);
+  /* El estado: lo único que se puede cambiar desde acá. */
+  select.estado {
+    padding: 4px 26px 4px 10px; border-radius: 999px; border: 1px solid transparent;
+    font: 700 12px var(--sans); cursor: pointer; appearance: none;
+    background-color: var(--bosque-100); color: var(--bosque-800);
+    background-image: url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23234' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 9px center; background-size: 9px;
+    transition: border-color 140ms ease;
   }
-  .pastilla.ingresada { background: var(--ambar-fondo); color: var(--ambar); }
-  .pastilla.creada { background: var(--bosque-100); color: var(--bosque-800); }
-  .pastilla.rechazada { background: var(--rojo-fondo); color: var(--rojo); }
-  .pastilla.vacia { background: transparent; color: var(--tinta-suave); font-weight: 400; }
+  select.estado:hover { border-color: var(--bosque-600); }
+  select.estado:focus-visible { outline: 2px solid var(--bosque-600); outline-offset: 1px; }
+  select.estado:disabled { opacity: .55; cursor: progress; }
+  select.estado.solicitando { background-color: var(--ambar-fondo); color: var(--ambar); }
+  select.estado.validandoinformacion { background-color: var(--bosque-050); color: var(--bosque-700); }
+  select.estado.pendiente { background-color: var(--rojo-fondo); color: var(--rojo); }
+  select.estado.creando { background-color: var(--bosque-100); color: var(--bosque-800); }
+  select.estado.finalizado { background-color: var(--bosque-600); color: #fff; }
 
   button.vermas {
     background: none; border: 0; padding: 0; cursor: pointer; font: inherit;

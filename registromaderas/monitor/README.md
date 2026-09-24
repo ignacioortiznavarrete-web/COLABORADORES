@@ -1,8 +1,10 @@
 # monitor — Ver las solicitudes
 
 Apps Script **aparte** del de entrada. Comparten el spreadsheet **Maderas** y
-nada más: este solo lee, así que puede repartirse a quien deba mirar sin riesgo
-de que toque nada. Los permisos que pide lo dicen: `spreadsheets.readonly`.
+nada más.
+
+Lo único que escribe es **el estado de una solicitud**. Nada más se toca desde
+acá: ni los códigos, ni el batch input, ni la bitácora de detalle.
 
 ## Qué muestra
 
@@ -19,6 +21,28 @@ donde quedó cada uno.
 Arriba hay un buscador y dos filtros (tipo y estado). El buscador **también
 entra a los códigos**: es como se llega a una solicitud cuando lo único que se
 tiene a mano es el material.
+
+## El estado
+
+`Estado` es un **combo**, y es lo único editable de la tabla. Pasa por estos
+cinco, en orden:
+
+**Solicitando** → **Validando información** → **Pendiente** → **Creando** →
+**Finalizado**
+
+Nace en `Solicitando` cuando se registra la solicitud, y se guarda al elegir,
+sin botón. Si el guardado falla, el combo **vuelve al valor que tenía**: dejarlo
+cambiado en pantalla cuando no se guardó sería mentir sobre lo que dice la hoja.
+
+Al llegar a **Finalizado** se estampa la **`Fecha de creación`** sola, si estaba
+vacía. Si ya tenía una, no se pisa: la primera vez que se terminó manda.
+
+La fila se busca **por su número**, no por la posición que tenía cuando se
+cargó la página: entre medio alguien pudo ordenar la hoja, y escribir por
+índice viejo sería escribir en la solicitud equivocada.
+
+Un estado que esté en la hoja pero no en la lista —escrito a mano, de antes— se
+muestra igual en vez de cambiarse solo por el primero al dibujar.
 
 ## Cómo une las dos hojas
 
