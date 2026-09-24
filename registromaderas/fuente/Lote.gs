@@ -96,13 +96,7 @@ function tipoSolicitud_(id) {
 
 function deducirDeCodigo_(texto, bd, tipo) {
   var partes = descomponerCodigo_(texto);
-  if (!partes) {
-    return {
-      ok: false,
-      mensaje: 'No reconozco la forma de "' + normalizarCodigo_(texto) + '". Un código va como ' +
-        'PREFIJO + espesor X ancho, y si lleva largo se agrega X y cuatro dígitos.'
-    };
-  }
+  if (!partes) return { ok: false, mensaje: MENSAJES.TIPO_QUE_NO_CALZA };
 
   var prefijo = prefijo_(partes.agrupacion);
   var descompuesto = descomponerPrefijo_(partes.agrupacion);
@@ -112,15 +106,7 @@ function deducirDeCodigo_(texto, bd, tipo) {
     var sinGlosa = descompuesto.filter(function (x) {
       return x.caracter !== ' ' && !x.significado;
     });
-    if (sinGlosa.length) {
-      var x = sinGlosa[0];
-      return {
-        ok: false,
-        mensaje: 'El prefijo ' + partes.agrupacion + ' no existe en ' + CFG.HOJA_BD +
-          ' y su ' + x.titulo.toLowerCase() + ' ("' + x.caracter + '") tampoco está en la ' +
-          'nomenclatura.'
-      };
-    }
+    if (sinGlosa.length) return { ok: false, mensaje: MENSAJES.TIPO_QUE_NO_CALZA };
   }
 
   // La tanda es de un solo tipo, y el código tiene que ser de ese tipo: si no,

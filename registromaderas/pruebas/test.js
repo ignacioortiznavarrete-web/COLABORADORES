@@ -407,9 +407,11 @@ seccion('Del código se deduce todo lo demás');
   ok(nueva.agrupacionTexto === 'Rústico Verde Construcción Radiata EERR',
     'y su texto se arma con el significado de cada carácter');
 
+  // Quien pega no tiene por qué saber de nomenclatura: se le dice que ese
+  // material no va acá, no qué carácter del prefijo falló.
   const mala = deducir('ZZZZ032X180X3960');
-  ok(!mala.ok && mala.mensaje.indexOf('elaboración') !== -1,
-    'y una que ni existe ni se explica dice qué carácter no reconoce');
+  ok(!mala.ok && mala.mensaje === MENSAJES.TIPO_QUE_NO_CALZA,
+    'una que ni existe ni se explica dice lo mismo que las demás');
 }
 
 seccion('El lote: se pegan códigos y salen sus filas');
@@ -430,8 +432,8 @@ seccion('El lote: se pegan códigos y salen sus filas');
   ok(!r.filas[1].codigo && r.filas[1].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
     'la segunda es de proceso y se rechaza por no ser del tipo de la tanda');
   ok(r.filas[2].problemas[0].indexOf('Ya existe') !== -1, 'la tercera ya existe en la base');
-  ok(!r.filas[3].codigo && r.filas[3].problemas[0].indexOf('no existe en BD_Maderas') !== -1,
-    'la cuarta no se pudo leer, y dice por qué');
+  ok(!r.filas[3].codigo && r.filas[3].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
+    'la cuarta no se pudo leer, y lo dice sin tecnicismos');
   ok(r.conProblemas === 3 && r.listas === 1, 'el resumen cuenta lo que falta');
 }
 {
@@ -533,8 +535,21 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
   ok(lote_('RVMH032X180X3960', 'PP').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
     'y en una de proceso, uno con largo: el mismo mensaje para los dos');
   ok(MENSAJES.TIPO_QUE_NO_CALZA ===
-     'El tipo de material no corresponde al tipo de solicitud. Vuelve a ingresar',
+     'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar',
     'y dice exactamente eso');
+
+  // Una forma que no se entiende dice lo mismo: quien pega no necesita saber
+  // cómo se arma un código, necesita saber que ese no va acá.
+  ok(lote_('cualquier cosa', 'PT').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
+    'un texto que no es un código, igual');
+  ok(lote_('ZZZZ032X180X3960', 'PT').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
+    'y un prefijo que no existe, también');
+
+  // Los que sí son accionables siguen diciendo qué hacer.
+  ok(lote_('RVMH032X180X4000', 'PT').filas[0].problemas[0].indexOf('Ya existe') !== -1,
+    'en cambio "ya existe" se sigue diciendo: eso hay que saberlo');
+  ok(lote_('RSJR032X180X3200', 'PT').filas[0].problemas[0].indexOf('Falta la hoja de ruta') !== -1,
+    'y lo que falta completar, también');
 
   // En proceso, el que empieza con C va a su propia hoja.
   ok(lote_('RVM 032X180', 'PP').filas[0].clase === 'PP', 'proceso rústico entra como PP');
