@@ -159,7 +159,8 @@ seccion('Contexto que recibe el formulario');
   // eso su dirección va escrita, no deducida.
   ok(/^https:\/\/script\.google\.com\/.+\/exec$/.test(ctx.monitor.url),
     'y llega la dirección del monitor, para poder ir al terminar');
-  ok(ctx.monitor.segundos > 0, 'con cuánto espera el aviso antes de irse solo');
+  ok(ctx.monitor.segundos === 0,
+    'y en 0 segundos: apenas se registra, derecho al monitor');
   ok(!ctx.hojasFaltantes.length, 'no falta ninguna hoja');
 }
 

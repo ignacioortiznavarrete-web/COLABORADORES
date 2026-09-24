@@ -304,10 +304,14 @@ de algo que no ocurrió.
 
 ## Ver las solicitudes
 
-Al terminar de registrar, el aviso **lleva al monitor**: espera unos segundos
-para poder leer el número de solicitud y se va solo, o antes con el botón.
-Cerrar el aviso a mano es quedarse. La dirección está en `MONITOR.URL`
-(`Config.gs`); si el monitor se vuelve a publicar, hay que cambiarla ahí.
+**Apenas se registra, la pantalla salta al monitor.** No hay aviso de por
+medio: la confirmación es llegar y ver la solicitud recién hecha arriba de todo.
+Los errores sí se avisan, y de ahí no se salta a ninguna parte.
+
+La dirección está en `MONITOR.URL` (`Config.gs`); si el monitor se vuelve a
+publicar, hay que cambiarla ahí. Y `MONITOR.SEGUNDOS` decide la pausa: en `0`
+va derecho, y con cualquier otro número el aviso queda ese rato en pantalla,
+se va solo y el botón lo adelanta.
 
 El **monitor** es un Apps Script aparte, en `monitor/`, que muestra `Registro`
 con sus códigos desplegables. **Solo lee**: el estado lo mueve codificación en

@@ -313,9 +313,15 @@ const ESTADOS = [
  * cambiarla también en esta línea. Vacía, no se ofrece ir a ninguna parte.
  */
 const MONITOR = {
-  URL: 'https://script.google.com/a/macros/masisa.com/s/AKfycbx22q-1sQcIDV_m3QLUH9TsxtYwIy51MthiDd9rhksNw1FK5irXAQkK8suWeq-KtyJPiw/exec',
-  /** Segundos que queda el aviso en pantalla antes de irse solo. */
-  SEGUNDOS: 3
+  URL: 'https://script.google.com/a/macros/masisa.com/s/AKfycbw_EpqnZ262uD-5k-tnrfpjEC-d3VTlEpRF_5heoujkCZhdu2e53V8z78SlihjKBAMsLw/exec',
+  /**
+   * Segundos que queda el aviso en pantalla antes de irse al monitor.
+   *
+   * En 0 se va de inmediato, sin aviso: la confirmación es llegar al monitor
+   * y ver la solicitud recién hecha arriba de todo. Los avisos de error se
+   * muestran igual, que para eso están.
+   */
+  SEGUNDOS: 0
 };
 
 /** Cómo se numera cada solicitud, y con qué estado nace. */

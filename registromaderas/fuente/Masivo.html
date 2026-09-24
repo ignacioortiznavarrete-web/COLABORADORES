@@ -161,21 +161,30 @@
   };
 
   /*
-    Al registrar se pasa al monitor, que es donde se le sigue la pista a la
-    solicitud. No se salta de inmediato: el aviso queda unos segundos para
-    poder leer el número, y quien quiera se adelanta con el botón.
+    Registrada la solicitud, se pasa al monitor: es donde se le sigue la pista,
+    y verla recién hecha arriba de todo es mejor confirmación que un aviso.
+
+    Con MONITOR.SEGUNDOS en 0 el salto es inmediato y no se muestra nada. Con
+    cualquier otro número el aviso queda ese rato, se va solo, y el botón lo
+    adelanta. Los errores se avisan siempre: de ahí no se salta a ninguna parte.
 
     La página vive dentro del iframe de Apps Script, así que la navegación va
-    con _top. Se intenta sola, y el botón queda igual como camino seguro: si
-    el navegador bloquea el salto automático —pasa cuando ya no cuenta el clic
-    que lo originó—, un clic de verdad siempre lo deja pasar.
+    con _top. Se intenta sola, y el botón queda como camino seguro: si el
+    navegador bloquea el salto automático —pasa cuando ya no cuenta el clic que
+    lo originó—, un clic de verdad siempre lo deja pasar.
   */
   var IR_AL_MONITOR = null;
 
+  function hayMonitor() { return !!(CTX.monitor || {}).url; }
+
+  function esperaDelMonitor() {
+    var segundos = Number((CTX.monitor || {}).segundos);
+    return isFinite(segundos) && segundos >= 0 ? segundos : 3;
+  }
+
   function alMonitor() {
     cancelarSalto();
-    var url = (CTX.monitor || {}).url;
-    if (url) window.open(url, '_top');
+    if (hayMonitor()) window.open(CTX.monitor.url, '_top');
   }
 
   function cancelarSalto() {
@@ -578,6 +587,8 @@
         var fallidas = r.resultados.filter(function (x) { return !x.ok; });
 
         if (!fallidas.length) {
+          // Sin espera, al monitor derecho: no se alcanza a ver ningún aviso.
+          if (hayMonitor() && !esperaDelMonitor()) { alMonitor(); return; }
           modal('ok',
             'Solicitud ' + r.solicitud,
             (buenas.length === 1 ? 'Un código registrado' : buenas.length + ' códigos registrados') +
@@ -647,10 +658,9 @@
   $('btnGuardarLote').addEventListener('click', guardarLote);
   /** Con la solicitud ya guardada, el aviso lleva al monitor. */
   function ofrecerElMonitor() {
-    var monitor = CTX.monitor || {};
-    if (!monitor.url) return;
+    if (!hayMonitor()) return;
     $('modalCerrar').textContent = 'Ir al monitor';
-    IR_AL_MONITOR = setTimeout(alMonitor, (monitor.segundos || 3) * 1000);
+    IR_AL_MONITOR = setTimeout(alMonitor, esperaDelMonitor() * 1000);
   }
 
   $('modalCerrar').addEventListener('click', function () {
