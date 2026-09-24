@@ -96,13 +96,7 @@ function tipoSolicitud_(id) {
 
 function deducirDeCodigo_(texto, bd, tipo) {
   var partes = descomponerCodigo_(texto);
-  if (!partes) {
-    return {
-      ok: false,
-      mensaje: 'No reconozco la forma de "' + normalizarCodigo_(texto) + '". Un código va como ' +
-        'PREFIJO + espesor X ancho, y si lleva largo se agrega X y cuatro dígitos.'
-    };
-  }
+  if (!partes) return { ok: false, mensaje: MENSAJES.TIPO_QUE_NO_CALZA };
 
   var prefijo = prefijo_(partes.agrupacion);
   var descompuesto = descomponerPrefijo_(partes.agrupacion);

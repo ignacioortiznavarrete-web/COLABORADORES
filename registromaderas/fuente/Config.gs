@@ -66,9 +66,11 @@ const CLASES = [
 /**
  * Los textos que ve quien ingresa, cuando conviene decirlos igual siempre.
  *
- * Solo el del tipo que no calza: quien pega no tiene por qué saber si el
- * problema fue el largo, y explicárselo no lo ayuda a arreglarlo. Los demás
- * avisos sí dicen qué pasó, porque de eso depende qué corregir.
+ * Dos casos terminan en el mismo aviso: el código es de otro tipo que la
+ * tanda, o derechamente no tiene forma de código. En los dos quien pega
+ * tiene que volver a escribirlo, y contarle que falló el largo o la forma
+ * no lo ayuda a arreglarlo. Los demás avisos sí dicen qué pasó —que ya
+ * existe, que falta la hoja de ruta— porque de eso depende qué corregir.
  */
 const MENSAJES = {
   TIPO_QUE_NO_CALZA: 'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar'

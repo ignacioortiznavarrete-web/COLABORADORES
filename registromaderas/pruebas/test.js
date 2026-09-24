@@ -536,12 +536,16 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
      'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar',
     'y dice exactamente eso');
 
-  // Solo ese mensaje cambia. Los demás siguen diciendo qué pasó, porque de
-  // eso depende qué hay que corregir.
-  ok(lote_('cualquier cosa', 'PT').filas[0].problemas[0].indexOf('No reconozco la forma') !== -1,
-    'un texto que no es un código sigue diciendo que no se entiende');
+  // Lo que no tiene forma de código cae en el mismo aviso: igual hay que
+  // volver a escribirlo, y saber que falló la forma no ayuda a arreglarlo.
+  ok(lote_('RVM 020', 'PT').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
+    'uno a medio escribir dice lo mismo, no cómo se arma un código');
+  ok(lote_('cualquier cosa', 'PT').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
+    'y un texto que no es un código, igual');
+
+  // Los demás avisos sí dicen qué pasó, porque de eso depende qué corregir.
   ok(lote_('ZZZZ032X180X3960', 'PT').filas[0].problemas[0].indexOf('nomenclatura') !== -1,
-    'y un prefijo desconocido, que no está en la nomenclatura');
+    'un prefijo desconocido sigue diciendo que no está en la nomenclatura');
   ok(lote_('RVMH032X180X4000', 'PT').filas[0].problemas[0].indexOf('Ya existe') !== -1,
     'en cambio "ya existe" se sigue diciendo: eso hay que saberlo');
   ok(lote_('RSJR032X180X3200', 'PT').filas[0].problemas[0].indexOf('Falta la hoja de ruta') !== -1,
