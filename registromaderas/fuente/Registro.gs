@@ -572,6 +572,7 @@ function guardarDetalle_(v, destino, numero) {
   asegurarEncabezadosDetalle_(hoja);
   hoja.appendRow([
     numero, v.fechaTexto, v.solicitante, v.clase,
+    v.pais, v.tipoRequerimiento,
     v.origen, v.centro, v.tipoMaterial, v.agrupacion, v.agrupacionTexto,
     v.codigo, v.descripcion, v.grupo,
     v.espesor, v.ancho, v.largo, v.piezas, v.umb, v.stockPedido,
@@ -582,19 +583,16 @@ function guardarDetalle_(v, destino, numero) {
 }
 
 /**
- * Una fila por solicitud, con el tramo que ocupa en el batch input.
+ * Una fila por solicitud.
  *
- * `destinos` son las filas que se escribieron, y se resumen por hoja en algo
- * legible: "PT 3-7" o "PP 3-5; PCP 3-4". Con eso se llega de la solicitud a
- * sus filas sin tener que buscarlas.
+ * `Fecha de creación` y `Observación codificación` nacen en blanco: las llena
+ * codificación cuando los códigos quedan creados en SAP.
  */
-function guardarResumen_(hoja, numero, cabecera, destinos) {
+function guardarResumen_(hoja, numero, cabecera, skus) {
   asegurarEncabezadosRegistro_(hoja);
   hoja.appendRow([
     numero, cabecera.fechaTexto, cabecera.solicitante, cabecera.tipo,
-    cabecera.pais, cabecera.tipoRequerimiento,
-    destinos.length, cabecera.observacion, tramosDeDestino_(destinos),
-    NUMERACION.ESTADO_INICIAL
+    NUMERACION.ESTADO_INICIAL, '', skus.join(', '), cabecera.observacion, ''
   ]);
   return hoja.getLastRow();
 }

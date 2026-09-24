@@ -431,6 +431,7 @@ function apiGuardarLote(filas, observacion) {
     var numero = siguienteNumeroSolicitud_(resumen);
 
     var destinos = [];
+    var skus = [];
     var cabecera = null;
     var resultados = filas.map(function (fila, i) {
       try {
@@ -438,6 +439,7 @@ function apiGuardarLote(filas, observacion) {
         var destino = guardarEnClase_(v);
         guardarDetalle_(v, destino, numero);
         destinos.push(destino);
+        skus.push(v.codigo);
         if (!cabecera) {
           cabecera = {
             fechaTexto: v.fechaTexto, solicitante: v.solicitante, pais: v.pais,
@@ -459,7 +461,7 @@ function apiGuardarLote(filas, observacion) {
 
     // Si no entró ninguna no hay solicitud que anotar: no se inventa una vacía.
     var filaResumen = destinos.length
-      ? guardarResumen_(resumen, numero, cabecera, destinos)
+      ? guardarResumen_(resumen, numero, cabecera, skus)
       : 0;
 
     SpreadsheetApp.flush();

@@ -268,18 +268,29 @@ Guardar deja tres rastros, cada uno con su oficio:
 | **`Registro`** | **una por solicitud** | la cabecera: quién, cuándo, cuántos códigos |
 | `Registro Detalle` | una por código | qué código es cada uno, y dónde quedó |
 
-`Registro` no lleva una fila por código sino **una por solicitud**, con su
-número —`SOL-00001`, `SOL-00002`…—, el tipo, cuántos códigos entraron, la
-observación y el estado, que nace en `Ingresada`.
+`Registro` no lleva una fila por código sino **una por solicitud**, y solo
+estas nueve columnas, en este orden:
 
-La columna **`Filas del batch input`** es la que cierra el círculo: dice qué
-tramo ocupa esa solicitud, como `PT 3-7`. Si una tanda toca dos hojas —en PP,
-los que empiezan con `C` van a `PCP`— salen las dos: `PP 3-5; PCP 3-4`. Con eso
-se va de la solicitud a sus filas sin buscarlas a mano.
+| # | Columna | Qué trae |
+|---|---|---|
+| 1 | `N° Solicitud` | `SOL-00001`, `SOL-00002`… |
+| 2 | `Fecha` | cuándo se ingresó, como texto `dd.mm.aaaa` |
+| 3 | `Usuario` | el correo de quien la pidió |
+| 4 | `Tipo Solicitud` | `PT`, `PP` o `PE` |
+| 5 | `Estado` | nace en `Ingresada` |
+| 6 | `Fecha de creación` | **en blanco**: la llena codificación |
+| 7 | `SKU` | los códigos de la solicitud, separados por coma |
+| 8 | `Observación` | la del solicitante |
+| 9 | `Observación codificación` | **en blanco**: la llena codificación |
 
-`Registro Detalle` guarda el código, su agrupación, sus rutas y su fila de
-destino, y lleva el **mismo número de solicitud** en cada línea: filtrando por
-él salen exactamente los códigos de esa solicitud.
+Las dos columnas en blanco nacen vacías a propósito: son de codificación, y el
+formulario no tiene nada que poner ahí todavía.
+
+Todo lo demás —país, tipo de requerimiento, origen, centro, medidas, rutas—
+está en **`Registro Detalle`**, que tiene una línea por material y sitio donde
+quepa. Lleva el **mismo número de solicitud** en cada línea: filtrando por
+él salen exactamente los códigos de esa solicitud, y sus columnas `Hoja Destino`
+y `Fila Destino` dicen en qué fila del batch input quedó cada uno.
 
 El número sale de la última fila de `Registro`, no de un contador aparte: si
 alguien copia la hoja o borra filas, el número sigue siendo el que se ve. Se

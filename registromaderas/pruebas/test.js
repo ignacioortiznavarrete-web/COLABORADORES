@@ -731,16 +731,26 @@ seccion('Una fila por solicitud, y el detalle aparte');
 
   ok(/^SOL-\d{5}$/.test(r.solicitud), 'la solicitud se numera: ' + r.solicitud);
   ok(registro(r.filaResumen, 'N° Solicitud') === r.solicitud, 'y el número queda escrito');
-  ok(registro(r.filaResumen, 'Códigos') === 3, 'la fila dice cuántos códigos lleva');
+  ok(registro(r.filaResumen, 'Usuario') === 'test@masisa.com', 'con quién la pidió');
+  ok(registro(r.filaResumen, 'Tipo Solicitud') === 'PT', 'y de qué tipo era la tanda');
   ok(registro(r.filaResumen, 'Observación').indexOf('Osorno') !== -1,
-    'y la observación, que es de la solicitud entera');
+    'la observación, que es de la solicitud entera');
   ok(registro(r.filaResumen, 'Estado') === NUMERACION.ESTADO_INICIAL, 'nace Ingresada');
 
-  // Lo que pidió el usuario: desde la solicitud se llega a sus filas del batch input.
-  const tramo = registro(r.filaResumen, 'Filas del batch input');
-  ok(/^PT \d+-\d+$/.test(tramo), 'guarda el tramo que ocupa en el batch input: ' + tramo);
-  const desde = Number(tramo.match(/(\d+)-/)[1]);
-  ok(r.resultados[0].fila === desde, 'y ese tramo empieza justo donde quedó la primera');
+  // El SKU lista los códigos de la solicitud, que es lo que se va a crear.
+  const sku = registro(r.filaResumen, 'SKU');
+  ok(sku.split(', ').length === 3, 'el SKU trae los tres códigos');
+  ok(sku.indexOf('RVMH032X180X3800') !== -1 && sku.indexOf('RVMH032X180X3900') !== -1,
+    'y son los que se pidieron');
+
+  // Lo que llena codificación después nace vacío, no inventado.
+  ok(registro(r.filaResumen, 'Fecha de creación') === '', 'la fecha de creación queda en blanco');
+  ok(registro(r.filaResumen, 'Observación codificación') === '',
+    'y la observación de codificación también');
+
+  ok(COL_REGISTRO.join('|') === ['N° Solicitud', 'Fecha', 'Usuario', 'Tipo Solicitud', 'Estado',
+    'Fecha de creación', 'SKU', 'Observación', 'Observación codificación'].join('|'),
+    'Registro lleva esas columnas y en ese orden');
 
   const filaDetalle = SS.getSheetByName('Registro Detalle').getLastRow();
   ok(detalle(filaDetalle, 'N° Solicitud') === r.solicitud,
@@ -748,6 +758,10 @@ seccion('Una fila por solicitud, y el detalle aparte');
   ok(detalle(filaDetalle, 'Hoja Destino') === 'PT' &&
      detalle(filaDetalle, 'Fila Destino') === r.resultados[2].fila,
     'y dice en qué fila del batch input quedó');
+  // Lo que salió de Registro no se pierde: baja al detalle.
+  ok(detalle(filaDetalle, 'País') === 'CL' &&
+     detalle(filaDetalle, 'Tipo Requerimiento') === 'NO',
+    'el detalle recoge lo que Registro ya no lleva');
 
   // Los numeros no se repiten ni se saltan.
   const otra = apiGuardarLote(lote_('RVMH032X180X3950').filas, '');

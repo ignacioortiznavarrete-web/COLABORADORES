@@ -271,13 +271,20 @@ const MAPEO_DESTINO = [
  * enlazado por el mismo número de solicitud.
  */
 const COL_REGISTRO = [
-  'N° Solicitud', 'Fecha', 'Solicitante', 'Tipo Solicitud', 'País', 'Tipo Requerimiento',
-  'Códigos', 'Observación', 'Filas del batch input', 'Estado'
+  'N° Solicitud', 'Fecha', 'Usuario', 'Tipo Solicitud', 'Estado',
+  'Fecha de creación', 'SKU', 'Observación', 'Observación codificación'
 ];
 
-/** `Registro Detalle`: una fila por código, con el número de su solicitud. */
+/**
+ * `Registro Detalle`: una fila por código, con el número de su solicitud.
+ *
+ * Acá va todo lo demás: lo que `Registro` no lleva —país, tipo de
+ * requerimiento, medidas, rutas— vive en el detalle, donde hay una línea por
+ * material y tiene dónde caber.
+ */
 const COL_DETALLE = [
   'N° Solicitud', 'Fecha', 'Solicitante', 'Clase Requerimiento',
+  'País', 'Tipo Requerimiento',
   'Origen', 'Centro', 'Tipo Material', 'Agrupación', 'Descripción Agrupación',
   'Código', 'Descripción Material', 'Grupo Artículo',
   'Espesor', 'Ancho', 'Largo', 'Piezas', 'UMB', 'Stock/Pedido',
