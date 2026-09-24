@@ -77,17 +77,29 @@ const CLASES = [
 const TIPOS_SOLICITUD = [
   {
     id: 'PT', titulo: 'Producto Terminado', exigeLargo: true, clase: 'PT',
-    descripcion: 'Lleva largo y se cuenta por piezas.'
+    umb: 'PZA', esProceso: false,
+    descripcion: 'Lleva largo y se cuenta por piezas.',
+    ejemplos: ['RVMH032X180X3960', 'RSFR037X130X3200', 'C4JR019X100X2440']
   },
   {
     id: 'PP', titulo: 'Producto de Proceso', exigeLargo: false, clase: 'PP',
     // Un código de proceso que empieza con C es cepillado, y va a su propia hoja.
     claseCepillado: 'PCP',
-    descripcion: 'Sin largo: es una etapa de la cadena. Va en m3.'
+    umb: 'M3', esProceso: true,
+    descripcion: 'Sin largo: es una etapa de la cadena. Va en m3.',
+    ejemplos: ['RVM 032X180', 'RSF 037X130', 'CSF 019X100']
   },
   {
-    id: 'PE', titulo: 'Producto Especial', exigeLargo: null, clase: 'PE',
-    descripcion: 'Fuera de la nomenclatura corriente. Va en m3.'
+    /*
+      Especial es terminado: abre la cadena completa como un PT y su fila va a
+      la hoja PT del batch input. Lo que lo distingue es que no se le revisa la
+      forma del código —es especial porque quien pide lo dice— y que se mide en
+      metros cúbicos.
+    */
+    id: 'PE', titulo: 'PE Terminado (m3)', exigeLargo: null, clase: 'PT',
+    umb: 'M3', esProceso: false,
+    descripcion: 'Terminado fuera de la nomenclatura corriente. Va en m3.',
+    ejemplos: ['RSFR037X130X3200', 'RVMR032X180X3960', 'C4JR019X100X2440']
   }
 ];
 
@@ -213,6 +225,8 @@ const EXPORTAR = {
 
 /** Columnas de BD_Maderas (Material | Grupo art. | TpMt | Texto breve | Ce). */
 const BD = {
+  /** En BD_Maderas la fila 1 son los rótulos. */
+  PRIMERA_FILA: 2,
   MATERIAL: 1,
   GRUPO: 2,
   TIPO_MATERIAL: 3,
@@ -283,7 +297,7 @@ const COL_REGISTRO = [
  * material y tiene dónde caber.
  */
 const COL_DETALLE = [
-  'N° Solicitud', 'Fecha', 'Solicitante', 'Clase Requerimiento',
+  'N° Solicitud', 'Fecha', 'Solicitante', 'Correo', 'Clase Requerimiento',
   'País', 'Tipo Requerimiento',
   'Origen', 'Centro', 'Tipo Material', 'Agrupación', 'Descripción Agrupación',
   'Código', 'Descripción Material', 'Grupo Artículo',
@@ -316,11 +330,28 @@ const MONITOR = {
   URL: 'https://script.google.com/a/macros/masisa.com/s/AKfycbw_EpqnZ262uD-5k-tnrfpjEC-d3VTlEpRF_5heoujkCZhdu2e53V8z78SlihjKBAMsLw/exec'
 };
 
+/**
+ * Los correos que salen solos.
+ *
+ * Una dirección vacía es "no mandar": el formulario no falla por eso, solo no
+ * avisa. Así se puede instalar antes de tener las casillas definitivas.
+ */
+const CORREOS = {
+  /** Recibe cada solicitud nueva. */
+  CODIFICACION: '',
+  /** En copia de todo, si hace falta. */
+  COPIA: '',
+  ASUNTO_INGRESO: 'Nueva solicitud de código de maderas',
+  ASUNTO_FINALIZADO: 'Código registrado · costo plan liberado'
+};
+
 /** Cómo se numera cada solicitud, y con qué estado nace. */
 const NUMERACION = {
   PREFIJO: 'SOL-',
   DIGITOS: 5,
-  ESTADO_INICIAL: ESTADOS[0]
+  ESTADO_INICIAL: ESTADOS[0],
+  /** Al llegar acá los materiales entran a BD_Maderas y se avisa a quien pidió. */
+  ESTADO_FINAL: ESTADOS[ESTADOS.length - 1]
 };
 
 /**
@@ -376,7 +407,7 @@ const AUDITORIA = {
 };
 
 /** Correos autorizados. Arreglo vacío = cualquiera con el enlace. */
-const ACCESOS = [];
+const ACCESOS = ['jose.ortiz@masisa.com'];
 
 /* --------------------------------------------------------------- utilidades */
 

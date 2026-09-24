@@ -4,7 +4,7 @@ const path = require('path');
 const { SS } = require('./mock');
 
 // Los mismos archivos que se pegan en el editor de Apps Script.
-const FUENTES = ['Config.gs', 'Registro.gs', 'Lote.gs', 'Setup.gs', 'Exportar.gs']
+const FUENTES = ['Config.gs', 'Registro.gs', 'Lote.gs', 'Setup.gs', 'Exportar.gs', 'Avisos.gs']
   .map(f => path.join(__dirname, '..', 'fuente', f));
 
 console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
@@ -219,7 +219,8 @@ seccion('La fila de batch input en la hoja de la clase');
   ok(celda('PT', 3, 3) === 'PT', 'C Clase Requerimiento = PT');
   ok(celda('PT', 3, 4) === 'NO', 'D Tipo Requerimiento = NO');
   ok(/^\d{2}\.\d{2}\.\d{4}$/.test(celda('PT', 3, 5)), 'E Llegada requerimiento, texto dd.mm.aaaa');
-  ok(celda('PT', 3, 6) === 'test@masisa.com', 'F Usuario Solicitante = el correo');
+  ok(celda('PT', 3, 6) === 'Jose Ortiz',
+    'F Usuario Solicitante = el nombre, no el correo');
 
   ok(celda('PT', 3, 7) === 'RVF', 'G Aserradero(Template) sale del prefijo de la ruta');
   ok(celda('PT', 3, 8) === '037X130', 'H Tamaño Dimensión sale de la escuadría de la ruta');
@@ -251,7 +252,8 @@ seccion('Un producto cepillado llena las tres etapas');
 seccion('La bitácora de detalle: una fila por código');
 {
   ok(detalle(1, 'Código') === 'Código', 'estrena sus encabezados');
-  ok(detalle(2, 'Solicitante') === 'test@masisa.com', 'guarda el correo');
+  ok(detalle(2, 'Solicitante') === 'Jose Ortiz', 'guarda el nombre de quien pidió');
+  ok(detalle(2, 'Correo') === 'jose.ortiz@masisa.com', 'y su correo, aparte');
   ok(detalle(2, 'Agrupación') === 'RSFR', 'guarda la agrupación');
   ok(detalle(2, 'Código') === 'RSFR037X130X3200', 'guarda el código armado');
   ok(detalle(2, 'Aserradero') === 'RVF 037X130', 'guarda la ruta completa, no solo el prefijo');
@@ -536,10 +538,41 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
   ok(lote_('RVM 032X180', 'PP').filas[0].clase === 'PP', 'proceso rústico entra como PP');
   ok(lote_('CSF 019X100', 'PP').filas[0].clase === 'PCP', 'y el cepillado de proceso como PCP');
 
-  // El especial no se deduce de la forma del código: es el tipo que se elige.
-  ok(lote_('RVMH032X180X3960', 'PE').filas[0].clase === 'PE',
-    'el especial toma la clase del tipo, lleve largo o no');
-  ok(lote_('RVM 032X180', 'PE').filas[0].clase === 'PE', 'y sin largo, igual');
+  // El especial no se deduce de la forma del código: es el tipo que se elige,
+  // y su fila del batch input va con los terminados.
+  ok(lote_('RVMH032X180X3960', 'PE').filas[0].clase === 'PT',
+    'el especial escribe en PT, porque es un producto terminado');
+  ok(lote_('RVM 032X180', 'PE').filas[0].clase === 'PT', 'sin largo, igual');
+  ok(lote_('RVMH032X180X3960', 'PE').tipo === 'PE',
+    'pero la solicitud sigue siendo de tipo PE');
+}
+
+// Un especial es terminado: abre la cadena como un PT, no como una etapa.
+seccion('PE Terminado (m3): qué abre y en qué unidad');
+{
+  const abre = (t, tipo) => {
+    const e = lote_(t, tipo).filas[0].etapas;
+    return ETAPAS.filter(x => e[x.id]).map(x => x.id).join('+') || 'ninguna';
+  };
+
+  ok(abre('RSFR037X130X3200', 'PE') === 'aserradero+secado',
+    'empieza con RS: aserradero y secado');
+  ok(abre('RVMR032X180X3960', 'PE') === 'aserradero', 'empieza con RV: solo aserradero');
+  ok(abre('C4JR019X100X2440', 'PE') === 'aserradero+secado+cepillado',
+    'cepillado: la cadena completa');
+
+  // Aunque venga sin largo sigue siendo producto, no etapa: un RS de proceso
+  // abriria solo el aserradero, y acá abre los dos.
+  ok(abre('RSF 037X130', 'PE') === 'aserradero+secado',
+    'y sin largo también, porque es producto y no etapa');
+  ok(abre('RSF 037X130', 'PP') === 'aserradero',
+    'que es justo lo que lo distingue de uno de proceso');
+
+  const pe = lote_('RSFR037X130X3200', 'PE');
+  ok(pe.filas[0].umb === 'M3', 'se mide en m3 aunque escriba en PT');
+  ok(!pe.filas[0].pidePak && !pe.pideAlgunPak, 'así que no se le pide PAK');
+  ok(TIPOS_SOLICITUD.filter(t => t.id === 'PE')[0].titulo === 'PE Terminado (m3)',
+    'y se llama PE Terminado (m3)');
 }
 
 // Un producto terminado se pide con toda su cadena; un codigo de proceso ES
@@ -737,7 +770,7 @@ seccion('Una fila por solicitud, y el detalle aparte');
 
   ok(/^SOL-\d{5}$/.test(r.solicitud), 'la solicitud se numera: ' + r.solicitud);
   ok(registro(r.filaResumen, 'N° Solicitud') === r.solicitud, 'y el número queda escrito');
-  ok(registro(r.filaResumen, 'Usuario') === 'test@masisa.com', 'con quién la pidió');
+  ok(registro(r.filaResumen, 'Usuario') === 'Jose Ortiz', 'con quién la pidió');
   ok(registro(r.filaResumen, 'Tipo Solicitud') === 'PT', 'y de qué tipo era la tanda');
   ok(registro(r.filaResumen, 'Observación').indexOf('Osorno') !== -1,
     'la observación, que es de la solicitud entera');
@@ -826,6 +859,76 @@ seccion('Tramos: de la solicitud a sus filas');
     'una tanda que toca dos hojas las nombra a las dos');
 }
 
+// Al poner Finalizado, los materiales de la solicitud entran a BD_Maderas y
+// se le avisa a quien pidio.
+seccion('Cerrar una solicitud: a la base y por correo');
+{
+  CORREOS.CODIFICACION = 'codificacion@masisa.com';
+  global.__CORREOS = [];
+
+  const bd = SS.getSheetByName('BD_Maderas');
+  const antesBd = bd.getLastRow();
+  const lote = lote_({ codigos: 'RSJR032X180X4400',
+    rutas: { aserradero: 'RVM 032X180', secado: 'RSN 032X180' } });
+  const r = apiGuardarLote(lote.filas, 'para el cierre');
+
+  ok(global.__CORREOS.length === 1, 'al ingresar sale un correo');
+  ok(global.__CORREOS[0].para === 'codificacion@masisa.com', 'a codificación');
+  ok(global.__CORREOS[0].asunto.indexOf(r.solicitud) !== -1, 'con el número en el asunto');
+  ok(global.__CORREOS[0].cuerpo.indexOf('RSJR032X180X4400') !== -1, 'y los códigos adentro');
+
+  // Ahora se cierra.
+  global.__CORREOS = [];
+  const hoja = SS.getSheetByName('Registro');
+  const puesto = cerrarSolicitud_(hoja, r.filaResumen);
+
+  ok(puesto.codigos === 1, 'el código entra a la base');
+  ok(puesto.rutas === 1, 'y la ruta que no existía, también');
+  ok(bd.getLastRow() === antesBd + 2, 'dos filas nuevas en BD_Maderas, no más');
+
+  const enBd = bd.getRange(antesBd + 1, 1, 2, BD.COLUMNAS).getValues().map(f => f[0]);
+  ok(enBd.indexOf('RSJR032X180X4400') !== -1, 'está el material pedido');
+  ok(enBd.indexOf('RSN 032X180') !== -1, 'y la hoja de ruta nueva');
+  ok(enBd.indexOf('RVM 032X180') === -1,
+    'la ruta que ya existía NO se agrega de nuevo');
+
+  ok(global.__CORREOS.length === 1 && global.__CORREOS[0].para === 'jose.ortiz@masisa.com',
+    'y se le avisa a quien pidió');
+  ok(global.__CORREOS[0].asunto.indexOf('costo plan liberado') !== -1,
+    'con el asunto de código registrado y costo plan liberado');
+
+  // Cerrarla dos veces no duplica nada.
+  global.__CORREOS = [];
+  const otraVez = cerrarSolicitud_(hoja, r.filaResumen);
+  ok(otraVez.codigos === 0 && otraVez.rutas === 0, 'volver a cerrarla no agrega nada');
+  ok(bd.getLastRow() === antesBd + 2, 'la base queda igual');
+
+  CORREOS.CODIFICACION = '';
+}
+
+seccion('Un correo que no sale no tumba nada');
+{
+  global.__CORREOS = [];
+  CORREOS.CODIFICACION = 'codificacion@masisa.com';
+  global.__FALLA_CORREO = true;
+
+  const r = apiGuardarLote(lote_('RVMH032X180X4500').filas, '');
+  delete global.__FALLA_CORREO;
+  CORREOS.CODIFICACION = '';
+
+  ok(r.guardadas === 1, 'la solicitud se guarda igual');
+  ok(registro(r.filaResumen, 'N° Solicitud') === r.solicitud, 'y queda escrita');
+  ok(global.__CORREOS.length === 0, 'aunque el correo no salió');
+}
+
+seccion('Sin dirección, no se manda nada');
+{
+  global.__CORREOS = [];
+  CORREOS.CODIFICACION = '';
+  apiGuardarLote(lote_('RVMH032X180X4600').filas, '');
+  ok(global.__CORREOS.length === 0, 'con la casilla en blanco no se intenta enviar');
+}
+
 seccion('Sin identidad no hay registro');
 {
   global.__USUARIO = '';
@@ -844,7 +947,8 @@ seccion('Revisar permisos dice dónde se corta');
 
   revisarPermisos();
   ok(dichos[0].indexOf('Todo en orden') !== -1, 'con todo en su lugar, lo dice');
-  ok(dichos[0].indexOf('test@masisa.com') !== -1, 'y muestra con qué cuenta está entrando');
+  ok(dichos[0].indexOf('jose.ortiz@masisa.com') !== -1,
+    'y muestra con qué cuenta está entrando');
   ok(SpreadsheetApp.__temporales().every(t => t.enPapelera),
     'la prueba tampoco deja hojas tiradas');
 

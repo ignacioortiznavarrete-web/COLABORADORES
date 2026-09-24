@@ -220,9 +220,30 @@
     }).join('');
   }
 
+  /**
+   * Los ejemplos del recuadro son del tipo elegido.
+   *
+   * Un código con largo no le sirve de guía a quien está pidiendo material de
+   * proceso, y al revés tampoco: el ejemplo tiene que poder copiarse.
+   */
+  function ponerEjemplos(tipo) {
+    var ejemplos = (tipo && tipo.ejemplos) || [];
+    if (ejemplos.length) $('colCodigos').placeholder = ejemplos.join('\n');
+
+    // Las rutas se muestran con la escuadría del primer ejemplo, para que el
+    // molde calce con lo que se acaba de pegar.
+    var escuadria = (ejemplos[0] || '').replace(/^.{4}/, '').split('X').slice(0, 2).join('X');
+    if (!/^\d{3}X\d{3}$/.test(escuadria)) escuadria = '019X020';
+    var moldes = { aserradero: 'RVM ', secado: 'RSM ', cepillado: 'CSM ' };
+    COLUMNAS_ETAPA.forEach(function (etapa) {
+      $(CAMPOS[etapa]).placeholder = moldes[etapa] + escuadria;
+    });
+  }
+
   function elegirTipo(id, titulo) {
     TIPO = id;
     $('tipoElegido').textContent = titulo || id;
+    ponerEjemplos((CTX.tipos || []).filter(function (t) { return t.id === id; })[0]);
     $('elegirTipo').hidden = true;
     $('pegar').hidden = false;
     $('colCodigos').focus();

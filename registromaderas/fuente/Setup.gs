@@ -14,6 +14,7 @@ function onOpen() {
       .addSeparator()
       .addItem('Ver enlace del formulario', 'mostrarEnlace')
       .addItem('Preparar hojas', 'instalarRegistro')
+      .addItem('Activar el aviso al finalizar', 'instalarDisparador')
       .addItem('Revisar permisos', 'revisarPermisos')
       .addToUi();
   } catch (err) {
@@ -62,6 +63,40 @@ function instalarRegistro() {
 
   avisar_('Preparar hojas', resumen);
   return resumen;
+}
+
+/**
+ * Deja andando el disparador que cierra una solicitud.
+ *
+ * Tiene que ser instalable, no el onEdit simple: el simple corre sin permisos
+ * y no puede escribir en BD_Maderas ni mandar correos, que es justo lo que
+ * hace falta al poner Finalizado.
+ *
+ * Se borra el que hubiera antes: instalarlo dos veces dejaría dos, y cada
+ * solicitud se cerraría dos veces.
+ */
+function instalarDisparador() {
+  var libro = ss_();
+  var repetidos = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'alEditarRegistro') {
+      ScriptApp.deleteTrigger(t);
+      repetidos++;
+    }
+  });
+
+  ScriptApp.newTrigger('alEditarRegistro')
+    .forSpreadsheet(libro)
+    .onEdit()
+    .create();
+
+  avisar_('Activar el aviso al finalizar',
+    'Listo.\n\nDe ahora en adelante, al poner "' + NUMERACION.ESTADO_FINAL + '" en la ' +
+    'columna Estado de "' + CFG.HOJA_REGISTRO + '":\n' +
+    '· los códigos de esa solicitud y sus hojas de ruta se agregan a ' + CFG.HOJA_BD +
+    ' (los que ya estén, no)\n' +
+    '· se le avisa por correo a quien la pidió' +
+    (repetidos ? '\n\nSe quitó ' + repetidos + ' disparador repetido.' : ''));
 }
 
 function mostrarEnlace() {

@@ -245,7 +245,7 @@ global.LockService = {
 global.Session = {
   // __USUARIO = '' simula a Google no pudiendo identificar la cuenta.
   getActiveUser: () => ({
-    getEmail: () => (global.__USUARIO === undefined ? 'test@masisa.com' : global.__USUARIO)
+    getEmail: () => (global.__USUARIO === undefined ? 'jose.ortiz@masisa.com' : global.__USUARIO)
   }),
   getScriptTimeZone: () => 'America/Santiago'
 };
@@ -356,6 +356,14 @@ global.Utilities = {
   }
 };
 global.Logger = { log: () => {} };
+/** Los correos que salieron, para poder mirarlos en las pruebas. */
+global.__CORREOS = [];
+global.MailApp = {
+  sendEmail: (para, asunto, cuerpo, opciones) => {
+    if (global.__FALLA_CORREO) throw new Error('el servidor de correo dijo que no');
+    global.__CORREOS.push({ para, asunto, cuerpo, opciones });
+  }
+};
 global.ScriptApp = {
   getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }),
   getOAuthToken: () => 'token-de-prueba'

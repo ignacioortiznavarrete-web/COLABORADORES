@@ -143,6 +143,7 @@ function deducirDeCodigo_(texto, bd, tipo) {
     : (partes.largo
         ? DEDUCCION.CLASE_CON_LARGO
         : (prefijo.charAt(0) === 'C' ? DEDUCCION.CLASE_PROCESO_CEPILLADO : DEDUCCION.CLASE_PROCESO));
+  var unidad = (tipo && tipo.umb) || unidadDeClase_(clase);
 
   return {
     ok: true,
@@ -165,10 +166,14 @@ function deducirDeCodigo_(texto, bd, tipo) {
     espesor: partes.espesor,
     ancho: partes.ancho,
     largo: partes.largo,
-    // Proceso va en m3, asi que no se le pide PAK.
-    umb: unidadDeClase_(clase),
-    pidePak: unidadDeClase_(clase) === POR_DEFECTO.UMB,
-    etapas: etapasAplicables_(partes.agrupacion, !partes.largo)
+    // La unidad la manda el tipo, no la clase: un especial va a la hoja PT y
+    // aun así se mide en m3. Y lo que va en m3 no lleva PAK.
+    umb: unidad,
+    pidePak: unidad === POR_DEFECTO.UMB,
+    // Qué rutas abre depende de si el código ES una etapa o un producto. Un
+    // especial es producto, aunque venga sin largo.
+    etapas: etapasAplicables_(partes.agrupacion,
+      tipo ? !!tipo.esProceso : !partes.largo)
   };
 }
 
@@ -442,9 +447,9 @@ function apiGuardarLote(filas, observacion) {
         skus.push(v.codigo);
         if (!cabecera) {
           cabecera = {
-            fechaTexto: v.fechaTexto, solicitante: v.solicitante, pais: v.pais,
-            tipoRequerimiento: v.tipoRequerimiento, observacion: v.observacion,
-            tipo: fila.tipo || v.clase
+            fechaTexto: v.fechaTexto, solicitante: v.solicitante, correo: v.correo,
+            pais: v.pais, tipoRequerimiento: v.tipoRequerimiento,
+            observacion: v.observacion, tipo: fila.tipo || v.clase
           };
         }
         return {
@@ -463,6 +468,15 @@ function apiGuardarLote(filas, observacion) {
     var filaResumen = destinos.length
       ? guardarResumen_(resumen, numero, cabecera, skus)
       : 0;
+
+    // El aviso va después de escribir, y envuelto: la solicitud ya quedó
+    // guardada, y nada de lo que pase con un correo puede deshacerla. Envuelto
+    // acá también por si Avisos.gs ni siquiera está en el proyecto.
+    try {
+      if (destinos.length) avisarIngreso_(numero, cabecera, skus);
+    } catch (err) {
+      Logger.log('No se pudo avisar del ingreso de ' + numero + ': ' + err.message);
+    }
 
     SpreadsheetApp.flush();
     return {

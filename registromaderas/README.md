@@ -142,15 +142,32 @@ un rótulo: de él dependen las hojas de ruta que se abren. Mezclar terminados c
 material de proceso pediría rutas distintas línea por línea, así que un código
 que no sea del tipo elegido se rechaza y dice por qué.
 
-| Tipo | Qué es | Forma del código | Unidad |
-|---|---|---|---|
-| **PT** | Producto Terminado | con largo (16 caracteres) | PZA |
-| **PP** | Producto de Proceso | sin largo (11) | m3 |
-| **PE** | Producto Especial | no se revisa | m3 |
+| Tipo | Qué es | Forma del código | Unidad | Escribe en |
+|---|---|---|---|---|
+| **PT** | Producto Terminado | con largo (16 caracteres) | PZA | `PT` |
+| **PP** | Producto de Proceso | sin largo (11) | m3 | `PP` / `PCP` |
+| **PE** | PE Terminado (m3) | no se revisa | m3 | `PT` |
 
 En **PP**, el que empieza con `C` es cepillado y va a la hoja `PCP`; el resto a
-`PP`. **PE** escribe en una hoja `PE`, y es el único tipo que no se deduce del
-código: es especial porque quien pide lo dice.
+`PP`.
+
+**PE es terminado**, y eso decide dos cosas. Su fila del batch input va a la
+hoja `PT`, con los demás terminados. Y abre la cadena completa, como un PT:
+
+| Empieza con | Abre |
+|---|---|
+| `RV` | aserradero |
+| `RS` | aserradero y secado |
+| `C` | las tres |
+
+Eso es justo lo que lo distingue de uno de proceso: `RSF 037X130` como **PP**
+abre solo el aserradero —es una etapa, y pide la de antes—, y como **PE** abre
+aserradero y secado, porque es un producto. Lo único que no se le revisa es la
+forma del código: es especial porque quien pide lo dice. Y va en m3 aunque
+escriba en `PT`.
+
+Los ejemplos que se ven al pegar son **del tipo elegido**: un código con largo
+no le sirve de guía a quien pide material de proceso.
 
 Elegido el tipo, se pegan **solo los códigos**. **No hay botón de analizar**:
 la tanda se revisa sola mientras escribes. Si cambian los códigos se relee todo
@@ -236,7 +253,7 @@ código llegaría mal a SAP.
 | Tipo Requerimiento | `NO` |
 | Clase Requerimiento | la del paso 1 |
 | Llegada requerimiento | la fecha de hoy, como texto `dd.mm.aaaa` |
-| Usuario Solicitante | correo de quien está usando el formulario |
+| Usuario Solicitante | el nombre de quien usa el formulario |
 
 ## La fila que se escribe
 
@@ -353,14 +370,14 @@ instala y se publica.
 
 ## Cómo se instala
 
-Cinco pasos, una sola vez. Son nueve archivos más el manifiesto, los de la
+Cinco pasos, una sola vez. Son diez archivos más el manifiesto, los de la
 carpeta `fuente/`.
 
 ### 1. Abre el editor
 
 En el spreadsheet **Maderas**: **Extensiones › Apps Script**.
 
-### 2. Crea los nueve archivos
+### 2. Crea los diez archivos
 
 Con el **+** de la lista de archivos: *Secuencia de comandos* para los `.gs` y
 *HTML* para los `.html`. Al crearlos escribe el nombre sin la extensión (Apps
@@ -373,6 +390,7 @@ carpeta:
 | `Config.gs` | `fuente/Config.gs` |
 | `Registro.gs` | `fuente/Registro.gs` |
 | `Lote.gs` | `fuente/Lote.gs` |
+| `Avisos.gs` | `fuente/Avisos.gs` |
 | `Exportar.gs` | `fuente/Exportar.gs` |
 | `Setup.gs` | `fuente/Setup.gs` |
 | `WebApp.gs` | `fuente/WebApp.gs` |
@@ -468,9 +486,10 @@ ruta.
 `BD_Maderas` con un espacio duro pegado al final (`RSFR037X130X3600 `). El
 formulario los reconoce y guarda el código limpio.
 
-**El solicitante es el correo, no el nombre.** En tu ejemplo decía
-"Babara Riquelme"; acá queda `barbara.riquelme@…` porque es lo que Google
-entrega de forma confiable y no se puede escribir a mano.
+**El solicitante se escribe como nombre.** `jose.ortiz@masisa.com` queda como
+`Jose Ortiz`: en las bitácoras se lee a una persona y no una dirección. El
+correo sigue siendo la identidad para los permisos, y queda guardado aparte en
+`Registro Detalle` para poder avisarle.
 
 **La fecha va como texto.** `21.07.2026`, no como fecha de Sheets, para que el
 batch input salga tal cual.
@@ -503,14 +522,43 @@ menú toma los permisos nuevos apenas se acepta la pantalla de autorización,
 pero **la aplicación web se queda con los de la implementación que está
 publicada**: hay que crear una implementación nueva para que los tome.
 
+## Los correos y el cierre
+
+Al **ingresar** una solicitud sale un correo a codificación con el número, quién
+pidió, cuántos códigos y cuáles. Al ponerla en **Finalizado** sale otro a quien
+la pidió: *código registrado, costo plan liberado*.
+
+Las direcciones están en `CORREOS` (`Config.gs`). **Una dirección vacía es «no
+mandar»**: el formulario no falla por eso, solo no avisa, así que se puede
+instalar antes de tener las casillas definitivas. Hay que llenar
+`CORREOS.CODIFICACION`.
+
+Ningún correo puede tumbar un registro: la solicitud ya quedó escrita cuando el
+aviso se intenta, y si algo falla solo deja una línea en el registro de
+ejecución.
+
+### Al finalizar, los materiales entran a BD_Maderas
+
+Poner **Finalizado** en la columna `Estado` de `Registro` da de alta en
+`BD_Maderas` los códigos de esa solicitud **y las hojas de ruta que
+nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
+tener un material dos veces—, y cerrar la misma solicitud otra vez no agrega
+nada.
+
+Para que corra hay que activarlo una vez: **Registro Maderas › Activar el aviso
+al finalizar**. Instala un disparador con permisos; el `onEdit` simple no
+sirve, porque corre sin ellos y no podría escribir en la base ni mandar correos.
+
 ## Quién puede entrar
 
-Por defecto entra cualquiera con el enlace (dentro del dominio). Para limitarlo,
-pon los correos en `ACCESOS` (`Config.gs`):
+Hoy entra **una sola cuenta**, la que está en `ACCESOS` (`Config.gs`):
 
 ```js
-const ACCESOS = ['ana@empresa.com', 'beto@empresa.com'];
+const ACCESOS = ['jose.ortiz@masisa.com'];
 ```
+
+Para abrirlo a más, se agregan a esa lista. Dejarla **vacía** abre el
+formulario a cualquiera del dominio que tenga el enlace.
 
 El permiso se revisa **también al guardar**, no solo al abrir la página.
 
@@ -527,6 +575,7 @@ cambio de vuelta para que el repositorio siga siendo el respaldo.
 | `fuente/Config.gs` | Clases, orígenes, centros, nomenclatura, mapeo de columnas, `ACCESOS`. |
 | `fuente/Registro.gs` | Armado y desarmado del código, etapas aplicables, búsqueda y escritura. |
 | `fuente/Lote.gs` | La carga masiva: deducción, análisis del pegado y guardado en bloque. |
+| `fuente/Avisos.gs` | Los correos, y lo que pasa al poner Finalizado. |
 | `fuente/Exportar.gs` | El Excel desde el menú: hoja temporal, exportación de Google y a la papelera. |
 | `fuente/Setup.gs` | Revisa las hojas y sus columnas. Menú. |
 | `fuente/WebApp.gs` | Entrega el formulario. |

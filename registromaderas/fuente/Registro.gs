@@ -51,6 +51,25 @@ function usuario_() {
   }
 }
 
+/**
+ * El nombre de quien pide, sacado de su correo.
+ *
+ * jose.ortiz@masisa.com queda como "Jose Ortiz". En las bitácoras se lee a una
+ * persona y no una dirección, que es lo que mira quien revisa las solicitudes.
+ * El correo sigue siendo la identidad para los permisos: esto es solo cómo se
+ * escribe.
+ */
+function nombreDeCorreo_(correo) {
+  var antes = String(correo || '').split('@')[0];
+  if (!antes) return '';
+  return antes.split(/[._\-]+/)
+    .filter(Boolean)
+    .map(function (parte) {
+      return parte.charAt(0).toUpperCase() + parte.substring(1).toLowerCase();
+    })
+    .join(' ');
+}
+
 function puedeAcceder_(correo) {
   if (!ACCESOS.length) return true;
   var buscado = normalizar_(correo);
@@ -441,7 +460,8 @@ function validar_(datos) {
     tipoRequerimiento: POR_DEFECTO.TIPO_REQUERIMIENTO,
     fechaTexto: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), CFG.FORMATO_FECHA),
     fecha: new Date(),
-    solicitante: correo
+    solicitante: nombreDeCorreo_(correo) || correo,
+    correo: correo
   };
 }
 
@@ -599,7 +619,7 @@ function guardarDetalle_(v, destino, numero) {
   var hoja = hojaDetalle_();
   asegurarEncabezadosDetalle_(hoja);
   hoja.appendRow([
-    numero, v.fechaTexto, v.solicitante, v.clase,
+    numero, v.fechaTexto, v.solicitante, v.correo, v.clase,
     v.pais, v.tipoRequerimiento,
     v.origen, v.centro, v.tipoMaterial, v.agrupacion, v.agrupacionTexto,
     v.codigo, v.descripcion, v.grupo,
@@ -666,7 +686,12 @@ function apiContexto() {
   return {
     monitor: { url: MONITOR.URL },
     tipos: TIPOS_SOLICITUD.map(function (t) {
-      return { id: t.id, titulo: t.titulo, descripcion: t.descripcion };
+      return {
+        id: t.id, titulo: t.titulo, descripcion: t.descripcion,
+        // Los ejemplos que se muestran al pegar son del tipo elegido: en
+        // proceso no sirve de guía un código con largo.
+        ejemplos: (t.ejemplos || []).slice()
+      };
     }),
     clases: CLASES.map(function (c) {
       return { id: c.id, hoja: c.hoja, titulo: c.titulo, descripcion: c.descripcion };
