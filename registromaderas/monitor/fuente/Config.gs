@@ -1,13 +1,13 @@
 /**
- * Monitor de solicitudes.
+ * Monitor de solicitudes: solo mira.
  *
  * Es un proyecto de Apps Script aparte del de entrada. Comparten el mismo
- * spreadsheet y nada más.
+ * spreadsheet y nada más: acá no se escribe una sola celda, ni el estado.
  *
- * Lo único que escribe es el estado de una solicitud: el combo de la tabla.
- * Ningún otro dato se toca desde acá —ni los códigos, ni el batch input, ni la
- * bitácora de detalle—, y por eso el manifiesto pide `spreadsheets` a secas en
- * vez de `readonly`, que era lo que bastaba cuando solo miraba.
+ * Eso es a propósito. El monitor se reparte a quien deba mirar —quien pidió,
+ * quien espera, quien pregunta por dónde va—, y ninguno de ellos debería poder
+ * cambiar nada. El estado lo mueve codificación en la hoja `Registro`. Los
+ * permisos que pide lo dejan por escrito: `spreadsheets.readonly`.
  */
 
 const ID_SPREADSHEET = '15THGajqCDH0YuBaoEUt9uLM8s-6iKsUf9_-vY8bABmE';
@@ -57,7 +57,7 @@ const COL_DETALLE_VISTA = [
 /** Cuántas solicitudes se traen, de la más nueva hacia atrás. */
 const MAXIMO_SOLICITUDES = 400;
 
-/** Por dónde pasa una solicitud, en orden. Es lo que ofrece el combo. */
+/** Por dónde pasa una solicitud, en orden. Acá solo sirven para filtrar. */
 const ESTADOS = [
   'Solicitando',
   'Validando información',
@@ -65,14 +65,6 @@ const ESTADOS = [
   'Creando',
   'Finalizado'
 ];
-
-/**
- * Al llegar a este estado se estampa la fecha de creación, si estaba vacía.
- *
- * Es lo que evita tener que escribirla a mano en cada solicitud, y no la pisa
- * si ya estaba puesta: la primera vez que se termina manda.
- */
-const ESTADO_QUE_CIERRA = 'Finalizado';
 
 function normalizar_(texto) {
   return String(texto == null ? '' : texto)

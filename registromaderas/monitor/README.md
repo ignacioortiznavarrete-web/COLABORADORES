@@ -1,10 +1,11 @@
 # monitor — Ver las solicitudes
 
 Apps Script **aparte** del de entrada. Comparten el spreadsheet **Maderas** y
-nada más.
+nada más: acá **no se escribe una sola celda**, ni el estado.
 
-Lo único que escribe es **el estado de una solicitud**. Nada más se toca desde
-acá: ni los códigos, ni el batch input, ni la bitácora de detalle.
+Eso es a propósito. El monitor se reparte a quien deba mirar —quien pidió,
+quien espera, quien pregunta por dónde va— y ninguno de ellos debería poder
+cambiar una solicitud. Los permisos lo dejan por escrito: `spreadsheets.readonly`.
 
 ## Qué muestra
 
@@ -24,25 +25,17 @@ tiene a mano es el material.
 
 ## El estado
 
-`Estado` es un **combo**, y es lo único editable de la tabla. Pasa por estos
-cinco, en orden:
+Una solicitud pasa por estos cinco, en orden:
 
 **Solicitando** → **Validando información** → **Pendiente** → **Creando** →
 **Finalizado**
 
-Nace en `Solicitando` cuando se registra la solicitud, y se guarda al elegir,
-sin botón. Si el guardado falla, el combo **vuelve al valor que tenía**: dejarlo
-cambiado en pantalla cuando no se guardó sería mentir sobre lo que dice la hoja.
+Nace en `Solicitando` cuando se registra. **De ahí en adelante lo mueve
+codificación**, escribiendo en la columna `Estado` de la hoja `Registro`. Desde
+el monitor solo se ve, con su color, y se puede filtrar por él.
 
-Al llegar a **Finalizado** se estampa la **`Fecha de creación`** sola, si estaba
-vacía. Si ya tenía una, no se pisa: la primera vez que se terminó manda.
-
-La fila se busca **por su número**, no por la posición que tenía cuando se
-cargó la página: entre medio alguien pudo ordenar la hoja, y escribir por
-índice viejo sería escribir en la solicitud equivocada.
-
-Un estado que esté en la hoja pero no en la lista —escrito a mano, de antes— se
-muestra igual en vez de cambiarse solo por el primero al dibujar.
+Un estado escrito a mano que no sea de los cinco se muestra igual: el monitor
+no corrige lo que dice la hoja, lo enseña.
 
 ## Cómo une las dos hojas
 

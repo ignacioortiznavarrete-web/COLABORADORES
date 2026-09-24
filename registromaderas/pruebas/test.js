@@ -155,6 +155,11 @@ seccion('Contexto que recibe el formulario');
   ok(ctx.trading.especie === 'H', 'Trading exige especie H');
   ok(ctx.hojaBD === 'BD_Maderas', 'y la única hoja que consulta es BD_Maderas');
   ok(ctx.porDefecto.TIPO_REQUERIMIENTO === 'NO', 'Tipo Requerimiento va en NO, como el ejemplo');
+  // Al terminar de registrar se pasa al monitor, que es otro proyecto y por
+  // eso su dirección va escrita, no deducida.
+  ok(/^https:\/\/script\.google\.com\/.+\/exec$/.test(ctx.monitor.url),
+    'y llega la dirección del monitor, para poder ir al terminar');
+  ok(ctx.monitor.segundos > 0, 'con cuánto espera el aviso antes de irse solo');
   ok(!ctx.hojasFaltantes.length, 'no falta ninguna hoja');
 }
 

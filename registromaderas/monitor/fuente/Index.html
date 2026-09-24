@@ -1,13 +1,8 @@
 <!--
-  Monitor de solicitudes.
+  Monitor de solicitudes. Solo mira: nada se edita desde acá, ni el estado.
 
   Cada solicitud llega con sus códigos adentro, así que "ver más" despliega lo
   que ya está en la página y no vuelve a preguntarle nada al servidor.
-
-  Lo único que se escribe desde acá es el estado: el combo de cada fila. Se
-  guarda al elegir, sin botón, y si falla vuelve al valor que tenía —dejarlo
-  cambiado en pantalla cuando no se guardó sería mentir sobre lo que dice la
-  hoja—.
 -->
 <?!= include('Estilos') ?>
 
@@ -139,21 +134,11 @@
 
   /* ---------------------------------------------------------- dibujar */
 
-  /** El estado es lo único editable: un combo que se guarda al elegir. */
-  function comboEstado(s) {
-    var opciones = DATOS.estados.map(function (e) {
-      return '<option value="' + esc(e) + '"' +
-        (e === s.estado ? ' selected' : '') + '>' + esc(e) + '</option>';
-    }).join('');
-    // Si la hoja trae un estado que no está en la lista, se muestra igual en
-    // vez de cambiarlo solo por el primero al dibujar.
-    var suelto = s.estado && DATOS.estados.indexOf(s.estado) === -1
-      ? '<option value="' + esc(s.estado) + '" selected>' + esc(s.estado) + '</option>'
-      : '';
-    var vacio = s.estado ? '' : '<option value="" selected>—</option>';
-    return '<select class="estado ' + sinTildes(s.estado).replace(/[^a-z]/g, '') + '" ' +
-      'data-estado="' + esc(s.numero) + '" aria-label="Estado de ' + esc(s.numero) + '">' +
-      vacio + suelto + opciones + '</select>';
+  /** El estado se muestra, no se toca: lo mueve codificación en la hoja. */
+  function pastilla(estado) {
+    if (!estado) return '<span class="pastilla vacia">—</span>';
+    return '<span class="pastilla ' + sinTildes(estado).replace(/[^a-z]/g, '') + '">' +
+      esc(estado) + '</span>';
   }
 
   /** El SKU de la solicitud: los códigos, no los números de fila. */
@@ -204,7 +189,7 @@
         '<td class="mono">' + esc(s.fecha) + '</td>' +
         '<td>' + esc(s.usuario) + '</td>' +
         '<td>' + esc(s.tipo) + '</td>' +
-        '<td>' + comboEstado(s) + '</td>' +
+        '<td>' + pastilla(s.estado) + '</td>' +
         '<td class="mono">' + (s.fechaCreacion
           ? esc(s.fechaCreacion) : '<span class="apagado">—</span>') + '</td>' +
         '<td>' + celdaSku(s) + '</td>' +
@@ -218,39 +203,6 @@
   }
 
   /* ---------------------------------------------------------- eventos */
-
-  $('cuerpo').addEventListener('change', function (ev) {
-    var combo = ev.target;
-    if (!combo.hasAttribute || !combo.hasAttribute('data-estado')) return;
-
-    var numero = combo.getAttribute('data-estado');
-    var s = DATOS.solicitudes.filter(function (x) { return x.numero === numero; })[0];
-    if (!s) return;
-    var antes = s.estado;
-    var nuevo = combo.value;
-
-    combo.disabled = true;
-    google.script.run
-      .withSuccessHandler(function (r) {
-        combo.disabled = false;
-        s.estado = r.estado;
-        // La fecha se estampa sola al terminar: hay que redibujar para verla.
-        if (r.fechaCreacion && r.fechaCreacion !== s.fechaCreacion) {
-          s.fechaCreacion = r.fechaCreacion;
-          dibujar();
-        } else {
-          combo.className = 'estado ' + sinTildes(r.estado).replace(/[^a-z]/g, '');
-        }
-      })
-      .withFailureHandler(function (err) {
-        // No se guardó: la pantalla vuelve a decir lo que dice la hoja.
-        combo.disabled = false;
-        combo.value = antes;
-        $('mensaje').innerHTML = '<div class="aviso"><b>No se pudo cambiar el estado de ' +
-          esc(numero) + '.</b> ' + esc(err && err.message ? err.message : err) + '</div>';
-      })
-      .apiCambiarEstado(numero, nuevo);
-  });
 
   $('cuerpo').addEventListener('click', function (ev) {
     var b = ev.target;

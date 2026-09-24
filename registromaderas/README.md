@@ -304,8 +304,14 @@ de algo que no ocurrió.
 
 ## Ver las solicitudes
 
+Al terminar de registrar, el aviso **lleva al monitor**: espera unos segundos
+para poder leer el número de solicitud y se va solo, o antes con el botón.
+Cerrar el aviso a mano es quedarse. La dirección está en `MONITOR.URL`
+(`Config.gs`); si el monitor se vuelve a publicar, hay que cambiarla ahí.
+
 El **monitor** es un Apps Script aparte, en `monitor/`, que muestra `Registro`
-con sus códigos desplegables. Solo lee. Tiene su propio README con cómo se
+con sus códigos desplegables. **Solo lee**: el estado lo mueve codificación en
+la hoja, no se toca desde la pantalla. Tiene su propio README con cómo se
 instala y se publica.
 
 ## Cómo se instala

@@ -305,6 +305,19 @@ const ESTADOS = [
   'Finalizado'
 ];
 
+/**
+ * El monitor: adonde se va al terminar de registrar.
+ *
+ * Es otro proyecto de Apps Script, publicado aparte, así que su dirección no
+ * se puede deducir: va escrita acá. Si se vuelve a publicar cambia, y hay que
+ * cambiarla también en esta línea. Vacía, no se ofrece ir a ninguna parte.
+ */
+const MONITOR = {
+  URL: 'https://script.google.com/a/macros/masisa.com/s/AKfycbx22q-1sQcIDV_m3QLUH9TsxtYwIy51MthiDd9rhksNw1FK5irXAQkK8suWeq-KtyJPiw/exec',
+  /** Segundos que queda el aviso en pantalla antes de irse solo. */
+  SEGUNDOS: 3
+};
+
 /** Cómo se numera cada solicitud, y con qué estado nace. */
 const NUMERACION = {
   PREFIJO: 'SOL-',

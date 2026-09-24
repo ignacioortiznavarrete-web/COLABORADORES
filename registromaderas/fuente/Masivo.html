@@ -160,7 +160,32 @@
     error: '\u00d7'
   };
 
+  /*
+    Al registrar se pasa al monitor, que es donde se le sigue la pista a la
+    solicitud. No se salta de inmediato: el aviso queda unos segundos para
+    poder leer el número, y quien quiera se adelanta con el botón.
+
+    La página vive dentro del iframe de Apps Script, así que la navegación va
+    con _top. Se intenta sola, y el botón queda igual como camino seguro: si
+    el navegador bloquea el salto automático —pasa cuando ya no cuenta el clic
+    que lo originó—, un clic de verdad siempre lo deja pasar.
+  */
+  var IR_AL_MONITOR = null;
+
+  function alMonitor() {
+    cancelarSalto();
+    var url = (CTX.monitor || {}).url;
+    if (url) window.open(url, '_top');
+  }
+
+  function cancelarSalto() {
+    if (IR_AL_MONITOR) clearTimeout(IR_AL_MONITOR);
+    IR_AL_MONITOR = null;
+  }
+
   function modal(tipo, titulo, texto, lineas, malas) {
+    cancelarSalto();
+    $('modalCerrar').textContent = 'Entendido';
     FOCO_PREVIO = document.activeElement;
     $('modal').className = 'modal ' + tipo;
     $('modalMarca').innerHTML = MARCAS[tipo] || MARCAS.ok;
@@ -175,6 +200,8 @@
   }
 
   function cerrarModal() {
+    // Cerrar a mano es quedarse: no se salta al monitor por detrás.
+    cancelarSalto();
     $('modalFondo').hidden = true;
     if (FOCO_PREVIO && FOCO_PREVIO.focus) FOCO_PREVIO.focus();
     FOCO_PREVIO = null;
@@ -557,6 +584,7 @@
               '. Quedaron en ' + r.tramos + ', y la solicitud en ' + CTX.hojaRegistro +
               '. El Excel del batch input se baja desde el menú del spreadsheet.',
             buenas.map(function (x) { return x.codigo + '  \u2192  ' + x.hoja + ' fila ' + x.fila; }));
+          ofrecerElMonitor();
         } else {
           modal(buenas.length ? 'alerta' : 'error',
             buenas.length
@@ -617,7 +645,17 @@
 
   $('btnCambiarTipo').addEventListener('click', volverAlTipo);
   $('btnGuardarLote').addEventListener('click', guardarLote);
-  $('modalCerrar').addEventListener('click', cerrarModal);
+  /** Con la solicitud ya guardada, el aviso lleva al monitor. */
+  function ofrecerElMonitor() {
+    var monitor = CTX.monitor || {};
+    if (!monitor.url) return;
+    $('modalCerrar').textContent = 'Ir al monitor';
+    IR_AL_MONITOR = setTimeout(alMonitor, (monitor.segundos || 3) * 1000);
+  }
+
+  $('modalCerrar').addEventListener('click', function () {
+    if (IR_AL_MONITOR) alMonitor(); else cerrarModal();
+  });
   $('modalFondo').addEventListener('click', function (ev) {
     if (ev.target === $('modalFondo')) cerrarModal();
   });

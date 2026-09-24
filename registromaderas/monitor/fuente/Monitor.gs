@@ -111,56 +111,6 @@ function apiSolicitudes() {
   };
 }
 
-/**
- * Cambia el estado de una solicitud. Es lo único que el monitor escribe.
- *
- * La fila se busca por su número, no por la posición que tenía cuando se
- * cargó la página: entre medio alguien pudo ordenar la hoja, y escribir en
- * una fila por índice viejo sería escribir en la solicitud equivocada.
- */
-function apiCambiarEstado(numero, estado) {
-  numero = String(numero || '').trim();
-  if (!numero) throw new Error('Falta el número de solicitud.');
-  if (ESTADOS.indexOf(estado) === -1) {
-    throw new Error('El estado "' + estado + '" no es uno de los que existen.');
-  }
-
-  var hoja = libro_().getSheetByName(HOJAS.REGISTRO);
-  if (!hoja) throw new Error('No encuentro la hoja ' + HOJAS.REGISTRO + '.');
-
-  var ultimaFila = hoja.getLastRow();
-  var ultimaColumna = hoja.getLastColumn();
-  var datos = hoja.getRange(1, 1, ultimaFila, ultimaColumna).getDisplayValues();
-  var encabezados = datos[0].map(function (h) { return String(h).trim(); });
-
-  var colNumero = encabezados.indexOf(COL.NUMERO) + 1;
-  var colEstado = encabezados.indexOf(COL.ESTADO) + 1;
-  var colFecha = encabezados.indexOf(COL.FECHA_CREACION) + 1;
-  if (!colNumero || !colEstado) {
-    throw new Error('A ' + HOJAS.REGISTRO + ' le faltan las columnas ' +
-      COL.NUMERO + ' o ' + COL.ESTADO + '.');
-  }
-
-  var fila = 0;
-  for (var i = 1; i < datos.length; i++) {
-    if (String(datos[i][colNumero - 1]).trim() === numero) { fila = i + 1; break; }
-  }
-  if (!fila) throw new Error('No encuentro la solicitud ' + numero + '.');
-
-  hoja.getRange(fila, colEstado).setValue(estado);
-
-  // Al terminar se estampa la fecha, si nadie la había puesto.
-  var fechaCreacion = colFecha ? String(datos[fila - 1][colFecha - 1]).trim() : '';
-  if (colFecha && estado === ESTADO_QUE_CIERRA && !fechaCreacion) {
-    fechaCreacion = Utilities.formatDate(new Date(),
-      libro_().getSpreadsheetTimeZone(), 'dd.MM.yyyy');
-    hoja.getRange(fila, colFecha).setNumberFormat('@').setValue(fechaCreacion);
-  }
-
-  SpreadsheetApp.flush();
-  return { ok: true, numero: numero, estado: estado, fechaCreacion: fechaCreacion, fila: fila };
-}
-
 /** Respaldo para solicitudes viejas: los códigos que estén en la columna SKU. */
 function codigosDelSku_(sku) {
   return String(sku == null ? '' : sku)

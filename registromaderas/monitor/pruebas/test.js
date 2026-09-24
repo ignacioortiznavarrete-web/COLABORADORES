@@ -128,57 +128,37 @@ seccion('Una solicitud sin detalle se apaña con su SKU');
     'partiendo la columna SKU por sus separadores');
 }
 
-// El combo del index: lo unico que el monitor escribe.
-seccion('Cambiar el estado desde el monitor');
-{
-  const estadoDe = n => apiSolicitudes().solicitudes.filter(s => s.numero === n)[0];
-
-  const r = apiCambiarEstado('SOL-00001', 'Validando información');
-  ok(r.ok && r.estado === 'Validando información', 'responde con el estado nuevo');
-  ok(estadoDe('SOL-00001').estado === 'Validando información', 'y queda escrito en la hoja');
-
-  ok(apiCambiarEstado('SOL-00001', 'Creando').ok, 'se puede seguir avanzando');
-  ok(estadoDe('SOL-00001').estado === 'Creando', 'y el último manda');
-
-  // Al terminar se estampa la fecha sola, que es lo que nadie quiere escribir a mano.
-  ok(estadoDe('SOL-00001').fechaCreacion === '', 'antes de terminar no hay fecha de creación');
-  const fin = apiCambiarEstado('SOL-00001', 'Finalizado');
-  ok(/^\d{2}\.\d{2}\.\d{4}$/.test(fin.fechaCreacion),
-    'al finalizar se estampa la fecha: ' + fin.fechaCreacion);
-  ok(estadoDe('SOL-00001').fechaCreacion === fin.fechaCreacion, 'y queda en la hoja');
-
-  // Pero no se pisa la que ya estaba: la primera vez que se terminó manda.
-  apiCambiarEstado('SOL-00002', 'Creando');
-  apiCambiarEstado('SOL-00002', 'Finalizado');
-  ok(estadoDe('SOL-00002').fechaCreacion === '25.09.2026',
-    'una fecha ya puesta no se pisa al volver a finalizar');
-}
-
-seccion('Lo que el monitor rechaza');
-{
-  ok(error(() => apiCambiarEstado('SOL-00001', 'Inventado')).indexOf('no es uno de los que existen') !== -1,
-    'un estado que no está en la lista');
-  ok(error(() => apiCambiarEstado('SOL-99999', 'Pendiente')).indexOf('No encuentro la solicitud') !== -1,
-    'una solicitud que no existe');
-  ok(error(() => apiCambiarEstado('', 'Pendiente')).indexOf('Falta el número') !== -1,
-    'y una llamada sin número');
-}
-
-seccion('Lo que el monitor no toca');
+// Nadie edita nada desde el monitor, ni el estado: se reparte a quien deba
+// mirar, y ninguno de ellos deberia poder cambiar una solicitud.
+seccion('El monitor no escribe nada');
 {
   const filas = SS.getSheetByName('Registro').getLastRow();
   const detalle = SS.getSheetByName('Registro Detalle').getLastRow();
+  const antes = apiSolicitudes().solicitudes.map(s => s.numero + ':' + s.estado).join(' ');
+
   apiSolicitudes();
-  apiCambiarEstado('SOL-00003', 'Pendiente');
+  apiSolicitudes();
+
   ok(SS.getSheetByName('Registro').getLastRow() === filas, 'no agrega ni quita solicitudes');
-  ok(SS.getSheetByName('Registro Detalle').getLastRow() === detalle,
-    'ni toca el detalle: los códigos no se editan desde acá');
+  ok(SS.getSheetByName('Registro Detalle').getLastRow() === detalle, 'ni toca el detalle');
+  ok(apiSolicitudes().solicitudes.map(s => s.numero + ':' + s.estado).join(' ') === antes,
+    'y los estados quedan como estaban');
 
   const fuente = fs.readFileSync(path.join(__dirname, '..', 'fuente', 'Monitor.gs'), 'utf8');
-  ok((fuente.match(/setValue\(/g) || []).length === 2,
-    'solo escribe en dos celdas: el estado y su fecha');
-  ok(fuente.indexOf(HOJAS.DETALLE + "'") === -1 || fuente.indexOf('appendRow') === -1,
-    'y nunca agrega filas');
+  ok(fuente.indexOf('setValue') === -1, 'no tiene con qué: ningún setValue');
+  ok(fuente.indexOf('appendRow') === -1, 'ni appendRow');
+  ok(typeof apiCambiarEstado === 'undefined', 'ni una función para cambiar el estado');
+
+  const permisos = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'fuente', 'appsscript.json'), 'utf8')).oauthScopes;
+  ok(permisos.indexOf('https://www.googleapis.com/auth/spreadsheets.readonly') !== -1,
+    'y pide permiso de solo lectura');
+  ok(permisos.indexOf('https://www.googleapis.com/auth/spreadsheets') === -1,
+    'no de escritura');
+
+  const index = fs.readFileSync(path.join(__dirname, '..', 'fuente', 'Index.html'), 'utf8');
+  ok(index.indexOf('<select class="estado') === -1 && index.indexOf('pastilla') !== -1,
+    'la pantalla muestra el estado, no lo ofrece para cambiar');
 }
 
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));
