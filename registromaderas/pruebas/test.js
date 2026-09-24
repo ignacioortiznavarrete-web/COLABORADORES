@@ -427,8 +427,7 @@ seccion('El lote: se pegan códigos y salen sus filas');
   ok(r.filas[0].ok, 'y queda lista sola: lleva H, es de Trading y no pide rutas');
 
   // La tanda es de PT: un código de proceso no cabe en ella.
-  ok(!r.filas[1].codigo &&
-     r.filas[1].problemas[0].indexOf('no lleva largo') !== -1,
+  ok(!r.filas[1].codigo && r.filas[1].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
     'la segunda es de proceso y se rechaza por no ser del tipo de la tanda');
   ok(r.filas[2].problemas[0].indexOf('Ya existe') !== -1, 'la tercera ya existe en la base');
   ok(!r.filas[3].codigo && r.filas[3].problemas[0].indexOf('no existe en BD_Maderas') !== -1,
@@ -529,10 +528,13 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
   ok(pt.tipo === 'PT' && pt.tipoTitulo === 'Producto Terminado', 'el lote dice de qué tipo es');
   ok(pt.filas[0].clase === 'PT', 'y la clase sale del tipo elegido');
 
-  ok(lote_('RVM 032X180', 'PT').filas[0].problemas[0].indexOf('no lleva largo') !== -1,
+  ok(lote_('RVM 032X180', 'PT').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
     'en una tanda de terminados, uno sin largo se rechaza');
-  ok(lote_('RVMH032X180X3960', 'PP').filas[0].problemas[0].indexOf('lleva largo') !== -1,
-    'y en una de proceso, uno con largo también');
+  ok(lote_('RVMH032X180X3960', 'PP').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
+    'y en una de proceso, uno con largo: el mismo mensaje para los dos');
+  ok(MENSAJES.TIPO_QUE_NO_CALZA ===
+     'El tipo de material no corresponde al tipo de solicitud. Vuelve a ingresar',
+    'y dice exactamente eso');
 
   // En proceso, el que empieza con C va a su propia hoja.
   ok(lote_('RVM 032X180', 'PP').filas[0].clase === 'PP', 'proceso rústico entra como PP');

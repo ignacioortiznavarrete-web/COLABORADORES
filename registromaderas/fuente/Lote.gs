@@ -126,14 +126,7 @@ function deducirDeCodigo_(texto, bd, tipo) {
   // La tanda es de un solo tipo, y el código tiene que ser de ese tipo: si no,
   // pediría rutas distintas que el resto y la carga dejaría de ser una sola cosa.
   if (tipo && tipo.exigeLargo !== null && !!partes.largo !== tipo.exigeLargo) {
-    return {
-      ok: false,
-      mensaje: tipo.exigeLargo
-        ? 'La tanda es de ' + tipo.titulo + ' y este código no lleva largo. ' +
-          'Un terminado va con espesor, ancho y largo, como RVMH032X180X3960.'
-        : 'La tanda es de ' + tipo.titulo + ' y este código lleva largo. ' +
-          'Uno de proceso va sin él, como RVM 032X180.'
-    };
+    return { ok: false, mensaje: MENSAJES.TIPO_QUE_NO_CALZA };
   }
 
   var esTerceros = prefijo.charAt(3) === TRADING.ESPECIE;

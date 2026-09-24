@@ -63,6 +63,11 @@ const CLASES = [
   { id: 'PE', hoja: 'PE', titulo: 'Producto Especial', descripcion: 'Fuera de la nomenclatura corriente.' }
 ];
 
+/** Los textos que ve quien ingresa, cuando conviene decirlos igual siempre. */
+const MENSAJES = {
+  TIPO_QUE_NO_CALZA: 'El tipo de material no corresponde al tipo de solicitud. Vuelve a ingresar'
+};
+
 /**
  * El tipo se elige ANTES de pegar, y vale para toda la tanda.
  *
