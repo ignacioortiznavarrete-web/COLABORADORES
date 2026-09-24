@@ -64,13 +64,11 @@ const CLASES = [
 ];
 
 /**
- * Los textos que ve quien ingresa.
+ * Los textos que ve quien ingresa, cuando conviene decirlos igual siempre.
  *
- * Quien pega códigos no tiene por qué saber de prefijos, nomenclatura ni de
- * cómo se arma un código: lo que necesita saber es que ese material no va en
- * esta solicitud y que lo vuelva a escribir. Por eso los tres casos —forma
- * que no se entiende, prefijo desconocido y código de otro tipo— dicen lo
- * mismo en vez de explicar cada uno su tecnicismo.
+ * Solo el del tipo que no calza: quien pega no tiene por qué saber si el
+ * problema fue el largo, y explicárselo no lo ayuda a arreglarlo. Los demás
+ * avisos sí dicen qué pasó, porque de eso depende qué corregir.
  */
 const MENSAJES = {
   TIPO_QUE_NO_CALZA: 'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar'
