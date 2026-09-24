@@ -1,0 +1,138 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* El mismo verde bosque del formulario de entrada: son la misma herramienta. */
+  :root {
+    --bosque-900: oklch(0.24 0.045 158);
+    --bosque-800: oklch(0.31 0.058 158);
+    --bosque-700: oklch(0.38 0.072 157);
+    --bosque-600: oklch(0.47 0.095 156);
+    --bosque-200: oklch(0.88 0.045 157);
+    --bosque-100: oklch(0.94 0.028 157);
+    --bosque-050: oklch(0.972 0.014 157);
+
+    --fondo: oklch(0.965 0.007 157);
+    --papel: oklch(0.995 0.002 157);
+    --tinta: oklch(0.21 0.014 157);
+    --tinta-suave: oklch(0.46 0.018 157);
+    --linea: oklch(0.89 0.008 157);
+
+    --ambar: oklch(0.515 0.115 68);
+    --ambar-fondo: oklch(0.965 0.03 82);
+    --rojo: oklch(0.51 0.17 27);
+    --rojo-fondo: oklch(0.965 0.022 25);
+
+    --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    --sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+    --r: 10px;
+    --salida: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: 0; background: var(--fondo); color: var(--tinta);
+    font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased;
+  }
+
+  header.app {
+    background: var(--bosque-900); color: #fff;
+    padding: 14px 20px; position: sticky; top: 0; z-index: 30;
+  }
+  .cabecera-fila {
+    max-width: 1400px; margin: 0 auto;
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  }
+  header.app h1 { margin: 0; font-size: 19px; letter-spacing: -0.01em; }
+  header.app .cuantas { color: oklch(0.85 0.03 157); font-size: 13.5px; }
+  header.app .quien {
+    margin-left: auto; font: 13px var(--mono); color: oklch(0.82 0.03 157);
+  }
+
+  .wrap { max-width: 1400px; margin: 0 auto; padding: 20px 20px 60px; }
+
+  /* --------------------------------------------------------------- filtros */
+
+  .filtros {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 16px;
+  }
+  .filtros input, .filtros select {
+    padding: 9px 12px; border: 1px solid var(--linea); border-radius: var(--r);
+    background: var(--papel); color: var(--tinta); font: 14px var(--sans);
+  }
+  .filtros input { flex: 1 1 320px; min-width: 0; }
+  .filtros input:focus-visible, .filtros select:focus-visible {
+    outline: 2px solid var(--bosque-600); outline-offset: 1px;
+  }
+  .filtros .cuenta { color: var(--tinta-suave); font-size: 13.5px; margin-left: auto; }
+
+  /* --------------------------------------------------------------- tabla */
+
+  .caja { background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r);
+    overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th {
+    background: var(--bosque-050); color: var(--bosque-800);
+    font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+    text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--bosque-200);
+    white-space: nowrap;
+  }
+  tbody td { padding: 11px 12px; border-top: 1px solid var(--linea); vertical-align: top; }
+  tbody tr.cabecera:hover { background: var(--bosque-050); }
+  .mono { font-family: var(--mono); font-size: 13px; }
+  .numero { font: 700 14px var(--mono); color: var(--bosque-700); white-space: nowrap; }
+  .apagado { color: var(--tinta-suave); }
+  .obs { max-width: 260px; font-size: 13.5px; color: var(--tinta-suave); }
+
+  .pastilla {
+    display: inline-block; padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; white-space: nowrap;
+    background: var(--bosque-100); color: var(--bosque-800);
+  }
+  .pastilla.ingresada { background: var(--ambar-fondo); color: var(--ambar); }
+  .pastilla.creada { background: var(--bosque-100); color: var(--bosque-800); }
+  .pastilla.rechazada { background: var(--rojo-fondo); color: var(--rojo); }
+  .pastilla.vacia { background: transparent; color: var(--tinta-suave); font-weight: 400; }
+
+  button.vermas {
+    background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+    color: var(--bosque-700); text-decoration: underline; white-space: nowrap;
+  }
+  button.vermas:hover { color: var(--bosque-600); }
+  button.vermas:focus-visible { outline: 2px solid var(--bosque-600); outline-offset: 2px; }
+
+  /* Los códigos desplegados, dentro de la fila de su solicitud. */
+  tr.codigos > td { padding: 0; background: var(--bosque-050); }
+  .dentro { padding: 12px 14px 16px; }
+  .dentro h3 {
+    margin: 0 0 8px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--tinta-suave);
+  }
+  .desliza { overflow-x: auto; }
+  table.detalle { background: var(--papel); border: 1px solid var(--bosque-200);
+    border-radius: 8px; overflow: hidden; }
+  table.detalle th { background: transparent; border-bottom: 1px solid var(--bosque-200); }
+  table.detalle td { padding: 8px 12px; white-space: nowrap; }
+  table.detalle tr:first-child td { border-top: 0; }
+
+  .vacio { padding: 40px 20px; text-align: center; color: var(--tinta-suave); }
+  .cargando { padding: 60px 0; text-align: center; color: var(--tinta-suave); }
+  .aviso {
+    padding: 12px 15px; border-radius: var(--r); font-size: 14px; margin-bottom: 16px;
+    background: var(--rojo-fondo); border: 1px solid oklch(0.86 0.06 25); color: var(--rojo);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  }
+
+  @media (max-width: 720px) {
+    header.app { position: static; }
+    .filtros .cuenta { margin-left: 0; }
+    .caja { overflow-x: auto; }
+    table { min-width: 860px; }
+  }
+</style>

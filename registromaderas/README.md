@@ -302,6 +302,12 @@ de algo que no ocurrió.
 
 ---
 
+## Ver las solicitudes
+
+El **monitor** es un Apps Script aparte, en `monitor/`, que muestra `Registro`
+con sus códigos desplegables. Solo lee. Tiene su propio README con cómo se
+instala y se publica.
+
 ## Cómo se instala
 
 Cinco pasos, una sola vez. Son nueve archivos más el manifiesto, los de la

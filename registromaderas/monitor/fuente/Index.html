@@ -1,0 +1,222 @@
+<!--
+  Monitor de solicitudes. Solo mira: no escribe nada en el spreadsheet.
+
+  Cada solicitud llega con sus códigos adentro, así que "ver más" despliega lo
+  que ya está en la página y no vuelve a preguntarle nada al servidor.
+-->
+<?!= include('Estilos') ?>
+
+<header class="app">
+  <div class="cabecera-fila">
+    <h1>Monitor de solicitudes</h1>
+    <span class="cuantas" id="cuantas"></span>
+    <span class="quien" id="quien"></span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="cargando" class="cargando">Leyendo el registro…</div>
+
+  <main id="app" hidden>
+    <div id="mensaje"></div>
+
+    <div class="filtros">
+      <input type="search" id="buscar" placeholder="Buscar por solicitud, usuario, código u observación…"
+        autocomplete="off" spellcheck="false">
+      <select id="filtroTipo"><option value="">Todos los tipos</option></select>
+      <select id="filtroEstado"><option value="">Todos los estados</option></select>
+      <span class="cuenta" id="cuenta"></span>
+    </div>
+
+    <div class="caja">
+      <table>
+        <thead>
+          <tr>
+            <th>N° Solicitud</th>
+            <th>Fecha</th>
+            <th>Usuario</th>
+            <th>Tipo</th>
+            <th>Estado</th>
+            <th>Fecha de creación</th>
+            <th>SKU</th>
+            <th>Observación</th>
+            <th>Observación codificación</th>
+          </tr>
+        </thead>
+        <tbody id="cuerpo"></tbody>
+      </table>
+      <div class="vacio" id="vacio" hidden>No hay solicitudes que calcen con la búsqueda.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  var DATOS = null;
+  var ABIERTAS = {};
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function sinTildes(t) {
+    return String(t == null ? '' : t)
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  }
+
+  /* ---------------------------------------------------------- carga */
+
+  google.script.run
+    .withSuccessHandler(function (r) {
+      $('cargando').hidden = true;
+      if (!r.ok) {
+        $('app').hidden = false;
+        $('mensaje').innerHTML = '<div class="aviso">' + esc(r.mensaje) + '</div>';
+        return;
+      }
+      DATOS = r;
+      $('app').hidden = false;
+      $('quien').textContent = r.usuario || '';
+      $('cuantas').textContent = r.total + (r.total === 1 ? ' solicitud' : ' solicitudes');
+      llenarFiltros();
+      dibujar();
+    })
+    .withFailureHandler(function (err) {
+      $('cargando').hidden = true;
+      $('app').hidden = false;
+      $('mensaje').innerHTML = '<div class="aviso"><b>No se pudo leer el registro.</b> ' +
+        esc(err && err.message ? err.message : err) + '</div>';
+    })
+    .apiSolicitudes();
+
+  function llenarFiltros() {
+    var tipos = {};
+    DATOS.solicitudes.forEach(function (s) { if (s.tipo) tipos[s.tipo] = true; });
+    Object.keys(tipos).sort().forEach(function (t) {
+      $('filtroTipo').insertAdjacentHTML('beforeend',
+        '<option value="' + esc(t) + '">' + esc(t) + '</option>');
+    });
+
+    // Los estados que existan de verdad, más los previstos que todavía no.
+    var estados = {};
+    DATOS.solicitudes.forEach(function (s) { if (s.estado) estados[s.estado] = true; });
+    (DATOS.estados || []).forEach(function (e) { estados[e] = true; });
+    Object.keys(estados).sort().forEach(function (e) {
+      $('filtroEstado').insertAdjacentHTML('beforeend',
+        '<option value="' + esc(e) + '">' + esc(e) + '</option>');
+    });
+  }
+
+  /* ---------------------------------------------------------- filtrar */
+
+  function visibles() {
+    var texto = sinTildes($('buscar').value.trim());
+    var tipo = $('filtroTipo').value;
+    var estado = $('filtroEstado').value;
+
+    return DATOS.solicitudes.filter(function (s) {
+      if (tipo && s.tipo !== tipo) return false;
+      if (estado && s.estado !== estado) return false;
+      if (!texto) return true;
+      // La búsqueda también entra a los códigos: es como se llega a una
+      // solicitud cuando lo único que se tiene es el material.
+      return sinTildes([s.numero, s.usuario, s.tipo, s.estado, s.observacion,
+        s.observacionCodificacion, codigosDe(s).join(' ')].join(' ')).indexOf(texto) !== -1;
+    });
+  }
+
+  function codigosDe(s) {
+    return (s.codigos || []).map(function (c) { return c['Código'] || ''; });
+  }
+
+  /* ---------------------------------------------------------- dibujar */
+
+  function pastilla(estado) {
+    if (!estado) return '<span class="pastilla vacia">—</span>';
+    var clase = sinTildes(estado).replace(/[^a-z]/g, '');
+    return '<span class="pastilla ' + clase + '">' + esc(estado) + '</span>';
+  }
+
+  /** El SKU de la solicitud: los códigos, no los números de fila. */
+  function celdaSku(s) {
+    var codigos = codigosDe(s).filter(Boolean);
+    if (!codigos.length) return '<span class="apagado">—</span>';
+
+    var cuantos = codigos.length;
+    var asoma = codigos.slice(0, 2).map(esc).join('<br>');
+    if (cuantos <= 2) return '<span class="mono">' + asoma + '</span>';
+    return '<span class="mono">' + asoma + '</span><br>' +
+      '<button type="button" class="vermas" data-ver="' + esc(s.numero) + '">' +
+      (ABIERTAS[s.numero] ? 'ver menos' : 'ver más') + ' (' + cuantos + ' códigos)</button>';
+  }
+
+  function filaDeCodigos(s) {
+    var columnas = DATOS.columnas.filter(function (c) {
+      // No se muestra una columna que esté vacía en toda la solicitud.
+      return s.codigos.some(function (x) { return String(x[c.campo] || '').trim() !== ''; });
+    });
+    var cuerpo = s.codigos.map(function (c) {
+      return '<tr>' + columnas.map(function (col) {
+        return '<td' + (col.mono ? ' class="mono"' : '') + '>' +
+          esc(c[col.campo] || '') + '</td>';
+      }).join('') + '</tr>';
+    }).join('');
+
+    return '<tr class="codigos"><td colspan="9"><div class="dentro">' +
+      '<h3>' + s.codigos.length + ' código' + (s.codigos.length === 1 ? '' : 's') +
+      ' de ' + esc(s.numero) +
+      (s.deDetalle ? '' : ' · desde la columna SKU, sin detalle guardado') + '</h3>' +
+      '<div class="desliza"><table class="detalle"><thead><tr>' +
+      columnas.map(function (col) { return '<th>' + esc(col.titulo) + '</th>'; }).join('') +
+      '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
+      '</div></td></tr>';
+  }
+
+  function dibujar() {
+    var lista = visibles();
+    $('cuenta').textContent = lista.length === DATOS.solicitudes.length
+      ? lista.length + (lista.length === 1 ? ' solicitud' : ' solicitudes')
+      : lista.length + ' de ' + DATOS.solicitudes.length;
+    $('vacio').hidden = lista.length > 0;
+
+    $('cuerpo').innerHTML = lista.map(function (s) {
+      var fila = '<tr class="cabecera">' +
+        '<td class="numero">' + esc(s.numero) + '</td>' +
+        '<td class="mono">' + esc(s.fecha) + '</td>' +
+        '<td>' + esc(s.usuario) + '</td>' +
+        '<td>' + esc(s.tipo) + '</td>' +
+        '<td>' + pastilla(s.estado) + '</td>' +
+        '<td class="mono">' + (s.fechaCreacion
+          ? esc(s.fechaCreacion) : '<span class="apagado">—</span>') + '</td>' +
+        '<td>' + celdaSku(s) + '</td>' +
+        '<td class="obs">' + (s.observacion
+          ? esc(s.observacion) : '<span class="apagado">—</span>') + '</td>' +
+        '<td class="obs">' + (s.observacionCodificacion
+          ? esc(s.observacionCodificacion) : '<span class="apagado">—</span>') + '</td>' +
+        '</tr>';
+      return ABIERTAS[s.numero] ? fila + filaDeCodigos(s) : fila;
+    }).join('');
+  }
+
+  /* ---------------------------------------------------------- eventos */
+
+  $('cuerpo').addEventListener('click', function (ev) {
+    var b = ev.target;
+    while (b && b !== $('cuerpo') && !b.hasAttribute('data-ver')) b = b.parentNode;
+    if (!b || b === $('cuerpo')) return;
+    var numero = b.getAttribute('data-ver');
+    ABIERTAS[numero] = !ABIERTAS[numero];
+    dibujar();
+  });
+
+  var ESPERA = null;
+  $('buscar').addEventListener('input', function () {
+    if (ESPERA) clearTimeout(ESPERA);
+    ESPERA = setTimeout(dibujar, 180);
+  });
+  $('filtroTipo').addEventListener('change', dibujar);
+  $('filtroEstado').addEventListener('change', dibujar);
+</script>
