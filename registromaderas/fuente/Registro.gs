@@ -25,6 +25,7 @@ function hoja_(nombre) {
 
 function hojaRegistro_() { return hojaBitacora_(CFG.HOJA_REGISTRO); }
 function hojaDetalle_() { return hojaBitacora_(CFG.HOJA_DETALLE); }
+function hojaEstados_() { return hojaBitacora_(CFG.HOJA_ESTADOS); }
 
 function hojaBitacora_(nombre) {
   var libro = ss_();
@@ -577,6 +578,51 @@ function asegurarComboEstado_(hoja) {
   hoja.getRange(2, columna, filas, 1).setDataValidation(comboDeEstado_());
 }
 function asegurarEncabezadosDetalle_(hoja) { return encabezados_(hoja, COL_DETALLE); }
+function asegurarEncabezadosEstados_(hoja) { return encabezados_(hoja, COL_ESTADOS); }
+
+/**
+ * Anota que una solicitud pasó a un estado, con la fecha y quién la movió.
+ *
+ * Se llama en los dos momentos en que eso ocurre: cuando nace —que ya es un
+ * estado, Solicitando— y cuando alguien mueve el combo en la hoja. Así el
+ * recorrido queda completo y no empieza a la mitad.
+ *
+ * No repite el último: volver a elegir el mismo estado en el combo no es un
+ * paso, y dejarlo anotado ensuciaría el recorrido con filas iguales.
+ *
+ * @return {boolean} si se anotó, o no porque ya estaba.
+ */
+function anotarEstado_(numero, estado, quien) {
+  if (!numero || !estado) return false;
+
+  var hoja = hojaEstados_();
+  asegurarEncabezadosEstados_(hoja);
+  if (normalizar_(ultimoEstadoAnotado_(hoja, numero)) === normalizar_(estado)) return false;
+
+  hoja.appendRow([
+    numero,
+    estado,
+    Utilities.formatDate(new Date(), Session.getScriptTimeZone(), CFG.FORMATO_FECHA_HORA),
+    nombreDeCorreo_(quien || usuario_())
+  ]);
+  return true;
+}
+
+/** El último estado anotado de esa solicitud, o '' si todavía no tiene ninguno. */
+function ultimoEstadoAnotado_(hoja, numero) {
+  var ultima = hoja.getLastRow();
+  if (ultima < 2) return '';
+
+  var cNumero = COL_ESTADOS.indexOf('N° Solicitud') + 1;
+  var cEstado = COL_ESTADOS.indexOf('Estado') + 1;
+  var datos = hoja.getRange(2, 1, ultima - 1, COL_ESTADOS.length).getDisplayValues();
+  for (var i = datos.length - 1; i >= 0; i--) {
+    if (String(datos[i][cNumero - 1]).trim() === String(numero).trim()) {
+      return String(datos[i][cEstado - 1]).trim();
+    }
+  }
+  return '';
+}
 
 function encabezados_(hoja, columnas) {
   var ultima = hoja.getLastRow();
@@ -648,6 +694,15 @@ function guardarResumen_(hoja, numero, cabecera, skus) {
   var fila = hoja.getLastRow();
   var columna = COL_REGISTRO.indexOf('Estado') + 1;
   if (columna) hoja.getRange(fila, columna).setDataValidation(comboDeEstado_());
+
+  // El recorrido empieza acá: Solicitando también es un estado, y sin esta
+  // primera anotación el monitor mostraría una solicitud que nace a la mitad.
+  // Envuelto, porque una bitácora que falla no puede tumbar lo ya guardado.
+  try {
+    anotarEstado_(numero, NUMERACION.ESTADO_INICIAL, cabecera.correo);
+  } catch (err) {
+    Logger.log('No se pudo anotar el estado inicial de ' + numero + ': ' + err.message);
+  }
   return fila;
 }
 

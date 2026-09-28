@@ -23,6 +23,12 @@ Arriba hay un buscador y dos filtros (tipo y estado). El buscador **también
 entra a los códigos**: es como se llega a una solicitud cuando lo único que se
 tiene a mano es el material.
 
+Al desplegar una solicitud, antes de sus códigos va **por dónde pasó**: cada
+estado por el que fue, con su fecha, hora y quién lo movió, y el actual
+resaltado. **La pastilla del estado también despliega**, porque una solicitud
+de uno o dos códigos no tiene botón *ver más* y su recorrido igual se tiene que
+poder abrir. Pasando el cursor por encima dice desde cuándo está en ese estado.
+
 ## El estado
 
 Una solicitud pasa por estos cinco, en orden:
@@ -34,21 +40,30 @@ Nace en `Solicitando` cuando se registra. **De ahí en adelante lo mueve
 codificación**, escribiendo en la columna `Estado` de la hoja `Registro`. Desde
 el monitor solo se ve, con su color, y se puede filtrar por él.
 
+Cada vez que se mueve, el proyecto de entrada anota una fila en `Registro
+Estados` con la fecha, la hora y quién lo hizo, y eso es lo que el monitor
+muestra como recorrido. Va en su propia hoja, y no en columnas de `Registro`,
+porque una solicitud puede **volver atrás** —de `Creando` a `Pendiente` y de
+vuelta— y una columna por estado solo guardaría la última vez.
+
 Un estado escrito a mano que no sea de los cinco se muestra igual: el monitor
 no corrige lo que dice la hoja, lo enseña.
 
-## Cómo une las dos hojas
+## Cómo une las tres hojas
 
-Por **`N° Solicitud`**, que es la llave: la cabecera sale de `Registro` y sus
-códigos de `Registro Detalle`.
+Por **`N° Solicitud`**, que es la llave: la cabecera sale de `Registro`, sus
+códigos de `Registro Detalle` y su recorrido de `Registro Estados`.
 
-Se leen las dos hojas **enteras, una vez cada una**, y se agrupan en memoria. No
-hay una consulta por solicitud: con cuatrocientas solicitudes eso serían
-cuatrocientas idas al spreadsheet. Por eso *ver más* es instantáneo — despliega
-lo que ya está en la página.
+Se leen las tres hojas **enteras, una vez cada una**, y se agrupan en memoria.
+No hay una consulta por solicitud: con cuatrocientas solicitudes eso serían mil
+doscientas idas al spreadsheet. Por eso *ver más* es instantáneo — despliega lo
+que ya está en la página.
 
 Si una solicitud no tiene nada en `Registro Detalle` —de antes de que existiera
-esa hoja— el monitor se apaña partiendo su columna `SKU`, y lo dice.
+esa hoja— el monitor se apaña partiendo su columna `SKU`, y lo dice. Y si
+todavía no existe `Registro Estados`, o una solicitud es anterior a que se
+empezara a anotar, el monitor anda igual: esa solicitud simplemente no muestra
+recorrido.
 
 Las columnas se buscan **por su rótulo**, no por su posición: si mañana se
 agrega una columna en medio, el monitor sigue andando. Lo único que no puede
@@ -88,5 +103,6 @@ cd registromaderas/monitor/pruebas && node test.js
 
 Usan el mismo simulador de Apps Script que el formulario de entrada
 (`../../pruebas/mock.js`): son proyectos distintos, pero el mismo spreadsheet.
-Cubren la lectura por rótulos, la unión por número de solicitud, el respaldo
-por `SKU` cuando no hay detalle, y que el monitor no escriba nada.
+Cubren la lectura por rótulos, la unión por número de solicitud, el recorrido
+de estados —incluida una solicitud que fue y volvió—, el respaldo por `SKU`
+cuando no hay detalle, y que el monitor no escriba nada.

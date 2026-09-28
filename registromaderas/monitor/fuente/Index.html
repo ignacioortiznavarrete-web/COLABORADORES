@@ -134,11 +134,50 @@
 
   /* ---------------------------------------------------------- dibujar */
 
-  /** El estado se muestra, no se toca: lo mueve codificación en la hoja. */
-  function pastilla(estado) {
-    if (!estado) return '<span class="pastilla vacia">—</span>';
-    return '<span class="pastilla ' + sinTildes(estado).replace(/[^a-z]/g, '') + '">' +
-      esc(estado) + '</span>';
+  /**
+   * El estado se muestra, no se toca: lo mueve codificación en la hoja.
+   *
+   * Se puede cliquear, pero solo para desplegar la solicitud y ver por dónde
+   * pasó. Una solicitud de uno o dos códigos no tiene botón "ver más", y sin
+   * esto su recorrido no se podría abrir por ningún lado.
+   */
+  function pastilla(s) {
+    var clase = 'pastilla ' + sinTildes(s.estado || '').replace(/[^a-z]/g, '');
+    var texto = s.estado ? esc(s.estado) : '—';
+    if (!s.estado) clase = 'pastilla vacia';
+
+    var cuando = ultimoPaso(s);
+    var titulo = cuando
+      ? 'Desde el ' + cuando.fecha + (cuando.usuario ? ' · ' + cuando.usuario : '')
+      : 'Sin recorrido anotado';
+    return '<button type="button" class="' + clase + '" data-ver="' + esc(s.numero) + '"' +
+      ' title="' + esc(titulo) + '">' + texto + '</button>';
+  }
+
+  /** El último paso anotado: desde cuándo está en el estado que se ve. */
+  function ultimoPaso(s) {
+    var r = s.recorrido || [];
+    return r.length ? r[r.length - 1] : null;
+  }
+
+  /** Por dónde pasó la solicitud, en orden, con la fecha de cada paso. */
+  function recorridoDe(s) {
+    var r = s.recorrido || [];
+    if (!r.length) {
+      return '<div class="recorrido"><h3>Por dónde pasó</h3>' +
+        '<p class="apagado">Todavía no hay cambios de estado anotados para ' +
+        esc(s.numero) + '.</p></div>';
+    }
+    return '<div class="recorrido"><h3>Por dónde pasó</h3><ol class="pasos">' +
+      r.map(function (p, i) {
+        var ultimo = i === r.length - 1;
+        return '<li' + (ultimo ? ' class="actual"' : '') + '>' +
+          '<span class="paso-estado">' + esc(p.estado) + '</span>' +
+          '<span class="paso-fecha mono">' + esc(p.fecha || '—') + '</span>' +
+          '<span class="paso-quien">' + esc(p.usuario || '') + '</span>' +
+          '</li>';
+      }).join('') +
+      '</ol></div>';
   }
 
   /** El SKU de la solicitud: los códigos, no los números de fila. */
@@ -154,26 +193,36 @@
       (ABIERTAS[s.numero] ? 'ver menos' : 'ver más') + ' (' + cuantos + ' códigos)</button>';
   }
 
-  function filaDeCodigos(s) {
+  /** Lo que se despliega al abrir una solicitud: su recorrido y sus códigos. */
+  function filaDesplegada(s) {
+    return '<tr class="codigos"><td colspan="9"><div class="dentro">' +
+      recorridoDe(s) + tablaDeCodigos(s) +
+      '</div></td></tr>';
+  }
+
+  function tablaDeCodigos(s) {
+    var codigos = s.codigos || [];
+    if (!codigos.length) {
+      return '<h3>Códigos</h3><p class="apagado">Esta solicitud no tiene códigos guardados.</p>';
+    }
+
     var columnas = DATOS.columnas.filter(function (c) {
       // No se muestra una columna que esté vacía en toda la solicitud.
-      return s.codigos.some(function (x) { return String(x[c.campo] || '').trim() !== ''; });
+      return codigos.some(function (x) { return String(x[c.campo] || '').trim() !== ''; });
     });
-    var cuerpo = s.codigos.map(function (c) {
+    var cuerpo = codigos.map(function (c) {
       return '<tr>' + columnas.map(function (col) {
         return '<td' + (col.mono ? ' class="mono"' : '') + '>' +
           esc(c[col.campo] || '') + '</td>';
       }).join('') + '</tr>';
     }).join('');
 
-    return '<tr class="codigos"><td colspan="9"><div class="dentro">' +
-      '<h3>' + s.codigos.length + ' código' + (s.codigos.length === 1 ? '' : 's') +
+    return '<h3>' + codigos.length + ' código' + (codigos.length === 1 ? '' : 's') +
       ' de ' + esc(s.numero) +
       (s.deDetalle ? '' : ' · desde la columna SKU, sin detalle guardado') + '</h3>' +
       '<div class="desliza"><table class="detalle"><thead><tr>' +
       columnas.map(function (col) { return '<th>' + esc(col.titulo) + '</th>'; }).join('') +
-      '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>' +
-      '</div></td></tr>';
+      '</tr></thead><tbody>' + cuerpo + '</tbody></table></div>';
   }
 
   function dibujar() {
@@ -189,7 +238,7 @@
         '<td class="mono">' + esc(s.fecha) + '</td>' +
         '<td>' + esc(s.usuario) + '</td>' +
         '<td>' + esc(s.tipo) + '</td>' +
-        '<td>' + pastilla(s.estado) + '</td>' +
+        '<td>' + pastilla(s) + '</td>' +
         '<td class="mono">' + (s.fechaCreacion
           ? esc(s.fechaCreacion) : '<span class="apagado">—</span>') + '</td>' +
         '<td>' + celdaSku(s) + '</td>' +
@@ -198,7 +247,7 @@
         '<td class="obs">' + (s.observacionCodificacion
           ? esc(s.observacionCodificacion) : '<span class="apagado">—</span>') + '</td>' +
         '</tr>';
-      return ABIERTAS[s.numero] ? fila + filaDeCodigos(s) : fila;
+      return ABIERTAS[s.numero] ? fila + filaDesplegada(s) : fila;
     }).join('');
   }
 

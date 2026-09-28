@@ -41,6 +41,8 @@ const CFG = {
   HOJA_REGISTRO: 'Registro',
   /** Una fila por código, con el número de su solicitud. */
   HOJA_DETALLE: 'Registro Detalle',
+  /** Una fila por cambio de estado: por dónde pasó cada solicitud y cuándo. */
+  HOJA_ESTADOS: 'Registro Estados',
 
   /** En PT/PCP/PP la fila 1 es la numeración y la fila 2 son los rótulos. */
   FILA_ENCABEZADOS: 2,
@@ -48,6 +50,8 @@ const CFG = {
 
   /** SAP recibe la fecha como texto. */
   FORMATO_FECHA: 'dd.MM.yyyy',
+  /** En la bitácora de estados sí importa la hora: dos pasos pueden ser del mismo día. */
+  FORMATO_FECHA_HORA: 'dd.MM.yyyy HH:mm',
 
   SEGUNDOS_LOCK: 30,
   SEGUNDOS_CACHE: 21600,
@@ -319,6 +323,16 @@ const COL_DETALLE = [
   'Espesor', 'Ancho', 'Largo', 'Piezas', 'UMB', 'Stock/Pedido',
   'Aserradero', 'Secado', 'Cepillado', 'Hoja Destino', 'Fila Destino'
 ];
+
+/**
+ * `Registro Estados`: una fila cada vez que una solicitud cambia de estado.
+ *
+ * Va en su propia hoja y no en columnas de `Registro` por dos razones. Una,
+ * que `Registro` tiene las columnas que tiene y en ese orden. La otra, que una
+ * solicitud puede volver atrás —de Creando a Pendiente, y de vuelta— y una
+ * columna por estado solo guardaría la última vez; acá quedan todas, en orden.
+ */
+const COL_ESTADOS = ['N° Solicitud', 'Estado', 'Fecha', 'Usuario'];
 
 /**
  * Por dónde pasa una solicitud, en orden.

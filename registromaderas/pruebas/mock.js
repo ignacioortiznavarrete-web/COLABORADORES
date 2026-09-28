@@ -53,6 +53,7 @@ class Sheet {
     nr = nr || 1; nc = nc || 1;
     const sheet = this;
     const rango = chainable({
+      getSheet() { return sheet; },
       getRow() { return r; },
       getColumn() { return c; },
       getNumRows() { return nr; },
@@ -153,6 +154,10 @@ class Spreadsheet {
   }
   getActiveSheet() { return this.__activa; }
   insertSheet(n) { this.sheets[n] = new Sheet(n); return this.sheets[n]; }
+  deleteSheet(hoja) {
+    const nombre = (hoja && hoja.getName) ? hoja.getName() : hoja;
+    delete this.sheets[nombre];
+  }
   getSpreadsheetTimeZone() { return 'America/Santiago'; }
 }
 

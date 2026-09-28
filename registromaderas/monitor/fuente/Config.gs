@@ -16,7 +16,9 @@ const HOJAS = {
   /** Una fila por solicitud. */
   REGISTRO: 'Registro',
   /** Una fila por código, enlazada por N° Solicitud. */
-  DETALLE: 'Registro Detalle'
+  DETALLE: 'Registro Detalle',
+  /** Una fila por cambio de estado: por dónde pasó y cuándo. */
+  ESTADOS: 'Registro Estados'
 };
 
 /**
@@ -35,6 +37,14 @@ const COL = {
   SKU: 'SKU',
   OBSERVACION: 'Observación',
   OBSERVACION_CODIFICACION: 'Observación codificación'
+};
+
+/** Las de `Registro Estados`, con los mismos rótulos que escribe el formulario. */
+const COL_ESTADO = {
+  NUMERO: 'N° Solicitud',
+  ESTADO: 'Estado',
+  FECHA: 'Fecha',
+  USUARIO: 'Usuario'
 };
 
 /** Lo que se muestra de cada código, cuando se despliega la solicitud. */

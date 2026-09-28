@@ -911,6 +911,85 @@ seccion('El combo de la columna Estado');
     'el index muestra el estado, no lo ofrece para cambiar');
 }
 
+// Cada paso de una solicitud queda anotado con su fecha: en la hoja Registro
+// solo se ve el estado de ahora, y el monitor muestra por dónde pasó.
+seccion('La bitácora de estados: cada paso con su fecha');
+{
+  const hoja = SS.getSheetByName('Registro');
+  const columna = COL_REGISTRO.indexOf('Estado') + 1;
+
+  /** Simula mover el combo en la hoja, como lo ve el disparador. */
+  const mover = (fila, estado, quien) => {
+    hoja.getRange(fila, columna).setValue(estado);
+    alEditarRegistro({
+      range: hoja.getRange(fila, columna),
+      value: estado,
+      user: quien || 'codificacion.corporativa@masisa.com'
+    });
+  };
+
+  const pasosDe = numero => {
+    const est = SS.getSheetByName(CFG.HOJA_ESTADOS);
+    if (!est || est.getLastRow() < 2) return [];
+    return est.getRange(2, 1, est.getLastRow() - 1, COL_ESTADOS.length).getDisplayValues()
+      .filter(f => f[0] === numero)
+      .map(f => ({ estado: f[1], fecha: f[2], usuario: f[3] }));
+  };
+
+  const r = apiGuardarLote(lote_('RVMH032X180X5100').filas, '');
+
+  // El recorrido empieza al nacer: sin esto el monitor mostraría una
+  // solicitud que aparece a la mitad de su camino.
+  let pasos = pasosDe(r.solicitud);
+  ok(pasos.length === 1 && pasos[0].estado === 'Solicitando',
+    'una solicitud nueva ya deja anotado su primer estado');
+  ok(/^\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}$/.test(pasos[0].fecha),
+    'con fecha y hora: ' + pasos[0].fecha);
+  ok(pasos[0].usuario === 'Jose Ortiz', 'y con quién la pidió, ya normalizado');
+
+  mover(r.filaResumen, 'Validando información');
+  mover(r.filaResumen, 'Creando');
+  pasos = pasosDe(r.solicitud);
+  ok(pasos.map(p => p.estado).join(' > ') === 'Solicitando > Validando información > Creando',
+    'cada cambio del combo agrega su paso, en orden');
+  ok(pasos[1].usuario === 'Codificacion Corporativa',
+    'anotado a nombre de quien lo movió, no de quien instaló el disparador');
+
+  // Volver a elegir el mismo no es un paso: ensuciaría el recorrido.
+  mover(r.filaResumen, 'Creando');
+  ok(pasosDe(r.solicitud).length === 3, 'volver a elegir el mismo estado no anota nada');
+
+  // Pero ir y volver sí, y las dos pasadas quedan.
+  mover(r.filaResumen, 'Pendiente');
+  mover(r.filaResumen, 'Creando');
+  ok(pasosDe(r.solicitud).map(p => p.estado).join(' > ') ===
+     'Solicitando > Validando información > Creando > Pendiente > Creando',
+    'y volver atrás y retomar deja las dos pasadas');
+
+  // Al finalizar se anota el paso Y se cierra: las dos cosas, en ese orden.
+  const bd = SS.getSheetByName('BD_Maderas');
+  const antesBd = bd.getLastRow();
+  mover(r.filaResumen, 'Finalizado');
+  const finales = pasosDe(r.solicitud);
+  ok(finales[finales.length - 1].estado === 'Finalizado', 'Finalizado también queda anotado');
+  ok(bd.getLastRow() > antesBd, 'y además cierra la solicitud, como antes');
+
+  // Lo que no es la columna Estado no se anota.
+  const antes = pasosDe(r.solicitud).length;
+  const cObs = COL_REGISTRO.indexOf('Observación codificación') + 1;
+  alEditarRegistro({ range: hoja.getRange(r.filaResumen, cObs), value: 'algo' });
+  ok(pasosDe(r.solicitud).length === antes, 'editar otra columna no anota ningún paso');
+
+  // Y borrar la celda tampoco: vaciar el estado no es pasar a un estado.
+  alEditarRegistro({ range: hoja.getRange(r.filaResumen, columna), value: '' });
+  ok(pasosDe(r.solicitud).length === antes, 'ni vaciar la celda del estado');
+
+  // Cada solicitud lleva el suyo, sin mezclarse.
+  const otra = apiGuardarLote(lote_('RVMH032X180X5200').filas, '');
+  ok(pasosDe(otra.solicitud).length === 1, 'la solicitud siguiente empieza su propio recorrido');
+  ok(pasosDe(r.solicitud).length === antes, 'y el de la anterior queda como estaba');
+}
+
 seccion('Tramos: de la solicitud a sus filas');
 {
   ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }, { hoja: 'PT', fila: 4 }, { hoja: 'PT', fila: 5 }])

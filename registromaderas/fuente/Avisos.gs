@@ -143,11 +143,52 @@ function alEditarRegistro(evento) {
 
     var columna = COL_REGISTRO.indexOf('Estado') + 1;
     if (!columna || evento.range.getColumn() !== columna) return;
-    if (normalizar_(evento.value) !== normalizar_(NUMERACION.ESTADO_FINAL)) return;
 
-    cerrarSolicitud_(hoja, evento.range.getRow());
+    var estado = String(evento.value == null ? '' : evento.value).trim();
+    if (!estado) return;
+
+    // Primero se anota el paso, después se actúa. Si lo de abajo falla —la
+    // base, un correo— el recorrido ya quedó escrito igual, que es lo que el
+    // monitor muestra.
+    var fila = evento.range.getRow();
+    anotarPasoDeEstado_(hoja, fila, estado, quienEdito_(evento));
+
+    if (normalizar_(estado) !== normalizar_(NUMERACION.ESTADO_FINAL)) return;
+    cerrarSolicitud_(hoja, fila);
   } catch (err) {
     Logger.log('alEditarRegistro: ' + err.message);
+  }
+}
+
+/** Anota en la bitácora de estados el paso que se acaba de hacer en la hoja. */
+function anotarPasoDeEstado_(hojaRegistro, fila, estado, quien) {
+  try {
+    var numero = String(hojaRegistro.getRange(fila, COL_REGISTRO.indexOf('N° Solicitud') + 1)
+      .getDisplayValue()).trim();
+    if (!numero) return false;
+    return anotarEstado_(numero, estado, quien);
+  } catch (err) {
+    Logger.log('anotarPasoDeEstado_: ' + err.message);
+    return false;
+  }
+}
+
+/**
+ * Quién movió el combo.
+ *
+ * El disparador corre con la cuenta de quien lo instaló, así que preguntar por
+ * la cuenta activa devolvería siempre a esa persona. Google pone a quien editó
+ * en el propio evento, y eso es lo que se usa; si no viene —pasa cuando la
+ * edición es de otro dominio— se cae a la cuenta activa antes que dejarlo en
+ * blanco.
+ */
+function quienEdito_(evento) {
+  try {
+    var quien = evento && evento.user ? String(evento.user.getEmail ?
+      evento.user.getEmail() : evento.user).trim() : '';
+    return quien || usuario_();
+  } catch (err) {
+    return usuario_();
   }
 }
 

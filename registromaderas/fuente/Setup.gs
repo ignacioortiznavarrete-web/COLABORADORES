@@ -3,7 +3,8 @@
  *
  * `instalarRegistro` se ejecuta UNA vez desde el editor de Apps Script:
  * revisa que estén BD_Maderas, PT, PCP y PP con sus columnas donde se esperan,
- * y deja la hoja Registro con sus encabezados. No crea ninguna hoja más.
+ * y deja listas las tres bitácoras: Registro, Registro Detalle y Registro
+ * Estados. No crea ninguna hoja más.
  */
 
 function onOpen() {
@@ -55,6 +56,8 @@ function instalarRegistro() {
     'con el combo de Estado en su columna: ' + ESTADOS.join(', ') + '.');
   asegurarEncabezadosDetalle_(hojaDetalle_());
   hechos.push('La hoja "' + CFG.HOJA_DETALLE + '" quedó lista (una fila por código).');
+  asegurarEncabezadosEstados_(hojaEstados_());
+  hechos.push('La hoja "' + CFG.HOJA_ESTADOS + '" quedó lista (una fila por cambio de estado).');
 
   var resumen = hechos.join('\n· ');
   resumen = '· ' + resumen;
@@ -91,8 +94,10 @@ function instalarDisparador() {
     .create();
 
   avisar_('Activar el cierre al finalizar',
-    'Listo.\n\nDe ahora en adelante, al poner "' + NUMERACION.ESTADO_FINAL + '" en la ' +
-    'columna Estado de "' + CFG.HOJA_REGISTRO + '":\n' +
+    'Listo.\n\nDe ahora en adelante, cada vez que cambies el Estado de una ' +
+    'solicitud en "' + CFG.HOJA_REGISTRO + '" queda anotado en "' + CFG.HOJA_ESTADOS +
+    '" con su fecha y hora, y el monitor lo muestra.\n\n' +
+    'Y al poner "' + NUMERACION.ESTADO_FINAL + '" en esa columna, además:\n' +
     '· los códigos de esa solicitud y sus hojas de ruta se agregan a ' + CFG.HOJA_BD +
     ' (los que ya estén, no)\n' +
     '· se le avisa por correo a quien la pidió\n\n' +

@@ -1,10 +1,11 @@
 /**
- * Lee las dos bitácoras y las junta en una sola cosa mirable.
+ * Lee las tres bitácoras y las junta en una sola cosa mirable.
  *
- * La unión es por `N° Solicitud`: la cabecera sale de `Registro` y sus códigos
- * de `Registro Detalle`. Se hace de una pasada —las dos hojas enteras, una vez
- * cada una— y no una consulta por solicitud: con cuatrocientas solicitudes eso
- * serían cuatrocientas idas al spreadsheet.
+ * La unión es por `N° Solicitud`: la cabecera sale de `Registro`, sus códigos
+ * de `Registro Detalle` y por dónde pasó de `Registro Estados`. Se hace de una
+ * pasada —las tres hojas enteras, una vez cada una— y no una consulta por
+ * solicitud: con cuatrocientas solicitudes eso serían mil doscientas idas al
+ * spreadsheet.
  */
 
 function doGet() {
@@ -68,6 +69,10 @@ function apiSolicitudes() {
     return { ok: false, mensaje: 'No encuentro la hoja ' + faltantes.join(' ni ') + '.' };
   }
 
+  // El recorrido de estados no es obligatorio: una solicitud vieja, anterior a
+  // que se empezara a anotar, no lo tiene, y eso no es razón para no mostrarla.
+  var porEstados = recorridosPorSolicitud_();
+
   // Los códigos de cada solicitud, agrupados por su número.
   var porNumero = {};
   detalle.filas.forEach(function (f) {
@@ -93,6 +98,8 @@ function apiSolicitudes() {
         fechaCreacion: f[COL.FECHA_CREACION] || '',
         observacion: f[COL.OBSERVACION] || '',
         observacionCodificacion: f[COL.OBSERVACION_CODIFICACION] || '',
+        // Por dónde pasó, en orden, con la fecha de cada paso.
+        recorrido: porEstados[numero] || [],
         // Los códigos salen del detalle, que es la fuente fina. La columna SKU
         // se usa solo si el detalle no tiene nada de esa solicitud.
         codigos: suyos.length ? suyos : codigosDelSku_(f[COL.SKU]),
@@ -109,6 +116,33 @@ function apiSolicitudes() {
     solicitudes: solicitudes,
     total: registro.filas.length
   };
+}
+
+/**
+ * El recorrido de cada solicitud: sus cambios de estado, en el orden en que se
+ * anotaron.
+ *
+ * La hoja se lee de una pasada y se agrupa por número, igual que el detalle.
+ * Si todavía no existe —o está vacía— se devuelve un mapa vacío: el monitor
+ * sigue andando y cada solicitud muestra el estado que tiene, sin recorrido.
+ */
+function recorridosPorSolicitud_() {
+  var hoja = leerHoja_(HOJAS.ESTADOS);
+  if (hoja.falta) return {};
+
+  var por = {};
+  hoja.filas.forEach(function (f) {
+    var numero = String(f[COL_ESTADO.NUMERO] || '').trim();
+    var estado = String(f[COL_ESTADO.ESTADO] || '').trim();
+    if (!numero || !estado) return;
+    if (!por[numero]) por[numero] = [];
+    por[numero].push({
+      estado: estado,
+      fecha: String(f[COL_ESTADO.FECHA] || '').trim(),
+      usuario: String(f[COL_ESTADO.USUARIO] || '').trim()
+    });
+  });
+  return por;
 }
 
 /** Respaldo para solicitudes viejas: los códigos que estén en la columna SKU. */

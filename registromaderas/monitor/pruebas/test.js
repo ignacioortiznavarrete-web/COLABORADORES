@@ -66,6 +66,28 @@ escribir('Registro', REG, [
     'Tipo Solicitud': 'PE', 'Estado': '', 'SKU': 'RSFR037X130X3200; RSFR037X130X3600' }
 ]);
 
+const EST = ['N° Solicitud', 'Estado', 'Fecha', 'Usuario'];
+
+// SOL-00001 recién nace. SOL-00002 ya recorrió todo, y volvió atrás una vez:
+// de Creando a Pendiente y de vuelta, que es justo lo que una columna por
+// estado no podría guardar. SOL-00003 es vieja y no tiene recorrido.
+escribir('Registro Estados', EST, [
+  { 'N° Solicitud': 'SOL-00001', 'Estado': 'Solicitando',
+    'Fecha': '24.09.2026 09:12', 'Usuario': 'Barbara' },
+  { 'N° Solicitud': 'SOL-00002', 'Estado': 'Solicitando',
+    'Fecha': '24.09.2026 10:03', 'Usuario': 'Jorge' },
+  { 'N° Solicitud': 'SOL-00002', 'Estado': 'Validando información',
+    'Fecha': '24.09.2026 11:40', 'Usuario': 'Codificacion' },
+  { 'N° Solicitud': 'SOL-00002', 'Estado': 'Creando',
+    'Fecha': '25.09.2026 08:15', 'Usuario': 'Codificacion' },
+  { 'N° Solicitud': 'SOL-00002', 'Estado': 'Pendiente',
+    'Fecha': '25.09.2026 09:00', 'Usuario': 'Codificacion' },
+  { 'N° Solicitud': 'SOL-00002', 'Estado': 'Creando',
+    'Fecha': '25.09.2026 15:22', 'Usuario': 'Codificacion' },
+  { 'N° Solicitud': 'SOL-00002', 'Estado': 'Finalizado',
+    'Fecha': '25.09.2026 17:48', 'Usuario': 'Codificacion' }
+]);
+
 escribir('Registro Detalle', DET, [
   unCodigo('SOL-00001', 'RVMH032X180X3800', { 'Fila Destino': 3, 'Piezas': 248 }),
   unCodigo('SOL-00001', 'RVMH032X180X3850', { 'Fila Destino': 4 }),
@@ -119,6 +141,64 @@ seccion('Las solicitudes, con sus códigos adentro');
   ok(dos.observacionCodificacion === 'Creado en SAP', 'y lo que escribió codificación');
 }
 
+seccion('El recorrido: por dónde pasó cada solicitud, y cuándo');
+{
+  const r = apiSolicitudes();
+  const porNumero = n => r.solicitudes.filter(s => s.numero === n)[0];
+
+  const uno = porNumero('SOL-00001');
+  ok(uno.recorrido.length === 1 && uno.recorrido[0].estado === 'Solicitando',
+    'una recién pedida ya trae su primer paso');
+  ok(uno.recorrido[0].fecha === '24.09.2026 09:12', 'con fecha y hora');
+  ok(uno.recorrido[0].usuario === 'Barbara', 'y con quién la movió');
+
+  // Lo que una columna por estado no podría guardar: pasó dos veces por
+  // Creando, y las dos quedan.
+  const dos = porNumero('SOL-00002');
+  ok(dos.recorrido.map(p => p.estado).join(' > ') ===
+     'Solicitando > Validando información > Creando > Pendiente > Creando > Finalizado',
+    'y una que fue y volvió guarda las dos pasadas, en orden');
+  ok(dos.recorrido[dos.recorrido.length - 1].estado === dos.estado,
+    'el último paso es el estado que muestra la tabla');
+  ok(dos.recorrido[dos.recorrido.length - 1].fecha === '25.09.2026 17:48',
+    'así se sabe desde cuándo está ahí');
+
+  // Una solicitud anterior a que se empezara a anotar no tiene recorrido, y
+  // eso no puede dejarla fuera del monitor.
+  ok(porNumero('SOL-00003').recorrido.length === 0, 'una vieja simplemente no trae ninguno');
+  ok(r.solicitudes.length === 3, 'y se sigue mostrando igual');
+}
+
+// Sin la hoja de estados el monitor tiene que andar lo mismo: no todos los
+// spreadsheets la van a tener el primer día.
+seccion('Sin la hoja de estados, el monitor sigue andando');
+{
+  const guardada = SS.getSheetByName('Registro Estados');
+  SS.deleteSheet(guardada);
+
+  const r = apiSolicitudes();
+  ok(r.ok && r.solicitudes.length === 3, 'responde igual, con sus tres solicitudes');
+  ok(r.solicitudes.every(s => s.recorrido.length === 0), 'solo que ninguna trae recorrido');
+
+  SS.insertSheet('Registro Estados');
+  escribir('Registro Estados', EST, [
+    { 'N° Solicitud': 'SOL-00001', 'Estado': 'Solicitando',
+      'Fecha': '24.09.2026 09:12', 'Usuario': 'Barbara' },
+    { 'N° Solicitud': 'SOL-00002', 'Estado': 'Solicitando',
+      'Fecha': '24.09.2026 10:03', 'Usuario': 'Jorge' },
+    { 'N° Solicitud': 'SOL-00002', 'Estado': 'Validando información',
+      'Fecha': '24.09.2026 11:40', 'Usuario': 'Codificacion' },
+    { 'N° Solicitud': 'SOL-00002', 'Estado': 'Creando',
+      'Fecha': '25.09.2026 08:15', 'Usuario': 'Codificacion' },
+    { 'N° Solicitud': 'SOL-00002', 'Estado': 'Pendiente',
+      'Fecha': '25.09.2026 09:00', 'Usuario': 'Codificacion' },
+    { 'N° Solicitud': 'SOL-00002', 'Estado': 'Creando',
+      'Fecha': '25.09.2026 15:22', 'Usuario': 'Codificacion' },
+    { 'N° Solicitud': 'SOL-00002', 'Estado': 'Finalizado',
+      'Fecha': '25.09.2026 17:48', 'Usuario': 'Codificacion' }
+  ]);
+}
+
 seccion('Una solicitud sin detalle se apaña con su SKU');
 {
   const vieja = apiSolicitudes().solicitudes.filter(s => s.numero === 'SOL-00003')[0];
@@ -134,6 +214,7 @@ seccion('El monitor no escribe nada');
 {
   const filas = SS.getSheetByName('Registro').getLastRow();
   const detalle = SS.getSheetByName('Registro Detalle').getLastRow();
+  const estados = SS.getSheetByName('Registro Estados').getLastRow();
   const antes = apiSolicitudes().solicitudes.map(s => s.numero + ':' + s.estado).join(' ');
 
   apiSolicitudes();
@@ -141,6 +222,8 @@ seccion('El monitor no escribe nada');
 
   ok(SS.getSheetByName('Registro').getLastRow() === filas, 'no agrega ni quita solicitudes');
   ok(SS.getSheetByName('Registro Detalle').getLastRow() === detalle, 'ni toca el detalle');
+  ok(SS.getSheetByName('Registro Estados').getLastRow() === estados,
+    'ni la bitácora de estados: leer no es anotar');
   ok(apiSolicitudes().solicitudes.map(s => s.numero + ':' + s.estado).join(' ') === antes,
     'y los estados quedan como estaban');
 

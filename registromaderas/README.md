@@ -275,15 +275,16 @@ escriben como valor: una fila de batch input no debería depender de fórmulas.
 
 `Descripcion Especial EN/ES` y los rendimientos **no se tocan**.
 
-## Las dos bitácoras
+## Las bitácoras
 
-Guardar deja tres rastros, cada uno con su oficio:
+Guardar deja cuatro rastros, cada uno con su oficio:
 
 | Dónde | Cuántas filas | Para qué |
 |---|---|---|
 | `PT` · `PCP` · `PP` · `PE` | una por código | la fila de batch input que va a SAP |
 | **`Registro`** | **una por solicitud** | la cabecera: quién, cuándo, cuántos códigos |
 | `Registro Detalle` | una por código | qué código es cada uno, y dónde quedó |
+| `Registro Estados` | una por cambio de estado | por dónde pasó, y cuándo |
 
 `Registro` no lleva una fila por código sino **una por solicitud**, y solo
 estas nueve columnas, en este orden:
@@ -322,6 +323,31 @@ una solicitud. Ahí el estado solo se ve y se filtra.
 
 La lista se pone al correr `instalarRegistro`, y cada solicitud nueva nace con
 la suya.
+
+### Cada paso queda con su fecha
+
+`Registro` muestra el estado de **ahora**. Por dónde pasó antes queda en
+**`Registro Estados`**, una fila por cambio:
+
+| Columna | Qué trae |
+|---|---|
+| `N° Solicitud` | a cuál pertenece el paso |
+| `Estado` | a cuál pasó |
+| `Fecha` | cuándo, con hora: `dd.mm.aaaa hh:mm` |
+| `Usuario` | quién lo movió |
+
+La primera fila la escribe el propio formulario al guardar —`Solicitando`
+también es un estado, y sin ella el recorrido empezaría a la mitad—. Las demás
+las escribe el **disparador de edición**: cada vez que alguien mueve el combo
+en la hoja, queda anotado. El monitor lo muestra al desplegar la solicitud.
+
+Va en su propia hoja, y no en columnas de `Registro`, por dos razones. Una, que
+`Registro` tiene las nueve columnas que tiene y en ese orden. La otra, que una
+solicitud puede **volver atrás** —de `Creando` a `Pendiente` y de vuelta— y una
+columna por estado solo guardaría la última vez; así quedan todas, en orden.
+
+Volver a elegir el mismo estado no anota nada: no es un paso, y repetirlo solo
+ensuciaría el recorrido.
 
 Todo lo demás —país, tipo de requerimiento, origen, centro, medidas, rutas—
 está en **`Registro Detalle`**, que tiene una línea por material y sitio donde
@@ -434,8 +460,8 @@ avanzada › Ir a (nombre del proyecto) › Permitir*. La pantalla de "app no
 verificada" es normal en scripts propios.
 
 Revisa que estén `BD_Maderas`, `PT`, `PCP`, `PP` y `PE` con sus columnas donde
-se esperan, y deja `Registro` y `Registro Detalle` con sus encabezados. **No
-crea ninguna hoja más.**
+se esperan, y deja `Registro`, `Registro Detalle` y `Registro Estados` con sus
+encabezados. **No crea ninguna hoja más.**
 
 Después elige **`revisarPermisos`** y **Ejecutar**. Hace el viaje completo de la
 exportación con una fila de mentira y dice dónde se corta, si se corta. Sirve
@@ -562,6 +588,13 @@ que publicarlo como *Ejecutar como: el usuario que accede*, y entonces cada
 persona tiene que autorizar el script y tener permiso de edición sobre el
 spreadsheet.
 
+### El mismo disparador anota cada cambio de estado
+
+Cambiar el `Estado` de una solicitud —a cualquiera de los cinco— deja una fila
+en `Registro Estados` con la fecha, la hora y **quién lo movió**, que sale del
+propio evento y no de la cuenta que instaló el disparador. Se anota primero y
+se actúa después: si lo que viene luego falla, el recorrido ya quedó escrito.
+
 ### Al finalizar, los materiales entran a BD_Maderas
 
 Poner **Finalizado** en la columna `Estado` de `Registro` da de alta en
@@ -570,10 +603,10 @@ nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
 tener un material dos veces—, y cerrar la misma solicitud otra vez no agrega
 nada.
 
-Para que corra hay que activarlo una vez: **Registro Maderas › Activar el
-cierre al finalizar**. Instala un disparador con permisos; el `onEdit` simple
-no sirve, porque corre sin ellos y no podría escribir en la base ni mandar
-correos.
+Para que las dos cosas corran hay que activarlas una vez: **Registro Maderas ›
+Activar el cierre al finalizar**. Instala un disparador con permisos; el
+`onEdit` simple no sirve, porque corre sin ellos y no podría escribir en la
+base, ni en la bitácora de estados, ni mandar correos.
 
 **Quien lo instale es de quien saldrá el correo de finalizado**, así que
 debería instalarlo codificación. Si el correo falla, los materiales entran a la
