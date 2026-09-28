@@ -23,6 +23,23 @@
     --rojo: oklch(0.51 0.17 27);
     --rojo-fondo: oklch(0.965 0.022 25);
 
+    /*
+      Los cinco estados son un ORDEN, no cinco cosas distintas: una solicitud
+      va de Solicitando a Finalizado. Por eso el gráfico usa una sola tinta que
+      se oscurece paso a paso —el avance se ve en el color mismo— y no cinco
+      colores sueltos, que dirían que son cosas sin relación.
+
+      Los pasos están medidos, no elegidos a ojo: luminosidad siempre a la baja,
+      cada salto de al menos 0.06, y el más claro a 2.10:1 contra el papel.
+    */
+    --paso-1: oklch(0.75 0.11 157);
+    --paso-2: oklch(0.66 0.13 157);
+    --paso-3: oklch(0.57 0.135 157);
+    --paso-4: oklch(0.47 0.105 157);
+    --paso-5: oklch(0.36 0.08 157);
+    /** Un estado escrito a mano que no es de los cinco: se muestra, en gris. */
+    --paso-otro: oklch(0.72 0.012 157);
+
     --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
     --sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
     --r: 10px;
@@ -141,6 +158,74 @@
   table.detalle th { background: transparent; border-bottom: 1px solid var(--bosque-200); }
   table.detalle td { padding: 8px 12px; white-space: nowrap; }
   table.detalle tr:first-child td { border-top: 0; }
+
+  /* ------------------------------------------ el panel: tarjetas y gráfico */
+
+  .panel { margin-bottom: 18px; }
+
+  .tarjetas {
+    display: grid; gap: 12px; margin-bottom: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+  .tarjeta {
+    background: var(--papel); border: 1px solid var(--linea); border-radius: var(--r);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .tarjeta .rotulo { font-size: 12.5px; color: var(--tinta-suave); }
+  .tarjeta .valor { font-size: 26px; font-weight: 600; line-height: 1.15; }
+  .tarjeta .nota { font-size: 12px; color: var(--tinta-suave); }
+
+  .caja.grafico { padding: 14px 16px 16px; }
+  .grafico-cabecera {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 14px; flex-wrap: wrap; margin-bottom: 10px;
+  }
+  .grafico-cabecera h2 { margin: 0; font-size: 15px; font-weight: 600; }
+  .grafico-cabecera .sub { margin: 2px 0 0; font-size: 12.5px; color: var(--tinta-suave); }
+
+  .escala { display: inline-flex; border: 1px solid var(--bosque-200); border-radius: 999px; }
+  .escala button {
+    background: none; border: 0; padding: 5px 13px; border-radius: 999px;
+    font: 500 13px var(--sans); color: var(--tinta-suave); cursor: pointer;
+  }
+  .escala button.activa { background: var(--bosque-700); color: #fff; }
+  .escala button:focus-visible { outline: 2px solid var(--bosque-600); outline-offset: 2px; }
+
+  .lienzo { position: relative; overflow-x: auto; }
+  .lienzo svg { display: block; }
+  .sin-datos { padding: 48px 0; text-align: center; color: var(--tinta-suave); margin: 0; }
+
+  .grilla { stroke: var(--linea); stroke-width: 1; }
+  .eje-base { stroke: var(--bosque-200); stroke-width: 1; }
+  .tick, .eje { font: 11px var(--mono); fill: var(--tinta-suave); }
+  .tope { font: 600 11px var(--sans); fill: var(--tinta-suave); }
+  .barra { transition: opacity .12s var(--salida); }
+  .apagada { opacity: .35; }
+  rect.blanco { fill: transparent; cursor: default; }
+  rect.blanco:focus-visible { outline: 2px solid var(--bosque-600); outline-offset: 1px; }
+
+  .leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; }
+  .llave { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px;
+    color: var(--tinta-suave); }
+  .llave i { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+  .caja.grafico .pie {
+    margin: 10px 0 0; font-size: 12.5px; color: var(--tinta-suave); max-width: 72ch;
+  }
+
+  .globo {
+    position: absolute; z-index: 5; pointer-events: none;
+    background: var(--papel); border: 1px solid var(--bosque-200); border-radius: 8px;
+    padding: 9px 11px; min-width: 168px; font-size: 13px;
+    box-shadow: 0 6px 20px oklch(0.24 0.045 158 / 0.14);
+  }
+  .globo-titulo { font-size: 12px; color: var(--tinta-suave); margin-bottom: 2px; }
+  .globo-total { font-weight: 600; margin-bottom: 6px; }
+  .globo-fila { display: grid; grid-template-columns: 11px auto 1fr; gap: 8px;
+    align-items: baseline; line-height: 1.7; }
+  .globo-fila i { width: 11px; height: 11px; border-radius: 3px; }
+  .globo-fila b { font-variant-numeric: tabular-nums; }
+  .globo-fila span { color: var(--tinta-suave); font-size: 12.5px; }
 
   .vacio { padding: 40px 20px; text-align: center; color: var(--tinta-suave); }
   .cargando { padding: 60px 0; text-align: center; color: var(--tinta-suave); }

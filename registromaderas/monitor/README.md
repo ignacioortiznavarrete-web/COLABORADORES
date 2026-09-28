@@ -9,7 +9,23 @@ cambiar una solicitud. Los permisos lo dejan por escrito: `spreadsheets.readonly
 
 ## Qué muestra
 
-Una fila por solicitud, con las nueve columnas de `Registro`:
+Arriba, cuatro números y **un gráfico general por tiempo**: cuántas solicitudes
+entraron en cada período, repartidas por el estado en que están hoy. Se agrupa
+por **día, semana o mes** —se elige sola según cuánto abarque, y se puede
+cambiar— y pasando el cursor por una columna sale el desglose de ese período.
+
+Los cinco estados son un **orden**, no cinco cosas sueltas, así que el color es
+una sola tinta que se va oscureciendo: mirando el gráfico de lejos se ve cuánto
+de cada período ya está cerrado sin leer la leyenda. Los pasos están medidos
+contra el fondo, no elegidos a ojo.
+
+Los cuatro números son: cuántas hay, cuántas en curso, cuántas finalizadas y la
+**mediana de días hasta finalizar**, que sale del recorrido de estados.
+
+El gráfico, los números y la tabla se dibujan sobre **la misma rebanada**: lo
+que dejaron pasar los filtros. Nunca se contradicen.
+
+Abajo, una fila por solicitud, con las nueve columnas de `Registro`:
 
 `N° Solicitud` · `Fecha` · `Usuario` · `Tipo Solicitud` · `Estado` ·
 `Fecha de creación` · `SKU` · `Observación` · `Observación codificación`
@@ -77,7 +93,7 @@ proyecto de entrada — este va en uno **nuevo y separado**:
 1. Ve a [script.google.com](https://script.google.com) › **Proyecto nuevo**.
 2. Ponle nombre: *Monitor de solicitudes*.
 3. **⚙ Configuración del proyecto** › marca **«Mostrar appsscript.json»**.
-4. Crea los cuatro archivos y pega el contenido de `fuente/`:
+4. Crea los cinco archivos y pega el contenido de `fuente/`:
 
 | En Apps Script | Contenido |
 |---|---|
@@ -86,9 +102,14 @@ proyecto de entrada — este va en uno **nuevo y separado**:
 | `Monitor.gs` | `fuente/Monitor.gs` |
 | `Index.html` | `fuente/Index.html` |
 | `Estilos.html` | `fuente/Estilos.html` |
+| `Tiempo.html` | `fuente/Tiempo.html` |
 
-Los nombres `Index` y `Estilos` tienen que quedar tal cual: el código los llama
-por ese nombre.
+Los nombres `Index`, `Estilos` y `Tiempo` tienen que quedar tal cual: el código
+los llama por ese nombre.
+
+`Tiempo.html` son las cuentas del gráfico —en qué columna cae cada fecha, dónde
+empieza la semana, cuántos días tardó una solicitud—. Están aparte del resto
+porque son puras, y así se pueden probar en Node sin abrir un navegador.
 
 5. **Implementar › Nueva implementación › ⚙ › Aplicación web**, *Ejecutar como*
    **Yo** y *Quién tiene acceso* **Cualquier usuario de tu dominio**.
@@ -105,4 +126,10 @@ Usan el mismo simulador de Apps Script que el formulario de entrada
 (`../../pruebas/mock.js`): son proyectos distintos, pero el mismo spreadsheet.
 Cubren la lectura por rótulos, la unión por número de solicitud, el recorrido
 de estados —incluida una solicitud que fue y volvió—, el respaldo por `SKU`
-cuando no hay detalle, y que el monitor no escriba nada.
+cuando no hay detalle, el reparto del gráfico en columnas de tiempo, y que el
+monitor no escriba nada.
+
+Lo que no se puede probar en Node —cómo se ve— se revisa en un navegador de
+verdad: que no haya desborde en pantalla chica, que el globo no tape la columna
+que se está mirando, y el contraste de cada texto medido pintándolo, no leyendo
+el `oklch()` a mano.

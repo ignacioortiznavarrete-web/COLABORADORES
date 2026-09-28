@@ -9,8 +9,19 @@ const { SS } = require('../../pruebas/mock');
 
 const FUENTES = ['Config.gs', 'Monitor.gs']
   .map(f => path.join(__dirname, '..', 'fuente', f));
-console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', '));
+console.log('Probando: ' + FUENTES.map(f => path.basename(f)).join(', ') + ', Tiempo.html');
 FUENTES.forEach(f => vm.runInThisContext(fs.readFileSync(f, 'utf8'), { filename: path.basename(f) }));
+
+/*
+  Las cuentas del gráfico corren en el navegador, pero son puras: entra una
+  lista, sale otra. Se sacaron a Tiempo.html justamente para poder correrlas
+  acá, donde se puede revisar el cambio de mes o una semana sin solicitudes sin
+  tener que abrir un navegador.
+*/
+const TIEMPO = path.join(__dirname, '..', 'fuente', 'Tiempo.html');
+vm.runInThisContext(
+  fs.readFileSync(TIEMPO, 'utf8').replace(/^[\s\S]*?<script>/, '').replace(/<\/script>[\s\S]*$/, ''),
+  { filename: 'Tiempo.html' });
 
 let fallos = 0;
 function ok(cond, msg) {
@@ -208,6 +219,122 @@ seccion('Una solicitud sin detalle se apaña con su SKU');
     'partiendo la columna SKU por sus separadores');
 }
 
+// El gráfico reparte las solicitudes en columnas de tiempo. Lo que se prueba
+// acá es el reparto: las fechas son donde se esconden los errores.
+seccion('Las fechas del gráfico');
+{
+  ok(aFecha('24.09.2026').getFullYear() === 2026, 'lee dd.mm.aaaa');
+  ok(aFecha('24.09.2026').getMonth() === 8 && aFecha('24.09.2026').getDate() === 24,
+    'con el día y el mes en su lugar, no al revés');
+  const conHora = aFecha('25.09.2026 17:48');
+  ok(conHora.getHours() === 17 && conHora.getMinutes() === 48, 'y la hora cuando viene');
+  ok(aFecha('') === null && aFecha('cualquier cosa') === null && aFecha(null) === null,
+    'lo que no tiene esa forma da null, no una fecha inventada');
+
+  // El 24.09.2026 es jueves: su semana empieza el lunes 21.
+  ok(inicioDe(aFecha('24.09.2026'), 'semana').getDate() === 21,
+    'la semana empieza el lunes, no el domingo');
+  ok(inicioDe(aFecha('21.09.2026'), 'semana').getDate() === 21,
+    'y un lunes es el comienzo de la suya');
+  // El 27.09.2026 es domingo: cierra la semana del 21, no abre una nueva.
+  ok(inicioDe(aFecha('27.09.2026'), 'semana').getDate() === 21,
+    'el domingo cierra su semana, no abre otra');
+  ok(inicioDe(aFecha('24.09.2026'), 'mes').getDate() === 1, 'el mes empieza el 1');
+  ok(inicioDe(aFecha('24.09.2026'), 'dia').getHours() === 0,
+    'y el día se queda sin hora, para que dos horas del mismo día caigan juntas');
+
+  // Cruzar el fin de mes no puede partir la semana en dos.
+  const finDeMes = inicioDe(aFecha('01.10.2026'), 'semana');   // jueves
+  ok(finDeMes.getMonth() === 8 && finDeMes.getDate() === 28,
+    'una semana a caballo entre dos meses empieza en el mes anterior');
+}
+
+seccion('Las columnas del gráfico');
+{
+  const solicitud = (fecha, estado) => ({ fecha: fecha, estado: estado || 'Solicitando' });
+
+  const r = porPeriodo([
+    solicitud('21.09.2026'), solicitud('21.09.2026', 'Creando'), solicitud('23.09.2026')
+  ], 'dia');
+  ok(r.columnas.length === 3, 'del primer día al último, sin saltarse ninguno');
+  ok(r.columnas[1].solicitudes.length === 0,
+    'un día sin solicitudes sale igual, vacío: es un hueco, no una columna que no existió');
+  ok(r.columnas[0].solicitudes.length === 2 && r.columnas[2].solicitudes.length === 1,
+    'y cada una cae en la suya');
+
+  const semana = porPeriodo([solicitud('21.09.2026'), solicitud('27.09.2026')], 'semana');
+  ok(semana.columnas.length === 1, 'lunes y domingo de la misma semana van en una columna');
+
+  const mes = porPeriodo([solicitud('01.08.2026'), solicitud('30.09.2026')], 'mes');
+  ok(mes.columnas.length === 2, 'agosto y septiembre son dos columnas');
+
+  // Una solicitud sin fecha no se inventa un lugar en el tiempo.
+  const sinFecha = porPeriodo([solicitud('21.09.2026'), solicitud('')], 'dia');
+  ok(sinFecha.sinFecha === 1 && sinFecha.columnas.length === 1,
+    'la que no tiene fecha queda fuera, y se dice cuántas son');
+  ok(porPeriodo([], 'dia').columnas.length === 0, 'sin nada, no hay columnas');
+
+  // Demasiados días no caben: se muestran los últimos y se dice cuántos faltan.
+  const muchas = [];
+  for (let d = 1; d <= 200; d++) {
+    const f = new Date(2026, 0, d);
+    muchas.push(solicitud(('0' + f.getDate()).slice(-2) + '.' +
+      ('0' + (f.getMonth() + 1)).slice(-2) + '.' + f.getFullYear()));
+  }
+  const cortada = porPeriodo(muchas, 'dia');
+  ok(cortada.columnas.length === TOPE_COLUMNAS && cortada.recortadas === 200 - TOPE_COLUMNAS,
+    'con más columnas de las que caben se muestran las últimas, y se dice cuántas quedaron');
+  ok(cortada.columnas[cortada.columnas.length - 1].solicitudes.length === 1,
+    'las últimas, no las primeras: lo reciente es lo que se mira');
+
+  // La escala se sugiere sola según cuánto abarca.
+  ok(escalaSugerida([solicitud('21.09.2026'), solicitud('30.09.2026')]) === 'dia',
+    'diez días se ven por día');
+  ok(escalaSugerida([solicitud('01.01.2026'), solicitud('30.09.2026')]) === 'semana',
+    'nueve meses, por semana');
+  ok(escalaSugerida([solicitud('01.01.2023'), solicitud('30.09.2026')]) === 'mes',
+    'y casi cuatro años, por mes');
+}
+
+seccion('El eje y la demora');
+{
+  ok(escalaY(3).tope === 3 && escalaY(3).paso === 1, 'tres llega justo a 3, de uno en uno');
+  ok(escalaY(6).tope === 6 && escalaY(6).paso === 2, 'seis, de dos en dos');
+  ok(escalaY(23).tope === 30 && escalaY(23).paso === 10, 'veintitrés sube a 30, de diez en diez');
+  ok(escalaY(230).tope === 300 && escalaY(230).paso === 100, 'y doscientos treinta, a 300');
+  ok(escalaY(0).tope === 1, 'sin datos el eje no se queda en cero');
+
+  // Entre dos y cinco líneas: menos no dice nada y más es una reja.
+  ok([1, 2, 3, 4, 5, 7, 12, 40, 90, 500].every(function (n) {
+    var e = escalaY(n);
+    var lineas = e.tope / e.paso + 1;
+    return e.tope >= n && lineas >= 2 && lineas <= 5;
+  }), 'el tope siempre alcanza al máximo, y la grilla nunca pasa de cinco líneas');
+
+  const paso = (estado, fecha) => ({ estado: estado, fecha: fecha, usuario: 'x' });
+  ok(diasHastaFinalizar({ recorrido: [
+    paso('Solicitando', '21.09.2026 09:00'),
+    paso('Creando', '22.09.2026 09:00'),
+    paso('Finalizado', '24.09.2026 09:00')
+  ] }) === 3, 'del primer paso a Finalizado son tres días');
+
+  ok(diasHastaFinalizar({ recorrido: [paso('Solicitando', '21.09.2026 09:00')] }) === null,
+    'una que no ha terminado no tiene demora, no tiene cero');
+  ok(diasHastaFinalizar({ recorrido: [] }) === null, 'y una sin recorrido tampoco');
+
+  // Si fue y volvió, cuenta la última vez que se finalizó.
+  ok(diasHastaFinalizar({ recorrido: [
+    paso('Solicitando', '21.09.2026 09:00'),
+    paso('Finalizado', '22.09.2026 09:00'),
+    paso('Pendiente', '23.09.2026 09:00'),
+    paso('Finalizado', '25.09.2026 09:00')
+  ] }) === 4, 'y si se reabrió, vale la última vez que se cerró');
+
+  ok(mediana([1, 2, 3]) === 2, 'la mediana de tres');
+  ok(mediana([1, 2, 3, 4]) === 2.5, 'y de cuatro, el promedio de las dos del medio');
+  ok(mediana([]) === null, 'sin números no hay mediana');
+}
+
 // Nadie edita nada desde el monitor, ni el estado: se reparte a quien deba
 // mirar, y ninguno de ellos deberia poder cambiar una solicitud.
 seccion('El monitor no escribe nada');
@@ -242,6 +369,24 @@ seccion('El monitor no escribe nada');
   const index = fs.readFileSync(path.join(__dirname, '..', 'fuente', 'Index.html'), 'utf8');
   ok(index.indexOf('<select class="estado') === -1 && index.indexOf('pastilla') !== -1,
     'la pantalla muestra el estado, no lo ofrece para cambiar');
+
+  // El gráfico se dibuja sobre lo que dejaron pasar los filtros, igual que la
+  // tabla: si mostrara otra cosa, los números de arriba y los de abajo se
+  // contradirían.
+  ok(/dibujarGrafico\(lista\)/.test(index) && /dibujarTarjetas\(lista\)/.test(index),
+    'el gráfico y las tarjetas se dibujan sobre la misma lista que la tabla');
+
+  // Los cinco estados son un orden, no cinco cosas sueltas: una sola tinta que
+  // se oscurece. Los pasos están medidos contra el fondo, no elegidos a ojo.
+  const estilos = fs.readFileSync(path.join(__dirname, '..', 'fuente', 'Estilos.html'), 'utf8');
+  const pasos = (estilos.match(/--paso-\d: oklch\(([\d.]+) ([\d.]+) (\d+)\)/g) || [])
+    .map(t => t.match(/oklch\(([\d.]+) ([\d.]+) (\d+)\)/).slice(1).map(Number));
+  ok(pasos.length === 5, 'hay un paso por estado');
+  ok(pasos.every((p, i) => i === 0 || p[0] < pasos[i - 1][0]),
+    'y van siempre de más claro a más oscuro, como el avance');
+  ok(pasos.every((p, i) => i === 0 || pasos[i - 1][0] - p[0] >= 0.06),
+    'con un salto que se note entre uno y el siguiente');
+  ok(pasos.every(p => p[2] === pasos[0][2]), 'todos del mismo tono: es una rampa, no cinco colores');
 }
 
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));

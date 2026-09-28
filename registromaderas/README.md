@@ -390,9 +390,10 @@ La dirección está en `MONITOR.URL` (`Config.gs`); si el monitor se vuelve a
 publicar, hay que cambiarla ahí.
 
 El **monitor** es un Apps Script aparte, en `monitor/`, que muestra `Registro`
-con sus códigos desplegables. **Solo lee**: el estado lo mueve codificación en
-la hoja, no se toca desde la pantalla. Tiene su propio README con cómo se
-instala y se publica.
+con sus códigos desplegables, el recorrido de estados de cada solicitud y un
+gráfico general por tiempo: cuántas entraron en cada período y en qué estado
+están hoy. **Solo lee**: el estado lo mueve codificación en la hoja, no se toca
+desde la pantalla. Tiene su propio README con cómo se instala y se publica.
 
 ## Cómo se instala
 
