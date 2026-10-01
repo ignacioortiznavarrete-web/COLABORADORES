@@ -132,10 +132,38 @@ function aliasDisponibles_() {
   }
 }
 
+/** La cuenta que corre esto YA es la dirección desde la que debe salir. */
+function yaEsLaCuenta_() {
+  if (!REMITENTE_ALIAS) return false;
+  return normalizar_(cuenta_()) === normalizar_(REMITENTE_ALIAS);
+}
+
+/**
+ * Si hace falta el alias, y si está.
+ *
+ * Cuando el disparador lo instala la propia casilla de codificación no hay
+ * nada que resolver: el correo ya sale de ahí. El alias es para el otro caso,
+ * el de alguien que manda EN NOMBRE de esa dirección.
+ */
 function puedeUsarElAlias_() {
   if (!REMITENTE_ALIAS) return false;
+  if (yaEsLaCuenta_()) return false;
   var buscado = normalizar_(REMITENTE_ALIAS);
   return aliasDisponibles_().some(function (a) { return normalizar_(a) === buscado; });
+}
+
+/** De qué dirección va a salir el correo, dicho en una línea. */
+function deDondeSale_() {
+  if (yaEsLaCuenta_()) {
+    return 'Sale de: ' + cuenta_() + '  ← es la casilla de codificación, no hace falta alias';
+  }
+  if (puedeUsarElAlias_()) {
+    return 'Sale de: ' + REMITENTE_ALIAS + '  ← por el alias de ' + cuenta_();
+  }
+  if (!REMITENTE_ALIAS) {
+    return 'Sale de: ' + cuenta_() + ' (REMITENTE_ALIAS está vacío en Config.gs)';
+  }
+  return 'Sale de: ' + cuenta_() + ', NO de ' + REMITENTE_ALIAS;
 }
 
 /**
@@ -156,6 +184,10 @@ function enviar_(para, asunto, cuerpo) {
       return { ok: true, alias: true, mensaje: 'Enviado a ' + para + ' desde ' + REMITENTE_ALIAS + '.' };
     }
     MailApp.sendEmail(para, asunto, cuerpo, { name: REMITENTE });
+    if (yaEsLaCuenta_()) {
+      // El mejor caso: lo instaló la propia casilla de codificación.
+      return { ok: true, alias: false, mensaje: 'Enviado a ' + para + ' desde ' + cuenta_() + '.' };
+    }
     return {
       ok: true, alias: false,
       mensaje: 'Enviado a ' + para + ', pero desde ' + (cuenta_() || 'la cuenta que corre esto') +
@@ -354,9 +386,10 @@ function diagnostico() {
   // 6. De qué dirección sale.
   lineas.push('');
   anotar(true, 'Corre con: ' + (cuenta_() || '(Google no entrega la cuenta)'));
-  if (REMITENTE_ALIAS && !puedeUsarElAlias_()) {
-    lineas.push('  (sale de esa cuenta, no de ' + REMITENTE_ALIAS +
-      ': falta agregarla en Gmail › Enviar como)');
+  lineas.push('  ' + deDondeSale_());
+  if (REMITENTE_ALIAS && !yaEsLaCuenta_() && !puedeUsarElAlias_()) {
+    lineas.push('  Para que salga de codificación: agrégala en Gmail › Configuración ›');
+    lineas.push('  Cuentas › "Enviar como", o que instale esto la propia casilla.');
   }
 
   // 7. Y la prueba de verdad: se simula la edición, igual que la haría Google.
@@ -402,13 +435,9 @@ function probarCorreo() {
 
   // Lo primero que hay que saber: si el correo va a verse salido de
   // codificación o de la cuenta de quien instaló esto.
-  var alias = aliasDisponibles_();
-  if (!REMITENTE_ALIAS) {
-    pasos.push('Sale de: esa misma cuenta (REMITENTE_ALIAS está vacío en Config.gs)');
-  } else if (puedeUsarElAlias_()) {
-    pasos.push('Sale de: ' + REMITENTE_ALIAS + '  ← el alias está puesto');
-  } else {
-    pasos.push('Sale de: esa misma cuenta, NO de ' + REMITENTE_ALIAS);
+  pasos.push(deDondeSale_());
+  if (REMITENTE_ALIAS && !yaEsLaCuenta_() && !puedeUsarElAlias_()) {
+    var alias = aliasDisponibles_();
     pasos.push('  Alias que tiene: ' + (alias.length ? alias.join(', ') : 'ninguno'));
     pasos.push('  Para que salga de codificación, agrega esa dirección en');
     pasos.push('  Gmail › Configuración › Cuentas › "Enviar como" › Añadir otra');

@@ -236,7 +236,23 @@ global.SpreadsheetApp = {
   create: nombre => new Temporal(nombre),
   __temporales: () => Object.keys(TEMPORALES).map(k => TEMPORALES[k]),
   flush: () => {},
-  getUi: () => { throw new Error('sin UI en pruebas'); }
+  /*
+    Sin UI, como en un disparador o el editor. __RESPUESTA simula a alguien
+    contestando el cuadro de confirmación: sin ella, getUi revienta y el
+    código tiene que aguantarlo, que es lo que pasa de verdad.
+  */
+  getUi: () => {
+    if (global.__RESPUESTA === undefined) throw new Error('sin UI en pruebas');
+    return {
+      ButtonSet: { OK: 'OK', YES_NO: 'YES_NO' },
+      Button: { YES: 'YES', NO: 'NO', OK: 'OK' },
+      alert: (titulo, mensaje) => {
+        global.__AVISOS = global.__AVISOS || [];
+        global.__AVISOS.push({ titulo, mensaje });
+        return global.__RESPUESTA;
+      }
+    };
+  }
 };
 global.CacheService = {
   getScriptCache: () => ({

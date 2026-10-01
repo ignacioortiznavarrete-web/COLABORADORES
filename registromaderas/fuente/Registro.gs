@@ -695,6 +695,53 @@ function revisarEncabezados_(hoja, columnas) {
   return problemas;
 }
 
+/**
+ * Clasifica las filas de `Registro Detalle` según con cuántas columnas se
+ * escribieron.
+ *
+ * `Correo` se agregó en la cuarta posición cuando la hoja ya tenía datos. Las
+ * filas guardadas DESPUÉS traen 26 valores y están en su sitio; las de ANTES
+ * traen 25 y, de la cuarta en adelante, están corridas una columna a la
+ * izquierda respecto de donde el código las busca hoy.
+ *
+ * Se distinguen por la última columna: una fila nueva tiene algo en la 26
+ * —`Fila Destino`—; una vieja la tiene vacía y la 25 llena.
+ *
+ * @return {{nuevas: number[], viejas: number[], raras: number[]}} números de fila.
+ */
+function clasificarFilasDetalle_(hoja) {
+  var salida = { nuevas: [], viejas: [], raras: [] };
+  var ultima = hoja.getLastRow();
+  if (ultima < 2) return salida;
+
+  var ancho = COL_DETALLE.length;
+  var datos = hoja.getRange(2, 1, ultima - 1, ancho).getDisplayValues();
+  datos.forEach(function (fila, i) {
+    var n = i + 2;
+    var hay = function (c) { return String(fila[c - 1] == null ? '' : fila[c - 1]).trim() !== ''; };
+    if (!fila.some(function (v) { return String(v).trim() !== ''; })) return;  // vacía
+    if (hay(ancho)) salida.nuevas.push(n);
+    else if (hay(ancho - 1)) salida.viejas.push(n);
+    else salida.raras.push(n);
+  });
+  return salida;
+}
+
+/**
+ * Corre una fila vieja un lugar a la derecha, de la cuarta columna en adelante.
+ *
+ * Deja `Correo` en blanco: esa solicitud se guardó antes de que la columna
+ * existiera, así que ese dato no se escribió nunca y no hay de dónde sacarlo.
+ */
+function correrFilaDetalle_(hoja, fila) {
+  var ancho = COL_DETALLE.length;
+  var valores = hoja.getRange(fila, 1, 1, ancho).getValues()[0];
+  var corrida = valores.slice(0, 3)          // N° Solicitud, Fecha, Solicitante
+    .concat([''])                            // Correo, que no existía
+    .concat(valores.slice(3, ancho - 1));    // lo demás, un lugar más allá
+  hoja.getRange(fila, 1, 1, ancho).setValues([corrida]);
+}
+
 function encabezados_(hoja, columnas) {
   var ultima = hoja.getLastRow();
   if (ultima > 1) return;  // ya tiene datos: no se toca

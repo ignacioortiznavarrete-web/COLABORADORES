@@ -349,6 +349,32 @@ estas nueve columnas, en este orden:
 Las dos columnas en blanco nacen vacías a propósito: son de codificación, y el
 formulario no tiene nada que poner ahí todavía.
 
+### Si los rótulos del detalle se corrieron
+
+`Correo` se agregó al detalle en la **cuarta** posición cuando la hoja ya tenía
+datos. Los rótulos no se reescriben sobre una hoja con datos —así no se pisa lo
+de nadie—, así que desde entonces el código escribe **26 valores contra 25
+rótulos**: del cuarto en adelante, cada dato queda bajo el rótulo del que le
+sigue.
+
+Eso no da error. Lo que hace es que quien lee **por rótulo** se lleve el dato
+equivocado, o ninguno — y por eso el aviso de finalizado no encontraba a quién
+escribirle y se iba sin mandar nada.
+
+**Registro Maderas › Reparar Registro Detalle** lo arregla, en este orden:
+
+1. Las filas guardadas **antes** —25 valores— se corren un lugar a la derecha
+   desde la cuarta columna, con su `Correo` en blanco: ese dato nunca se
+   guardó.
+2. Recién entonces se escriben los 26 rótulos.
+
+Al revés no sirve: escribir los rótulos primero dejaría mal etiquetadas las
+filas viejas. Las dos clases se distinguen por la última columna — una fila
+nueva tiene algo en `Fila Destino`, una vieja la tiene vacía.
+
+Antes de tocar nada muestra qué va a hacer y **pregunta**. Desde el editor, sin
+interfaz, no toca nada: hay que correrlo desde el menú.
+
 ### El estado se elige de una lista
 
 La columna `Estado` lleva una **lista desplegable en la propia hoja**, con los

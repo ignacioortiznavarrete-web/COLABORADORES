@@ -1191,6 +1191,91 @@ seccion('instalarRegistro deja la bitácora lista');
   ok(!SS.getSheetByName('SAP'), 'y no inventa ninguna hoja de catálogo');
 }
 
+// El caso real: la columna Correo se agregó cuando la hoja ya tenía datos, y
+// los rótulos no se reescriben sobre una hoja con datos. Desde entonces el
+// código escribe 26 valores contra 25 rótulos y, del cuarto en adelante, cada
+// dato queda bajo el rótulo del que le sigue. El aviso de finalizado no
+// encontraba a quién escribirle y se iba sin mandar nada.
+seccion('Reparar el detalle corrido');
+{
+  const ROTULOS_VIEJOS = COL_DETALLE.filter(c => c !== 'Correo');
+  const hoja = SS.insertSheet('Detalle Corrido');
+
+  // Así está la hoja de verdad: 25 rótulos viejos.
+  hoja.getRange(1, 1, 1, ROTULOS_VIEJOS.length).setValues([ROTULOS_VIEJOS]);
+
+  // Una fila VIEJA: 25 valores, sin correo, escrita contra los rótulos viejos.
+  const vieja = ROTULOS_VIEJOS.map(c => 'v:' + c);
+  hoja.getRange(2, 1, 1, vieja.length).setValues([vieja]);
+
+  // Una fila NUEVA: 26 valores, con correo, escrita en el orden de hoy.
+  const nueva = COL_DETALLE.map(c => (c === 'Correo' ? 'ana@masisa.com' : 'n:' + c));
+  hoja.getRange(3, 1, 1, nueva.length).setValues([nueva]);
+
+  const clases = clasificarFilasDetalle_(hoja);
+  ok(clases.viejas.join() === '2', 'reconoce la fila vieja por su última columna vacía');
+  ok(clases.nuevas.join() === '3', 'y la nueva por tenerla llena');
+  ok(clases.raras.length === 0, 'sin dudas en el medio');
+
+  // Correrla deja cada dato bajo su rótulo, y el Correo en blanco.
+  correrFilaDetalle_(hoja, 2);
+  const corrida = hoja.getRange(2, 1, 1, COL_DETALLE.length).getDisplayValues()[0];
+  ok(corrida[COL_DETALLE.indexOf('Correo')] === '',
+    'la vieja queda sin correo: ese dato nunca se guardó');
+  ok(corrida[COL_DETALLE.indexOf('Código')] === 'v:Código',
+    'y su código queda bajo el rótulo Código, no bajo el de al lado');
+  ok(corrida[COL_DETALLE.indexOf('Fila Destino')] === 'v:Fila Destino',
+    'hasta la última');
+  ok(corrida[0] === 'v:N° Solicitud' && corrida[2] === 'v:Solicitante',
+    'y las tres primeras no se mueven, que ya estaban bien');
+
+  // La nueva no se toca.
+  const intacta = hoja.getRange(3, 1, 1, COL_DETALLE.length).getDisplayValues()[0];
+  ok(intacta[COL_DETALLE.indexOf('Correo')] === 'ana@masisa.com',
+    'la fila nueva queda intacta');
+  ok(intacta[COL_DETALLE.indexOf('Código')] === 'n:Código', 'con su código en su sitio');
+
+  // Y los rótulos, una vez corridas las filas.
+  ok(revisarEncabezados_(hoja, COL_DETALLE).length > 0, 'antes de arreglarlos, se nota');
+  hoja.getRange(1, 1, 1, COL_DETALLE.length).setValues([COL_DETALLE]);
+  ok(revisarEncabezados_(hoja, COL_DETALLE).length === 0, 'y después quedan en su sitio');
+}
+
+seccion('Reparar pide permiso antes de tocar nada');
+{
+  const ROTULOS_VIEJOS = COL_DETALLE.filter(c => c !== 'Correo');
+  const detalle = SS.getSheetByName(CFG.HOJA_DETALLE);
+  const antes = detalle.getRange(1, 1, 1, COL_DETALLE.length).getDisplayValues()[0].join('|');
+
+  // Se le ponen los rótulos viejos para simular la hoja del usuario.
+  detalle.getRange(1, 1, 1, COL_DETALLE.length).setValues([ROTULOS_VIEJOS.concat([''])]);
+
+  // Sin interfaz —desde el editor— no toca nada.
+  const sinUi = repararDetalle();
+  ok(sinUi === 'sin interfaz', 'sin interfaz no repara: ' + sinUi);
+  ok(detalle.getRange(1, 4).getDisplayValue() === 'Clase Requerimiento',
+    'y la hoja queda como estaba');
+
+  // Diciendo que no, tampoco.
+  global.__RESPUESTA = 'NO';
+  ok(repararDetalle() === 'cancelado', 'diciendo que no, se cancela');
+  ok(detalle.getRange(1, 4).getDisplayValue() === 'Clase Requerimiento',
+    'y la hoja sigue igual');
+
+  // Diciendo que sí, repara y lo cuenta.
+  global.__RESPUESTA = 'YES';
+  global.__AVISOS = [];
+  const hecho = repararDetalle();
+  ok(detalle.getRange(1, 4).getDisplayValue() === 'Correo',
+    'diciendo que sí, el rótulo Correo queda en la columna 4');
+  ok(revisarEncabezados_(detalle, COL_DETALLE).length === 0, 'y todos los demás también');
+  ok(hecho.indexOf('rótulos escritos') !== -1, 'y dice qué hizo');
+
+  // Correrlo de nuevo no vuelve a correr nada.
+  ok(repararDetalle() === 'nada que hacer', 'con todo en su sitio, no hace nada');
+  delete global.__RESPUESTA;
+}
+
 // Tres cosas tienen que caer en la misma altura para que se vea qué línea es
 // cuál: el texto, la raya de fondo y el número de la regla. Dos de ellas se
 // miden en el CSS y la tercera en el javascript, así que si alguien cambia una

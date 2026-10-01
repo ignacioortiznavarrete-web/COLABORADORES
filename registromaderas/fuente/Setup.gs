@@ -18,6 +18,7 @@ function onOpen() {
       .addItem('Activar el cierre al finalizar', 'instalarDisparador')
       .addItem('Revisar permisos', 'revisarPermisos')
       .addItem('Probar correo', 'probarCorreo')
+      .addItem('Reparar Registro Detalle', 'repararDetalle')
       .addToUi();
   } catch (err) {
     // Sin interfaz (trigger o editor): no hay menú que crear.
@@ -127,6 +128,86 @@ function instalarDisparador() {
     'instalar el disparador. Si debe salir de codificación, que lo instale ' +
     'codificación desde su cuenta.' +
     (repetidos ? '\n\nSe quitó ' + repetidos + ' disparador repetido.' : ''));
+}
+
+/**
+ * Pone los rótulos de `Registro Detalle` donde corresponden.
+ *
+ * La columna `Correo` se agregó en la cuarta posición cuando la hoja ya tenía
+ * datos, y los rótulos no se reescriben sobre una hoja con datos —así no se
+ * pisa lo de nadie—. Desde entonces el código escribe 26 valores contra 25
+ * rótulos: del cuarto en adelante, cada dato queda bajo el rótulo del que le
+ * sigue. Quien lee por rótulo se lleva el dato equivocado, o ninguno.
+ *
+ * Esto lo arregla en dos pasos, y no al revés:
+ *
+ *   1. Las filas viejas —las guardadas ANTES, con 25 valores— se corren un
+ *      lugar a la derecha desde la cuarta, que es donde les falta el hueco.
+ *   2. Recién entonces se escriben los 26 rótulos.
+ *
+ * Si se hiciera solo el paso 2, las filas viejas quedarían mal etiquetadas. Y
+ * como esto reescribe datos, antes muestra qué va a hacer y pregunta. Sin
+ * interfaz —desde el editor— no toca nada: hay que correrlo desde el menú.
+ */
+function repararDetalle() {
+  var hoja = hojaDetalle_();
+  var malos = revisarEncabezados_(hoja, COL_DETALLE);
+
+  if (!malos.length && hoja.getLastColumn() >= COL_DETALLE.length) {
+    avisar_('Reparar Registro Detalle', 'Los rótulos ya están en su sitio. No hay nada que hacer.');
+    return 'nada que hacer';
+  }
+
+  var filas = clasificarFilasDetalle_(hoja);
+  var plan = [
+    'La hoja "' + CFG.HOJA_DETALLE + '" tiene los rótulos corridos:',
+    '',
+    '· ' + malos.slice(0, 4).join('\n· ') +
+      (malos.length > 4 ? '\n· …y ' + (malos.length - 4) + ' más' : ''),
+    '',
+    'Filas guardadas con la columna Correo (están bien): ' + filas.nuevas.length,
+    'Filas guardadas ANTES de que existiera (hay que correrlas): ' + filas.viejas.length,
+    filas.raras.length ? 'Filas que no sé clasificar (no se tocan): ' + filas.raras.length : '',
+    '',
+    'Voy a correr las ' + filas.viejas.length + ' viejas un lugar a la derecha desde la',
+    'columna 4, dejando su Correo en blanco —ese dato nunca se guardó— y después',
+    'a escribir los ' + COL_DETALLE.length + ' rótulos.',
+    '',
+    '¿Lo hago?'
+  ].filter(function (l) { return l !== ''; }).join('\n');
+
+  var ui;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (err) {
+    Logger.log(plan + '\n\nSin interfaz no se toca nada. Córrelo desde el menú ' +
+      '"Registro Maderas › Reparar Registro Detalle".');
+    return 'sin interfaz';
+  }
+
+  if (ui.alert('Reparar Registro Detalle', plan, ui.ButtonSet.YES_NO) !== ui.Button.YES) {
+    return 'cancelado';
+  }
+
+  filas.viejas.forEach(function (n) { correrFilaDetalle_(hoja, n); });
+
+  // Los rótulos van al final, cuando todas las filas ya están alineadas.
+  hoja.getRange(1, 1, 1, COL_DETALLE.length)
+    .setValues([COL_DETALLE])
+    .setFontWeight('bold')
+    .setBackground('#14352a')
+    .setFontColor('#ffffff');
+  asegurarMedidasComoTexto_(hoja);
+  SpreadsheetApp.flush();
+
+  var hecho = 'Listo.\n\n· ' + filas.viejas.length + ' filas corridas a su lugar\n' +
+    '· ' + COL_DETALLE.length + ' rótulos escritos\n\n' +
+    'El aviso de finalizado ya tiene de dónde sacar a quién escribirle. Las ' +
+    filas.viejas.length + ' solicitudes viejas quedan sin correo: para esas no se ' +
+    'guardó nunca, y hay que escribirlo a mano en la columna Correo si se quiere ' +
+    'que les llegue.';
+  avisar_('Reparar Registro Detalle', hecho);
+  return hecho;
 }
 
 function mostrarEnlace() {
