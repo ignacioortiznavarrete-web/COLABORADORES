@@ -444,19 +444,44 @@ carpeta:
 Borra el `Código.gs` que viene por defecto con su `function myFunction() {}`.
 Guarda con `Ctrl+S`.
 
-**Cada archivo se pega UNA vez, reemplazando lo que haya.** Todos los archivos
-de un proyecto de Apps Script comparten un solo espacio de nombres, así que si
-el mismo contenido queda en dos archivos —o pegado dos veces en el mismo— el
-proyecto no carga y sale:
+**Cada archivo se pega UNA vez, reemplazando lo que haya.** Selecciona todo
+con `Ctrl+A` antes de pegar: si el contenido nuevo queda debajo del viejo, o el
+mismo contenido queda en dos archivos, el proyecto entero deja de cargar con
 
 ```
 SyntaxError: Identifier 'CFG' has already been declared
 ```
 
-Y entonces no anda nada: ni el formulario, ni el menú. Para encontrarlo, en el
-editor: **Ctrl+Shift+F** (buscar en todos los archivos) y busca `const CFG`.
-Tiene que aparecer **una sola vez**, en `Config.gs`. Lo mismo vale para
-cualquier otro nombre del error.
+y no anda nada: ni el formulario, ni el menú.
+
+### Cómo revisar que quedó bien
+
+Todos los archivos de un proyecto de Apps Script comparten **un solo espacio de
+nombres**, así que el proyecto tiene que tener **exactamente estos archivos, ni
+uno más**. Haz clic en cada uno y mira su **primera línea**: tiene que ser esta.
+
+| Archivo | Su primera línea |
+|---|---|
+| `appsscript.json` | `{` |
+| `Config` | `/**` |
+| `Registro` | `/**` |
+| `Lote` | `/**` |
+| `Avisos` | `/**` |
+| `Exportar` | `/**` |
+| `Setup` | `/**` |
+| `WebApp` | `/**` |
+| `Estilos.html` | `<link rel="preconnect" href="https://fonts.googleapi…` |
+| `Masivo.html` | `<!--` |
+| `Descarga.html` | `<!--` |
+
+Si en la lista de archivos hay **cualquier otra cosa** —un `Código`, un
+`Config.gs` además del `Config`, un `Sin título`— bórrala: ahí está el
+duplicado.
+
+El mensaje de error dice en qué archivo está el choque y en qué línea. Si dice
+*línea 1, archivo "Config"* pero el `Config` de esta carpeta empieza con `/**`,
+entonces ese archivo del proyecto **no es** el de acá: tiene pegada otra
+versión, o una parte.
 
 Los nombres `Estilos`, `Masivo` y `Descarga` tienen que quedar tal cual: el
 código los llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
