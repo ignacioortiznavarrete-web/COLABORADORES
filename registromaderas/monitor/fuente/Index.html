@@ -4,10 +4,11 @@
   Cada solicitud llega con sus códigos adentro, así que "ver más" despliega lo
   que ya está en la página y no vuelve a preguntarle nada al servidor.
 
-  Arriba, el gráfico: cuántas entraron en cada período y en qué estado están
-  hoy. Se dibuja sobre lo mismo que la tabla —lo que dejaron pasar los filtros—
-  así los números de arriba y los de abajo nunca se contradicen. Las cuentas de
-  tiempo viven en `Tiempo.html`, aparte, para poder probarlas.
+  Arriba, el gráfico: cuánto se demora en promedio cada fase de una solicitud,
+  en horas de trabajo. Se dibuja sobre lo mismo que la tabla —lo que dejaron
+  pasar los filtros— así los números de arriba y los de abajo nunca se
+  contradicen. Las cuentas de tiempo viven en `Tiempo.html`, aparte, para poder
+  probarlas.
 -->
 <?!= include('Estilos') ?>
 
@@ -36,37 +37,19 @@
     <section class="panel" id="panel">
       <div class="tarjetas" id="tarjetas"></div>
 
-      <div class="dos-graficos">
-      <div class="caja grafico">
-        <div class="grafico-cabecera">
-          <div>
-            <h2 id="graficoTitulo">Solicitudes por día</h2>
-            <p class="sub" id="graficoSub"></p>
-          </div>
-          <div class="escala" role="group" aria-label="Agrupar por">
-            <button type="button" data-escala="dia">Día</button>
-            <button type="button" data-escala="semana">Semana</button>
-            <button type="button" data-escala="mes">Mes</button>
-          </div>
-        </div>
-        <div class="lienzo" id="lienzo"></div>
-        <div class="leyenda" id="leyenda"></div>
-        <p class="pie">Cada columna son las solicitudes ingresadas en ese período,
-          repartidas por el estado en que están hoy. La tabla de abajo trae una por una.</p>
-      </div>
-
       <div class="caja dona-caja">
         <div class="grafico-cabecera">
           <div>
-            <h2>En qué se va la espera</h2>
+            <h2>Tiempo promedio por fase</h2>
             <p class="sub" id="donaSub"></p>
           </div>
         </div>
-        <div class="dona" id="dona"></div>
-        <div class="dona-leyenda" id="donaLeyenda"></div>
+        <div class="dona-cuerpo">
+          <div class="dona" id="dona"></div>
+          <div class="dona-leyenda" id="donaLeyenda"></div>
+        </div>
         <p class="pie">Horas de trabajo: lun&ndash;jue 8:00&ndash;17:30, vie 8:00&ndash;14:30.
-          Noches y fines de semana no cuentan.</p>
-      </div>
+          Las noches y los fines de semana no cuentan.</p>
       </div>
     </section>
 
@@ -97,8 +80,6 @@
 <script>
   var DATOS = null;
   var ABIERTAS = {};
-  /** Día, semana o mes. Se sugiere sola la primera vez; después manda la elegida. */
-  var ESCALA = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -199,30 +180,30 @@
   /* -------------------------------------------------------------- la dona */
 
   /**
-   * En qué se va la espera, en horas de trabajo.
+   * El tiempo promedio de cada fase, en horas de trabajo.
    *
-   * Es un círculo porque las tres etapas SÍ son un entero: seguidas suman el
-   * total que espera quien pidió. Por eso van las tres y no solo las dos que
-   * interesan —dos trozos que no forman un todo no son un círculo, son dos
-   * números puestos en redondo.
+   * El círculo reparte la suma de las dos: de las horas que una solicitud pasa
+   * en las fases medidas, cuánto se va en cada una. El número del centro es esa
+   * suma y lo dice —"en las dos fases"—, no la espera entera: entre una fase y
+   * la otra hay camino que acá no se mide.
    *
-   * El color es el mismo de los estados: la etapa que arranca en Solicitando
+   * El color es el mismo de los estados: la fase que arranca en Solicitando
    * lleva su tono, y la que termina en Finalizado, el suyo.
    */
   function dibujarDona(lista) {
-    var r = repartoDeLaEspera(lista);
+    var r = promediosPorFase(lista);
     var caja = $('dona');
 
     if (!r.sobre || !r.total) {
-      caja.innerHTML = '<p class="sin-datos">Todavía ninguna solicitud recorrió el ' +
-        'camino entero.</p>';
+      caja.innerHTML = '<p class="sin-datos">Todavía ninguna solicitud recorrió ' +
+        'las dos fases.</p>';
       $('donaLeyenda').innerHTML = '';
       $('donaSub').textContent = '';
       return;
     }
 
     $('donaSub').textContent = 'promedio de ' + r.sobre +
-      (r.sobre === 1 ? ' solicitud finalizada' : ' solicitudes finalizadas');
+      (r.sobre === 1 ? ' solicitud' : ' solicitudes') + ' que recorrieron las dos';
 
     var LADO = 220, GROSOR = 30, HUECO = 2;
     var radio = (LADO - GROSOR) / 2;
@@ -230,12 +211,12 @@
     var centro = LADO / 2;
 
     var corrido = 0;
-    var arcos = r.etapas.map(function (e, i) {
-      var parte = e.horas / r.total;
+    var arcos = r.fases.map(function (f, i) {
+      var parte = f.horas / r.total;
       var largo = Math.max(0, parte * vuelta - HUECO);
       var arco = '<circle class="tajada" data-tajada="' + i + '"' +
         ' cx="' + centro + '" cy="' + centro + '" r="' + radio + '"' +
-        ' fill="none" stroke="var(--paso-' + e.paso + ')" stroke-width="' + GROSOR + '"' +
+        ' fill="none" stroke="var(--paso-' + f.paso + ')" stroke-width="' + GROSOR + '"' +
         ' stroke-dasharray="' + largo + ' ' + (vuelta - largo) + '"' +
         ' stroke-dashoffset="' + (-corrido * vuelta) + '"></circle>';
       corrido += parte;
@@ -244,25 +225,24 @@
 
     caja.innerHTML =
       '<svg viewBox="0 0 ' + LADO + ' ' + LADO + '" width="100%" role="img" aria-label="' +
-      esc('La espera promedio se reparte en: ' + r.etapas.map(function (e) {
-        return e.titulo + ', ' + enHoras(e.horas);
-      }).join('; ') + '. Total ' + enHoras(r.total) + ' de trabajo.') + '">' +
+      esc('Tiempo promedio por fase: ' + r.fases.map(function (f) {
+        return f.titulo + ', ' + enHoras(f.horas);
+      }).join('; ') + '. Entre las dos, ' + enHoras(r.total) + ' de trabajo.') + '">' +
       // Se dibuja desde arriba y hacia la derecha, como se lee un reloj.
       '<g transform="rotate(-90 ' + centro + ' ' + centro + ')">' + arcos + '</g>' +
       '</svg>' +
       '<div class="dona-centro"><span class="dona-total">' + esc(enHoras(r.total)) + '</span>' +
-      '<span class="dona-pie">de trabajo</span></div>';
+      '<span class="dona-pie">en las dos fases</span></div>';
 
-    // El valor de cada etapa va en la leyenda, no sobre la tajada: tres
-    // números encima del círculo no se leen, y acá además quedan alineados.
-    var partes = porcentajes(r.etapas.map(function (e) { return e.horas; }));
-    $('donaLeyenda').innerHTML = r.etapas.map(function (e, i) {
-      var parte = partes[i];
+    // El valor de cada fase va en la leyenda, no sobre la tajada: encima del
+    // círculo no se lee, y acá además queda alineado y se puede comparar.
+    var partes = porcentajes(r.fases.map(function (f) { return f.horas; }));
+    $('donaLeyenda').innerHTML = r.fases.map(function (f, i) {
       return '<div class="llave-fila" data-tajada="' + i + '" tabindex="0">' +
-        '<i style="background: var(--paso-' + e.paso + ')"></i>' +
-        '<span class="llave-nombre">' + esc(e.titulo) + '</span>' +
-        '<b class="llave-valor">' + esc(enHoras(e.horas)) + '</b>' +
-        '<span class="llave-parte">' + parte + '%</span>' +
+        '<i style="background: var(--paso-' + f.paso + ')"></i>' +
+        '<span class="llave-nombre">' + esc(f.titulo) + '</span>' +
+        '<b class="llave-valor">' + esc(enHoras(f.horas)) + '</b>' +
+        '<span class="llave-parte">' + partes[i] + '%</span>' +
         '</div>';
     }).join('');
 
@@ -289,254 +269,6 @@
       el.addEventListener('pointerleave', function () { marcar(null); });
       el.addEventListener('blur', function () { marcar(null); });
     });
-  }
-
-  /* ----------------------------------------------------------- el gráfico */
-
-  /**
-   * Los cinco estados son un orden, no cinco cosas distintas: una solicitud va
-   * de Solicitando a Finalizado y no al revés. Por eso el color es una sola
-   * tinta que se va oscureciendo, y no cinco colores sueltos — así el avance se
-   * ve en el color mismo. Los pasos están validados contra el fondo.
-   */
-  function colorDe(estado) {
-    var i = (DATOS.estados || []).map(sinTildes).indexOf(sinTildes(estado));
-    return i === -1 ? 'var(--paso-otro)' : 'var(--paso-' + (i + 1) + ')';
-  }
-
-  function dibujarGrafico(lista) {
-    var escala = ESCALA;
-    var datos = porPeriodo(lista, escala);
-    var lienzo = $('lienzo');
-
-    $('graficoTitulo').textContent = 'Solicitudes por ' +
-      (escala === 'mes' ? 'mes' : escala === 'semana' ? 'semana' : 'día');
-
-    if (!datos.columnas.length) {
-      lienzo.innerHTML = '<p class="sin-datos">No hay solicitudes con fecha que mostrar.</p>';
-      $('leyenda').innerHTML = '';
-      $('graficoSub').textContent = '';
-      return;
-    }
-
-    var notas = [];
-    if (datos.recortadas) {
-      notas.push('se muestran los últimos ' + datos.columnas.length +
-        (escala === 'mes' ? ' meses' : escala === 'semana' ? ' semanas' : ' días'));
-    }
-    if (datos.sinFecha) {
-      notas.push(datos.sinFecha + (datos.sinFecha === 1 ? ' solicitud sin fecha queda fuera'
-        : ' solicitudes sin fecha quedan fuera'));
-    }
-    $('graficoSub').textContent = notas.join(' · ');
-
-    var estados = (DATOS.estados || []).slice();
-    // Un estado escrito a mano que no sea de los cinco se muestra igual.
-    lista.forEach(function (s) {
-      if (s.estado && estados.map(sinTildes).indexOf(sinTildes(s.estado)) === -1) {
-        estados.push(s.estado);
-      }
-    });
-
-    var cuentas = datos.columnas.map(function (c) {
-      var por = {};
-      c.solicitudes.forEach(function (s) {
-        var k = s.estado || '(sin estado)';
-        por[k] = (por[k] || 0) + 1;
-      });
-      return por;
-    });
-
-    var maximo = Math.max.apply(null, datos.columnas.map(function (c) {
-      return c.solicitudes.length;
-    }));
-    var y = escalaY(maximo);
-
-    // Un ancho mínimo por columna: apretadas más allá de eso las barras dejan
-    // de leerse. Si no caben, el gráfico se desliza dentro de su caja, igual
-    // que la tabla de abajo en pantalla chica.
-    var ANCHO_MINIMO_COLUMNA = 14;
-    var disponible = Math.max(lienzo.clientWidth || 900, 300);
-    var ancho = Math.max(disponible,
-      datos.columnas.length * ANCHO_MINIMO_COLUMNA + 52);
-    var alto = 260;
-    var m = { arriba: 12, derecha: 12, abajo: 34, izquierda: 40 };
-    var anchoTrama = ancho - m.izquierda - m.derecha;
-    var altoTrama = alto - m.arriba - m.abajo;
-    var banda = anchoTrama / datos.columnas.length;
-    var grosor = Math.min(24, Math.max(3, banda * 0.66));
-    var enY = function (v) { return m.arriba + altoTrama - (v / y.tope) * altoTrama; };
-
-    var piezas = [];
-
-    // La grilla, recesiva: está para leer el eje, no para mirarla.
-    for (var v = 0; v <= y.tope; v += y.paso) {
-      piezas.push('<line class="grilla" x1="' + m.izquierda + '" x2="' + (ancho - m.derecha) +
-        '" y1="' + enY(v) + '" y2="' + enY(v) + '"></line>');
-      piezas.push('<text class="tick" x="' + (m.izquierda - 8) + '" y="' + (enY(v) + 4) +
-        '" text-anchor="end">' + v + '</text>');
-    }
-
-    // Los rótulos del eje del tiempo se ralean cuando no caben.
-    var cadaCuantos = Math.max(1, Math.ceil(datos.columnas.length / Math.floor(anchoTrama / 62)));
-
-    datos.columnas.forEach(function (col, i) {
-      var centro = m.izquierda + banda * (i + 0.5);
-      var x = centro - grosor / 2;
-      var total = col.solicitudes.length;
-
-      // El hueco de la superficie entre segmentos: 2px, el mismo para todos.
-      var HUECO = 2;
-      var abajo = m.arriba + altoTrama;
-      var acumulado = 0;
-      var partes = [];
-
-      estados.forEach(function (estado) {
-        var n = cuentas[i][estado] || 0;
-        if (!n) return;
-        var altoSeg = (n / y.tope) * altoTrama;
-        var arriba = abajo - (acumulado / y.tope) * altoTrama - altoSeg;
-        acumulado += n;
-        partes.push({ estado: estado, n: n, arriba: arriba, alto: altoSeg });
-      });
-
-      partes.forEach(function (p, j) {
-        var esUltima = j === partes.length - 1;
-        var h = Math.max(1, p.alto - (esUltima ? 0 : HUECO));
-        // Punta redondeada arriba, cuadrada en la base: el borde de datos se
-        // redondea, el que se apoya en el eje no.
-        var radio = esUltima ? 4 : 0;
-        piezas.push('<path class="barra" data-columna="' + i + '" d="' +
-          barraPath(x, p.arriba, grosor, h, radio) + '" fill="' + colorDe(p.estado) + '"></path>');
-      });
-
-      // Un número sobre cada columna no se lee: se rotula la más alta y el eje
-      // y el globo cargan el resto.
-      if (total && total === maximo) {
-        piezas.push('<text class="tope" x="' + centro + '" y="' +
-          (enY(total) - 7) + '" text-anchor="middle" data-columna="' + i + '">' + total + '</text>');
-      }
-
-      if (i % cadaCuantos === 0) {
-        piezas.push('<text class="eje" x="' + centro + '" y="' + (alto - 12) +
-          '" text-anchor="middle">' + esc(rotulo(col.fecha, escala)) + '</text>');
-      }
-
-      // El blanco que se cliquea es toda la columna, no la barra: el lector
-      // apunta a un período, no a tres píxeles de un segmento.
-      piezas.push('<rect class="blanco" x="' + (m.izquierda + banda * i) + '" y="' + m.arriba +
-        '" width="' + banda + '" height="' + altoTrama + '" data-columna="' + i +
-        '" tabindex="0" role="button" aria-label="' +
-        esc(rotuloLargo(col.fecha, escala) + ': ' + total +
-          (total === 1 ? ' solicitud' : ' solicitudes')) + '"></rect>');
-    });
-
-    // El eje de la base, para que las barras se apoyen en algo.
-    piezas.push('<line class="eje-base" x1="' + m.izquierda + '" x2="' + (ancho - m.derecha) +
-      '" y1="' + (m.arriba + altoTrama) + '" y2="' + (m.arriba + altoTrama) + '"></line>');
-
-    lienzo.innerHTML =
-      '<svg viewBox="0 0 ' + ancho + ' ' + alto + '" width="' + ancho + '" height="' + alto +
-      '" role="img" aria-label="' + esc('Solicitudes ingresadas por ' + escala + ', ' +
-        'repartidas por su estado actual. ' + lista.length + ' en total.') + '">' +
-      piezas.join('') + '</svg>' +
-      '<div class="globo" id="globo" hidden></div>';
-
-    // Dos o más series: la leyenda va siempre. La identidad nunca depende solo
-    // del color.
-    $('leyenda').innerHTML = estados.filter(function (e) {
-      return cuentas.some(function (c) { return c[e]; });
-    }).map(function (e) {
-      return '<span class="llave"><i style="background:' + colorDe(e) + '"></i>' +
-        esc(e) + '</span>';
-    }).join('');
-
-    engancharGlobo(datos, cuentas, estados, escala, banda, m);
-  }
-
-  /** Una barra con la punta redondeada arriba y cuadrada abajo. */
-  function barraPath(x, y, ancho, alto, radio) {
-    var r = Math.min(radio, ancho / 2, alto);
-    if (!r) return 'M' + x + ' ' + y + 'h' + ancho + 'v' + alto + 'h' + (-ancho) + 'Z';
-    return 'M' + x + ' ' + (y + r) +
-      'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + (-r) +
-      'h' + (ancho - 2 * r) +
-      'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r +
-      'v' + (alto - r) + 'h' + (-ancho) + 'Z';
-  }
-
-  /** El globo con lo que hay en esa columna: el período entero, no un segmento. */
-  function engancharGlobo(datos, cuentas, estados, escala, banda, m) {
-    var lienzo = $('lienzo');
-    var globo = $('globo');
-
-    function mostrar(i) {
-      var col = datos.columnas[i];
-      var total = col.solicitudes.length;
-
-      globo.textContent = '';
-      var t = document.createElement('div');
-      t.className = 'globo-titulo';
-      t.textContent = rotuloLargo(col.fecha, escala);
-      globo.appendChild(t);
-
-      var g = document.createElement('div');
-      g.className = 'globo-total';
-      g.textContent = total + (total === 1 ? ' solicitud' : ' solicitudes');
-      globo.appendChild(g);
-
-      estados.forEach(function (e) {
-        var n = cuentas[i][e] || 0;
-        if (!n) return;
-        var fila = document.createElement('div');
-        fila.className = 'globo-fila';
-        var llave = document.createElement('i');
-        llave.style.background = colorDe(e);
-        var valor = document.createElement('b');
-        valor.textContent = n;
-        var nombre = document.createElement('span');
-        nombre.textContent = e;
-        fila.appendChild(llave); fila.appendChild(valor); fila.appendChild(nombre);
-        globo.appendChild(fila);
-      });
-
-      globo.hidden = false;
-
-      // Al costado de la columna, del lado donde quepa: encima taparía justo
-      // las barras que se están mirando.
-      var svg = lienzo.querySelector('svg');
-      var k = svg.clientWidth / svg.viewBox.baseVal.width;
-      var izqCol = (m.izquierda + banda * i) * k;
-      var derCol = izqCol + banda * k;
-      var w = globo.offsetWidth;
-      // Se mide contra el ancho del dibujo, no contra el de la caja: si el
-      // gráfico se desliza, el globo viaja con su columna.
-      var x = (derCol + 10 + w <= svg.clientWidth) ? derCol + 10
-        : Math.max(4, izqCol - 10 - w);
-      globo.style.left = x + 'px';
-      globo.style.top = '4px';
-
-      // Lo que no es de esa columna se apaga: el ojo se queda donde apuntó.
-      Array.prototype.forEach.call(lienzo.querySelectorAll('[data-columna]'), function (el) {
-        el.classList.toggle('apagada',
-          el.getAttribute('data-columna') !== String(i) && !el.classList.contains('blanco'));
-      });
-    }
-
-    function esconder() {
-      globo.hidden = true;
-      Array.prototype.forEach.call(lienzo.querySelectorAll('.apagada'),
-        function (el) { el.classList.remove('apagada'); });
-    }
-
-    Array.prototype.forEach.call(lienzo.querySelectorAll('rect.blanco'), function (r) {
-      var i = +r.getAttribute('data-columna');
-      r.addEventListener('pointerenter', function () { mostrar(i); });
-      r.addEventListener('focus', function () { mostrar(i); });
-      r.addEventListener('pointerleave', esconder);
-      r.addEventListener('blur', esconder);
-    });
-    lienzo.addEventListener('pointerleave', esconder);
   }
 
   /* ---------------------------------------------------------- dibujar */
@@ -641,10 +373,7 @@
 
     // Los filtros mandan sobre todo lo de abajo: el gráfico, las tarjetas y la
     // tabla muestran la misma rebanada, así los números nunca se contradicen.
-    if (!ESCALA) ESCALA = escalaSugerida(DATOS.solicitudes);
-    marcarEscala();
     dibujarTarjetas(lista);
-    dibujarGrafico(lista);
     dibujarDona(lista);
 
     $('cuerpo').innerHTML = lista.map(function (s) {
@@ -685,26 +414,4 @@
   $('filtroTipo').addEventListener('change', dibujar);
   $('filtroEstado').addEventListener('change', dibujar);
 
-  function marcarEscala() {
-    Array.prototype.forEach.call($('panel').querySelectorAll('.escala button'), function (b) {
-      var suya = b.getAttribute('data-escala') === ESCALA;
-      b.classList.toggle('activa', suya);
-      b.setAttribute('aria-pressed', suya ? 'true' : 'false');
-    });
-  }
-
-  $('panel').addEventListener('click', function (ev) {
-    var b = ev.target.closest ? ev.target.closest('.escala button') : null;
-    if (!b) return;
-    ESCALA = b.getAttribute('data-escala');
-    dibujar();
-  });
-
-  // El SVG se arma con el ancho que hay: si la ventana cambia, se rearma.
-  var REDIBUJO = null;
-  window.addEventListener('resize', function () {
-    if (!DATOS) return;
-    if (REDIBUJO) clearTimeout(REDIBUJO);
-    REDIBUJO = setTimeout(function () { dibujarGrafico(visibles()); }, 150);
-  });
 </script>

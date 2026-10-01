@@ -221,104 +221,20 @@ seccion('Una solicitud sin detalle se apaña con su SKU');
 
 // El gráfico reparte las solicitudes en columnas de tiempo. Lo que se prueba
 // acá es el reparto: las fechas son donde se esconden los errores.
-seccion('Las fechas del gráfico');
-{
-  ok(aFecha('24.09.2026').getFullYear() === 2026, 'lee dd.mm.aaaa');
-  ok(aFecha('24.09.2026').getMonth() === 8 && aFecha('24.09.2026').getDate() === 24,
-    'con el día y el mes en su lugar, no al revés');
-  const conHora = aFecha('25.09.2026 17:48');
-  ok(conHora.getHours() === 17 && conHora.getMinutes() === 48, 'y la hora cuando viene');
-  ok(aFecha('') === null && aFecha('cualquier cosa') === null && aFecha(null) === null,
-    'lo que no tiene esa forma da null, no una fecha inventada');
-
-  // El 24.09.2026 es jueves: su semana empieza el lunes 21.
-  ok(inicioDe(aFecha('24.09.2026'), 'semana').getDate() === 21,
-    'la semana empieza el lunes, no el domingo');
-  ok(inicioDe(aFecha('21.09.2026'), 'semana').getDate() === 21,
-    'y un lunes es el comienzo de la suya');
-  // El 27.09.2026 es domingo: cierra la semana del 21, no abre una nueva.
-  ok(inicioDe(aFecha('27.09.2026'), 'semana').getDate() === 21,
-    'el domingo cierra su semana, no abre otra');
-  ok(inicioDe(aFecha('24.09.2026'), 'mes').getDate() === 1, 'el mes empieza el 1');
-  ok(inicioDe(aFecha('24.09.2026'), 'dia').getHours() === 0,
-    'y el día se queda sin hora, para que dos horas del mismo día caigan juntas');
-
-  // Cruzar el fin de mes no puede partir la semana en dos.
-  const finDeMes = inicioDe(aFecha('01.10.2026'), 'semana');   // jueves
-  ok(finDeMes.getMonth() === 8 && finDeMes.getDate() === 28,
-    'una semana a caballo entre dos meses empieza en el mes anterior');
-}
-
-seccion('Las columnas del gráfico');
-{
-  const solicitud = (fecha, estado) => ({ fecha: fecha, estado: estado || 'Solicitando' });
-
-  const r = porPeriodo([
-    solicitud('21.09.2026'), solicitud('21.09.2026', 'Creando'), solicitud('23.09.2026')
-  ], 'dia');
-  ok(r.columnas.length === 3, 'del primer día al último, sin saltarse ninguno');
-  ok(r.columnas[1].solicitudes.length === 0,
-    'un día sin solicitudes sale igual, vacío: es un hueco, no una columna que no existió');
-  ok(r.columnas[0].solicitudes.length === 2 && r.columnas[2].solicitudes.length === 1,
-    'y cada una cae en la suya');
-
-  const semana = porPeriodo([solicitud('21.09.2026'), solicitud('27.09.2026')], 'semana');
-  ok(semana.columnas.length === 1, 'lunes y domingo de la misma semana van en una columna');
-
-  const mes = porPeriodo([solicitud('01.08.2026'), solicitud('30.09.2026')], 'mes');
-  ok(mes.columnas.length === 2, 'agosto y septiembre son dos columnas');
-
-  // Una solicitud sin fecha no se inventa un lugar en el tiempo.
-  const sinFecha = porPeriodo([solicitud('21.09.2026'), solicitud('')], 'dia');
-  ok(sinFecha.sinFecha === 1 && sinFecha.columnas.length === 1,
-    'la que no tiene fecha queda fuera, y se dice cuántas son');
-  ok(porPeriodo([], 'dia').columnas.length === 0, 'sin nada, no hay columnas');
-
-  // Demasiados días no caben: se muestran los últimos y se dice cuántos faltan.
-  const muchas = [];
-  for (let d = 1; d <= 200; d++) {
-    const f = new Date(2026, 0, d);
-    muchas.push(solicitud(('0' + f.getDate()).slice(-2) + '.' +
-      ('0' + (f.getMonth() + 1)).slice(-2) + '.' + f.getFullYear()));
-  }
-  const cortada = porPeriodo(muchas, 'dia');
-  ok(cortada.columnas.length === TOPE_COLUMNAS && cortada.recortadas === 200 - TOPE_COLUMNAS,
-    'con más columnas de las que caben se muestran las últimas, y se dice cuántas quedaron');
-  ok(cortada.columnas[cortada.columnas.length - 1].solicitudes.length === 1,
-    'las últimas, no las primeras: lo reciente es lo que se mira');
-
-  // La escala se sugiere sola según cuánto abarca.
-  ok(escalaSugerida([solicitud('21.09.2026'), solicitud('30.09.2026')]) === 'dia',
-    'diez días se ven por día');
-  ok(escalaSugerida([solicitud('01.01.2026'), solicitud('30.09.2026')]) === 'semana',
-    'nueve meses, por semana');
-  ok(escalaSugerida([solicitud('01.01.2023'), solicitud('30.09.2026')]) === 'mes',
-    'y casi cuatro años, por mes');
-}
-
-seccion('El eje y la demora');
-{
-  ok(escalaY(3).tope === 3 && escalaY(3).paso === 1, 'tres llega justo a 3, de uno en uno');
-  ok(escalaY(6).tope === 6 && escalaY(6).paso === 2, 'seis, de dos en dos');
-  ok(escalaY(23).tope === 30 && escalaY(23).paso === 10, 'veintitrés sube a 30, de diez en diez');
-  ok(escalaY(230).tope === 300 && escalaY(230).paso === 100, 'y doscientos treinta, a 300');
-  ok(escalaY(0).tope === 1, 'sin datos el eje no se queda en cero');
-
-  // Entre dos y cinco líneas: menos no dice nada y más es una reja.
-  ok([1, 2, 3, 4, 5, 7, 12, 40, 90, 500].every(function (n) {
-    var e = escalaY(n);
-    var lineas = e.tope / e.paso + 1;
-    return e.tope >= n && lineas >= 2 && lineas <= 5;
-  }), 'el tope siempre alcanza al máximo, y la grilla nunca pasa de cinco líneas');
-
-}
-
 // La demora se mide en HORAS DE TRABAJO, no en días de calendario. Una
 // solicitud que entra un viernes a las 14:00 y se mira el lunes a las 9:00 no
 // esperó tres días: esperó una hora y media. Lo otro diría que codificación se
 // demoró, cuando lo que pasó es que la oficina estaba cerrada.
 seccion('La jornada: de 8 a 17:30, y los viernes hasta las 14:30');
 {
+  // Todo entra por acá: si la fecha se lee mal, lo demás no tiene sentido.
+  ok(aFecha('24.09.2026').getMonth() === 8 && aFecha('24.09.2026').getDate() === 24,
+    'lee dd.mm.aaaa con el día y el mes en su lugar, no al revés');
+  const conHora = aFecha('25.09.2026 17:48');
+  ok(conHora.getHours() === 17 && conHora.getMinutes() === 48, 'y la hora cuando viene');
+  ok(aFecha('') === null && aFecha('cualquier cosa') === null && aFecha(null) === null,
+    'lo que no tiene esa forma da null, no una fecha inventada');
+
   const h = (a, b) => horasHabiles(aFecha(a), aFecha(b));
 
   // 2026: el 21 de septiembre es lunes.
@@ -397,44 +313,45 @@ seccion('La espera de cada etapa');
   ok(enHoras(44.5) === '44,5 h', 'la semana entera');
 }
 
-// El círculo reparte UN entero: las tres etapas seguidas son el total. Dos
-// trozos que no forman un todo no son un círculo, son dos números en redondo.
-seccion('El reparto de la espera: las tres etapas suman el total');
+// Las dos fases que se piden: de Solicitando a Validando, y de Creando a
+// Finalizado. El círculo reparte la suma de las dos entre ellas.
+seccion('El tiempo promedio de cada fase');
 {
   const paso = (estado, fecha) => ({ estado: estado, fecha: fecha, usuario: 'x' });
   const camino = (a, b, c, d) => ({ recorrido: [
     paso('Solicitando', a), paso('Validando información', b),
     paso('Creando', c), paso('Finalizado', d)] });
 
-  ok(ETAPAS_ESPERA.length === 3, 'son tres etapas');
-  ok(ETAPAS_ESPERA[0].hasta === ETAPAS_ESPERA[1].desde &&
-     ETAPAS_ESPERA[1].hasta === ETAPAS_ESPERA[2].desde,
-    'y van encadenadas: donde termina una empieza la siguiente');
-  ok(ETAPAS_ESPERA[0].desde === 'Solicitando' && ETAPAS_ESPERA[2].hasta === 'Finalizado',
-    'del principio al final del camino');
+  ok(FASES.length === 2, 'son las dos fases que se pidieron');
+  ok(FASES[0].desde === 'Solicitando' && FASES[0].hasta === 'Validando información',
+    'la primera: de Solicitando a Validando');
+  ok(FASES[1].desde === 'Creando' && FASES[1].hasta === 'Finalizado',
+    'la segunda: de Creando a Finalizado');
+  ok(FASES[0].paso === 1 && FASES[1].paso === 5,
+    'y cada una con el tono del estado en que empieza o termina');
 
-  const r = repartoDeLaEspera([
+  const r = promediosPorFase([
     camino('21.09.2026 09:00', '21.09.2026 14:00', '22.09.2026 10:00', '23.09.2026 12:00'),
     camino('21.09.2026 08:00', '21.09.2026 10:00', '21.09.2026 12:00', '21.09.2026 16:00')
   ]);
 
-  ok(r.sobre === 2, 'promedia sobre las dos que recorrieron todo');
-  ok(r.etapas.map(e => e.horas).join() === '3.5,3.75,7.75',
-    'cada etapa su promedio: ' + r.etapas.map(e => e.horas).join(', '));
-  ok(Math.abs(r.total - 15) < 1e-9, 'y las tres suman el total: ' + r.total);
-  ok(Math.abs(r.etapas.reduce((s, e) => s + e.horas, 0) - r.total) < 1e-9,
+  ok(r.sobre === 2, 'promedia sobre las dos que recorrieron las dos fases');
+  ok(r.fases.map(f => f.horas).join() === '3.5,7.75',
+    'cada fase su promedio: ' + r.fases.map(f => f.horas).join(', '));
+  ok(Math.abs(r.total - 11.25) < 1e-9, 'y el total es la suma de las dos: ' + r.total);
+  ok(Math.abs(r.fases.reduce((s, f) => s + f.horas, 0) - r.total) < 1e-9,
     'siempre: el total ES la suma, no otra cuenta');
 
-  // Una a medio camino no entra en ninguna etapa: si entrara en unas y no en
-  // otras, los tres números dejarían de sumar el total.
-  const conMedias = repartoDeLaEspera([
+  // Una que completó una fase y no la otra no entra en ninguna: si entrara en
+  // una sola, los dos números serían de grupos distintos y no se podrían
+  // comparar en el mismo círculo.
+  const conMedias = promediosPorFase([
     camino('21.09.2026 08:00', '21.09.2026 10:00', '21.09.2026 12:00', '21.09.2026 16:00'),
     { recorrido: [paso('Solicitando', '21.09.2026 08:00'),
                   paso('Validando información', '21.09.2026 09:00')] }
   ]);
-  ok(conMedias.sobre === 1, 'la que va a medio camino queda fuera del reparto');
-  ok(Math.abs(conMedias.etapas.reduce((s, e) => s + e.horas, 0) - conMedias.total) < 1e-9,
-    'y los números siguen sumando el total');
+  ok(conMedias.sobre === 1, 'la que solo completó una fase queda fuera');
+  ok(conMedias.fases[0].horas === 2, 'y no arrastra el promedio de la que sí completó');
 
   // Un círculo que dice 101% se lee como un error aunque el dibujo esté bien.
   ok(porcentajes([1, 1, 1]).join() === '34,33,33', 'tres tercios suman 100, no 99');
@@ -446,10 +363,10 @@ seccion('El reparto de la espera: las tres etapas suman el total');
     .every(v => porcentajes(v).reduce((a, c) => a + c, 0) === 100),
     'sume lo que sume el reparto, los porcentajes dan 100');
 
-  const vacio = repartoDeLaEspera([]);
-  ok(vacio.sobre === 0 && vacio.total === null, 'sin ninguna completa no hay reparto');
-  ok(vacio.etapas.length === 3 && vacio.etapas.every(e => e.horas === null),
-    'pero las etapas siguen estando, en blanco');
+  const vacio = promediosPorFase([]);
+  ok(vacio.sobre === 0 && vacio.total === null, 'sin ninguna completa no hay promedio');
+  ok(vacio.fases.length === 2 && vacio.fases.every(f => f.horas === null),
+    'pero las fases siguen estando, en blanco');
 }
 
 // Nadie edita nada desde el monitor, ni el estado: se reparte a quien deba
@@ -490,7 +407,7 @@ seccion('El monitor no escribe nada');
   // El gráfico se dibuja sobre lo que dejaron pasar los filtros, igual que la
   // tabla: si mostrara otra cosa, los números de arriba y los de abajo se
   // contradirían.
-  ok(/dibujarGrafico\(lista\)/.test(index) && /dibujarTarjetas\(lista\)/.test(index),
+  ok(/dibujarDona\(lista\)/.test(index) && /dibujarTarjetas\(lista\)/.test(index),
     'el gráfico y las tarjetas se dibujan sobre la misma lista que la tabla');
 
   // Los cinco estados son un orden, no cinco cosas sueltas: una sola tinta que

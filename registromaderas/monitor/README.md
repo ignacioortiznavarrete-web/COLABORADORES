@@ -9,29 +9,18 @@ cambiar una solicitud. Los permisos lo dejan por escrito: `spreadsheets.readonly
 
 ## Qué muestra
 
-Arriba, cuatro números y **un gráfico general por tiempo**: cuántas solicitudes
-entraron en cada período, repartidas por el estado en que están hoy. Se agrupa
-por **día, semana o mes** —se elige sola según cuánto abarque, y se puede
-cambiar— y pasando el cursor por una columna sale el desglose de ese período.
+Arriba, tres números —cuántas hay, en curso y finalizadas— y **el gráfico
+general: el tiempo promedio de cada fase**, en horas de trabajo.
 
-Los cinco estados son un **orden**, no cinco cosas sueltas, así que el color es
-una sola tinta que se va oscureciendo: mirando el gráfico de lejos se ve cuánto
-de cada período ya está cerrado sin leer la leyenda. Los pasos están medidos
-contra el fondo, no elegidos a ojo.
-
-Al lado, **en qué se va la espera**: un círculo que reparte la demora promedio
-entre las tres etapas del camino, cada una con su color.
-
-| Etapa | Qué dice |
+| Fase | Qué dice |
 |---|---|
 | Solicitando → Validando | cuánto tarda codificación en mirar una solicitud nueva |
-| Validando → Creando | cuánto queda esperando antes de que se pongan a crearla |
-| Creando → Finalizado | cuánto desde que se ponen hasta que la cierran |
+| Creando → Finalizado | cuánto desde que se ponen a crearla hasta que la cierran |
 
-Son **tres y no dos** a propósito. Dos solas no son un entero —sumarlas no da
-nada— y un círculo partido en dos trozos que no forman un todo miente. Las tres
-seguidas sí suman el total, el número del centro, y entonces el círculo dice de
-verdad en qué se va la espera de quien pidió.
+Cada una con su color: el de la pastilla del estado en que empieza o termina,
+así el círculo y la tabla dicen lo mismo. El número del centro es la **suma de
+las dos** —las horas que una solicitud pasa en las fases medidas— y lo dice
+así, no "en total": entre una fase y la otra hay camino que acá no se mide.
 
 ### Horas de trabajo, no días de calendario
 
@@ -53,13 +42,10 @@ primera vez que llegó al de llegada. Si por el camino fue y volvió —de
 `Creando` a `Pendiente` y de vuelta— esa vuelta **cuenta**: lo que se mide es
 la espera, no el trabajo.
 
-El promedio sale solo de las que **recorrieron el camino entero**, y el
-subtítulo dice cuántas son. Tiene que ser sobre las mismas: si cada etapa se
-promediara sobre las suyas, los tres números dejarían de sumar el total y el
-círculo estaría repartiendo algo que no existe.
-
-El gráfico, los números y la tabla se dibujan sobre **la misma rebanada**: lo
-que dejaron pasar los filtros. Nunca se contradicen.
+El promedio sale solo de las que recorrieron **las dos** fases, y el subtítulo
+dice cuántas son. Tiene que ser sobre las mismas: si cada fase se promediara
+sobre las suyas, los dos números serían de grupos distintos y ponerlos juntos
+en el mismo círculo compararía cosas que no se comparan.
 
 Abajo, una fila por solicitud, con las nueve columnas de `Registro`:
 
@@ -143,8 +129,8 @@ proyecto de entrada — este va en uno **nuevo y separado**:
 Los nombres `Index`, `Estilos` y `Tiempo` tienen que quedar tal cual: el código
 los llama por ese nombre.
 
-`Tiempo.html` son las cuentas del gráfico —en qué columna cae cada fecha, dónde
-empieza la semana, cuántos días tardó una solicitud—. Están aparte del resto
+`Tiempo.html` son las cuentas del gráfico —el horario de trabajo, cuántas horas
+hay entre dos momentos, el promedio de cada fase—. Están aparte del resto
 porque son puras, y así se pueden probar en Node sin abrir un navegador.
 
 5. **Implementar › Nueva implementación › ⚙ › Aplicación web**, *Ejecutar como*
@@ -162,9 +148,9 @@ Usan el mismo simulador de Apps Script que el formulario de entrada
 (`../../pruebas/mock.js`): son proyectos distintos, pero el mismo spreadsheet.
 Cubren la lectura por rótulos, la unión por número de solicitud, el recorrido
 de estados —incluida una solicitud que fue y volvió—, el respaldo por `SKU`
-cuando no hay detalle, el reparto del gráfico en columnas de tiempo, la cuenta
-de horas de trabajo —el fin de semana, el cierre de los viernes, la noche— y
-que el monitor no escriba nada.
+cuando no hay detalle, la cuenta de horas de trabajo —el fin de semana, el
+cierre de los viernes, la noche— el promedio de cada fase, y que el monitor no
+escriba nada.
 
 Lo que no se puede probar en Node —cómo se ve— se revisa en un navegador de
 verdad: que no haya desborde en pantalla chica, que el globo no tape la columna

@@ -2,9 +2,9 @@
   Las cuentas del gráfico, sin nada del navegador.
 
   Van aparte para poder probarlas: son puras —entra una lista, sale otra— y
-  ahí es donde se esconden los errores de fechas: dónde empieza la semana, qué
-  pasa en el cambio de mes, un período sin ninguna solicitud. `pruebas/test.js`
-  lee este archivo y las corre en Node.
+  ahí es donde se esconden los errores: el cierre de los viernes, la noche, un
+  fin de semana en medio, una solicitud que fue y volvió. `pruebas/test.js` lee
+  este archivo y las corre en Node.
 -->
 <script>
   var ESTADO_FINAL = 'Finalizado';
@@ -21,102 +21,6 @@
     if (!m) return null;
     var d = new Date(+m[3], +m[2] - 1, +m[1], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
     return isNaN(d.getTime()) ? null : d;
-  }
-
-  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun',
-               'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-
-  /** El comienzo del período al que cae una fecha. Lunes, en el caso de semana. */
-  function inicioDe(fecha, escala) {
-    var d = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
-    if (escala === 'mes') return new Date(d.getFullYear(), d.getMonth(), 1);
-    if (escala === 'semana') {
-      // Lunes: getDay() da 0 el domingo, que acá es el final de la semana.
-      var corrido = (d.getDay() + 6) % 7;
-      d.setDate(d.getDate() - corrido);
-    }
-    return d;
-  }
-
-  function siguiente(fecha, escala) {
-    var d = new Date(fecha.getTime());
-    if (escala === 'mes') d.setMonth(d.getMonth() + 1);
-    else d.setDate(d.getDate() + (escala === 'semana' ? 7 : 1));
-    return d;
-  }
-
-  function clave(fecha) {
-    return fecha.getFullYear() + '-' + (fecha.getMonth() + 1) + '-' + fecha.getDate();
-  }
-
-  function rotulo(fecha, escala) {
-    if (escala === 'mes') return MESES[fecha.getMonth()] + ' ' + fecha.getFullYear();
-    return fecha.getDate() + ' ' + MESES[fecha.getMonth()];
-  }
-
-  function rotuloLargo(fecha, escala) {
-    if (escala === 'mes') return MESES[fecha.getMonth()] + ' ' + fecha.getFullYear();
-    var hasta = new Date(siguiente(fecha, escala).getTime() - 86400000);
-    if (escala === 'semana') {
-      return 'semana del ' + fecha.getDate() + ' ' + MESES[fecha.getMonth()] +
-        ' al ' + hasta.getDate() + ' ' + MESES[hasta.getMonth()];
-    }
-    return fecha.getDate() + ' ' + MESES[fecha.getMonth()] + ' ' + fecha.getFullYear();
-  }
-
-  /**
-   * La escala que se ve bien sola: día mientras quepan, después semana, después
-   * mes. Solo decide la primera vez; si alguien elige otra, manda la suya.
-   */
-  var TOPE_COLUMNAS = 120;
-
-  function escalaSugerida(lista) {
-    var fechas = lista.map(function (s) { return aFecha(s.fecha); }).filter(Boolean);
-    if (!fechas.length) return 'dia';
-    var desde = new Date(Math.min.apply(null, fechas));
-    var hasta = new Date(Math.max.apply(null, fechas));
-    var dias = Math.round((hasta - desde) / 86400000) + 1;
-    if (dias <= 45) return 'dia';
-    if (dias <= 370) return 'semana';
-    return 'mes';
-  }
-
-  /**
-   * Las solicitudes repartidas en columnas de tiempo.
-   *
-   * Los períodos sin ninguna solicitud igual salen: un día sin pedidos es un
-   * hueco en el gráfico, no una columna que no existió. Si son demasiados para
-   * que se vean, se muestran los últimos y se dice cuántos quedaron fuera.
-   */
-  function porPeriodo(lista, escala) {
-    var conFecha = lista.map(function (s) {
-      return { s: s, f: aFecha(s.fecha) };
-    }).filter(function (x) { return x.f; });
-    if (!conFecha.length) return { columnas: [], recortadas: 0, sinFecha: lista.length };
-
-    var caja = {};
-    conFecha.forEach(function (x) {
-      var k = clave(inicioDe(x.f, escala));
-      if (!caja[k]) caja[k] = [];
-      caja[k].push(x.s);
-    });
-
-    var desde = inicioDe(new Date(Math.min.apply(null, conFecha.map(function (x) { return x.f; }))), escala);
-    var hasta = inicioDe(new Date(Math.max.apply(null, conFecha.map(function (x) { return x.f; }))), escala);
-
-    var columnas = [];
-    for (var d = desde; d <= hasta; d = siguiente(d, escala)) {
-      columnas.push({ fecha: d, solicitudes: caja[clave(d)] || [] });
-    }
-
-    var recortadas = Math.max(0, columnas.length - TOPE_COLUMNAS);
-    if (recortadas) columnas = columnas.slice(-TOPE_COLUMNAS);
-
-    return {
-      columnas: columnas,
-      recortadas: recortadas,
-      sinFecha: lista.length - conFecha.length
-    };
   }
 
   /**
@@ -199,18 +103,15 @@
   }
 
   /**
-   * En qué se va la espera: los tres tramos en que se parte el camino.
+   * Las dos fases que se miden.
    *
-   * Son tres y no dos a propósito. Dos solos no son un entero —sumarlos no da
-   * nada— y un círculo partido en dos trozos que no forman un todo miente. Los
-   * tres seguidos SÍ suman el total, así que el círculo dice de verdad en qué
-   * se va la espera de quien pidió.
+   * `paso` es el tono: la que arranca en Solicitando lleva el color de ese
+   * estado, y la que termina en Finalizado, el suyo. Así el círculo y las
+   * pastillas de la tabla dicen lo mismo.
    */
-  var ETAPAS_ESPERA = [
+  var FASES = [
     { desde: 'Solicitando', hasta: 'Validando información',
       titulo: 'Solicitando → Validando', paso: 1 },
-    { desde: 'Validando información', hasta: 'Creando',
-      titulo: 'Validando → Creando', paso: 3 },
     { desde: 'Creando', hasta: 'Finalizado',
       titulo: 'Creando → Finalizado', paso: 5 }
   ];
@@ -223,32 +124,37 @@
   }
 
   /**
-   * El promedio de cada etapa, sobre las solicitudes que recorrieron TODAS.
+   * El tiempo promedio de cada fase.
    *
-   * Tiene que ser sobre las mismas: si cada etapa se promediara sobre las
-   * suyas, los tres números no sumarían el total y el círculo quedaría
-   * repartiendo algo que no existe.
+   * Se promedia sobre las solicitudes que recorrieron LAS DOS, no cada fase
+   * sobre las suyas. Si no, los dos números serían de grupos distintos y
+   * ponerlos juntos en un círculo compararía cosas que no se comparan.
+   *
+   * `total` es la suma de las dos: el tiempo que una solicitud pasa en las
+   * fases medidas. No es la espera entera —entre una fase y la otra hay
+   * camino que acá no se mide— y por eso el círculo dice "en las dos fases" y
+   * no "en total".
    */
-  function repartoDeLaEspera(lista) {
+  function promediosPorFase(lista) {
     var completas = [];
     (lista || []).forEach(function (s) {
-      var horas = ETAPAS_ESPERA.map(function (e) { return horasEntre(s, e.desde, e.hasta); });
+      var horas = FASES.map(function (f) { return horasEntre(s, f.desde, f.hasta); });
       if (horas.every(function (h) { return h !== null; })) completas.push(horas);
     });
 
-    var etapas = ETAPAS_ESPERA.map(function (e, i) {
+    var fases = FASES.map(function (f, i) {
       return {
-        titulo: e.titulo,
-        paso: e.paso,
+        titulo: f.titulo,
+        paso: f.paso,
         horas: promedio(completas.map(function (h) { return h[i]; }))
       };
     });
 
     var total = completas.length
-      ? etapas.reduce(function (suma, e) { return suma + e.horas; }, 0)
+      ? fases.reduce(function (suma, f) { return suma + f.horas; }, 0)
       : null;
 
-    return { etapas: etapas, total: total, sobre: completas.length };
+    return { fases: fases, total: total, sobre: completas.length };
   }
 
   /**
@@ -282,16 +188,4 @@
     return String(Math.round(valor * 10) / 10).replace('.', ',') + ' h';
   }
 
-  /** El eje de arriba en un número redondo, con unas pocas líneas de grilla. */
-  function escalaY(maximo) {
-    if (maximo <= 0) return { tope: 1, paso: 1 };
-    var pasos = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000];
-    for (var i = 0; i < pasos.length; i++) {
-      if (maximo / pasos[i] <= 4) {
-        return { tope: Math.ceil(maximo / pasos[i]) * pasos[i], paso: pasos[i] };
-      }
-    }
-    var p = pasos[pasos.length - 1];
-    return { tope: Math.ceil(maximo / p) * p, paso: p };
-  }
 </script>
