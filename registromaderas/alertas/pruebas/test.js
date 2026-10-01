@@ -65,6 +65,13 @@ escribir('Registro Detalle', DET, [
     'Ancho': '180', 'UMB': 'M3' }
 ]);
 
+escribir('Registro Estados', ['N° Solicitud', 'Estado', 'Fecha', 'Usuario'], [
+  { 'N° Solicitud': 'SOL-00001', 'Estado': 'Solicitando',
+    'Fecha': '24.09.2026 09:12', 'Usuario': 'Barbara Soto' },
+  { 'N° Solicitud': 'SOL-00001', 'Estado': 'Finalizado',
+    'Fecha': '25.09.2026 17:48', 'Usuario': 'Jose Ortiz' }
+]);
+
 /** Simula mover el combo de Estado en la hoja, como lo ve el disparador. */
 const COLUMNA_ESTADO = REG.indexOf('Estado') + 1;
 function mover(fila, estado) {
@@ -105,6 +112,70 @@ seccion('Al finalizar sale el correo, de la cuenta que lo instaló');
   ok(cuerpo.indexOf('248 PZA') !== -1, 'y las piezas cuando las tiene');
   ok(cuerpo.indexOf('Monitor: ') !== -1, 'más el enlace al monitor');
   ok(global.__CORREOS[0].opciones.name === REMITENTE, 'firmado como codificación');
+}
+
+// Un correo de Apps Script sale de la cuenta que corre el script. A la casilla
+// de codificación no siempre se puede entrar, y mover el estado desde ella
+// borraría de la bitácora quién lo movió. El alias resuelve las dos cosas.
+seccion('El alias: sale de codificación aunque lo mande otra cuenta');
+{
+  global.__CORREOS = [];
+  global.__ALIAS = ['codificacion.corporativa@masisa.com'];
+  const r = mandarAviso_(avisoDe_('Finalizado'), 'SOL-00001');
+
+  ok(r.ok && r.alias === true, 'con el alias puesto, sale por él');
+  ok(global.__CORREOS[0].desde === 'codificacion.corporativa@masisa.com',
+    'y el remitente es la dirección de codificación: ' + global.__CORREOS[0].desde);
+  ok(r.mensaje.indexOf('codificacion.corporativa@masisa.com') !== -1,
+    'el resultado lo dice, no hay que adivinarlo');
+
+  // Sin alias el correo SALE IGUAL: uno que no llega es peor que uno que llega
+  // del remitente equivocado. Pero queda dicho de dónde salió.
+  global.__CORREOS = [];
+  global.__ALIAS = [];
+  const sin = mandarAviso_(avisoDe_('Finalizado'), 'SOL-00001');
+  ok(sin.ok && sin.alias === false, 'sin alias se manda igual, pero se sabe');
+  ok(global.__CORREOS.length === 1 && !global.__CORREOS[0].desde,
+    'y sale desde la cuenta que corre el disparador');
+  ok(sin.mensaje.indexOf('Enviar como') !== -1 || sin.mensaje.indexOf('no está en') !== -1,
+    'el resultado explica por qué: ' + sin.mensaje);
+
+  // Un alias de otra dirección no sirve.
+  global.__ALIAS = ['otra.cosa@masisa.com'];
+  ok(!puedeUsarElAlias_(), 'un alias que no es el de codificación no cuenta');
+
+  global.__ALIAS = ['codificacion.corporativa@masisa.com'];
+}
+
+// El correo sale con la dirección de codificación, así que sin esto no
+// quedaría dicho en ninguna parte quién cerró la solicitud de verdad.
+seccion('Quién la movió va en el correo');
+{
+  global.__CORREOS = [];
+  mandarAviso_(avisoDe_('Finalizado'), 'SOL-00001');
+  const cuerpo = global.__CORREOS[0].cuerpo;
+
+  ok(cuerpo.indexOf('Finalizado por: Jose Ortiz') !== -1,
+    'dice quién la finalizó: ' + (cuerpo.match(/Finalizado por:[^\n]*/) || [''])[0]);
+  ok(cuerpo.indexOf('25.09.2026 17:48') !== -1, 'y cuándo');
+  ok(quienMovio_('SOL-00001', 'Solicitando').usuario === 'Barbara Soto',
+    'cada estado trae al suyo, no siempre el último de la hoja');
+  ok(quienMovio_('SOL-00002', 'Finalizado') === null,
+    'una sin recorrido anotado no inventa un nombre');
+
+  // Sin la hoja de estados el correo sale igual, solo que sin esa línea.
+  const hoja = SS.getSheetByName('Registro Estados');
+  SS.deleteSheet(hoja);
+  global.__CORREOS = [];
+  const r = mandarAviso_(avisoDe_('Finalizado'), 'SOL-00001');
+  ok(r.ok && global.__CORREOS[0].cuerpo.indexOf('Finalizado por:') === -1,
+    'sin la hoja de estados el aviso sale igual, sin esa línea');
+  escribir('Registro Estados', ['N° Solicitud', 'Estado', 'Fecha', 'Usuario'], [
+    { 'N° Solicitud': 'SOL-00001', 'Estado': 'Solicitando',
+      'Fecha': '24.09.2026 09:12', 'Usuario': 'Barbara Soto' },
+    { 'N° Solicitud': 'SOL-00001', 'Estado': 'Finalizado',
+      'Fecha': '25.09.2026 17:48', 'Usuario': 'Jose Ortiz' }
+  ]);
 }
 
 seccion('Lo que no es la columna Estado de Registro no lo despierta');

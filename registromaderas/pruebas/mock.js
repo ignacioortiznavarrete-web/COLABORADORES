@@ -380,9 +380,43 @@ global.MailApp = {
   },
   getRemainingDailyQuota: () => (global.__CUOTA === undefined ? 1500 : global.__CUOTA)
 };
+/*
+  GmailApp: lo único que lo distingue de MailApp acá es que admite `from`, y
+  solo con un alias verificado de la propia cuenta. __ALIAS simula los que
+  tiene configurados.
+*/
+global.GmailApp = {
+  getAliases: () => (global.__ALIAS === undefined ? [] : global.__ALIAS),
+  sendEmail: (para, asunto, cuerpo, opciones) => {
+    const desde = (opciones || {}).from;
+    if (desde && (global.__ALIAS || []).indexOf(desde) === -1) {
+      throw new Error('Invalid from address: ' + desde);
+    }
+    if (global.__FALLA_CORREO) {
+      throw new Error(global.__FALLA_CORREO === true
+        ? 'el servidor de correo dijo que no' : String(global.__FALLA_CORREO));
+    }
+    global.__CORREOS.push({ para, asunto, cuerpo, opciones, desde: desde || null });
+  }
+};
+global.__DISPARADORES = [];
 global.ScriptApp = {
   getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }),
-  getOAuthToken: () => 'token-de-prueba'
+  getOAuthToken: () => 'token-de-prueba',
+  getProjectTriggers: () => global.__DISPARADORES,
+  deleteTrigger: t => {
+    const i = global.__DISPARADORES.indexOf(t);
+    if (i !== -1) global.__DISPARADORES.splice(i, 1);
+  },
+  newTrigger: nombre => {
+    const t = { getHandlerFunction: () => nombre };
+    const constructor = {
+      forSpreadsheet: () => constructor,
+      onEdit: () => constructor,
+      create: () => { global.__DISPARADORES.push(t); return t; }
+    };
+    return constructor;
+  }
 };
 global.HtmlService = {
   createTemplateFromFile: () => ({ evaluate: () => ({ setTitle: () => ({ addMetaTag: () => ({}) }) }) }),

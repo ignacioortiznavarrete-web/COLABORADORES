@@ -678,13 +678,17 @@ el reparto:
 |---|---|---|---|
 | Ingreso | se registra una solicitud | quien pidió | `fuente/` |
 | **Material creado** | el estado pasa a `Creando` | nosotros | `fuente/` |
-| Finalizado | el estado pasa a `Finalizado` | **codificación** | **`alertas/`** |
+| Finalizado | el estado pasa a `Finalizado` | **codificación**, por el alias | **`alertas/`** |
 
-Los dos primeros salen de este proyecto. El tercero **no puede**: tiene que
-salir de codificación, y este proyecto corre con nuestra cuenta. Por eso vive
-en `alertas/`, un Apps Script aparte que **instala codificación desde su propia
-cuenta** — un disparador instalable corre con la cuenta de quien lo instaló, y
-eso es lo único que decide el remitente. Tiene su propio README.
+Los dos primeros salen de este proyecto. El tercero vive en `alertas/`, un
+Apps Script aparte, y sale de codificación **sin tener que entrar a esa
+casilla**: si la dirección está agregada en *Enviar como* de la cuenta que
+instala el disparador, el correo sale con ella aunque lo mande otra cuenta.
+
+Eso importa por la **trazabilidad**: cada quien mueve el estado con su propio
+correo —que es lo que `Registro Estados` anota— y el aviso igual se ve salido
+de codificación. Si el alias no está, el correo sale igual desde la cuenta que
+instaló, y el proyecto lo dice en vez de callarlo. Tiene su propio README.
 
 Cada correo sale de **una sola parte**: si los dos proyectos mandaran el mismo,
 llegarían dos iguales.

@@ -5,14 +5,44 @@ Apps Script **aparte** del de entrada y del monitor. Comparte el spreadsheet
 
 ## Por qué es un proyecto aparte
 
-Un correo de Apps Script sale **siempre** de la cuenta con la que corre el
-script. No hay forma de poner otro remitente, ni con `from`, ni con alias.
+Un correo de Apps Script sale de la cuenta con la que corre el script. El
+formulario corre con la cuenta de quien lo publicó, así que desde ahí jamás
+saldría un correo de codificación. Un disparador instalable, en cambio, corre
+con la cuenta de **quien lo instaló**: por eso esto vive aparte.
 
-El formulario corre con la cuenta de quien lo publicó, así que desde ahí jamás
-podría salir un correo de codificación. Un disparador instalable, en cambio,
-corre con la cuenta de **quien lo instaló**. Por eso este proyecto existe y por
-eso tiene que instalarlo codificación desde su propia cuenta: de esa cuenta
-saldrán los avisos.
+## El alias: sale de codificación sin entrar a codificación
+
+A una casilla corporativa no siempre se puede entrar. Y aunque se pudiera,
+mover el estado desde ella **borraría de la bitácora quién lo movió de
+verdad** — y esa trazabilidad es justamente para lo que está `Registro
+Estados`.
+
+La salida es el **alias de Gmail**. Si la dirección de codificación está
+agregada y verificada en *Enviar como* de la cuenta que instala el disparador,
+el correo sale **con esa dirección** aunque lo mande otra cuenta. Entonces:
+
+- cada quien mueve el estado **con su propio correo**, que es lo que queda
+  anotado en `Registro Estados`
+- el aviso igual se ve salido de **codificación**
+- y el correo dice **quién la finalizó**, para que eso tampoco se pierda
+
+### Cómo se agrega el alias
+
+En Gmail de la cuenta que va a instalar el disparador:
+
+**⚙ Ver toda la configuración › Cuentas e importación › "Enviar como" ›
+Añadir otra dirección** → `codificacion.corporativa@masisa.com` → verificar.
+
+Google manda un código a esa casilla para confirmarlo. Si no tienes acceso a
+ella, alguien que sí lo tenga te pasa el código, o un administrador del dominio
+te delega la dirección.
+
+### Si no se puede agregar el alias
+
+El correo **sale igual**, desde la cuenta que instaló el disparador: un aviso
+que no llega es peor que uno que llega del remitente equivocado. Lo que no
+hace es callarlo — `instalarAlertas` y `probarCorreo` lo dicen con todas sus
+letras, y el resultado del envío también.
 
 ## Quién manda qué
 
@@ -20,7 +50,7 @@ saldrán los avisos.
 |---|---|---|---|
 | Se registra una solicitud | hay códigos nuevos que crear | quien pidió | `fuente/` (el formulario) |
 | Estado pasa a `Creando` | **Material creado**, con el detalle | nosotros | `fuente/` (el disparador) |
-| Estado pasa a `Finalizado` | código registrado, costo plan liberado | **codificación** | **acá** |
+| Estado pasa a `Finalizado` | código registrado, costo plan liberado, y quién la cerró | **codificación**, por el alias | **acá** |
 
 Cada correo sale de **una sola parte**. Si los dos proyectos mandaran el mismo,
 llegarían dos iguales.
@@ -61,11 +91,10 @@ en los dos mandaría dos.
 
 ## Cómo se instala
 
-**Lo instala codificación, desde su cuenta.** Si lo instala otra persona, los
-correos saldrán de esa otra persona.
+**Lo instala quien tenga el alias de codificación en "Enviar como"** (ver
+arriba). Sin alias, los correos saldrán de esa persona y no de codificación.
 
-1. Entrar a [script.google.com](https://script.google.com) con la cuenta de
-   codificación › **Proyecto nuevo**.
+1. Entrar a [script.google.com](https://script.google.com) › **Proyecto nuevo**.
 2. Ponerle nombre: *Alertas de codificación · Maderas*.
 3. **⚙ Configuración del proyecto** › marcar **«Mostrar appsscript.json»**.
 4. Crear los tres archivos y pegar el contenido de `fuente/`:
@@ -107,9 +136,11 @@ revisan— pero el permiso queda más ancho de lo necesario.
 
 ## Si no llega el correo
 
-Correr **`probarCorreo`** desde el editor. Dice tres cosas:
+Correr **`probarCorreo`** desde el editor. Dice cuatro cosas:
 
-- de qué cuenta sale
+- con qué cuenta corre
+- **de qué dirección va a salir el correo** — y si no es la de codificación,
+  qué alias tiene esa cuenta y cómo agregar el que falta
 - cuánta cuota de correo queda hoy
 - cuántos disparadores hay instalados — si dice **0**, nunca se corrió
   `instalarAlertas` y por eso no pasa nada
@@ -128,4 +159,6 @@ Usan el mismo simulador de Apps Script que el formulario de entrada
 (`../../pruebas/mock.js`). Cubren qué estados mandan correo y cuáles no, que
 una edición en otra columna u otra hoja no lo despierte, qué pasa cuando no hay
 a quién escribirle, que un correo caído no reviente el disparador, que el
-proyecto no escriba nada, y que no mande lo mismo que el de entrada.
+proyecto no escriba nada, que no mande lo mismo que el de entrada, que con
+alias el remitente sea el de codificación y sin alias se mande igual diciéndolo,
+y que el correo nombre a quien cerró la solicitud.
