@@ -1,5 +1,6 @@
 ' =====================================================================
-'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v14
+'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v15
+'  v15: validez de cabecera (In.per.validez / Fin per.validez) verificada
 '  v14: tolerancia de exceso (Tol.exc.sum.) 99,9 y texto de posicion
 '       (Calidad) en TODAS las posiciones, con verificacion y reintento
 '  Graba automaticamente el contrato y captura el numero solo
@@ -500,20 +501,11 @@ Sub CrearPedido(f1 As Long, f2 As Long)
     WaitSeconds 1.5
     ConfirmarPopups
 
-    ' ---- Cabecera > Datos adicionales: validez (TABHDT7, tu grabacion) ----
-    PressVar "wnd[0]/usr/subSUB0:SAPLMEGUI:{N}/subSUB1:SAPLMEVIEWS:1100/subSUB1:SAPLMEVIEWS:4000/btnDYN_4000-BUTTON"
-    WaitSeconds 0.8
-    Set o = FindIdVar("wnd[0]/usr/subSUB0:SAPLMEGUI:{N}/subSUB1:SAPLMEVIEWS:1100/subSUB2:SAPLMEVIEWS:1200/subSUB1:SAPLMEGUI:1102/tabsHEADER_DETAIL/tabpTABHDT7")
-    If Not o Is Nothing Then
-        On Error Resume Next
-        o.Select
-        On Error GoTo 0
-        WaitSeconds 0.5
+    ' ---- Cabecera > Datos adicionales: In.per.validez / Fin per.validez ----
+    Dim fallas As String
+    If Not CompletarValidez() Then
+        fallas = "Cabecera: In.per.validez " & d1 & " / Fin per.validez " & d2 & " no quedaron grabadas" & vbCrLf
     End If
-    Set o = FindIdVar("wnd[0]/usr/subSUB0:SAPLMEGUI:{N}/subSUB1:SAPLMEVIEWS:1100/subSUB2:SAPLMEVIEWS:1200/subSUB1:SAPLMEGUI:1102/tabsHEADER_DETAIL/tabpTABHDT7/ssubTABSTRIPCONTROL2SUB:SAPLMEGUI:1229/ctxtMEPO1229-KDATB")
-    If Not o Is Nothing Then o.Text = d1
-    Set o = FindIdVar("wnd[0]/usr/subSUB0:SAPLMEGUI:{N}/subSUB1:SAPLMEVIEWS:1100/subSUB2:SAPLMEVIEWS:1200/subSUB1:SAPLMEGUI:1102/tabsHEADER_DETAIL/tabpTABHDT7/ssubTABSTRIPCONTROL2SUB:SAPLMEGUI:1229/ctxtMEPO1229-KDATE")
-    If Not o Is Nothing Then o.Text = d2
 
     ' ---- Detalle por posicion: tolerancia 99,9 + texto de posicion ----
     ' Texto de cada posicion: columna I de esa fila; si esta vacia se usa
@@ -526,16 +518,22 @@ Sub CrearPedido(f1 As Long, f2 As Long)
         If textos(n) <> "" Then textos(n) = PREFIJO_TEXTO & textos(n)
     Next n
 
-    Dim fallas As String
-    fallas = CompletarPosiciones(nItems, textos)
+    fallas = fallas & CompletarPosiciones(nItems, textos)
+
+    ' Volver a revisar la validez de cabecera antes de grabar (si se perdio, se reescribe)
+    If InStr(fallas, "Cabecera:") = 0 Then
+        If Not CompletarValidez() Then
+            fallas = "Cabecera: In.per.validez " & d1 & " / Fin per.validez " & d2 & " no quedaron grabadas" & vbCrLf & fallas
+        End If
+    End If
 
     ' ---- Grabar ----
     If fallas <> "" Then
         If MsgBox("Pedido del proveedor " & proveedor & " (contrato " & contrato & "):" & vbCrLf & _
-                  "no pude completar estas posiciones:" & vbCrLf & vbCrLf & fallas & vbCrLf & _
-                  "Corrigelas a mano en SAP y presiona Aceptar para continuar," & vbCrLf & _
+                  "no pude completar lo siguiente:" & vbCrLf & vbCrLf & fallas & vbCrLf & _
+                  "Corrigelo a mano en SAP y presiona Aceptar para continuar," & vbCrLf & _
                   "o Cancelar para NO grabar este pedido.", _
-                  vbExclamation + vbOKCancel, "Tolerancia / Texto de posicion") = vbCancel Then
+                  vbExclamation + vbOKCancel, "Validez / Tolerancia / Texto de posicion") = vbCancel Then
             Exit Sub
         End If
     End If
@@ -636,6 +634,124 @@ Function CompletarPosiciones(nItems As Long, textos() As String) As String
     ' dejar SAP en la posicion 1
     IrAPosicion 1
     CompletarPosiciones = fallas
+End Function
+
+' =====================================================================
+'   CABECERA (ME21N): In.per.validez (KDATB) y Fin per.validez (KDATE)
+' ---------------------------------------------------------------------
+'  Misma idea que las posiciones: abrir la cabecera SOLO si esta cerrada,
+'  buscar los campos por nombre, escribir, confirmar con Enter y releer.
+' =====================================================================
+Function CompletarValidez() As Boolean
+    Dim pasada As Long
+    For pasada = 1 To 3
+        If ValidezCabeceraOK(pasada < 3) Then
+            CompletarValidez = True
+            Exit Function
+        End If
+    Next pasada
+    CompletarValidez = False
+End Function
+
+Function DetalleCabecera() As Object
+    Set DetalleCabecera = BuscarCtrl("HEADER_DETAIL", "GuiTabStrip")
+End Function
+
+' Abre la cabecera SOLO si esta cerrada (el boton abre/cierra)
+Function AbrirCabecera() As Boolean
+    Dim intento As Long
+    For intento = 1 To 2
+        If Not DetalleCabecera() Is Nothing Then
+            AbrirCabecera = True
+            Exit Function
+        End If
+        PressVar "wnd[0]/usr/subSUB0:SAPLMEGUI:{N}/subSUB1:SAPLMEVIEWS:1100/subSUB1:SAPLMEVIEWS:4000/btnDYN_4000-BUTTON"
+        EsperarSAP
+    Next intento
+    AbrirCabecera = Not DetalleCabecera() Is Nothing
+End Function
+
+' Deja en pantalla la pestana de cabecera que contiene el campo de validez.
+' Prueba primero "Datos adicionales" (TABHDT7, tu grabacion) y si no esta
+' ahi, recorre todas las pestanas de la cabecera.
+Function PestanaValidez() As Object
+    Dim det As Object, pest As Object, i As Long, nTabs As Long, nombre As String
+
+    Set det = DetalleCabecera()
+    If det Is Nothing Then Exit Function
+
+    ' 1) la pestana ya visible o TABHDT7
+    If Not BuscarCtrl("MEPO1229-KDATB", "GuiCTextField", det) Is Nothing Then
+        Set PestanaValidez = det
+        Exit Function
+    End If
+    Set pest = BuscarCtrl("TABHDT7", "GuiTab", det)
+    If Not pest Is Nothing Then
+        On Error Resume Next
+        pest.Select
+        On Error GoTo 0
+        EsperarSAP
+        Set det = DetalleCabecera()
+        If Not det Is Nothing Then
+            If Not BuscarCtrl("MEPO1229-KDATB", "GuiCTextField", det) Is Nothing Then
+                Set PestanaValidez = det
+                Exit Function
+            End If
+        End If
+    End If
+
+    ' 2) recorrer todas las pestanas
+    Set det = DetalleCabecera()
+    If det Is Nothing Then Exit Function
+    On Error Resume Next
+    nTabs = det.Children.Count
+    On Error GoTo 0
+    For i = 0 To nTabs - 1
+        Set det = DetalleCabecera()
+        If det Is Nothing Then Exit Function
+        nombre = ""
+        On Error Resume Next
+        nombre = det.Children.Item(i).Name
+        det.Children.Item(i).Select
+        On Error GoTo 0
+        EsperarSAP
+        Set det = DetalleCabecera()
+        If Not det Is Nothing Then
+            If Not BuscarCtrl("MEPO1229-KDATB", "GuiCTextField", det) Is Nothing Then
+                Set PestanaValidez = det
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
+
+' True si KDATB = d1 y KDATE = d2. Si no y escribir=True, las escribe,
+' confirma con Enter y devuelve False para que la siguiente pasada relea.
+Function ValidezCabeceraOK(escribir As Boolean) As Boolean
+    Dim det As Object, oIni As Object, oFin As Object
+    ValidezCabeceraOK = False
+    If Not AbrirCabecera() Then Exit Function
+    Set det = PestanaValidez()
+    If det Is Nothing Then Exit Function
+
+    Set oIni = BuscarCtrl("MEPO1229-KDATB", "GuiCTextField", det)
+    Set oFin = BuscarCtrl("MEPO1229-KDATE", "GuiCTextField", det)
+    If oIni Is Nothing Or oFin Is Nothing Then Exit Function
+
+    If Trim(oIni.Text) = d1 And Trim(oFin.Text) = d2 Then
+        ValidezCabeceraOK = True
+        Exit Function
+    End If
+    If escribir Then
+        On Error Resume Next
+        oIni.Text = d1
+        oFin.Text = d2
+        oFin.SetFocus
+        session.findById("wnd[0]").sendVKey 0
+        On Error GoTo 0
+        EsperarSAP
+        ConfirmarPopups
+    End If
 End Function
 
 ' Busca un control por nombre dentro de un contenedor (o en toda la pantalla)
