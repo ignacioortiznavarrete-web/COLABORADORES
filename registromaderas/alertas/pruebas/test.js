@@ -282,5 +282,46 @@ seccion('Ningún nombre declarado dos veces');
     'y se revisaron de verdad: ' + cuantosNombres(carpeta) + ' nombres');
 }
 
+// Sin el disparador instalado no pasa NADA al poner Finalizado: no hay error,
+// no hay correo, no hay nada. Es el modo de fallar más fácil de no notar, así
+// que instalarAlertas tiene que dejarlo puesto y no duplicado.
+seccion('Instalar deja un disparador, y solo uno');
+{
+  global.__DISPARADORES = [];
+  global.__ALIAS = ['codificacion.corporativa@masisa.com'];
+
+  const texto = instalarAlertas();
+  ok(global.__DISPARADORES.length === 1, 'queda uno instalado');
+  ok(global.__DISPARADORES[0].getHandlerFunction() === 'alEditarRegistro',
+    'y es el que escucha las ediciones');
+
+  // Correrlo dos veces mandaría dos correos iguales por cada solicitud.
+  instalarAlertas();
+  ok(global.__DISPARADORES.length === 1, 'correrlo de nuevo no deja dos');
+
+  ok(texto.indexOf('Finalizado') !== -1, 'el aviso dice qué estado manda correo');
+  ok(texto.indexOf('codificacion.corporativa@masisa.com') !== -1,
+    'y de qué dirección va a salir');
+
+  // Y sin alias lo advierte, en vez de dejar creer que sale de codificación.
+  global.__DISPARADORES = [];
+  global.__ALIAS = [];
+  const sinAlias = instalarAlertas();
+  ok(sinAlias.indexOf('OJO') !== -1 && sinAlias.indexOf('jose.ortiz@masisa.com') !== -1,
+    'sin alias avisa que saldrá de la cuenta que instaló: ' +
+    (sinAlias.match(/OJO[^\n]*/) || [''])[0]);
+
+  // probarCorreo es lo primero que se corre cuando no llega nada.
+  global.__DISPARADORES = [];
+  global.__CORREOS = [];
+  const diagnostico = probarCorreo();
+  ok(diagnostico.indexOf('Disparadores instalados: 0') !== -1,
+    'y probarCorreo canta cuando no hay ninguno instalado');
+  ok(diagnostico.indexOf('Enviar como') !== -1,
+    'y cómo agregar el alias que falta');
+
+  global.__ALIAS = ['codificacion.corporativa@masisa.com'];
+}
+
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));
 process.exit(fallos ? 1 : 0);
