@@ -73,6 +73,32 @@ Nada de esto se pregunta:
 
 La clase queda editable en la tabla por si algún caso no calza.
 
+### Las columnas son una sola tabla partida en pedazos
+
+La línea 7 de Códigos es la línea 7 de la ruta de al lado, y es el número que
+después sale en la columna `Línea` de la tabla de resultados. Eso no se ve
+solo: son cinco cajas de texto sueltas. Tres cosas lo muestran.
+
+| | |
+|---|---|
+| **Los números** | al lado de Códigos, y se corren con el texto |
+| **Las rayas** | una por renglón, y cada quinta más fuerte: contar de cinco en cinco es más rápido |
+| **La franja** | la línea donde está el cursor, dibujada en **todas** las columnas a la vez |
+
+La franja es la que hace el trabajo: con el cursor en la línea 7 de una ruta,
+la misma franja aparece en Códigos y en las demás. No hay que contar nada.
+
+Para que las tres calcen, el alto de renglón tiene que ser un **entero** y el
+mismo en el CSS y en el javascript. Con 1,6 de alto —22,4px— se iban
+desalineando de a poco y a la línea veinte ya no calzaban. Vive en `--lh`, el
+javascript lo lee de ahí, y una prueba revisa que los dos digan lo mismo.
+
+Las cinco columnas además **ruedan juntas y miden lo mismo**: el alto lo manda
+Códigos y las demás lo siguen. Una columna que aparece recién cuando se sabe
+qué pide el código —una ruta, el PAK— se pone a la altura a la que esté
+Códigos; si se quedara en cero, con cuarenta códigos serían tres o cuatro
+líneas de desfase, y la ruta que se ve al lado de un código sería la de otro.
+
 ## Las condicionales
 
 Todo lo que el formulario decide solo sale de tus propias hojas:

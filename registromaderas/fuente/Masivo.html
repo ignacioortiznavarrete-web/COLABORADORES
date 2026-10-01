@@ -34,34 +34,59 @@
         <b id="tipoElegido"></b> ·
         <button type="button" class="enlace" id="btnCambiarTipo">cambiar tipo</button><br>
         Pega los códigos, uno por línea. Se revisan solos mientras escribes, y aparecen
-        solo las columnas de ruta que hagan falta, alineadas por línea con los códigos.
+        solo las columnas de ruta que hagan falta, <b>alineadas por línea</b> con los
+        códigos: la línea 7 de una es la línea 7 de las otras, y es el mismo número
+        que después sale en la tabla. Los renglones y la franja de la línea en que
+        estás escribiendo están para no perder la cuenta.
         Los que empiezan con <b>C</b> son cepillados y piden las tres; los de especie <b>H</b>
         que no son cepillados son de Trading y no piden ninguna.
         La ruta va como tres letras, un espacio y la escuadría (<b>RVM 019X020</b>): en
         producto terminado puede ser cualquiera, y en proceso tiene que existir ya en la base.
       </p>
 
+      <!--
+        Cada columna va dentro de un .campo: ahí viven el textarea, la banda que
+        resalta el renglón donde está el cursor y, en Códigos, la regla con los
+        números de línea. Es lo que hace visible que la línea 7 de Códigos es la
+        línea 7 de la ruta de al lado.
+      -->
       <div class="columnas" id="columnas">
         <label class="columna crece">
           <span class="tit">Códigos</span>
-          <textarea id="colCodigos" rows="10" spellcheck="false"
-            placeholder="RVMH032X180X3960&#10;C4JR019X100X2440&#10;RVM 032X180"></textarea>
+          <div class="campo con-numeros">
+            <div class="numeros" aria-hidden="true"><div class="numeros-lista" id="numerosLista"></div></div>
+            <textarea id="colCodigos" rows="10" spellcheck="false"
+              placeholder="RVMH032X180X3960&#10;C4JR019X100X2440&#10;RVM 032X180"></textarea>
+            <div class="renglon" hidden></div>
+          </div>
         </label>
         <label class="columna estrecha" id="cajaPiezas" hidden>
           <span class="tit">PAK</span>
-          <textarea id="colPiezas" rows="10" spellcheck="false" placeholder="248"></textarea>
+          <div class="campo">
+            <textarea id="colPiezas" rows="10" spellcheck="false" placeholder="248"></textarea>
+            <div class="renglon" hidden></div>
+          </div>
         </label>
         <label class="columna" id="cajaAserradero" hidden>
           <span class="tit">Ruta de aserradero</span>
-          <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
+          <div class="campo">
+            <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
+            <div class="renglon" hidden></div>
+          </div>
         </label>
         <label class="columna" id="cajaSecado" hidden>
           <span class="tit">Ruta de secado</span>
-          <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
+          <div class="campo">
+            <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
+            <div class="renglon" hidden></div>
+          </div>
         </label>
         <label class="columna" id="cajaCepillado" hidden>
           <span class="tit">Ruta de cepillado</span>
-          <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
+          <div class="campo">
+            <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
+            <div class="renglon" hidden></div>
+          </div>
         </label>
       </div>
 
@@ -301,10 +326,15 @@
     var el = $(id);
     if (el.value === texto || document.activeElement === el) return;
     el.value = texto;
+    // Cambió cuántas líneas tiene: la regla de números tiene que seguirla.
+    if (typeof pintarNumeros === 'function') pintarNumeros();
   }
 
   function escribirColumnas() {
     var alto = lineasDe('colCodigos').length;
+    // Al final de esta función las columnas recién tienen sus líneas: hasta
+    // entonces no podían rodar, así que hay que volver a alinearlas.
+    setTimeout(igualarColumnas, 0);
 
     // Los códigos vuelven con sus ceros: quien pegó RVMH32X180X3960 ve
     // RVMH032X180X3960, que es lo que va a entrar al batch input. Las líneas
@@ -367,6 +397,9 @@
       if (pide) alguna = true;
     });
     $('cajaPiezas').hidden = !pidePak;
+    // La que acaba de aparecer nace con el alto de Códigos y con su franja en
+    // la misma línea: si no, entra desalineada y hay que tocarla para que calce.
+    igualarColumnas();
     return alguna;
   }
 
@@ -375,19 +408,164 @@
     $('cajaPiezas').hidden = true;
   }
 
+  /* ------------------------------------------------------ los renglones */
+
+  /*
+    Las cinco columnas son una sola tabla partida en pedazos: la línea 7 de
+    Códigos es la línea 7 de la ruta de al lado. Nada de eso se ve solo —son
+    cinco cajas de texto sueltas— así que hay tres cosas que lo muestran:
+
+      · los números de línea, al lado de Códigos, que son los mismos que la
+        tabla de abajo pone en su columna "Línea"
+      · las rayas de fondo, cada una un renglón y cada quinta más fuerte
+      · la franja de la línea donde está el cursor, dibujada en TODAS las
+        columnas a la vez
+
+    Para que las tres calcen, el alto de renglón tiene que ser un entero y el
+    mismo en los tres lados. Vive en el CSS, en --lh, y se lee de ahí para que
+    no queden dos números distintos.
+  */
+  var COLUMNAS_LOTE = ['colCodigos', 'colPiezas', 'colAserradero', 'colSecado', 'colCepillado'];
+  var LINEA_ALTO = 24;
+  var RELLENO_CAMPO = 12;
+  var BORDE_CAMPO = 1;
+  var LINEA_ACTUAL = null;
+
+  function medirRenglon() {
+    var raiz = getComputedStyle(document.documentElement);
+    LINEA_ALTO = parseFloat(raiz.getPropertyValue('--lh')) || 24;
+    RELLENO_CAMPO = parseFloat(raiz.getPropertyValue('--pad-campo')) || 12;
+  }
+
+  /** En qué línea está el cursor, contando desde 0. */
+  function lineaDelCursor(caja) {
+    return caja.value.substring(0, caja.selectionStart).split('\n').length - 1;
+  }
+
+  /**
+   * La regla de números.
+   *
+   * Pone al menos las que caben en la caja, aunque todavía no haya texto: una
+   * regla que aparece recién al escribir no sirve para saber dónde pegar.
+   */
+  function pintarNumeros() {
+    var caja = $('colCodigos');
+    var lista = $('numerosLista');
+    if (!lista) return;
+
+    // Lo que haya escrito, y al menos lo que cabe a la vista: una regla que
+    // aparece recién al escribir no sirve para saber dónde pegar. El tope está
+    // para que un alto raro no pida mil números.
+    var escritas = caja.value.split(/\r?\n/).length;
+    // Las que caben ENTERAS: una cifra cortada por la mitad abajo se ve como
+    // un desperfecto, no como "hay más".
+    var caben = Math.floor((caja.clientHeight - 2 * RELLENO_CAMPO) / LINEA_ALTO);
+    var cuantas = Math.min(Math.max(escritas, caben), 500);
+
+    if (lista.childElementCount !== cuantas) {
+      var html = '';
+      for (var i = 1; i <= cuantas; i++) html += '<i>' + i + '</i>';
+      lista.innerHTML = html;
+    }
+    // La regla no tiene barra propia: se corre con el texto.
+    lista.style.transform = 'translateY(' + (-caja.scrollTop) + 'px)';
+
+    var marcada = lista.querySelector('i.aqui');
+    if (marcada) marcada.classList.remove('aqui');
+    if (LINEA_ACTUAL !== null && lista.children[LINEA_ACTUAL]) {
+      lista.children[LINEA_ACTUAL].classList.add('aqui');
+    }
+  }
+
+  /** La franja de la línea actual, en todas las columnas que estén a la vista. */
+  function pintarRenglon() {
+    COLUMNAS_LOTE.forEach(function (id) {
+      var caja = $(id);
+      var franja = caja.parentNode.querySelector('.renglon');
+      if (!franja) return;
+
+      if (LINEA_ACTUAL === null) { franja.hidden = true; return; }
+
+      var y = BORDE_CAMPO + RELLENO_CAMPO + LINEA_ACTUAL * LINEA_ALTO - caja.scrollTop;
+      var desde = BORDE_CAMPO + RELLENO_CAMPO;
+      var hasta = caja.offsetHeight - BORDE_CAMPO - RELLENO_CAMPO;
+      // Media franja asomando por el borde se lee como un error: o entera o nada.
+      franja.hidden = y < desde - 0.5 || y + LINEA_ALTO > hasta + 0.5;
+      franja.style.top = y + 'px';
+    });
+    pintarNumeros();
+  }
+
+  function marcarLinea(caja) {
+    LINEA_ACTUAL = lineaDelCursor(caja);
+    pintarRenglon();
+  }
+
+  /**
+   * El alto lo manda Códigos y los demás lo siguen.
+   *
+   * Si cada columna se pudiera estirar por su cuenta, dos al lado quedarían con
+   * distinto alto y las líneas dejarían de estar a la misma altura, que es
+   * justo lo que se quiere evitar.
+   */
+  /**
+   * Que todas las columnas queden con el mismo alto y a la misma altura.
+   *
+   * Lo segundo importa tanto como lo primero. Una columna que todavía no
+   * aparece, o que todavía está vacía, no puede rodar: su scroll se queda en
+   * cero. Cuando después aparece con sus líneas, nadie la vuelve a poner donde
+   * está Códigos, y queda corrida. Con cuarenta códigos eso son tres o cuatro
+   * líneas de desfase: la ruta que se ve al lado de un código es la de otro.
+   */
+  function igualarColumnas() {
+    var mando = $('colCodigos');
+    var alto = mando.offsetHeight;
+    COLUMNAS_LOTE.forEach(function (id) {
+      if (id === 'colCodigos') return;
+      $(id).style.height = alto + 'px';
+      $(id).scrollTop = mando.scrollTop;
+    });
+    pintarRenglon();
+  }
+
+  function seguirElAlto() {
+    var mando = $('colCodigos');
+    if (window.ResizeObserver) new ResizeObserver(igualarColumnas).observe(mando);
+    window.addEventListener('resize', igualarColumnas);
+    igualarColumnas();
+  }
+
   /** Que las columnas rueden juntas: si no, las líneas dejan de calzar. */
   function sincronizarScroll() {
-    var cajas = ['colCodigos', 'colAserradero', 'colSecado', 'colCepillado', 'colPiezas']
-      .map(function (id) { return $(id); });
+    var cajas = COLUMNAS_LOTE.map(function (id) { return $(id); });
     var mandando = null;
     cajas.forEach(function (caja) {
       caja.addEventListener('scroll', function () {
         if (mandando && mandando !== caja) return;
         mandando = caja;
         cajas.forEach(function (otra) { if (otra !== caja) otra.scrollTop = caja.scrollTop; });
+        pintarRenglon();
         setTimeout(function () { mandando = null; }, 60);
       });
+
+      // El cursor se mueve de muchas maneras; todas terminan acá.
+      ['input', 'click', 'keyup', 'focus', 'select'].forEach(function (que) {
+        caja.addEventListener(que, function () { marcarLinea(caja); });
+      });
+      caja.addEventListener('blur', function () {
+        // Sin foco en ninguna, no hay línea actual que marcar.
+        setTimeout(function () {
+          if (COLUMNAS_LOTE.indexOf(document.activeElement.id) === -1) {
+            LINEA_ACTUAL = null;
+            pintarRenglon();
+          }
+        }, 0);
+      });
     });
+
+    medirRenglon();
+    seguirElAlto();
+    pintarNumeros();
   }
 
   /* ------------------------------------------------------------- analizar */

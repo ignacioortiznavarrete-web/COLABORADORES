@@ -94,8 +94,17 @@
   .pegar-nota { font-size: 13px; color: var(--tinta-suave); max-width: 78ch; text-wrap: pretty; }
   .pegar .aviso { margin: 14px 0 0; }
 
-  .columnas { display: flex; gap: 10px; align-items: stretch; }
+  /*
+    `flex-start` y no `stretch`: con stretch, la columna más alta estira a las
+    demás, y como el js le da a las demás el alto de Códigos, cada vuelta las
+    hacía un poco más altas que la anterior. El textarea no paraba de crecer.
+    Sin stretch, el alto de cada una es el suyo y el js es el único que lo
+    iguala.
+  */
+  .columnas { display: flex; gap: 10px; align-items: flex-start; }
   .columna { display: flex; flex-direction: column; flex: 1 1 16ch; min-width: 0; }
+  /* La observación no es una columna del lote: ahí el textarea sí se estira solo. */
+  .observacion textarea { background-image: none; resize: vertical; }
   .columna.crece { flex: 1.6 1 22ch; }
   .columna.estrecha { flex: 0.5 1 8ch; }
   .columna .tit {
@@ -130,17 +139,102 @@
 
   .wrap.ancho { max-width: 1240px; }
 
+  /*
+    El alto de renglón es un número entero y está acá arriba porque tres cosas
+    tienen que caer exactamente en el mismo sitio: la línea del texto, la raya
+    de fondo y el número de la regla. Con 1.6 de alto —22,4px— se iban
+    desalineando de a poco y a la línea veinte ya no calzaban.
+
+    El javascript lo lee de LINEA_ALTO: si cambia acá, cambia allá.
+  */
+  :root {
+    --lh: 24px;
+    --pad-campo: 12px;
+    --raya: oklch(0.925 0.006 157);
+    --raya-quinta: oklch(0.885 0.010 157);
+  }
+
   textarea {
-    width: 100%; font: 14px/1.6 var(--mono); letter-spacing: .04em;
+    width: 100%; font: 14px/var(--lh) var(--mono); letter-spacing: .04em;
     color: var(--tinta); background: var(--papel);
     border: 1px solid var(--linea); border-radius: var(--r-chico);
-    padding: 12px 14px; resize: vertical; min-height: 120px;
+    padding: var(--pad-campo) 14px; resize: vertical; min-height: 120px;
     transition: border-color 140ms var(--salida), box-shadow 140ms var(--salida);
   }
   textarea:focus {
     outline: none; border-color: var(--bosque-600);
     box-shadow: 0 0 0 3px oklch(0.47 0.095 156 / .16);
   }
+
+  /* ------------------------------------------- los renglones de las columnas */
+
+  .campo { position: relative; display: flex; }
+  .campo textarea { flex: 1 1 auto; min-width: 0; }
+
+  /*
+    Las rayas de fondo. `local` las hace rodar con el texto en vez de quedarse
+    pegadas al marco, y `content-box` las arranca después del relleno, donde
+    empieza la primera línea. Cada quinta es un poco más fuerte: contar de
+    cinco en cinco es más rápido que de uno en uno.
+  */
+  .columnas textarea {
+    background-image:
+      repeating-linear-gradient(to bottom,
+        transparent 0, transparent calc(var(--lh) * 5 - 1px),
+        var(--raya-quinta) calc(var(--lh) * 5 - 1px), var(--raya-quinta) calc(var(--lh) * 5)),
+      repeating-linear-gradient(to bottom,
+        transparent 0, transparent calc(var(--lh) - 1px),
+        var(--raya) calc(var(--lh) - 1px), var(--raya) var(--lh));
+    background-origin: content-box;
+    background-attachment: local;
+  }
+
+  /* El textarea de Códigos manda el alto; los demás lo siguen desde el js. */
+  .columnas textarea { resize: none; }
+  #colCodigos { resize: vertical; }
+
+  /*
+    La regla de números, pegada al textarea de Códigos.
+
+    La lista va ABSOLUTA adentro a propósito. Si contara para el alto, cien
+    números harían alto el .campo, el .campo estiraría el textarea, el textarea
+    más alto pediría más números, y así: el campo no paraba de crecer. Absoluta
+    no mide nada, la regla toma su alto del textarea, y `overflow: hidden`
+    recorta lo que sobra.
+
+    El ancho sí va fijo: tres cifras alcanzan de sobra para una tanda, que son
+    cuarenta códigos como mucho.
+  */
+  .numeros {
+    position: relative; flex: 0 0 auto; width: calc(3ch + 16px);
+    overflow: hidden; user-select: none;
+    font: 14px/var(--lh) var(--mono);
+    color: var(--tinta-suave); background: var(--bosque-050);
+    border: 1px solid var(--linea); border-right: 0;
+    border-radius: var(--r-chico) 0 0 var(--r-chico);
+    text-align: right;
+  }
+  .campo.con-numeros textarea { border-radius: 0 var(--r-chico) var(--r-chico) 0; }
+  .numeros-lista {
+    position: absolute; top: var(--pad-campo); right: 7px; left: 0;
+  }
+  .numeros-lista i { display: block; font-style: normal; }
+  /* La línea donde está el cursor, también en la regla. */
+  .numeros-lista i.aqui { color: var(--bosque-700); font-weight: 700; }
+
+  /*
+    La franja de la línea en que se está escribiendo. Va en TODAS las columnas a
+    la vez, que es lo que hace ver de un golpe que la línea 7 de una es la 7 de
+    la otra. Encima del texto y transparente: el texto se sigue leyendo.
+  */
+  .renglon {
+    position: absolute; left: 0; right: 0; height: var(--lh);
+    pointer-events: none; z-index: 1;
+    background: oklch(0.47 0.095 156 / .07);
+    border-top: 1px solid oklch(0.47 0.095 156 / .22);
+    border-bottom: 1px solid oklch(0.47 0.095 156 / .22);
+  }
+  .campo.con-numeros .renglon { border-left: 2px solid var(--bosque-600); }
 
   .resumen-lote { margin: 22px 0 12px; font-size: 14px; color: var(--tinta-suave); }
   .resumen-lote b { color: var(--tinta); }

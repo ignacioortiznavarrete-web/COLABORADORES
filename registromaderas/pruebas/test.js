@@ -1191,6 +1191,49 @@ seccion('instalarRegistro deja la bitácora lista');
   ok(!SS.getSheetByName('SAP'), 'y no inventa ninguna hoja de catálogo');
 }
 
+// Tres cosas tienen que caer en la misma altura para que se vea qué línea es
+// cuál: el texto, la raya de fondo y el número de la regla. Dos de ellas se
+// miden en el CSS y la tercera en el javascript, así que si alguien cambia una
+// sola, las líneas se desalinean de a poco y nadie lo nota hasta la línea
+// veinte. Esto las ata.
+seccion('Los renglones del pegado miden lo mismo en el CSS y en el js');
+{
+  const fs = require('fs');
+  const estilos = fs.readFileSync(__dirname + '/../fuente/Estilos.html', 'utf8');
+  const masivo = fs.readFileSync(__dirname + '/../fuente/Masivo.html', 'utf8');
+
+  const deCss = nombre => {
+    const m = new RegExp('--' + nombre + ':\\s*([\\d.]+)px').exec(estilos);
+    return m ? Number(m[1]) : null;
+  };
+  const deJs = nombre => {
+    const m = new RegExp('var ' + nombre + ' = ([\\d.]+);').exec(masivo);
+    return m ? Number(m[1]) : null;
+  };
+
+  ok(deCss('lh') !== null && deJs('LINEA_ALTO') !== null,
+    'los dos valores existen: --lh y LINEA_ALTO');
+  ok(deCss('lh') === deJs('LINEA_ALTO'),
+    'el alto de renglón es el mismo: --lh ' + deCss('lh') + ' y LINEA_ALTO ' + deJs('LINEA_ALTO'));
+  ok(deCss('pad-campo') === deJs('RELLENO_CAMPO'),
+    'y el relleno también: --pad-campo ' + deCss('pad-campo') +
+    ' y RELLENO_CAMPO ' + deJs('RELLENO_CAMPO'));
+
+  // Un alto de renglón con decimales se desalinea de a poco: 1.6 de 14px son
+  // 22,4, y a la línea veinte ya van ocho píxeles de diferencia.
+  ok(Number.isInteger(deCss('lh')), 'el alto de renglón es un entero, no 22.4');
+
+  // El js lee los dos del CSS al arrancar; los `var` son solo el respaldo.
+  ok(/getPropertyValue\('--lh'\)/.test(masivo) && /getPropertyValue\('--pad-campo'\)/.test(masivo),
+    'y de todos modos el js los lee del CSS al arrancar, no se los cree de memoria');
+
+  // Las cinco columnas del lote se mueven juntas: alto, scroll y franja.
+  ok(/COLUMNAS_LOTE\s*=\s*\[[^\]]*colCodigos[^\]]*colPiezas[^\]]*colAserradero[^\]]*colSecado[^\]]*colCepillado/
+    .test(masivo), 'y las cinco columnas están todas en la lista que se sincroniza');
+  ok(/\$\(id\)\.scrollTop = mando\.scrollTop/.test(masivo),
+    'una columna que aparece después se pone a la altura de Códigos, no en cero');
+}
+
 // Todos los archivos de un proyecto de Apps Script comparten un solo espacio
 // de nombres. Si dos declaran lo mismo, el proyecto no carga —"Identifier 'X'
 // has already been declared"— y no anda nada. Es un error que ocurre ANTES de
