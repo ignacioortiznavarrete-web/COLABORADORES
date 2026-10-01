@@ -36,6 +36,7 @@
     <section class="panel" id="panel">
       <div class="tarjetas" id="tarjetas"></div>
 
+      <div class="dos-graficos">
       <div class="caja grafico">
         <div class="grafico-cabecera">
           <div>
@@ -52,6 +53,20 @@
         <div class="leyenda" id="leyenda"></div>
         <p class="pie">Cada columna son las solicitudes ingresadas en ese período,
           repartidas por el estado en que están hoy. La tabla de abajo trae una por una.</p>
+      </div>
+
+      <div class="caja dona-caja">
+        <div class="grafico-cabecera">
+          <div>
+            <h2>En qué se va la espera</h2>
+            <p class="sub" id="donaSub"></p>
+          </div>
+        </div>
+        <div class="dona" id="dona"></div>
+        <div class="dona-leyenda" id="donaLeyenda"></div>
+        <p class="pie">Horas de trabajo: lun&ndash;jue 8:00&ndash;17:30, vie 8:00&ndash;14:30.
+          Noches y fines de semana no cuentan.</p>
+      </div>
       </div>
     </section>
 
@@ -165,33 +180,115 @@
       return sinTildes(s.estado) === sinTildes(ESTADO_FINAL);
     });
 
+    // Los números de demora no están acá sino en la dona, que es donde
+    // significan algo: ahí se ven como partes de la misma espera.
     var tarjetas = [
       { rotulo: 'Solicitudes', valor: lista.length },
       { rotulo: 'En curso', valor: lista.length - finalizadas.length },
       { rotulo: 'Finalizadas', valor: finalizadas.length }
     ];
 
-    // La demora de cada tramo, promediada sobre las solicitudes que lo
-    // completaron. La nota dice cuántas son: un promedio de dos no es lo
-    // mismo que uno de doscientas, y quien lo mira tiene que poder saberlo.
-    TRAMOS.forEach(function (tramo) {
-      var demoras = demorasDelTramo(lista, tramo);
-      tarjetas.push({
-        rotulo: tramo.titulo,
-        valor: enDias(promedio(demoras)),
-        nota: demoras.length
-          ? 'promedio de ' + demoras.length
-          : 'ninguna lo completó todavía',
-        demora: true
-      });
-    });
-
     $('tarjetas').innerHTML = tarjetas.map(function (t) {
-      return '<div class="tarjeta' + (t.demora ? ' demora' : '') + '">' +
+      return '<div class="tarjeta">' +
         '<span class="rotulo">' + esc(t.rotulo) + '</span>' +
         '<span class="valor">' + esc(t.valor) + '</span>' +
         (t.nota ? '<span class="nota">' + esc(t.nota) + '</span>' : '') + '</div>';
     }).join('');
+  }
+
+  /* -------------------------------------------------------------- la dona */
+
+  /**
+   * En qué se va la espera, en horas de trabajo.
+   *
+   * Es un círculo porque las tres etapas SÍ son un entero: seguidas suman el
+   * total que espera quien pidió. Por eso van las tres y no solo las dos que
+   * interesan —dos trozos que no forman un todo no son un círculo, son dos
+   * números puestos en redondo.
+   *
+   * El color es el mismo de los estados: la etapa que arranca en Solicitando
+   * lleva su tono, y la que termina en Finalizado, el suyo.
+   */
+  function dibujarDona(lista) {
+    var r = repartoDeLaEspera(lista);
+    var caja = $('dona');
+
+    if (!r.sobre || !r.total) {
+      caja.innerHTML = '<p class="sin-datos">Todavía ninguna solicitud recorrió el ' +
+        'camino entero.</p>';
+      $('donaLeyenda').innerHTML = '';
+      $('donaSub').textContent = '';
+      return;
+    }
+
+    $('donaSub').textContent = 'promedio de ' + r.sobre +
+      (r.sobre === 1 ? ' solicitud finalizada' : ' solicitudes finalizadas');
+
+    var LADO = 220, GROSOR = 30, HUECO = 2;
+    var radio = (LADO - GROSOR) / 2;
+    var vuelta = 2 * Math.PI * radio;
+    var centro = LADO / 2;
+
+    var corrido = 0;
+    var arcos = r.etapas.map(function (e, i) {
+      var parte = e.horas / r.total;
+      var largo = Math.max(0, parte * vuelta - HUECO);
+      var arco = '<circle class="tajada" data-tajada="' + i + '"' +
+        ' cx="' + centro + '" cy="' + centro + '" r="' + radio + '"' +
+        ' fill="none" stroke="var(--paso-' + e.paso + ')" stroke-width="' + GROSOR + '"' +
+        ' stroke-dasharray="' + largo + ' ' + (vuelta - largo) + '"' +
+        ' stroke-dashoffset="' + (-corrido * vuelta) + '"></circle>';
+      corrido += parte;
+      return arco;
+    }).join('');
+
+    caja.innerHTML =
+      '<svg viewBox="0 0 ' + LADO + ' ' + LADO + '" width="100%" role="img" aria-label="' +
+      esc('La espera promedio se reparte en: ' + r.etapas.map(function (e) {
+        return e.titulo + ', ' + enHoras(e.horas);
+      }).join('; ') + '. Total ' + enHoras(r.total) + ' de trabajo.') + '">' +
+      // Se dibuja desde arriba y hacia la derecha, como se lee un reloj.
+      '<g transform="rotate(-90 ' + centro + ' ' + centro + ')">' + arcos + '</g>' +
+      '</svg>' +
+      '<div class="dona-centro"><span class="dona-total">' + esc(enHoras(r.total)) + '</span>' +
+      '<span class="dona-pie">de trabajo</span></div>';
+
+    // El valor de cada etapa va en la leyenda, no sobre la tajada: tres
+    // números encima del círculo no se leen, y acá además quedan alineados.
+    var partes = porcentajes(r.etapas.map(function (e) { return e.horas; }));
+    $('donaLeyenda').innerHTML = r.etapas.map(function (e, i) {
+      var parte = partes[i];
+      return '<div class="llave-fila" data-tajada="' + i + '" tabindex="0">' +
+        '<i style="background: var(--paso-' + e.paso + ')"></i>' +
+        '<span class="llave-nombre">' + esc(e.titulo) + '</span>' +
+        '<b class="llave-valor">' + esc(enHoras(e.horas)) + '</b>' +
+        '<span class="llave-parte">' + parte + '%</span>' +
+        '</div>';
+    }).join('');
+
+    engancharDona();
+  }
+
+  /** Apuntar a una etapa apaga las otras, en el círculo y en la leyenda. */
+  function engancharDona() {
+    var todo = [].concat(
+      [].slice.call($('dona').querySelectorAll('[data-tajada]')),
+      [].slice.call($('donaLeyenda').querySelectorAll('[data-tajada]')));
+
+    var marcar = function (cual) {
+      todo.forEach(function (el) {
+        el.classList.toggle('apagada',
+          cual !== null && el.getAttribute('data-tajada') !== String(cual));
+      });
+    };
+
+    todo.forEach(function (el) {
+      var i = el.getAttribute('data-tajada');
+      el.addEventListener('pointerenter', function () { marcar(i); });
+      el.addEventListener('focus', function () { marcar(i); });
+      el.addEventListener('pointerleave', function () { marcar(null); });
+      el.addEventListener('blur', function () { marcar(null); });
+    });
   }
 
   /* ----------------------------------------------------------- el gráfico */
@@ -548,6 +645,7 @@
     marcarEscala();
     dibujarTarjetas(lista);
     dibujarGrafico(lista);
+    dibujarDona(lista);
 
     $('cuerpo').innerHTML = lista.map(function (s) {
       var fila = '<tr class="cabecera">' +

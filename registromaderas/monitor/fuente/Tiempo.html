@@ -120,31 +120,70 @@
   }
 
   /**
-   * Los tramos cuya demora se muestra. Cambiarlos es cambiar esta lista.
+   * La jornada, por día de la semana. 0 es domingo.
    *
-   * No son todos los pasos seguidos sino los dos que importan: cuánto se
-   * demora codificación en mirar una solicitud nueva, y cuánto desde que se
-   * pone a crearla hasta que la cierra. El tercero es el total, que es lo que
-   * espera quien pidió.
+   * Lunes a jueves de 8:00 a 17:30, viernes de 8:00 a 14:30. Las horas van en
+   * minutos desde medianoche porque así se suman sin pelear con el reloj.
+   *
+   * Esto es lo que hace que la demora signifique algo: una solicitud que entra
+   * un viernes a las 14:00 y se mira el lunes a las 9:00 no esperó tres días,
+   * esperó una hora y media de trabajo. Contar las noches y los fines de
+   * semana diría que codificación se demoró, cuando lo que pasó es que la
+   * oficina estaba cerrada.
    */
-  var TRAMOS = [
-    { desde: 'Solicitando', hasta: 'Validando información', titulo: 'Solicitando → Validando' },
-    { desde: 'Creando', hasta: 'Finalizado', titulo: 'Creando → Finalizado' },
-    { desde: 'Solicitando', hasta: 'Finalizado', titulo: 'Solicitando → Finalizado' }
+  var JORNADA = [
+    null,                                       // domingo
+    { abre: 8 * 60, cierra: 17 * 60 + 30 },     // lunes
+    { abre: 8 * 60, cierra: 17 * 60 + 30 },     // martes
+    { abre: 8 * 60, cierra: 17 * 60 + 30 },     // miércoles
+    { abre: 8 * 60, cierra: 17 * 60 + 30 },     // jueves
+    { abre: 8 * 60, cierra: 14 * 60 + 30 },     // viernes
+    null                                        // sábado
   ];
 
+  /** Un tope por si una fecha mala pide recorrer años: no se cuelga la página. */
+  var TOPE_DIAS_RECORRIDOS = 2000;
+
   /**
-   * Cuántos días tardó una solicitud en ir de un estado a otro.
+   * Las horas de trabajo que hay entre dos momentos.
+   *
+   * Recorre día por día e intersecta la jornada de cada uno con el tramo. Lo
+   * que cae de noche, en fin de semana o después del cierre no suma.
+   */
+  function horasHabiles(inicio, fin) {
+    if (!inicio || !fin) return null;
+    if (fin < inicio) return null;
+
+    var minutos = 0;
+    var dia = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate());
+    var vueltas = 0;
+    while (dia <= fin) {
+      if (++vueltas > TOPE_DIAS_RECORRIDOS) return null;
+      var j = JORNADA[dia.getDay()];
+      if (j) {
+        var abre = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), 0, j.abre);
+        var cierra = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), 0, j.cierra);
+        var a = Math.max(abre.getTime(), inicio.getTime());
+        var b = Math.min(cierra.getTime(), fin.getTime());
+        if (b > a) minutos += (b - a) / 60000;
+      }
+      dia = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate() + 1);
+    }
+    return minutos / 60;
+  }
+
+  /**
+   * Cuántas horas de trabajo tardó una solicitud en ir de un estado a otro.
    *
    * Se mide desde la PRIMERA vez que entró a `desde` hasta la primera vez que
    * llegó a `hasta` después de eso. Si por el camino fue y volvió —de Creando
    * a Pendiente y de vuelta— esa vuelta cuenta, porque quien pidió la esperó
-   * igual: lo que se mide es la demora, no el trabajo.
+   * igual: lo que se mide es la espera, no el trabajo.
    *
    * Null cuando ese tramo no se completó: una que todavía no llega a `hasta`
-   * no demoró cero, simplemente no se puede medir todavía.
+   * no esperó cero, simplemente no se puede medir todavía.
    */
-  function diasEntre(s, desde, hasta) {
+  function horasEntre(s, desde, hasta) {
     var r = s.recorrido || [];
     var inicio = null;
     for (var i = 0; i < r.length; i++) {
@@ -153,13 +192,28 @@
         continue;
       }
       if (sinTildes(r[i].estado) === sinTildes(hasta)) {
-        var fin = aFecha(r[i].fecha);
-        if (!fin || fin < inicio) return null;
-        return (fin - inicio) / 86400000;
+        return horasHabiles(inicio, aFecha(r[i].fecha));
       }
     }
     return null;
   }
+
+  /**
+   * En qué se va la espera: los tres tramos en que se parte el camino.
+   *
+   * Son tres y no dos a propósito. Dos solos no son un entero —sumarlos no da
+   * nada— y un círculo partido en dos trozos que no forman un todo miente. Los
+   * tres seguidos SÍ suman el total, así que el círculo dice de verdad en qué
+   * se va la espera de quien pidió.
+   */
+  var ETAPAS_ESPERA = [
+    { desde: 'Solicitando', hasta: 'Validando información',
+      titulo: 'Solicitando → Validando', paso: 1 },
+    { desde: 'Validando información', hasta: 'Creando',
+      titulo: 'Validando → Creando', paso: 3 },
+    { desde: 'Creando', hasta: 'Finalizado',
+      titulo: 'Creando → Finalizado', paso: 5 }
+  ];
 
   function promedio(numeros) {
     if (!numeros.length) return null;
@@ -168,19 +222,64 @@
     return suma / numeros.length;
   }
 
-  /** Los días de ese tramo, de las solicitudes que lo completaron. */
-  function demorasDelTramo(lista, tramo) {
-    return lista.map(function (s) { return diasEntre(s, tramo.desde, tramo.hasta); })
-      .filter(function (d) { return d !== null; });
+  /**
+   * El promedio de cada etapa, sobre las solicitudes que recorrieron TODAS.
+   *
+   * Tiene que ser sobre las mismas: si cada etapa se promediara sobre las
+   * suyas, los tres números no sumarían el total y el círculo quedaría
+   * repartiendo algo que no existe.
+   */
+  function repartoDeLaEspera(lista) {
+    var completas = [];
+    (lista || []).forEach(function (s) {
+      var horas = ETAPAS_ESPERA.map(function (e) { return horasEntre(s, e.desde, e.hasta); });
+      if (horas.every(function (h) { return h !== null; })) completas.push(horas);
+    });
+
+    var etapas = ETAPAS_ESPERA.map(function (e, i) {
+      return {
+        titulo: e.titulo,
+        paso: e.paso,
+        horas: promedio(completas.map(function (h) { return h[i]; }))
+      };
+    });
+
+    var total = completas.length
+      ? etapas.reduce(function (suma, e) { return suma + e.horas; }, 0)
+      : null;
+
+    return { etapas: etapas, total: total, sobre: completas.length };
   }
 
-  /** `1,4 días`, `menos de 1 día`, o un guion si todavía no hay con qué. */
-  function enDias(valor) {
-    if (valor === null) return '—';
-    if (valor < 1) return 'menos de 1 día';
-    var redondo = Math.round(valor * 10) / 10;
-    // Singular solo en el 1 pelado: "1,3 día" no se dice.
-    return String(redondo).replace('.', ',') + (redondo === 1 ? ' día' : ' días');
+  /**
+   * Los porcentajes enteros de un reparto, que suman 100.
+   *
+   * Redondear cada uno por su cuenta puede dar 99 o 101, y un círculo que dice
+   * 101% se lee como un error aunque el dibujo esté bien. Se reparte el sobrante
+   * entre los que más perdieron al redondear, que es lo que hace cualquiera a
+   * mano: el que quedó en 33,8 sube antes que el que quedó en 33,1.
+   */
+  function porcentajes(valores) {
+    var total = valores.reduce(function (s, v) { return s + v; }, 0);
+    if (!total) return valores.map(function () { return 0; });
+
+    var exactos = valores.map(function (v) { return (v / total) * 100; });
+    var enteros = exactos.map(Math.floor);
+    var falta = 100 - enteros.reduce(function (s, v) { return s + v; }, 0);
+
+    exactos.map(function (v, i) { return { i: i, resto: v - Math.floor(v) }; })
+      .sort(function (a, b) { return b.resto - a.resto; })
+      .slice(0, falta)
+      .forEach(function (x) { enteros[x.i]++; });
+
+    return enteros;
+  }
+
+  /** `12,5 h`, `45 min`, o un guion si todavía no hay con qué. */
+  function enHoras(valor) {
+    if (valor === null || valor === undefined) return '—';
+    if (valor < 1) return Math.round(valor * 60) + ' min';
+    return String(Math.round(valor * 10) / 10).replace('.', ',') + ' h';
   }
 
   /** El eje de arriba en un número redondo, con unas pocas líneas de grilla. */

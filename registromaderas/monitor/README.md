@@ -19,20 +19,44 @@ una sola tinta que se va oscureciendo: mirando el gráfico de lejos se ve cuánt
 de cada período ya está cerrado sin leer la leyenda. Los pasos están medidos
 contra el fondo, no elegidos a ojo.
 
-Al lado van seis números: cuántas hay, cuántas en curso, cuántas finalizadas, y
-la **demora promedio de tres tramos**, que sale del recorrido de estados:
+Al lado, **en qué se va la espera**: un círculo que reparte la demora promedio
+entre las tres etapas del camino, cada una con su color.
 
-| Tramo | Qué dice |
+| Etapa | Qué dice |
 |---|---|
 | Solicitando → Validando | cuánto tarda codificación en mirar una solicitud nueva |
-| Creando → Finalizado | cuánto desde que se pone a crearla hasta que la cierra |
-| Solicitando → Finalizado | el total, que es lo que espera quien pidió |
+| Validando → Creando | cuánto queda esperando antes de que se pongan a crearla |
+| Creando → Finalizado | cuánto desde que se ponen hasta que la cierran |
 
-Se mide desde la **primera** vez que la solicitud entró al estado de partida
-hasta la primera vez que llegó al de llegada. Si por el camino fue y volvió
-—de `Creando` a `Pendiente` y de vuelta— esa vuelta **cuenta**: lo que se mide
-es la espera, no el trabajo. Una que todavía no completó el tramo no promedia
-cero, simplemente no entra; por eso cada número dice sobre cuántas se sacó.
+Son **tres y no dos** a propósito. Dos solas no son un entero —sumarlas no da
+nada— y un círculo partido en dos trozos que no forman un todo miente. Las tres
+seguidas sí suman el total, el número del centro, y entonces el círculo dice de
+verdad en qué se va la espera de quien pidió.
+
+### Horas de trabajo, no días de calendario
+
+**Lunes a jueves de 8:00 a 17:30, viernes de 8:00 a 14:30.** Las noches, los
+fines de semana y lo que pasa después del cierre **no cuentan**.
+
+Eso es lo que hace que el número signifique algo. Una solicitud que entra un
+viernes a las 14:00 y se mira el lunes a las 9:00 no esperó tres días: esperó
+**una hora y media** de trabajo. Contarlo en días de calendario diría que
+codificación se demoró, cuando lo que pasó es que la oficina estaba cerrada.
+
+Una semana completa son **44,5 horas** (4 × 9,5 + 6,5). El horario está en
+`Tiempo.html`, en `JORNADA`: una línea por día de la semana.
+
+### Qué se mide
+
+Desde la **primera** vez que la solicitud entró al estado de partida hasta la
+primera vez que llegó al de llegada. Si por el camino fue y volvió —de
+`Creando` a `Pendiente` y de vuelta— esa vuelta **cuenta**: lo que se mide es
+la espera, no el trabajo.
+
+El promedio sale solo de las que **recorrieron el camino entero**, y el
+subtítulo dice cuántas son. Tiene que ser sobre las mismas: si cada etapa se
+promediara sobre las suyas, los tres números dejarían de sumar el total y el
+círculo estaría repartiendo algo que no existe.
 
 El gráfico, los números y la tabla se dibujan sobre **la misma rebanada**: lo
 que dejaron pasar los filtros. Nunca se contradicen.
@@ -138,8 +162,9 @@ Usan el mismo simulador de Apps Script que el formulario de entrada
 (`../../pruebas/mock.js`): son proyectos distintos, pero el mismo spreadsheet.
 Cubren la lectura por rótulos, la unión por número de solicitud, el recorrido
 de estados —incluida una solicitud que fue y volvió—, el respaldo por `SKU`
-cuando no hay detalle, el reparto del gráfico en columnas de tiempo, y que el
-monitor no escriba nada.
+cuando no hay detalle, el reparto del gráfico en columnas de tiempo, la cuenta
+de horas de trabajo —el fin de semana, el cierre de los viernes, la noche— y
+que el monitor no escriba nada.
 
 Lo que no se puede probar en Node —cómo se ve— se revisa en un navegador de
 verdad: que no haya desborde en pantalla chica, que el globo no tape la columna

@@ -313,72 +313,143 @@ seccion('El eje y la demora');
 
 }
 
-// Lo que se mide no es el trabajo sino la ESPERA: desde que una solicitud
-// entra a un estado hasta que llega al otro, con las vueltas incluidas.
-seccion('La demora de cada tramo');
+// La demora se mide en HORAS DE TRABAJO, no en días de calendario. Una
+// solicitud que entra un viernes a las 14:00 y se mira el lunes a las 9:00 no
+// esperó tres días: esperó una hora y media. Lo otro diría que codificación se
+// demoró, cuando lo que pasó es que la oficina estaba cerrada.
+seccion('La jornada: de 8 a 17:30, y los viernes hasta las 14:30');
+{
+  const h = (a, b) => horasHabiles(aFecha(a), aFecha(b));
+
+  // 2026: el 21 de septiembre es lunes.
+  ok(h('21.09.2026 08:00', '21.09.2026 17:30') === 9.5, 'un lunes entero son 9,5 horas');
+  ok(h('25.09.2026 08:00', '25.09.2026 14:30') === 6.5, 'un viernes entero, 6,5');
+  ok(h('21.09.2026 09:00', '21.09.2026 11:30') === 2.5, 'dentro del día, lo que marca el reloj');
+
+  // Lo de afuera no cuenta.
+  ok(h('21.09.2026 06:00', '21.09.2026 08:00') === 0, 'antes de abrir no se espera');
+  ok(h('21.09.2026 17:30', '21.09.2026 23:00') === 0, 'después de cerrar tampoco');
+  ok(h('21.09.2026 16:30', '22.09.2026 09:00') === 2,
+    'de la tarde a la mañana siguiente se saltan la noche');
+
+  // El fin de semana, que es el caso que importa.
+  ok(h('26.09.2026 10:00', '27.09.2026 18:00') === 0, 'el sábado y el domingo no cuentan');
+  ok(h('25.09.2026 14:00', '28.09.2026 09:00') === 1.5,
+    'viernes 14:00 a lunes 9:00 son hora y media, no tres días');
+  ok(h('25.09.2026 14:00', '25.09.2026 18:00') === 0.5,
+    'y el viernes se cierra a las 14:30, no a las 17:30');
+
+  // Una semana entera: cuatro días de 9,5 más uno de 6,5.
+  ok(h('21.09.2026 08:00', '25.09.2026 14:30') === 44.5, 'la semana completa son 44,5 horas');
+  ok(h('21.09.2026 08:00', '28.09.2026 08:00') === 44.5,
+    'y el lunes siguiente a las 8:00 todavía no suma nada');
+
+  ok(h('22.09.2026 10:00', '21.09.2026 10:00') === null, 'al revés no se mide');
+  ok(horasHabiles(null, aFecha('21.09.2026 10:00')) === null, 'ni con una fecha que falta');
+
+  // Una fecha disparatada no puede colgar la página.
+  ok(horasHabiles(aFecha('01.01.1970 08:00'), aFecha('21.09.2026 10:00')) === null,
+    'un tramo de décadas se corta en vez de recorrerlo entero');
+}
+
+seccion('La espera de cada etapa');
 {
   const paso = (estado, fecha) => ({ estado: estado, fecha: fecha, usuario: 'x' });
   const con = (...pasos) => ({ recorrido: pasos });
 
+  // Lunes 21 a jueves 24, todo dentro de la jornada.
   const completa = con(
     paso('Solicitando', '21.09.2026 09:00'),
-    paso('Validando información', '22.09.2026 09:00'),
-    paso('Creando', '23.09.2026 09:00'),
-    paso('Finalizado', '25.09.2026 09:00'));
+    paso('Validando información', '21.09.2026 14:00'),
+    paso('Creando', '22.09.2026 10:00'),
+    paso('Finalizado', '23.09.2026 12:00'));
 
-  ok(diasEntre(completa, 'Solicitando', 'Validando información') === 1,
-    'de Solicitando a Validando, un día');
-  ok(diasEntre(completa, 'Creando', 'Finalizado') === 2, 'de Creando a Finalizado, dos');
-  ok(diasEntre(completa, 'Solicitando', 'Finalizado') === 4, 'y el total, cuatro');
+  ok(horasEntre(completa, 'Solicitando', 'Validando información') === 5,
+    'de Solicitando a Validando, cinco horas');
+  ok(horasEntre(completa, 'Validando información', 'Creando') === 5.5,
+    'de Validando a Creando, cinco y media: se salta la noche');
+  ok(horasEntre(completa, 'Creando', 'Finalizado') === 11.5,
+    'de Creando a Finalizado, once y media');
 
-  // Un tramo sin terminar no demoró cero: no se puede medir todavía.
-  ok(diasEntre(con(paso('Solicitando', '21.09.2026 09:00')),
+  ok(horasEntre(con(paso('Solicitando', '21.09.2026 09:00')),
     'Solicitando', 'Validando información') === null,
     'una que no llegó al final del tramo no cuenta');
-  ok(diasEntre({ recorrido: [] }, 'Solicitando', 'Finalizado') === null,
+  ok(horasEntre({ recorrido: [] }, 'Solicitando', 'Finalizado') === null,
     'y una sin recorrido tampoco');
-  ok(diasEntre(completa, 'Pendiente', 'Finalizado') === null,
+  ok(horasEntre(completa, 'Pendiente', 'Finalizado') === null,
     'si nunca pasó por el estado de partida, no hay tramo que medir');
 
   // Si fue y volvió, la vuelta cuenta: quien pidió la esperó igual.
   const conVuelta = con(
-    paso('Solicitando', '21.09.2026 09:00'),
+    paso('Creando', '21.09.2026 09:00'),
+    paso('Pendiente', '21.09.2026 11:00'),
     paso('Creando', '22.09.2026 09:00'),
-    paso('Pendiente', '23.09.2026 09:00'),
-    paso('Creando', '24.09.2026 09:00'),
-    paso('Finalizado', '26.09.2026 09:00'));
-  ok(diasEntre(conVuelta, 'Creando', 'Finalizado') === 4,
+    paso('Finalizado', '22.09.2026 11:00'));
+  ok(horasEntre(conVuelta, 'Creando', 'Finalizado') === 11.5,
     'de la PRIMERA vez que entró a Creando, no de la última');
 
-  // El orden importa: llegar a `hasta` antes de `desde` no es un tramo.
-  ok(diasEntre(con(
-    paso('Finalizado', '21.09.2026 09:00'),
-    paso('Solicitando', '22.09.2026 09:00')), 'Solicitando', 'Finalizado') === null,
-    'un Finalizado anterior al Solicitando no se cuenta al revés');
-
   ok(promedio([1, 2, 3]) === 2, 'el promedio de tres');
-  ok(promedio([1, 2]) === 1.5, 'y de dos');
   ok(promedio([]) === null, 'sin números no hay promedio');
 
-  ok(enDias(null) === '—', 'sin dato, un guion');
-  ok(enDias(0.4) === 'menos de 1 día', 'menos de un día se dice así, no 0,4');
-  ok(enDias(1) === '1 día', 'un día justo, en singular');
-  ok(enDias(1.44) === '1,4 días', 'uno coma cuatro NO es "1,4 día"');
-  ok(enDias(4.5) === '4,5 días', 'cuatro días y medio');
-  ok(enDias(2) === '2 días', 'y dos enteros sin coma');
+  ok(enHoras(null) === '—', 'sin dato, un guion');
+  ok(enHoras(0.75) === '45 min', 'menos de una hora se dice en minutos');
+  ok(enHoras(12.34) === '12,3 h', 'y lo demás en horas, con coma');
+  ok(enHoras(44.5) === '44,5 h', 'la semana entera');
+}
 
-  // Los tres tramos que se muestran.
-  ok(TRAMOS.length === 3, 'se miden tres tramos');
-  ok(TRAMOS[0].desde === 'Solicitando' && TRAMOS[0].hasta === 'Validando información',
-    'el primero: cuánto tarda codificación en mirar una solicitud nueva');
-  ok(TRAMOS[1].desde === 'Creando' && TRAMOS[1].hasta === 'Finalizado',
-    'el segundo: desde que se pone a crearla hasta que la cierra');
-  ok(TRAMOS[2].desde === 'Solicitando' && TRAMOS[2].hasta === 'Finalizado',
-    'y el tercero: el total, que es lo que espera quien pidió');
+// El círculo reparte UN entero: las tres etapas seguidas son el total. Dos
+// trozos que no forman un todo no son un círculo, son dos números en redondo.
+seccion('El reparto de la espera: las tres etapas suman el total');
+{
+  const paso = (estado, fecha) => ({ estado: estado, fecha: fecha, usuario: 'x' });
+  const camino = (a, b, c, d) => ({ recorrido: [
+    paso('Solicitando', a), paso('Validando información', b),
+    paso('Creando', c), paso('Finalizado', d)] });
 
-  ok(demorasDelTramo([completa, conVuelta, con(paso('Solicitando', '21.09.2026 09:00'))],
-    TRAMOS[1]).join() === '2,4',
-    'el tramo junta solo las que lo completaron, y deja fuera la que no');
+  ok(ETAPAS_ESPERA.length === 3, 'son tres etapas');
+  ok(ETAPAS_ESPERA[0].hasta === ETAPAS_ESPERA[1].desde &&
+     ETAPAS_ESPERA[1].hasta === ETAPAS_ESPERA[2].desde,
+    'y van encadenadas: donde termina una empieza la siguiente');
+  ok(ETAPAS_ESPERA[0].desde === 'Solicitando' && ETAPAS_ESPERA[2].hasta === 'Finalizado',
+    'del principio al final del camino');
+
+  const r = repartoDeLaEspera([
+    camino('21.09.2026 09:00', '21.09.2026 14:00', '22.09.2026 10:00', '23.09.2026 12:00'),
+    camino('21.09.2026 08:00', '21.09.2026 10:00', '21.09.2026 12:00', '21.09.2026 16:00')
+  ]);
+
+  ok(r.sobre === 2, 'promedia sobre las dos que recorrieron todo');
+  ok(r.etapas.map(e => e.horas).join() === '3.5,3.75,7.75',
+    'cada etapa su promedio: ' + r.etapas.map(e => e.horas).join(', '));
+  ok(Math.abs(r.total - 15) < 1e-9, 'y las tres suman el total: ' + r.total);
+  ok(Math.abs(r.etapas.reduce((s, e) => s + e.horas, 0) - r.total) < 1e-9,
+    'siempre: el total ES la suma, no otra cuenta');
+
+  // Una a medio camino no entra en ninguna etapa: si entrara en unas y no en
+  // otras, los tres números dejarían de sumar el total.
+  const conMedias = repartoDeLaEspera([
+    camino('21.09.2026 08:00', '21.09.2026 10:00', '21.09.2026 12:00', '21.09.2026 16:00'),
+    { recorrido: [paso('Solicitando', '21.09.2026 08:00'),
+                  paso('Validando información', '21.09.2026 09:00')] }
+  ]);
+  ok(conMedias.sobre === 1, 'la que va a medio camino queda fuera del reparto');
+  ok(Math.abs(conMedias.etapas.reduce((s, e) => s + e.horas, 0) - conMedias.total) < 1e-9,
+    'y los números siguen sumando el total');
+
+  // Un círculo que dice 101% se lee como un error aunque el dibujo esté bien.
+  ok(porcentajes([1, 1, 1]).join() === '34,33,33', 'tres tercios suman 100, no 99');
+  ok(porcentajes([1, 1, 1]).reduce((a, c) => a + c, 0) === 100, 'siempre 100');
+  ok(porcentajes([2, 1]).join() === '67,33', 'dos tercios y un tercio');
+  ok(porcentajes([1, 0, 0]).join() === '100,0,0', 'uno solo se lleva todo');
+  ok(porcentajes([0, 0, 0]).join() === '0,0,0', 'y sin nada, cero');
+  ok([[3.5, 3.75, 7.75], [1, 2, 3], [0.1, 0.1, 99.8], [5, 5, 5, 5, 5, 5, 5]]
+    .every(v => porcentajes(v).reduce((a, c) => a + c, 0) === 100),
+    'sume lo que sume el reparto, los porcentajes dan 100');
+
+  const vacio = repartoDeLaEspera([]);
+  ok(vacio.sobre === 0 && vacio.total === null, 'sin ninguna completa no hay reparto');
+  ok(vacio.etapas.length === 3 && vacio.etapas.every(e => e.horas === null),
+    'pero las etapas siguen estando, en blanco');
 }
 
 // Nadie edita nada desde el monitor, ni el estado: se reparte a quien deba

@@ -402,9 +402,10 @@ corre el script**, y el monitor no debería poder cambiar nada. Cada uno tiene
 su propio README.
 
 El **monitor** muestra `Registro` con sus códigos desplegables, por dónde pasó
-cada solicitud y un gráfico general por tiempo, con la demora promedio de cada
-tramo. **Solo lee**: el estado lo mueve codificación en la hoja `Registro`, no
-se toca desde la pantalla.
+cada solicitud, un gráfico por tiempo y un círculo con **en qué se va la
+espera**, medida en horas de trabajo —lunes a jueves de 8:00 a 17:30, viernes
+de 8:00 a 14:30—. **Solo lee**: el estado lo mueve codificación en la hoja
+`Registro`, no se toca desde la pantalla.
 
 Las **alertas** solo leen y mandan correo. También miran una sola columna de
 una sola hoja: el estado se maneja en `Registro` y en ninguna otra parte.
