@@ -50,44 +50,78 @@
         números de línea. Es lo que hace visible que la línea 7 de Códigos es la
         línea 7 de la ruta de al lado.
       -->
+      <!--
+        Cada columna lleva su regla de números y su botón de pegar. Las cinco
+        son una sola tabla partida en pedazos: la línea 7 de una es la línea 7
+        de las otras. Son `div` y no `label` porque un botón dentro de un label
+        dispara el label al cliquearlo; el textarea lleva su `aria-label`.
+      -->
       <div class="columnas" id="columnas">
-        <label class="columna crece">
-          <span class="tit">Códigos</span>
-          <div class="campo con-numeros">
-            <div class="numeros" aria-hidden="true"><div class="numeros-lista" id="numerosLista"></div></div>
-            <textarea id="colCodigos" rows="10" spellcheck="false"
+        <div class="columna crece">
+          <span class="tit">
+            <span class="nombre">Códigos</span>
+            <button type="button" class="pegar-aqui" data-pegar="colCodigos"
+              title="Pega lo que tengas copiado empezando en la fila 1, para que calce con los códigos">Pegar desde la 1</button>
+          </span>
+          <div class="campo">
+            <div class="numeros" aria-hidden="true"><div class="numeros-lista"></div></div>
+            <textarea id="colCodigos" rows="10" spellcheck="false" aria-label="Códigos"
               placeholder="RVMH032X180X3960&#10;C4JR019X100X2440&#10;RVM 032X180"></textarea>
             <div class="renglon" hidden></div>
           </div>
-        </label>
-        <label class="columna estrecha" id="cajaPiezas" hidden>
-          <span class="tit">PAK</span>
+        </div>
+        <div class="columna estrecha" id="cajaPiezas" hidden>
+          <span class="tit">
+            <span class="nombre">PAK</span>
+            <button type="button" class="pegar-aqui" data-pegar="colPiezas"
+              title="Pega lo que tengas copiado empezando en la fila 1, para que calce con los códigos">Pegar desde la 1</button>
+          </span>
           <div class="campo">
-            <textarea id="colPiezas" rows="10" spellcheck="false" placeholder="248"></textarea>
+            <div class="numeros" aria-hidden="true"><div class="numeros-lista"></div></div>
+            <textarea id="colPiezas" rows="10" spellcheck="false" aria-label="PAK"
+              placeholder="248"></textarea>
             <div class="renglon" hidden></div>
           </div>
-        </label>
-        <label class="columna" id="cajaAserradero" hidden>
-          <span class="tit">Ruta de aserradero</span>
+        </div>
+        <div class="columna" id="cajaAserradero" hidden>
+          <span class="tit">
+            <span class="nombre">Aserradero</span>
+            <button type="button" class="pegar-aqui" data-pegar="colAserradero"
+              title="Pega lo que tengas copiado empezando en la fila 1, para que calce con los códigos">Pegar desde la 1</button>
+          </span>
           <div class="campo">
-            <textarea id="colAserradero" rows="10" spellcheck="false" placeholder="RVM 019X020"></textarea>
+            <div class="numeros" aria-hidden="true"><div class="numeros-lista"></div></div>
+            <textarea id="colAserradero" rows="10" spellcheck="false" aria-label="Ruta de aserradero"
+              placeholder="RVM 019X020"></textarea>
             <div class="renglon" hidden></div>
           </div>
-        </label>
-        <label class="columna" id="cajaSecado" hidden>
-          <span class="tit">Ruta de secado</span>
+        </div>
+        <div class="columna" id="cajaSecado" hidden>
+          <span class="tit">
+            <span class="nombre">Secado</span>
+            <button type="button" class="pegar-aqui" data-pegar="colSecado"
+              title="Pega lo que tengas copiado empezando en la fila 1, para que calce con los códigos">Pegar desde la 1</button>
+          </span>
           <div class="campo">
-            <textarea id="colSecado" rows="10" spellcheck="false" placeholder="RSM 019X020"></textarea>
+            <div class="numeros" aria-hidden="true"><div class="numeros-lista"></div></div>
+            <textarea id="colSecado" rows="10" spellcheck="false" aria-label="Ruta de secado"
+              placeholder="RSM 019X020"></textarea>
             <div class="renglon" hidden></div>
           </div>
-        </label>
-        <label class="columna" id="cajaCepillado" hidden>
-          <span class="tit">Ruta de cepillado</span>
+        </div>
+        <div class="columna" id="cajaCepillado" hidden>
+          <span class="tit">
+            <span class="nombre">Cepillado</span>
+            <button type="button" class="pegar-aqui" data-pegar="colCepillado"
+              title="Pega lo que tengas copiado empezando en la fila 1, para que calce con los códigos">Pegar desde la 1</button>
+          </span>
           <div class="campo">
-            <textarea id="colCepillado" rows="10" spellcheck="false" placeholder="CSM 019X020"></textarea>
+            <div class="numeros" aria-hidden="true"><div class="numeros-lista"></div></div>
+            <textarea id="colCepillado" rows="10" spellcheck="false" aria-label="Ruta de cepillado"
+              placeholder="CSM 019X020"></textarea>
             <div class="renglon" hidden></div>
           </div>
-        </label>
+        </div>
       </div>
 
       <label class="observacion">
@@ -449,32 +483,106 @@
    * regla que aparece recién al escribir no sirve para saber dónde pegar.
    */
   function pintarNumeros() {
-    var caja = $('colCodigos');
-    var lista = $('numerosLista');
-    if (!lista) return;
+    var maestro = $('colCodigos');
 
-    // Lo que haya escrito, y al menos lo que cabe a la vista: una regla que
-    // aparece recién al escribir no sirve para saber dónde pegar. El tope está
-    // para que un alto raro no pida mil números.
-    var escritas = caja.value.split(/\r?\n/).length;
+    // Todas las columnas llevan los MISMOS números: son las filas de una sola
+    // tabla. Por eso la cuenta sale de la que más líneas tenga y no de cada
+    // una por su cuenta — si no, la de al lado numeraría distinto y sería peor
+    // que no tener números.
+    var escritas = 1;
+    COLUMNAS_LOTE.forEach(function (id) {
+      escritas = Math.max(escritas, $(id).value.split(/\r?\n/).length);
+    });
     // Las que caben ENTERAS: una cifra cortada por la mitad abajo se ve como
-    // un desperfecto, no como "hay más".
-    var caben = Math.floor((caja.clientHeight - 2 * RELLENO_CAMPO) / LINEA_ALTO);
+    // un desperfecto, no como "hay más". El tope está para que un alto raro no
+    // pida mil números.
+    var caben = Math.floor((maestro.clientHeight - 2 * RELLENO_CAMPO) / LINEA_ALTO);
     var cuantas = Math.min(Math.max(escritas, caben), 500);
 
-    if (lista.childElementCount !== cuantas) {
-      var html = '';
-      for (var i = 1; i <= cuantas; i++) html += '<i>' + i + '</i>';
-      lista.innerHTML = html;
-    }
-    // La regla no tiene barra propia: se corre con el texto.
-    lista.style.transform = 'translateY(' + (-caja.scrollTop) + 'px)';
+    var html = null;
+    COLUMNAS_LOTE.forEach(function (id) {
+      var caja = $(id);
+      var lista = caja.parentNode.querySelector('.numeros-lista');
+      if (!lista) return;
 
-    var marcada = lista.querySelector('i.aqui');
-    if (marcada) marcada.classList.remove('aqui');
-    if (LINEA_ACTUAL !== null && lista.children[LINEA_ACTUAL]) {
-      lista.children[LINEA_ACTUAL].classList.add('aqui');
+      if (lista.childElementCount !== cuantas) {
+        if (html === null) {
+          html = '';
+          for (var i = 1; i <= cuantas; i++) html += '<i>' + i + '</i>';
+        }
+        lista.innerHTML = html;
+      }
+      // La regla no tiene barra propia: se corre con el texto. Se usa el
+      // scroll del maestro para que las cinco digan exactamente lo mismo.
+      lista.style.transform = 'translateY(' + (-maestro.scrollTop) + 'px)';
+
+      var marcada = lista.querySelector('i.aqui');
+      if (marcada) marcada.classList.remove('aqui');
+      if (LINEA_ACTUAL !== null && lista.children[LINEA_ACTUAL]) {
+        lista.children[LINEA_ACTUAL].classList.add('aqui');
+      }
+    });
+  }
+
+  /* -------------------------------------------------------- pegar desde la 1 */
+
+  /**
+   * Pega lo copiado empezando en la fila 1.
+   *
+   * Es el botón que evita el enredo de verdad: pegar con el cursor en medio
+   * mete el texto donde esté el cursor, y ahí la columna queda corrida
+   * respecto de los códigos. Esto reemplaza la columna entera y la deja
+   * arrancando en la línea 1.
+   *
+   * Leer lo copiado no siempre se puede: la página corre dentro del marco de
+   * Apps Script y el navegador puede no dar permiso. Cuando pasa, en vez de
+   * fallar en silencio se deja la columna entera seleccionada y se dice que
+   * pulse Ctrl+V: pegar sobre una selección también empieza en la línea 1.
+   */
+  function pegarDesdeLaUno(id, boton) {
+    var caja = $(id);
+
+    var poner = function (texto) {
+      caja.value = String(texto == null ? '' : texto)
+        .replace(/\r\n?/g, '\n')
+        .replace(/\n+$/, '');          // la línea de más que agrega Excel
+      caja.scrollTop = 0;
+      caja.focus();
+      caja.setSelectionRange(0, 0);
+      // Programático no dispara `input`, y de ese evento cuelga el análisis.
+      caja.dispatchEvent(new Event('input', { bubbles: true }));
+      igualarColumnas();
+      marcarLinea(caja);
+    };
+
+    var aMano = function () {
+      caja.focus();
+      caja.select();
+      decirEnElBoton(boton, 'Ahora Ctrl+V');
+    };
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(poner, aMano);
+      } else {
+        aMano();
+      }
+    } catch (err) {
+      aMano();
     }
+  }
+
+  /** Un recado en el propio botón, que vuelve solo a lo que decía. */
+  function decirEnElBoton(boton, recado) {
+    if (!boton || boton.dataset.decia) return;
+    boton.dataset.decia = boton.textContent;
+    boton.textContent = recado;
+    boton.classList.add('avisando');
+    setTimeout(function () {
+      boton.textContent = boton.dataset.decia;
+      delete boton.dataset.decia;
+      boton.classList.remove('avisando');
+    }, 4000);
   }
 
   /** La franja de la línea actual, en todas las columnas que estén a la vista. */
@@ -561,6 +669,13 @@
           }
         }, 0);
       });
+    });
+
+    $('columnas').addEventListener('click', function (ev) {
+      var boton = ev.target.closest ? ev.target.closest('.pegar-aqui') : null;
+      if (!boton) return;
+      ev.preventDefault();
+      pegarDesdeLaUno(boton.getAttribute('data-pegar'), boton);
     });
 
     medirRenglon();

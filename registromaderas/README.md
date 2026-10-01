@@ -81,12 +81,31 @@ solo: son cinco cajas de texto sueltas. Tres cosas lo muestran.
 
 | | |
 |---|---|
-| **Los números** | al lado de Códigos, y se corren con el texto |
+| **Los números** | en **todas** las columnas, los mismos, y se corren con el texto |
 | **Las rayas** | una por renglón, y cada quinta más fuerte: contar de cinco en cinco es más rápido |
 | **La franja** | la línea donde está el cursor, dibujada en **todas** las columnas a la vez |
 
 La franja es la que hace el trabajo: con el cursor en la línea 7 de una ruta,
 la misma franja aparece en Códigos y en las demás. No hay que contar nada.
+
+### Pegar desde la 1
+
+Cada columna tiene su botón **Pegar desde la 1**. Pegar con el cursor en medio
+mete el texto donde esté el cursor, y ahí la columna queda corrida respecto de
+los códigos — y eso no se ve hasta que ya está guardado. El botón reemplaza la
+columna entera y la deja arrancando en la línea 1. De paso le quita la línea de
+más que Excel agrega al copiar.
+
+Leer lo copiado no siempre se puede: la página corre dentro del marco de Apps
+Script y el navegador puede no dar permiso. Cuando pasa, en vez de fallar en
+silencio el botón deja la columna **entera seleccionada** y dice *Ahora
+Ctrl+V*: pegar sobre una selección también empieza en la línea 1.
+
+El renglón del título tiene **alto fijo y no envuelve**: si el botón no
+cupiera y se fuera a una segunda línea, esa columna quedaría más baja que las
+demás y sus líneas no calzarían con las de al lado — justo lo que todo esto
+viene a evitar. Por eso los títulos de ruta dicen *Aserradero* y no *Ruta de
+aserradero*.
 
 Para que las tres calcen, el alto de renglón tiene que ser un **entero** y el
 mismo en el CSS y en el javascript. Con 1,6 de alto —22,4px— se iban

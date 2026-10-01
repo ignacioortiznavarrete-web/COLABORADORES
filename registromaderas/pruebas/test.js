@@ -1232,6 +1232,28 @@ seccion('Los renglones del pegado miden lo mismo en el CSS y en el js');
     .test(masivo), 'y las cinco columnas están todas en la lista que se sincroniza');
   ok(/\$\(id\)\.scrollTop = mando\.scrollTop/.test(masivo),
     'una columna que aparece después se pone a la altura de Códigos, no en cero');
+
+  // Todas llevan regla y botón, no solo Códigos.
+  const cajas = ['colCodigos', 'colPiezas', 'colAserradero', 'colSecado', 'colCepillado'];
+  ok((masivo.match(/class="numeros-lista"/g) || []).length === cajas.length,
+    'las cinco columnas llevan su regla de números');
+  cajas.forEach(id => {
+    ok(masivo.indexOf('data-pegar="' + id + '"') !== -1,
+      'y su botón de pegar desde la 1: ' + id);
+  });
+
+  // Si el renglón del título se partiera en dos, ESA columna quedaría más
+  // baja que las demás y sus líneas no calzarían: justo lo que se evita.
+  ok(/\.columna \.tit \{[^}]*flex-wrap: nowrap[^}]*height: \d+px/.test(estilos),
+    'el renglón del título no envuelve y mide siempre lo mismo');
+
+  // Pegar por el botón tiene que pasar por lo mismo que teclear.
+  ok(/dispatchEvent\(new Event\('input'/.test(masivo),
+    'pegar dispara el análisis, igual que escribir a mano');
+  ok(/replace\(\/\\n\+\$\/, ''\)/.test(masivo),
+    'y le quita la línea de más que agrega Excel al copiar');
+  ok(/navigator\.clipboard/.test(masivo) && /caja\.select\(\)/.test(masivo),
+    'si el navegador no deja leer lo copiado, deja la columna seleccionada para Ctrl+V');
 }
 
 // Todos los archivos de un proyecto de Apps Script comparten un solo espacio
