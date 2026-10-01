@@ -17,6 +17,7 @@ function onOpen() {
       .addItem('Preparar hojas', 'instalarRegistro')
       .addItem('Activar el cierre al finalizar', 'instalarDisparador')
       .addItem('Revisar permisos', 'revisarPermisos')
+      .addItem('Probar correo', 'probarCorreo')
       .addToUi();
   } catch (err) {
     // Sin interfaz (trigger o editor): no hay menú que crear.
@@ -55,7 +56,9 @@ function instalarRegistro() {
   hechos.push('La hoja "' + CFG.HOJA_REGISTRO + '" quedó lista (una fila por solicitud), ' +
     'con el combo de Estado en su columna: ' + ESTADOS.join(', ') + '.');
   asegurarEncabezadosDetalle_(hojaDetalle_());
-  hechos.push('La hoja "' + CFG.HOJA_DETALLE + '" quedó lista (una fila por código).');
+  asegurarMedidasComoTexto_(hojaDetalle_());
+  hechos.push('La hoja "' + CFG.HOJA_DETALLE + '" quedó lista (una fila por código), ' +
+    'con Espesor, Ancho y Largo en formato texto para que no se pierdan los ceros.');
   asegurarEncabezadosEstados_(hojaEstados_());
   hechos.push('La hoja "' + CFG.HOJA_ESTADOS + '" quedó lista (una fila por cambio de estado).');
 

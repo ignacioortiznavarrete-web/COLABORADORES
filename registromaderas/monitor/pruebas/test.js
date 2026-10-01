@@ -311,28 +311,74 @@ seccion('El eje y la demora');
     return e.tope >= n && lineas >= 2 && lineas <= 5;
   }), 'el tope siempre alcanza al máximo, y la grilla nunca pasa de cinco líneas');
 
+}
+
+// Lo que se mide no es el trabajo sino la ESPERA: desde que una solicitud
+// entra a un estado hasta que llega al otro, con las vueltas incluidas.
+seccion('La demora de cada tramo');
+{
   const paso = (estado, fecha) => ({ estado: estado, fecha: fecha, usuario: 'x' });
-  ok(diasHastaFinalizar({ recorrido: [
+  const con = (...pasos) => ({ recorrido: pasos });
+
+  const completa = con(
+    paso('Solicitando', '21.09.2026 09:00'),
+    paso('Validando información', '22.09.2026 09:00'),
+    paso('Creando', '23.09.2026 09:00'),
+    paso('Finalizado', '25.09.2026 09:00'));
+
+  ok(diasEntre(completa, 'Solicitando', 'Validando información') === 1,
+    'de Solicitando a Validando, un día');
+  ok(diasEntre(completa, 'Creando', 'Finalizado') === 2, 'de Creando a Finalizado, dos');
+  ok(diasEntre(completa, 'Solicitando', 'Finalizado') === 4, 'y el total, cuatro');
+
+  // Un tramo sin terminar no demoró cero: no se puede medir todavía.
+  ok(diasEntre(con(paso('Solicitando', '21.09.2026 09:00')),
+    'Solicitando', 'Validando información') === null,
+    'una que no llegó al final del tramo no cuenta');
+  ok(diasEntre({ recorrido: [] }, 'Solicitando', 'Finalizado') === null,
+    'y una sin recorrido tampoco');
+  ok(diasEntre(completa, 'Pendiente', 'Finalizado') === null,
+    'si nunca pasó por el estado de partida, no hay tramo que medir');
+
+  // Si fue y volvió, la vuelta cuenta: quien pidió la esperó igual.
+  const conVuelta = con(
     paso('Solicitando', '21.09.2026 09:00'),
     paso('Creando', '22.09.2026 09:00'),
-    paso('Finalizado', '24.09.2026 09:00')
-  ] }) === 3, 'del primer paso a Finalizado son tres días');
-
-  ok(diasHastaFinalizar({ recorrido: [paso('Solicitando', '21.09.2026 09:00')] }) === null,
-    'una que no ha terminado no tiene demora, no tiene cero');
-  ok(diasHastaFinalizar({ recorrido: [] }) === null, 'y una sin recorrido tampoco');
-
-  // Si fue y volvió, cuenta la última vez que se finalizó.
-  ok(diasHastaFinalizar({ recorrido: [
-    paso('Solicitando', '21.09.2026 09:00'),
-    paso('Finalizado', '22.09.2026 09:00'),
     paso('Pendiente', '23.09.2026 09:00'),
-    paso('Finalizado', '25.09.2026 09:00')
-  ] }) === 4, 'y si se reabrió, vale la última vez que se cerró');
+    paso('Creando', '24.09.2026 09:00'),
+    paso('Finalizado', '26.09.2026 09:00'));
+  ok(diasEntre(conVuelta, 'Creando', 'Finalizado') === 4,
+    'de la PRIMERA vez que entró a Creando, no de la última');
 
-  ok(mediana([1, 2, 3]) === 2, 'la mediana de tres');
-  ok(mediana([1, 2, 3, 4]) === 2.5, 'y de cuatro, el promedio de las dos del medio');
-  ok(mediana([]) === null, 'sin números no hay mediana');
+  // El orden importa: llegar a `hasta` antes de `desde` no es un tramo.
+  ok(diasEntre(con(
+    paso('Finalizado', '21.09.2026 09:00'),
+    paso('Solicitando', '22.09.2026 09:00')), 'Solicitando', 'Finalizado') === null,
+    'un Finalizado anterior al Solicitando no se cuenta al revés');
+
+  ok(promedio([1, 2, 3]) === 2, 'el promedio de tres');
+  ok(promedio([1, 2]) === 1.5, 'y de dos');
+  ok(promedio([]) === null, 'sin números no hay promedio');
+
+  ok(enDias(null) === '—', 'sin dato, un guion');
+  ok(enDias(0.4) === 'menos de 1 día', 'menos de un día se dice así, no 0,4');
+  ok(enDias(1) === '1 día', 'un día justo, en singular');
+  ok(enDias(1.44) === '1,4 días', 'uno coma cuatro NO es "1,4 día"');
+  ok(enDias(4.5) === '4,5 días', 'cuatro días y medio');
+  ok(enDias(2) === '2 días', 'y dos enteros sin coma');
+
+  // Los tres tramos que se muestran.
+  ok(TRAMOS.length === 3, 'se miden tres tramos');
+  ok(TRAMOS[0].desde === 'Solicitando' && TRAMOS[0].hasta === 'Validando información',
+    'el primero: cuánto tarda codificación en mirar una solicitud nueva');
+  ok(TRAMOS[1].desde === 'Creando' && TRAMOS[1].hasta === 'Finalizado',
+    'el segundo: desde que se pone a crearla hasta que la cierra');
+  ok(TRAMOS[2].desde === 'Solicitando' && TRAMOS[2].hasta === 'Finalizado',
+    'y el tercero: el total, que es lo que espera quien pidió');
+
+  ok(demorasDelTramo([completa, conVuelta, con(paso('Solicitando', '21.09.2026 09:00'))],
+    TRAMOS[1]).join() === '2,4',
+    'el tramo junta solo las que lo completaron, y deja fuera la que no');
 }
 
 // Nadie edita nada desde el monitor, ni el estado: se reparte a quien deba

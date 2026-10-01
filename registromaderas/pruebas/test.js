@@ -175,8 +175,10 @@ seccion('Qué etapas tiene cada producto, leídas del prefijo');
   const etapas = c => etapasAplicables_(c);
   ok(!etapas('RVMH').aserradero && !etapas('RVMH').secado && !etapas('RVMH').cepillado,
     'RVMH lleva H y no es cepillado: es Trading, se compra hecha y no lleva ruta');
-  ok(etapas('C4JH').aserradero && etapas('C4JH').secado && etapas('C4JH').cepillado,
-    'C4JH empieza con C: se cepilló acá, así que pide las tres aunque lleve H');
+  ok(!etapas('C4JH').aserradero && !etapas('C4JH').secado && !etapas('C4JH').cepillado,
+    'C4JH empieza con C, pero lleva H: se compra cepillado, y lo comprado no lleva ruta');
+  ok(etapas('C4JR').aserradero && etapas('C4JR').secado && etapas('C4JR').cepillado,
+    'el mismo cepillado de planta sí pide las tres');
   ok(etapas('RVM ').aserradero && !etapas('RVM ').secado && !etapas('RVM ').cepillado,
     'RVM es verde y rústico: solo aserradero');
   ok(etapas('RSFR').aserradero && etapas('RSFR').secado && !etapas('RSFR').cepillado,
@@ -313,6 +315,17 @@ seccion('Los ceros se ponen solos');
   ok(lote.filas[0].rutas.aserradero === 'RVM 032X180',
     'y la ruta vuelve completa a su columna');
   ok(lote.filas[0].ok, 'la fila queda lista');
+
+  // Y el detalle los guarda igual. Sin la columna en formato texto, Sheets
+  // leería 032 como el número 32 y el cero se perdería ahí.
+  const g = apiGuardarLote(lote_('RSJR032X180X3300\tRVM 032X180\tRSN 032X180').filas, '');
+  const det = SS.getSheetByName(CFG.HOJA_DETALLE);
+  const fila = det.getRange(det.getLastRow(), 1, 1, COL_DETALLE.length).getDisplayValues()[0];
+  ok(g.guardadas === 1, 'se guarda');
+  ok(fila[COL_DETALLE.indexOf('Espesor')] === '032',
+    'el espesor queda con su cero en ' + CFG.HOJA_DETALLE);
+  ok(fila[COL_DETALLE.indexOf('Ancho')] === '180' &&
+     fila[COL_DETALLE.indexOf('Largo')] === '3300', 'y el ancho y el largo, enteros');
 }
 
 seccion('En PT la ruta se avisa; en PP y PCP tiene que existir');
@@ -613,13 +626,17 @@ seccion('Qué rutas abre cada tipo de código');
   ok(abre('RVMR032X180X3200') === 'aserradero', 'terminado verde: solo aserradero');
   ok(abre('RVMH032X180X3960') === 'ninguna', 'Trading: ninguna, se compra hecho');
 
-  // El cepillado manda sobre la especie: un C con H sigue siendo de Trading
-  // —se compra a terceros— pero igual se cepilla, y eso pide las tres rutas.
+  // La especie manda sobre el cepillado: un C con H se compra ya cepillado, y
+  // lo comprado no tiene ruta que declarar. Solo piezas.
   const cepilladoH = lote_('C23H019X125X4005').filas[0];
-  ok(abre('C23H019X125X4005') === 'aserradero+secado+cepillado',
-    'un cepillado con H pide la ruta completa igual');
+  ok(abre('C23H019X125X4005') === 'ninguna',
+    'un cepillado con H no pide ninguna ruta: se compra hecho');
   ok(cepilladoH.origen === 'Trading' && cepilladoH.centro === 'TCD2',
-    'y sigue siendo Trading, con su centro');
+    'porque es Trading, con su centro');
+  ok(cepilladoH.pidePak && cepilladoH.umb === 'PZA', 'y lo único que se le pide son las piezas');
+  ok(cepilladoH.ok, 'así que queda lista sola, sin nada que completar');
+  ok(abre('C23R019X125X4005') === 'aserradero+secado+cepillado',
+    'el mismo cepillado, pero de planta, sí abre la ruta completa');
 
   ok(abre('RSF 037X130', 'PP') === 'aserradero',
     'proceso seco: solo la de verde, que es de donde sale');
@@ -789,14 +806,13 @@ seccion('El Excel sale de las filas seleccionadas en la hoja');
 
 seccion('Guardar el lote completo');
 {
-  // Las tres de Trading, que es lo único que puede ir junto: la tercera es
-  // cepillada, así que aun siendo H lleva sus tres rutas.
+  // Una tanda de Trading: nada de esto lleva ruta, ni siquiera la cepillada.
   const lote = lote_([
     'RVMH032X180X3660\t120',
     'RVMH032X180X4270',
-    'C4JH019X100X3050\tRVF 019X100\tRSF 019X100\tCSF 019X100\t60'
+    'C4JH019X100X3050\t60'
   ].join('\n'));
-  ok(lote.listas === 3, 'las tres líneas quedan listas');
+  ok(lote.listas === 3, 'las tres líneas quedan listas sin completar nada');
 
   const r = apiGuardarLote(lote.filas);
   ok(r.guardadas === 3 && r.fallidas === 0, 'se guardan las tres');
@@ -804,9 +820,18 @@ seccion('Guardar el lote completo');
   ok(celda('PT', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
   ok(celda('PT', r.resultados[0].fila, 7) === '' && celda('PT', r.resultados[0].fila, 11) === '',
     'las rústicas de Trading van sin ninguna ruta');
-  ok(celda('PT', r.resultados[2].fila, 7) === 'RVF' &&
-     celda('PT', r.resultados[2].fila, 15) === 'CSF',
-    'y la cepillada con las suyas, aunque también sea de Trading');
+  ok(celda('PT', r.resultados[2].fila, 7) === '' && celda('PT', r.resultados[2].fila, 15) === '',
+    'y la cepillada tampoco: se compró cepillada');
+  ok(celda('PT', r.resultados[2].fila, 24) === 60, 'de ella solo se guardan las piezas');
+}
+{
+  // La misma cepillada, pero de planta: ahí sí van sus tres rutas.
+  const lote = lote_('C4JR019X100X3050\tRVF 019X100\tRSF 019X100\tCSF 019X100\t60');
+  const r = apiGuardarLote(lote.filas);
+  ok(r.guardadas === 1, 'se guarda');
+  ok(celda('PT', r.resultados[0].fila, 7) === 'RVF' &&
+     celda('PT', r.resultados[0].fila, 15) === 'CSF',
+    'y la cepillada de planta con las suyas, elegidas solas');
 }
 {
   const lote = lote_('RVMH032X180X4000\tRVM 032X180');
@@ -1022,10 +1047,25 @@ seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
   // no hay a quién redirigir la respuesta.
   ok(global.__CORREOS[0].opciones.replyTo === undefined,
     'y sale de quien pide, así que no necesita responder-a');
+  ok(r.aviso && r.aviso.ok, 'y el guardado vuelve diciendo que salió');
 
-  // Ahora se cierra.
+  // Al pasar a Creando, el aviso de material creado: ese sí sale de nosotros.
   global.__CORREOS = [];
   const hoja = SS.getSheetByName('Registro');
+  const creado = avisarCreado_(r.solicitud, lineasDeSolicitud_(r.solicitud));
+  ok(creado.ok && global.__CORREOS.length === 1, 'al pasar a Creando sale un correo');
+  ok(global.__CORREOS[0].para === 'jose.ortiz@masisa.com', 'a quien pidió');
+  ok(global.__CORREOS[0].asunto.indexOf('Material creado') !== -1, 'con ese asunto');
+  ok(global.__CORREOS[0].asunto.indexOf(r.solicitud) !== -1, 'y el número de su solicitud');
+  ok(global.__CORREOS[0].cuerpo.indexOf('RSJR032X180X4400') !== -1, 'el código adentro');
+  ok(global.__CORREOS[0].cuerpo.indexOf('032 x 180 x 4400') !== -1,
+    'con su medida: ' + (global.__CORREOS[0].cuerpo.match(/· RSJR[^\n]*/) || [''])[0]);
+  ok(global.__CORREOS[0].cuerpo.indexOf('RVM 032X180') !== -1, 'y las rutas que lleva');
+  ok(global.__CORREOS[0].opciones.replyTo === 'codificacion@masisa.com',
+    'responder le escribe a codificación');
+
+  // Ahora se cierra: la base, y ningún correo desde acá.
+  global.__CORREOS = [];
   const puesto = cerrarSolicitud_(hoja, r.filaResumen);
 
   ok(puesto.codigos === 1, 'el código entra a la base');
@@ -1038,19 +1078,14 @@ seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
   ok(enBd.indexOf('RVM 032X180') === -1,
     'la ruta que ya existía NO se agrega de nuevo');
 
-  ok(global.__CORREOS.length === 1, 'al finalizar sale un correo');
-  ok(global.__CORREOS[0].para === 'jose.ortiz@masisa.com', 'a quien pidió');
-  ok(global.__CORREOS[0].asunto.indexOf('costo plan liberado') !== -1,
-    'con el asunto de código registrado y costo plan liberado');
-  ok(global.__CORREOS[0].asunto.indexOf(r.solicitud) !== -1, 'y el número de su solicitud');
-  ok(global.__CORREOS[0].opciones.replyTo === 'codificacion@masisa.com',
-    'responder le escribe a codificación');
-  ok(global.__CORREOS[0].cuerpo.indexOf('1 código y 1 hoja de ruta') !== -1,
-    'y dice qué se dio de alta: ' +
-    (global.__CORREOS[0].cuerpo.match(/Se dieron de alta[^\n]*/) || [''])[0]);
+  // El aviso de finalizado tiene que salir de codificación, y un correo sale
+  // siempre de la cuenta que corre el script: por eso vive en `alertas`.
+  ok(global.__CORREOS.length === 0,
+    'y desde acá no sale ningún correo al finalizar: ese es del proyecto alertas');
+  ok(typeof avisarFinalizado_ === 'undefined',
+    'este proyecto ya no tiene con qué mandarlo');
 
   // Cerrarla dos veces no duplica nada.
-  global.__CORREOS = [];
   const otraVez = cerrarSolicitud_(hoja, r.filaResumen);
   ok(otraVez.codigos === 0 && otraVez.rutas === 0, 'volver a cerrarla no agrega nada');
   ok(bd.getLastRow() === antesBd + 2, 'la base queda igual');
@@ -1059,8 +1094,10 @@ seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
   global.__FALLA_CORREO = true;
   const conFallo = apiGuardarLote(lote_('RVMH032X180X4700').filas, '');
   const puestos = cerrarSolicitud_(hoja, conFallo.filaResumen);
+  ok(conFallo.aviso && !conFallo.aviso.ok,
+    'si el aviso de ingreso no sale, el guardado lo dice en vez de callarlo');
   delete global.__FALLA_CORREO;
-  ok(puestos.codigos === 1, 'y si el correo del cierre falla, el material entra igual');
+  ok(puestos.codigos === 1, 'y el material entra igual');
 
   CORREOS.CODIFICACION = '';
 }

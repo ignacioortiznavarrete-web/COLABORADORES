@@ -360,14 +360,19 @@ const MONITOR = {
 };
 
 /**
- * Los dos correos que salen solos.
+ * Los dos correos que salen de ESTE proyecto.
  *
  * Al ingresar: de quien pide a codificación, para que sepa que hay algo que
- * crear. Al finalizar: de codificación a quien pidió, para que sepa que ya está.
+ * crear. Al pasar a `Creando`: de nosotros a quien pidió, para avisarle que su
+ * material ya está creado y con qué quedó.
  *
- * Que el de ingreso salga de quien pide no se decide acá sino al publicar: un
- * correo sale de la cuenta con la que corre el script, así que el formulario
- * tiene que estar publicado como "Ejecutar como: el usuario que accede".
+ * El de finalizado NO está acá: tiene que salir de codificación, y un correo
+ * sale siempre de la cuenta que corre el script. Vive en el proyecto `alertas`,
+ * que instala codificación desde su propia cuenta.
+ *
+ * Que el de ingreso salga de quien pide tampoco se decide acá sino al publicar:
+ * el formulario tiene que estar publicado como "Ejecutar como: el usuario que
+ * accede".
  *
  * Una dirección vacía es "no mandar": el formulario no falla por eso, solo no
  * avisa. Así se puede instalar antes de tener la casilla definitiva.
@@ -378,15 +383,24 @@ const CORREOS = {
   /** En copia, si hace falta. */
   COPIA: '',
   ASUNTO_INGRESO: 'Nueva solicitud de código de maderas',
-  ASUNTO_FINALIZADO: 'Código registrado · costo plan liberado'
+  ASUNTO_CREADO: 'Material creado'
 };
 
 /** Cómo se numera cada solicitud, y con qué estado nace. */
 const NUMERACION = {
   PREFIJO: 'SOL-',
   DIGITOS: 5,
+  /**
+   * El estado en que el material ya está creado y hay que avisarle a quien
+   * pidió. Es el cuarto de ESTADOS; si mañana se llama de otra forma, se
+   * cambia acá y no en medio del código.
+   */
+  ESTADO_CREADO: ESTADOS[3],
   ESTADO_INICIAL: ESTADOS[0],
-  /** Al llegar acá los materiales entran a BD_Maderas y se avisa a quien pidió. */
+  /**
+   * Al llegar acá los materiales entran a BD_Maderas. El aviso a quien pidió
+   * lo manda el proyecto `alertas`, desde la cuenta de codificación.
+   */
   ESTADO_FINAL: ESTADOS[ESTADOS.length - 1]
 };
 

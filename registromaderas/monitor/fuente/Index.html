@@ -164,25 +164,31 @@
     var finalizadas = lista.filter(function (s) {
       return sinTildes(s.estado) === sinTildes(ESTADO_FINAL);
     });
-    var demoras = lista.map(diasHastaFinalizar).filter(function (d) { return d !== null; });
-    var med = mediana(demoras);
 
     var tarjetas = [
       { rotulo: 'Solicitudes', valor: lista.length },
       { rotulo: 'En curso', valor: lista.length - finalizadas.length },
-      { rotulo: 'Finalizadas', valor: finalizadas.length },
-      {
-        rotulo: 'Mediana hasta finalizar',
-        valor: med === null ? '—' : (med < 1 ? 'menos de 1 día'
-          : (Math.round(med * 10) / 10).toString().replace('.', ',') +
-            (med < 2 ? ' día' : ' días')),
-        nota: demoras.length ? 'sobre ' + demoras.length +
-          (demoras.length === 1 ? ' solicitud' : ' solicitudes') : 'ninguna todavía'
-      }
+      { rotulo: 'Finalizadas', valor: finalizadas.length }
     ];
 
+    // La demora de cada tramo, promediada sobre las solicitudes que lo
+    // completaron. La nota dice cuántas son: un promedio de dos no es lo
+    // mismo que uno de doscientas, y quien lo mira tiene que poder saberlo.
+    TRAMOS.forEach(function (tramo) {
+      var demoras = demorasDelTramo(lista, tramo);
+      tarjetas.push({
+        rotulo: tramo.titulo,
+        valor: enDias(promedio(demoras)),
+        nota: demoras.length
+          ? 'promedio de ' + demoras.length
+          : 'ninguna lo completó todavía',
+        demora: true
+      });
+    });
+
     $('tarjetas').innerHTML = tarjetas.map(function (t) {
-      return '<div class="tarjeta"><span class="rotulo">' + esc(t.rotulo) + '</span>' +
+      return '<div class="tarjeta' + (t.demora ? ' demora' : '') + '">' +
+        '<span class="rotulo">' + esc(t.rotulo) + '</span>' +
         '<span class="valor">' + esc(t.valor) + '</span>' +
         (t.nota ? '<span class="nota">' + esc(t.nota) + '</span>' : '') + '</div>';
     }).join('');

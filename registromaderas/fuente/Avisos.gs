@@ -21,14 +21,17 @@
  */
 function avisarIngreso_(numero, cabecera, skus) {
   try {
-    armarAvisoDeIngreso_(numero, cabecera, skus);
+    return armarAvisoDeIngreso_(numero, cabecera, skus);
   } catch (err) {
     Logger.log('avisarIngreso_: ' + err.message);
+    return { ok: false, mensaje: err.message };
   }
 }
 
 function armarAvisoDeIngreso_(numero, cabecera, skus) {
-  if (!CORREOS.CODIFICACION) return;
+  if (!CORREOS.CODIFICACION) {
+    return { ok: false, mensaje: 'La casilla de codificación está vacía en Config.gs.' };
+  }
   var cuerpo = [
     'Entró una solicitud de códigos de maderas.',
     '',
@@ -43,7 +46,7 @@ function armarAvisoDeIngreso_(numero, cabecera, skus) {
   if (cabecera.observacion) cuerpo.push('', 'Observación: ' + cabecera.observacion);
   if (MONITOR.URL) cuerpo.push('', 'Monitor: ' + MONITOR.URL);
 
-  enviar_(CORREOS.CODIFICACION, CORREOS.ASUNTO_INGRESO + ' · ' + numero,
+  return enviar_(CORREOS.CODIFICACION, CORREOS.ASUNTO_INGRESO + ' · ' + numero,
     cuerpo.join('\n'), cabecera.correo);
 }
 
@@ -63,42 +66,60 @@ function armarAvisoDeIngreso_(numero, cabecera, skus) {
  * @param {string} responderA  A quién contesta el que reciba, si no es el remitente.
  */
 /**
- * Avisa a quien pidió que sus códigos quedaron creados.
+ * Avisa a quien pidió que su material ya está creado, y con qué quedó.
  *
- * Sale de la cuenta que instaló el disparador —codificación—, y contesta ahí
- * mismo: quien recibe puede responder con una duda sin buscar a quién.
+ * Sale de ESTE proyecto —de la cuenta que instaló el disparador, la de quien
+ * publicó el formulario— porque es nuestro el aviso de que el trabajo está
+ * hecho. El de finalizado es otra cosa y sale de codificación, desde el
+ * proyecto `alertas`.
  */
-function avisarFinalizado_(numero, correo, skus, agregado) {
+function avisarCreado_(numero, lineas) {
   try {
-    armarAvisoDeFinalizado_(numero, correo, skus, agregado);
+    return armarAvisoDeCreado_(numero, lineas);
   } catch (err) {
-    Logger.log('avisarFinalizado_: ' + err.message);
+    Logger.log('avisarCreado_: ' + err.message);
+    return { ok: false, mensaje: err.message };
   }
 }
 
-function armarAvisoDeFinalizado_(numero, correo, skus, agregado) {
-  if (!correo) return;
-  var cuerpo = [
-    'Tu solicitud ' + numero + ' quedó finalizada.',
-    '',
-    'Los códigos están registrados y su costo plan, liberado.',
-    '',
-    skus.join('\n')
-  ];
-  if (agregado && (agregado.codigos || agregado.rutas)) {
-    cuerpo.push('', 'Se dieron de alta en ' + CFG.HOJA_BD + ': ' +
-      agregado.codigos + (agregado.codigos === 1 ? ' código' : ' códigos') +
-      (agregado.rutas
-        ? ' y ' + agregado.rutas + (agregado.rutas === 1 ? ' hoja de ruta' : ' hojas de ruta')
-        : '') + '.');
+function armarAvisoDeCreado_(numero, lineas) {
+  if (!lineas || !lineas.length) {
+    return { ok: false, mensaje: 'La solicitud no tiene líneas en ' + CFG.HOJA_DETALLE + '.' };
   }
+  var correo = lineas[0].correo;
+  if (!correo) {
+    return { ok: false, mensaje: 'No hay correo de quien pidió en ' + CFG.HOJA_DETALLE + '.' };
+  }
+
+  var cuerpo = [
+    'Tu material ya está creado.',
+    '',
+    'N° Solicitud: ' + numero,
+    'Códigos:      ' + lineas.length,
+    ''
+  ];
+
+  // El detalle, uno por línea: el código y lo que lo define. Quien recibe
+  // tiene que poder revisarlo sin abrir nada.
+  lineas.forEach(function (l) {
+    var partes = [l.codigo];
+    if (l.descripcion) partes.push(l.descripcion);
+    var medida = [l.espesor, l.ancho, l.largo].filter(Boolean).join(' x ');
+    if (medida) partes.push(medida);
+    if (l.piezas) partes.push(l.piezas + ' ' + (l.umb || 'PZA'));
+    else if (l.umb) partes.push(l.umb);
+    if (l.rutas.length) partes.push('rutas: ' + l.rutas.join(', '));
+    cuerpo.push('· ' + partes.join(' · '));
+  });
+
   if (MONITOR.URL) cuerpo.push('', 'Monitor: ' + MONITOR.URL);
 
-  enviar_(correo, CORREOS.ASUNTO_FINALIZADO + ' · ' + numero, cuerpo.join('\n'),
+  return enviar_(correo, CORREOS.ASUNTO_CREADO + ' · ' + numero, cuerpo.join('\n'),
     CORREOS.CODIFICACION);
 }
 
 function enviar_(para, asunto, cuerpo, responderA) {
+  if (!para) return { ok: false, mensaje: 'No hay a quién mandarlo: la casilla está vacía.' };
   try {
     var opciones = { name: 'Solicitud Código Maderas' };
     if (CORREOS.COPIA) opciones.cc = CORREOS.COPIA;
@@ -107,9 +128,13 @@ function enviar_(para, asunto, cuerpo, responderA) {
       opciones.name = 'Solicitud Código Maderas · ' + responderA;
     }
     MailApp.sendEmail(para, asunto, cuerpo, opciones);
+    return { ok: true, mensaje: 'Enviado a ' + para + '.' };
   } catch (err) {
-    // Un correo que no sale no puede tumbar un registro que ya quedó escrito.
+    // Un correo que no sale no puede tumbar un registro que ya quedó escrito,
+    // pero tampoco puede desaparecer sin dejar dicho por qué: el que llama
+    // decide qué hacer con esto, y la pantalla lo muestra.
     Logger.log('No se pudo enviar "' + asunto + '" a ' + para + ': ' + err.message);
+    return { ok: false, mensaje: err.message };
   }
 }
 
@@ -123,15 +148,90 @@ function esLaCuentaQueCorre_(correo) {
   }
 }
 
+/* ------------------------------------------------------------ diagnóstico */
+
+/**
+ * Por qué no llegó el correo.
+ *
+ * Los avisos van envueltos a propósito —una solicitud guardada no se puede
+ * deshacer porque un correo falló—, pero eso los vuelve mudos: no llega nada y
+ * no hay a quién preguntarle. Esto manda uno de prueba y dice en voz alta lo
+ * que pasó, con el error de Google tal cual.
+ *
+ * Importante: esto corre con el código de AHORA, el del editor. La aplicación
+ * web corre el de la ÚLTIMA IMPLEMENTACIÓN. Si acá sale bien y desde el
+ * formulario no llega nada, el problema no es el correo: es que la
+ * implementación quedó en una versión vieja y hay que publicar una nueva.
+ */
+function probarCorreo() {
+  var pasos = [];
+
+  try {
+    var quien = String(Session.getEffectiveUser().getEmail() || '');
+    pasos.push('Sale de: ' + (quien || '(Google no entrega la cuenta)'));
+  } catch (err) {
+    pasos.push('No se pudo saber de qué cuenta sale: ' + err.message);
+  }
+
+  try {
+    pasos.push('Cuota que queda hoy: ' + MailApp.getRemainingDailyQuota() + ' correos');
+  } catch (err) {
+    pasos.push('No se pudo leer la cuota: ' + err.message);
+  }
+
+  if (!CORREOS.CODIFICACION) {
+    pasos.push('');
+    pasos.push('La casilla de codificación está VACÍA en Config.gs, así que no se manda');
+    pasos.push('nada y tampoco falla: simplemente no sale. Ponla en CORREOS.CODIFICACION.');
+    avisar_('Probar correo', pasos.join('\n'));
+    return pasos.join('\n');
+  }
+
+  pasos.push('Va a: ' + CORREOS.CODIFICACION);
+  pasos.push('');
+
+  var r = enviar_(CORREOS.CODIFICACION, 'Prueba · ' + CORREOS.ASUNTO_INGRESO,
+    'Esto es una prueba del aviso de ingreso. Si te llegó, el correo funciona.\n\n' +
+    'Salió de ' + (usuario_() || 'la cuenta que corre el script') + '.');
+
+  if (r.ok) {
+    pasos.push('Salió. ' + r.mensaje);
+    pasos.push('');
+    pasos.push('Si el formulario igual no avisa, el correo no es el problema: la');
+    pasos.push('aplicación web corre la última implementación, no lo que está en el');
+    pasos.push('editor. Publica una nueva versión en Implementar › Administrar');
+    pasos.push('implementaciones › ✏ › Versión: Nueva.');
+  } else {
+    pasos.push('NO salió: ' + r.mensaje);
+    if (/authoriz|permis|scope/i.test(r.mensaje)) {
+      pasos.push('');
+      pasos.push('Eso es de permisos. Corre esta misma función desde el editor de Apps');
+      pasos.push('Script y acepta lo que pida; el permiso de enviar correo se agregó');
+      pasos.push('después, así que hay que volver a autorizar.');
+    }
+  }
+
+  avisar_('Probar correo', pasos.join('\n'));
+  return pasos.join('\n');
+}
+
 /* ------------------------------------------------ cuando se da por terminada */
 
 /**
  * Se dispara al editar el spreadsheet.
  *
- * Solo mira una cosa: que alguien haya puesto `Finalizado` en la columna
- * Estado de `Registro`. Cuando pasa, los materiales de esa solicitud —y las
- * hojas de ruta que usaron— se dan de alta en BD_Maderas, y se avisa a quien
- * la pidió.
+ * Mira una sola columna de una sola hoja: `Estado` en `Registro`. El estado se
+ * maneja ahí y en ninguna otra parte —ni en el monitor, ni en la bitácora de
+ * estados, que solo anota lo que ya pasó—, así que cualquier otra edición no
+ * es asunto suyo.
+ *
+ * Cada paso queda anotado, y dos de ellos además hacen algo:
+ *
+ *   Creando     avisa a quien pidió que su material está creado, con el detalle
+ *   Finalizado  da de alta los materiales y sus rutas en BD_Maderas
+ *
+ * El aviso de finalizado no está acá: tiene que salir de codificación, y vive
+ * en el proyecto `alertas`, que ellos instalan desde su cuenta.
  *
  * Para que corra hay que instalar el disparador una vez, desde el menú.
  */
@@ -153,6 +253,11 @@ function alEditarRegistro(evento) {
     var fila = evento.range.getRow();
     anotarPasoDeEstado_(hoja, fila, estado, quienEdito_(evento));
 
+    if (normalizar_(estado) === normalizar_(NUMERACION.ESTADO_CREADO)) {
+      var numero = numeroDeFila_(hoja, fila);
+      if (numero) avisarCreado_(numero, lineasDeSolicitud_(numero));
+      return;
+    }
     if (normalizar_(estado) !== normalizar_(NUMERACION.ESTADO_FINAL)) return;
     cerrarSolicitud_(hoja, fila);
   } catch (err) {
@@ -160,11 +265,16 @@ function alEditarRegistro(evento) {
   }
 }
 
+/** El número de solicitud que hay en esa fila de `Registro`. */
+function numeroDeFila_(hojaRegistro, fila) {
+  return String(hojaRegistro.getRange(fila, COL_REGISTRO.indexOf('N° Solicitud') + 1)
+    .getDisplayValue()).trim();
+}
+
 /** Anota en la bitácora de estados el paso que se acaba de hacer en la hoja. */
 function anotarPasoDeEstado_(hojaRegistro, fila, estado, quien) {
   try {
-    var numero = String(hojaRegistro.getRange(fila, COL_REGISTRO.indexOf('N° Solicitud') + 1)
-      .getDisplayValue()).trim();
+    var numero = numeroDeFila_(hojaRegistro, fila);
     if (!numero) return false;
     return anotarEstado_(numero, estado, quien);
   } catch (err) {
@@ -199,24 +309,19 @@ function quienEdito_(evento) {
  * nombraron. Lo que ya está no se vuelve a agregar —la base no debería tener
  * un material dos veces— y por eso se lee entera una vez antes de escribir.
  *
+ * El aviso a quien pidió no sale de acá: tiene que salir de codificación, y
+ * de eso se encarga el proyecto `alertas`.
+ *
  * @return {{codigos: number, rutas: number}} cuántos se agregaron de cada cosa.
  */
 function cerrarSolicitud_(hojaRegistro, fila) {
-  var numero = String(hojaRegistro.getRange(fila, COL_REGISTRO.indexOf('N° Solicitud') + 1)
-    .getDisplayValue()).trim();
+  var numero = numeroDeFila_(hojaRegistro, fila);
   if (!numero) return { codigos: 0, rutas: 0 };
 
   var lineas = lineasDeSolicitud_(numero);
   if (!lineas.length) return { codigos: 0, rutas: 0 };
 
-  var agregado = agregarABd_(lineas);
-
-  // El aviso va después de dar de alta: si el correo no sale, los materiales
-  // ya quedaron en la base igual.
-  avisarFinalizado_(numero, lineas[0].correo,
-    lineas.map(function (l) { return l.codigo; }), agregado);
-
-  return agregado;
+  return agregarABd_(lineas);
 }
 
 /** Las líneas de `Registro Detalle` que son de esa solicitud. */
@@ -241,6 +346,11 @@ function lineasDeSolicitud_(numero) {
       grupo: donde('Grupo Artículo') >= 0 ? datos[i][donde('Grupo Artículo')] : '',
       tipoMaterial: donde('Tipo Material') >= 0 ? datos[i][donde('Tipo Material')] : '',
       correo: donde('Correo') >= 0 ? datos[i][donde('Correo')] : '',
+      espesor: donde('Espesor') >= 0 ? String(datos[i][donde('Espesor')]).trim() : '',
+      ancho: donde('Ancho') >= 0 ? String(datos[i][donde('Ancho')]).trim() : '',
+      largo: donde('Largo') >= 0 ? String(datos[i][donde('Largo')]).trim() : '',
+      piezas: donde('Piezas') >= 0 ? String(datos[i][donde('Piezas')]).trim() : '',
+      umb: donde('UMB') >= 0 ? String(datos[i][donde('UMB')]).trim() : '',
       rutas: ETAPAS.map(function (e) {
         var c = donde(e.titulo);
         return c >= 0 ? String(datos[i][c]).trim() : '';

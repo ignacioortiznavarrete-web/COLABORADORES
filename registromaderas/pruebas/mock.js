@@ -372,9 +372,13 @@ global.Logger = { log: () => {} };
 global.__CORREOS = [];
 global.MailApp = {
   sendEmail: (para, asunto, cuerpo, opciones) => {
-    if (global.__FALLA_CORREO) throw new Error('el servidor de correo dijo que no');
+    if (global.__FALLA_CORREO) {
+      throw new Error(global.__FALLA_CORREO === true
+        ? 'el servidor de correo dijo que no' : String(global.__FALLA_CORREO));
+    }
     global.__CORREOS.push({ para, asunto, cuerpo, opciones });
-  }
+  },
+  getRemainingDailyQuota: () => (global.__CUOTA === undefined ? 1500 : global.__CUOTA)
 };
 global.ScriptApp = {
   getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }),

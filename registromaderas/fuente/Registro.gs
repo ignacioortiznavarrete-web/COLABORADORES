@@ -151,10 +151,15 @@ function etapasAplicables_(agrupacion, esProceso) {
   var p = prefijo_(agrupacion);
   var nada = { aserradero: false, secado: false, cepillado: false };
 
+  // La especie manda sobre todo lo demás: con H el material se compra hecho a
+  // terceros, y lo que no se fabrica no tiene ruta que declarar. También
+  // cuando es cepillado —un C24H se compra cepillado— : lleva piezas y nada
+  // más. Por eso esta pregunta va antes que la del cepillado y no después.
+  if (p.charAt(3) === TRADING.ESPECIE) return nada;
+
   if (p.charAt(0) === 'C') {
     return { aserradero: true, secado: true, cepillado: true };
   }
-  if (p.charAt(3) === TRADING.ESPECIE) return nada;
 
   var verde = p.charAt(1) === 'V';
   if (esProceso) {
@@ -577,7 +582,39 @@ function asegurarComboEstado_(hoja) {
   if (filas < 1) return;
   hoja.getRange(2, columna, filas, 1).setDataValidation(comboDeEstado_());
 }
-function asegurarEncabezadosDetalle_(hoja) { return encabezados_(hoja, COL_DETALLE); }
+/**
+ * Ya se dejaron las medidas en formato texto en esta ejecución.
+ *
+ * `guardarDetalle_` corre una vez por código, y pintar tres columnas enteras
+ * en cada una serían cuarenta idas al spreadsheet por tanda. Basta con la
+ * primera: la bandera se borra sola al terminar la ejecución.
+ */
+var MEDIDAS_YA_SON_TEXTO = false;
+
+function asegurarEncabezadosDetalle_(hoja) {
+  encabezados_(hoja, COL_DETALLE);
+  if (MEDIDAS_YA_SON_TEXTO) return;
+  asegurarMedidasComoTexto_(hoja);
+  MEDIDAS_YA_SON_TEXTO = true;
+}
+
+/**
+ * Las tres columnas de medida, en formato texto.
+ *
+ * Un espesor es '032', no 32: el cero de adelante es parte del código y así
+ * viaja al batch input. En una celda normal Sheets lo lee como número y se lo
+ * come, y después el detalle dice 32 donde el código dice 032. La columna se
+ * deja en texto de una vez, y de ahí en adelante appendRow ya no puede
+ * perderlo.
+ */
+function asegurarMedidasComoTexto_(hoja) {
+  var filas = hoja.getMaxRows() - 1;
+  if (filas < 1) return;
+  ['Espesor', 'Ancho', 'Largo'].forEach(function (rotulo) {
+    var columna = COL_DETALLE.indexOf(rotulo) + 1;
+    if (columna) hoja.getRange(2, columna, filas, 1).setNumberFormat('@');
+  });
+}
 function asegurarEncabezadosEstados_(hoja) { return encabezados_(hoja, COL_ESTADOS); }
 
 /**

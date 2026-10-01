@@ -503,10 +503,15 @@ function apiGuardarLote(filas, observacion) {
     // El aviso va después de escribir, y envuelto: la solicitud ya quedó
     // guardada, y nada de lo que pase con un correo puede deshacerla. Envuelto
     // acá también por si Avisos.gs ni siquiera está en el proyecto.
+    //
+    // Lo que sí vuelve es si salió o no: un correo que no llega y no lo dice
+    // es peor que uno que falla a la vista. La pantalla lo muestra.
+    var aviso = null;
     try {
-      if (destinos.length) avisarIngreso_(numero, cabecera, skus);
+      if (destinos.length) aviso = avisarIngreso_(numero, cabecera, skus);
     } catch (err) {
       Logger.log('No se pudo avisar del ingreso de ' + numero + ': ' + err.message);
+      aviso = { ok: false, mensaje: err.message };
     }
 
     SpreadsheetApp.flush();
@@ -517,7 +522,8 @@ function apiGuardarLote(filas, observacion) {
       tramos: tramosDeDestino_(destinos),
       resultados: resultados,
       guardadas: resultados.filter(function (r) { return r.ok; }).length,
-      fallidas: resultados.filter(function (r) { return !r.ok; }).length
+      fallidas: resultados.filter(function (r) { return !r.ok; }).length,
+      aviso: aviso
     };
   } finally {
     lock.releaseLock();

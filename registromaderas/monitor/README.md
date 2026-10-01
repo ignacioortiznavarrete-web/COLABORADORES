@@ -19,8 +19,20 @@ una sola tinta que se va oscureciendo: mirando el gráfico de lejos se ve cuánt
 de cada período ya está cerrado sin leer la leyenda. Los pasos están medidos
 contra el fondo, no elegidos a ojo.
 
-Los cuatro números son: cuántas hay, cuántas en curso, cuántas finalizadas y la
-**mediana de días hasta finalizar**, que sale del recorrido de estados.
+Al lado van seis números: cuántas hay, cuántas en curso, cuántas finalizadas, y
+la **demora promedio de tres tramos**, que sale del recorrido de estados:
+
+| Tramo | Qué dice |
+|---|---|
+| Solicitando → Validando | cuánto tarda codificación en mirar una solicitud nueva |
+| Creando → Finalizado | cuánto desde que se pone a crearla hasta que la cierra |
+| Solicitando → Finalizado | el total, que es lo que espera quien pidió |
+
+Se mide desde la **primera** vez que la solicitud entró al estado de partida
+hasta la primera vez que llegó al de llegada. Si por el camino fue y volvió
+—de `Creando` a `Pendiente` y de vuelta— esa vuelta **cuenta**: lo que se mide
+es la espera, no el trabajo. Una que todavía no completó el tramo no promedia
+cero, simplemente no entra; por eso cada número dice sobre cuántas se sacó.
 
 El gráfico, los números y la tabla se dibujan sobre **la misma rebanada**: lo
 que dejaron pasar los filtros. Nunca se contradicen.

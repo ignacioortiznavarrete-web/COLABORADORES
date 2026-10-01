@@ -698,8 +698,18 @@
       return (x.codigo || '') + '  \u2192  ' + x.mensaje;
     }));
 
-    var tipo = !buenas.length ? 'error' : (quedoFuera ? 'alerta' : 'ok');
-    modal(tipo, titulo, partes.join(' '), detalle, quedoFuera > 0);
+    // El aviso a codificación no detiene nada, pero si no salió hay que
+    // decirlo acá y no dejarlo enterrado en el registro de ejecución: la
+    // solicitud quedó guardada y nadie se enteró de ella.
+    var avisoFallo = r.aviso && !r.aviso.ok;
+    if (avisoFallo) {
+      detalle.push('No se le pudo avisar a codificación  \u2192  ' +
+        (r.aviso.mensaje || 'sin detalle') +
+        '. La solicitud quedó guardada igual; avísales por otro medio.');
+    }
+
+    var tipo = !buenas.length ? 'error' : ((quedoFuera || avisoFallo) ? 'alerta' : 'ok');
+    modal(tipo, titulo, partes.join(' '), detalle, quedoFuera > 0 || avisoFallo);
     if (buenas.length) ofrecerElMonitor();
   }
 

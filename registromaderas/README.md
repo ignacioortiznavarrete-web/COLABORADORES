@@ -65,8 +65,8 @@ Nada de esto se pregunta:
 |---|---|
 | Especie `H` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2** |
 | Cualquier otra especie | **Planta**, centro **TCP1** |
-| Empieza en `C` | Es cepillado: pide **las tres** hojas de ruta, sea de Trading o no |
-| Especie `H` y **no** empieza en `C` | Se compra hecha: **sin ninguna** hoja de ruta |
+| Especie `H` | Se compra hecha: **sin ninguna** hoja de ruta, solo piezas |
+| Empieza en `C` y **no** es `H` | Cepillado de planta: pide **las tres** hojas de ruta |
 | Lleva largo (16 caracteres) | Producto terminado: **PT** |
 | Tres letras y sin largo | Producto de proceso: **PP** |
 | Tres letras, sin largo y empieza en `C` | Cepillado en proceso: **PCP** |
@@ -82,8 +82,8 @@ Todo lo que el formulario decide solo sale de tus propias hojas:
 | Decisión | De dónde sale |
 |---|---|
 | Si el material es de **Trading** | Carácter 4 = `H`, Radiata Terceros: se compra a terceros |
-| Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C`, y entonces van las tres |
-| Si lleva **hoja de ruta** | Trading no lleva ninguna —salvo que empiece en `C`— porque se compra hecha |
+| Si lleva **hoja de ruta** | Trading no lleva ninguna, porque se compra hecha. La especie manda sobre todo lo demás |
+| Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` y no es Trading, y entonces van las tres |
 | Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
 | Etapa de **aserradero** | Va siempre, salvo en Trading |
 | Si una ruta **sirve** para el producto | Su escuadría no puede ser más chica que la del producto |
@@ -389,11 +389,25 @@ pidió.
 La dirección está en `MONITOR.URL` (`Config.gs`); si el monitor se vuelve a
 publicar, hay que cambiarla ahí.
 
-El **monitor** es un Apps Script aparte, en `monitor/`, que muestra `Registro`
-con sus códigos desplegables, el recorrido de estados de cada solicitud y un
-gráfico general por tiempo: cuántas entraron en cada período y en qué estado
-están hoy. **Solo lee**: el estado lo mueve codificación en la hoja, no se toca
-desde la pantalla. Tiene su propio README con cómo se instala y se publica.
+## Los tres proyectos
+
+| Carpeta | Qué es | Quién lo instala |
+|---|---|---|
+| `fuente/` | el formulario, el disparador y lo que escribe en las hojas | nosotros |
+| `monitor/` | una pantalla de solo lectura: el registro, el recorrido de cada solicitud y un gráfico por tiempo | nosotros |
+| `alertas/` | un disparador que manda los correos que tienen que salir **de codificación** | **codificación** |
+
+Están separados por una razón sola: **un correo sale siempre de la cuenta que
+corre el script**, y el monitor no debería poder cambiar nada. Cada uno tiene
+su propio README.
+
+El **monitor** muestra `Registro` con sus códigos desplegables, por dónde pasó
+cada solicitud y un gráfico general por tiempo, con la demora promedio de cada
+tramo. **Solo lee**: el estado lo mueve codificación en la hoja `Registro`, no
+se toca desde la pantalla.
+
+Las **alertas** solo leen y mandan correo. También miran una sola columna de
+una sola hoja: el estado se maneja en `Registro` y en ninguna otra parte.
 
 ## Cómo se instala
 
@@ -438,7 +452,7 @@ En el editor, **⚙ Configuración del proyecto** › marca **«Mostrar el archi
 manifiesto appsscript.json en el editor»**. Aparece `appsscript.json` en la lista
 de archivos: reemplaza su contenido por el de `fuente/appsscript.json`.
 
-Ahí van declarados los cinco permisos que el script necesita:
+Ahí van declarados los permisos que el script necesita:
 
 | Permiso | Para qué |
 |---|---|
@@ -446,6 +460,8 @@ Ahí van declarados los cinco permisos que el script necesita:
 | `drive` | Crear la hoja temporal del Excel y mandarla a la papelera |
 | `script.external_request` | Pedirle a Google la exportación a Excel |
 | `script.container.ui` | El menú y los cuadros de diálogo |
+| `script.scriptapp` | Instalar el disparador de edición |
+| `script.send_mail` | Los avisos de ingreso y de material creado |
 | `userinfo.email` | Saber quién registra cada solicitud |
 
 Sin este archivo Apps Script los adivina leyendo el código, y esa adivinanza
@@ -569,17 +585,23 @@ ejecución.
 ### De quién sale cada correo
 
 Apps Script **siempre manda desde la cuenta con la que corre el script**. No
-hay forma de poner otro remitente. Por eso los dos correos salen de cuentas
-distintas aunque vivan en el mismo proyecto:
+hay forma de poner otro remitente, ni con `from` ni con alias. De ahí sale todo
+el reparto:
 
-| Correo | Lo dispara | Sale de | Responder le escribe a |
+| Correo | Cuándo | Sale de | Dónde vive |
 |---|---|---|---|
-| Ingreso | el formulario web | la cuenta que **publicó** el formulario | quien pidió |
-| Finalizado | el disparador de edición | la cuenta que **instaló** el disparador | codificación |
+| Ingreso | se registra una solicitud | quien pidió | `fuente/` |
+| **Material creado** | el estado pasa a `Creando` | nosotros | `fuente/` |
+| Finalizado | el estado pasa a `Finalizado` | **codificación** | **`alertas/`** |
 
-Eso es lo que resuelve el asunto sin necesidad de un Apps Script aparte: **si
-codificación instala el disparador desde su cuenta, el aviso de finalizado sale
-de codificación**. Por eso el menú avisa con qué cuenta lo estás instalando.
+Los dos primeros salen de este proyecto. El tercero **no puede**: tiene que
+salir de codificación, y este proyecto corre con nuestra cuenta. Por eso vive
+en `alertas/`, un Apps Script aparte que **instala codificación desde su propia
+cuenta** — un disparador instalable corre con la cuenta de quien lo instaló, y
+eso es lo único que decide el remitente. Tiene su propio README.
+
+Cada correo sale de **una sola parte**: si los dos proyectos mandaran el mismo,
+llegarían dos iguales.
 
 El de ingreso no puede salir de cada solicitante mientras el formulario esté
 publicado como *Ejecutar como: Yo*, así que lleva **`replyTo`** con su dirección
@@ -589,12 +611,37 @@ que publicarlo como *Ejecutar como: el usuario que accede*, y entonces cada
 persona tiene que autorizar el script y tener permiso de edición sobre el
 spreadsheet.
 
+### Si no llega el correo
+
+**Registro Maderas › Probar correo.** Manda uno de prueba y dice en voz alta lo
+que pasó: de qué cuenta sale, cuánta cuota queda hoy, y el error de Google tal
+cual si no salió.
+
+Los avisos van envueltos a propósito —una solicitud guardada no se puede
+deshacer porque un correo falló— y eso los vuelve mudos. Dos cosas lo
+compensan:
+
+- Al registrar, si el aviso a codificación no salió, **la pantalla lo dice**
+  junto al resultado, con el motivo. La solicitud quedó guardada igual.
+- `Probar correo` corre con el código del **editor**. La aplicación web corre
+  el de la **última implementación**. Si acá sale bien y desde el formulario no
+  llega nada, el problema no es el correo: la implementación quedó en una
+  versión vieja y hay que publicar una nueva en *Implementar › Administrar
+  implementaciones › ✏ › Versión: Nueva*.
+
 ### El mismo disparador anota cada cambio de estado
 
 Cambiar el `Estado` de una solicitud —a cualquiera de los cinco— deja una fila
 en `Registro Estados` con la fecha, la hora y **quién lo movió**, que sale del
 propio evento y no de la cuenta que instaló el disparador. Se anota primero y
 se actúa después: si lo que viene luego falla, el recorrido ya quedó escrito.
+
+### Al pasar a Creando, se avisa que el material está creado
+
+Poner **Creando** en la columna `Estado` le manda a quien pidió un correo
+**Material creado** con el detalle de sus códigos: cada uno con su descripción,
+su medida, sus piezas y las rutas que lleva. Sale de nuestra cuenta, que es la
+que instaló el disparador.
 
 ### Al finalizar, los materiales entran a BD_Maderas
 
@@ -603,6 +650,9 @@ Poner **Finalizado** en la columna `Estado` de `Registro` da de alta en
 nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
 tener un material dos veces—, y cerrar la misma solicitud otra vez no agrega
 nada.
+
+El aviso a quien pidió **no sale de acá**: tiene que salir de codificación, y
+de eso se encarga `alertas/`.
 
 Para que las dos cosas corran hay que activarlas una vez: **Registro Maderas ›
 Activar el cierre al finalizar**. Instala un disparador con permisos; el

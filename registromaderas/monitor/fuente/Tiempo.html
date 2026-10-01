@@ -119,24 +119,68 @@
     };
   }
 
-  /** Cuántos días tardó una solicitud entre su primer paso y Finalizado. */
-  function diasHastaFinalizar(s) {
+  /**
+   * Los tramos cuya demora se muestra. Cambiarlos es cambiar esta lista.
+   *
+   * No son todos los pasos seguidos sino los dos que importan: cuánto se
+   * demora codificación en mirar una solicitud nueva, y cuánto desde que se
+   * pone a crearla hasta que la cierra. El tercero es el total, que es lo que
+   * espera quien pidió.
+   */
+  var TRAMOS = [
+    { desde: 'Solicitando', hasta: 'Validando información', titulo: 'Solicitando → Validando' },
+    { desde: 'Creando', hasta: 'Finalizado', titulo: 'Creando → Finalizado' },
+    { desde: 'Solicitando', hasta: 'Finalizado', titulo: 'Solicitando → Finalizado' }
+  ];
+
+  /**
+   * Cuántos días tardó una solicitud en ir de un estado a otro.
+   *
+   * Se mide desde la PRIMERA vez que entró a `desde` hasta la primera vez que
+   * llegó a `hasta` después de eso. Si por el camino fue y volvió —de Creando
+   * a Pendiente y de vuelta— esa vuelta cuenta, porque quien pidió la esperó
+   * igual: lo que se mide es la demora, no el trabajo.
+   *
+   * Null cuando ese tramo no se completó: una que todavía no llega a `hasta`
+   * no demoró cero, simplemente no se puede medir todavía.
+   */
+  function diasEntre(s, desde, hasta) {
     var r = s.recorrido || [];
-    if (!r.length) return null;
-    var fin = null;
-    for (var i = r.length - 1; i >= 0; i--) {
-      if (sinTildes(r[i].estado) === sinTildes(ESTADO_FINAL)) { fin = aFecha(r[i].fecha); break; }
+    var inicio = null;
+    for (var i = 0; i < r.length; i++) {
+      if (inicio === null) {
+        if (sinTildes(r[i].estado) === sinTildes(desde)) inicio = aFecha(r[i].fecha);
+        continue;
+      }
+      if (sinTildes(r[i].estado) === sinTildes(hasta)) {
+        var fin = aFecha(r[i].fecha);
+        if (!fin || fin < inicio) return null;
+        return (fin - inicio) / 86400000;
+      }
     }
-    var inicio = aFecha(r[0].fecha);
-    if (!fin || !inicio || fin < inicio) return null;
-    return (fin - inicio) / 86400000;
+    return null;
   }
 
-  function mediana(numeros) {
+  function promedio(numeros) {
     if (!numeros.length) return null;
-    var x = numeros.slice().sort(function (a, b) { return a - b; });
-    var m = Math.floor(x.length / 2);
-    return x.length % 2 ? x[m] : (x[m - 1] + x[m]) / 2;
+    var suma = 0;
+    for (var i = 0; i < numeros.length; i++) suma += numeros[i];
+    return suma / numeros.length;
+  }
+
+  /** Los días de ese tramo, de las solicitudes que lo completaron. */
+  function demorasDelTramo(lista, tramo) {
+    return lista.map(function (s) { return diasEntre(s, tramo.desde, tramo.hasta); })
+      .filter(function (d) { return d !== null; });
+  }
+
+  /** `1,4 días`, `menos de 1 día`, o un guion si todavía no hay con qué. */
+  function enDias(valor) {
+    if (valor === null) return '—';
+    if (valor < 1) return 'menos de 1 día';
+    var redondo = Math.round(valor * 10) / 10;
+    // Singular solo en el 1 pelado: "1,3 día" no se dice.
+    return String(redondo).replace('.', ',') + (redondo === 1 ? ' día' : ' días');
   }
 
   /** El eje de arriba en un número redondo, con unas pocas líneas de grilla. */
