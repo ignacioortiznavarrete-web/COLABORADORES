@@ -444,6 +444,20 @@ carpeta:
 Borra el `Código.gs` que viene por defecto con su `function myFunction() {}`.
 Guarda con `Ctrl+S`.
 
+**Cada archivo se pega UNA vez, reemplazando lo que haya.** Todos los archivos
+de un proyecto de Apps Script comparten un solo espacio de nombres, así que si
+el mismo contenido queda en dos archivos —o pegado dos veces en el mismo— el
+proyecto no carga y sale:
+
+```
+SyntaxError: Identifier 'CFG' has already been declared
+```
+
+Y entonces no anda nada: ni el formulario, ni el menú. Para encontrarlo, en el
+editor: **Ctrl+Shift+F** (buscar en todos los archivos) y busca `const CFG`.
+Tiene que aparecer **una sola vez**, en `Config.gs`. Lo mismo vale para
+cualquier otro nombre del error.
+
 Los nombres `Estilos`, `Masivo` y `Descarga` tienen que quedar tal cual: el
 código los llama por ese nombre. Los `.gs` pueden llamarse como quieras y el orden no
 importa, porque en Apps Script todos comparten el mismo espacio.

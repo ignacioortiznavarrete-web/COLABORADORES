@@ -423,5 +423,21 @@ seccion('El monitor no escribe nada');
   ok(pasos.every(p => p[2] === pasos[0][2]), 'todos del mismo tono: es una rampa, no cinco colores');
 }
 
+// Todos los archivos de un proyecto de Apps Script comparten un solo espacio
+// de nombres. Si dos declaran lo mismo, el proyecto no carga —"Identifier 'X'
+// has already been declared"— y no anda nada. Es un error que ocurre ANTES de
+// que exista comportamiento, así que ninguna otra prueba lo vería.
+seccion('Ningún nombre declarado dos veces');
+{
+  const { nombresRepetidos, cuantosNombres } = require('../../pruebas/choques');
+  const carpeta = path.join(__dirname, '../fuente');
+  const choques = nombresRepetidos(carpeta);
+  ok(choques.length === 0, choques.length
+    ? 'hay nombres repetidos en fuente: ' + choques.join(' · ')
+    : 'los archivos de fuente no se pisan entre ellos');
+  ok(cuantosNombres(carpeta) > 40,
+    'y se revisaron de verdad: ' + cuantosNombres(carpeta) + ' nombres');
+}
+
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));
 process.exit(fallos ? 1 : 0);
