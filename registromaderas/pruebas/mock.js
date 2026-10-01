@@ -145,6 +145,7 @@ class Sheet {
 
 class Spreadsheet {
   constructor() { this.sheets = {}; }
+  getName() { return this.nombre || 'Maderas'; }
   getSheetByName(n) { return this.sheets[n] || null; }
   /** La selección del usuario, para probar la bajada desde el menú. */
   __seleccionar(nombre, tramos) {
@@ -403,7 +404,10 @@ global.__DISPARADORES = [];
 global.ScriptApp = {
   getService: () => ({ getUrl: () => 'https://script.google.com/macros/s/x/exec' }),
   getOAuthToken: () => 'token-de-prueba',
-  getProjectTriggers: () => global.__DISPARADORES,
+  // Una COPIA, como el de verdad: el código recorre la lista borrando, y con
+  // el arreglo vivo forEach se saltaría elementos. Un mock que devuelve el
+  // arreglo interno inventa un error que en Apps Script no existe.
+  getProjectTriggers: () => global.__DISPARADORES.slice(),
   deleteTrigger: t => {
     const i = global.__DISPARADORES.indexOf(t);
     if (i !== -1) global.__DISPARADORES.splice(i, 1);

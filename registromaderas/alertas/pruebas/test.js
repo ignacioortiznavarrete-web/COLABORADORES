@@ -245,10 +245,12 @@ seccion('Las alertas no escriben nada');
 
   const permisos = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'fuente', 'appsscript.json'), 'utf8')).oauthScopes;
-  ok(permisos.indexOf('https://www.googleapis.com/auth/spreadsheets.readonly') !== -1,
-    'y pide el spreadsheet de solo lectura');
-  ok(permisos.indexOf('https://www.googleapis.com/auth/spreadsheets') === -1,
-    'no de escritura');
+  // El permiso es el ancho, no el de solo lectura: un disparador de edición
+  // sobre un spreadsheet necesita el permiso completo para quedar instalado.
+  // Que el proyecto no escriba nada lo garantizan las dos pruebas de arriba,
+  // que miran el código, no el manifiesto.
+  ok(permisos.indexOf('https://www.googleapis.com/auth/spreadsheets') !== -1,
+    'pide el permiso de spreadsheet que el disparador necesita');
   ok(permisos.indexOf('https://www.googleapis.com/auth/script.send_mail') !== -1,
     'más el permiso de mandar correo, que es a lo que viene');
 }
@@ -373,6 +375,50 @@ seccion('Instalar deja un disparador, y solo uno');
     'y cómo agregar el alias que falta');
 
   global.__ALIAS = ['codificacion.corporativa@masisa.com'];
+}
+
+// El diagnóstico es lo que se corre cuando "no llega el correo". Tiene que
+// nombrar el primer eslabón roto, no listar todo y dejar que uno adivine.
+seccion('El diagnóstico nombra el primer eslabón roto');
+{
+  const registro = SS.getSheetByName('Registro');
+  const cEstado = REG.indexOf('Estado') + 1;
+
+  // Sin disparador instalado: eso es lo primero, aunque todo lo demás esté bien.
+  global.__DISPARADORES = [];
+  global.__ALIAS = ['codificacion.corporativa@masisa.com'];
+  registro.getRange(registro.getLastRow(), cEstado).setValue('Finalizado');
+  global.__CORREOS = [];
+
+  const sinDisparador = diagnostico();
+  ok(sinDisparador.indexOf('NO hay disparador instalado') !== -1,
+    'sin disparador, lo dice');
+  ok(sinDisparador.indexOf('LO PRIMERO QUE HAY QUE ARREGLAR') !== -1 &&
+     sinDisparador.split('LO PRIMERO QUE HAY QUE ARREGLAR')[1].indexOf('disparador') !== -1,
+    'y lo pone como lo primero a arreglar, no perdido en una lista');
+
+  // Dos disparadores mandarían dos correos iguales por solicitud.
+  instalarAlertas();
+  ScriptApp.newTrigger('alEditarRegistro').forSpreadsheet(null).onEdit().create();
+  ok(diagnostico().indexOf('mandarían 2 correos iguales') !== -1,
+    'dos disparadores también se avisan');
+
+  // Con uno solo y todo en su sitio, simula la edición y el correo sale.
+  instalarAlertas();
+  global.__CORREOS = [];
+  const bien = diagnostico();
+  ok(bien.indexOf('Disparador instalado (1)') !== -1, 'con uno solo, bien');
+  ok(bien.indexOf('No encontré nada roto') !== -1, 'y no inventa un problema');
+  ok(global.__CORREOS.length === 1,
+    'la simulación manda el correo de verdad: si llega, el camino está completo');
+
+  // Un estado que no manda correo: lo dice, en vez de callar.
+  registro.getRange(registro.getLastRow(), cEstado).setValue('Creando');
+  const otroEstado = diagnostico();
+  ok(otroEstado.indexOf('NO manda correo') !== -1 &&
+     otroEstado.indexOf('Finalizado') !== -1,
+    'un estado que no manda correo se explica, y dice cuáles sí');
+  registro.getRange(registro.getLastRow(), cEstado).setValue('Finalizado');
 }
 
 console.log('\n' + (fallos ? fallos + ' prueba(s) con problemas' : 'Todas las pruebas pasaron'));

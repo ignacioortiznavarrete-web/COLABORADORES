@@ -274,6 +274,110 @@ function instalarAlertas() {
 }
 
 /**
+ * Revisa el camino entero y dice dónde se corta.
+ *
+ * Se corre UNA vez, desde el editor, cuando el aviso no llega. Mira las seis
+ * cosas que tienen que estar bien, en orden, y al final SIMULA la edición
+ * —llama al mismo `alEditarRegistro` que llamaría Google— para ver qué pasa de
+ * verdad, sin esperar a que alguien mueva el combo.
+ *
+ * No manda ningún correo de prueba a nadie que no sea quien pidió, y la
+ * simulación sí manda el aviso: si llega, el camino está completo.
+ */
+function diagnostico() {
+  var lineas = ['DIAGNÓSTICO · alertas de codificación', ''];
+  var falla = null;
+  var anotar = function (bien, texto) {
+    lineas.push((bien ? '✓ ' : '✗ ') + texto);
+    if (!bien && !falla) falla = texto;
+  };
+
+  // 1. ¿Está instalado el disparador? Sin esto no pasa absolutamente nada.
+  var cuantos = ScriptApp.getProjectTriggers().filter(function (t) {
+    return t.getHandlerFunction() === 'alEditarRegistro';
+  }).length;
+  anotar(cuantos === 1, cuantos === 1
+    ? 'Disparador instalado (1)'
+    : cuantos === 0
+      ? 'NO hay disparador instalado. Corre instalarAlertas.'
+      : 'Hay ' + cuantos + ' disparadores: mandarían ' + cuantos +
+        ' correos iguales. Corre instalarAlertas, que deja uno.');
+
+  // 2. ¿Llega al spreadsheet? Un ID equivocado falla acá y no antes.
+  var libro;
+  try {
+    libro = libro_();
+    anotar(true, 'Abre el spreadsheet: ' + libro.getName());
+  } catch (err) {
+    anotar(false, 'NO puede abrir el spreadsheet ' + ID_SPREADSHEET + ': ' + err.message);
+    return terminar_(lineas, falla);
+  }
+
+  // 3. La hoja y la columna que escucha.
+  var registro = libro.getSheetByName(HOJAS.REGISTRO);
+  if (!registro) {
+    anotar(false, 'No existe la hoja "' + HOJAS.REGISTRO + '".');
+    return terminar_(lineas, falla);
+  }
+  var cEstado = columnaDe_(registro, COL.ESTADO);
+  anotar(cEstado > 0, cEstado > 0
+    ? 'La columna "' + COL.ESTADO + '" es la ' + cEstado + ' de "' + HOJAS.REGISTRO + '"'
+    : 'En "' + HOJAS.REGISTRO + '" no hay ninguna columna rotulada "' + COL.ESTADO + '".');
+  if (!cEstado) return terminar_(lineas, falla);
+
+  // 4. Lo que está escrito en esa columna, ¿coincide con lo configurado?
+  var fila = registro.getLastRow();
+  var estadoAhi = String(registro.getRange(fila, cEstado).getDisplayValue()).trim();
+  var reconocido = !!avisoDe_(estadoAhi);
+  anotar(reconocido, reconocido
+    ? 'La última solicitud está en "' + estadoAhi + '", que sí manda correo'
+    : 'La última solicitud está en "' + estadoAhi + '", que NO manda correo. ' +
+      'Los que mandan son: ' + AVISOS.map(function (a) { return a.estado; }).join(', ') +
+      '. Ponla en Finalizado y vuelve a correr esto.');
+
+  // 5. A quién le llegaría.
+  ensayoDeLaUltima_().slice(1).forEach(function (l) { lineas.push(' ' + l); });
+
+  // 6. De qué dirección sale.
+  lineas.push('');
+  anotar(true, 'Corre con: ' + (cuenta_() || '(Google no entrega la cuenta)'));
+  if (REMITENTE_ALIAS && !puedeUsarElAlias_()) {
+    lineas.push('  (sale de esa cuenta, no de ' + REMITENTE_ALIAS +
+      ': falta agregarla en Gmail › Enviar como)');
+  }
+
+  // 7. Y la prueba de verdad: se simula la edición, igual que la haría Google.
+  lineas.push('', 'Simulando el cambio de estado…');
+  if (!reconocido) {
+    lineas.push('  Saltado: la última solicitud no está en un estado que mande correo.');
+    return terminar_(lineas, falla);
+  }
+  try {
+    alEditarRegistro({
+      range: registro.getRange(fila, cEstado),
+      value: estadoAhi
+    });
+    lineas.push('  Corrió sin reventar. Mira arriba a quién le llegaría, y ' +
+      'revisa esa casilla.');
+    lineas.push('  Si acá dice que le llegaría y no llegó, el problema ya no es ' +
+      'el código: mira Ejecuciones en el menú de la izquierda.');
+  } catch (err) {
+    anotar(false, 'La simulación REVENTÓ: ' + err.message);
+  }
+
+  return terminar_(lineas, falla);
+}
+
+function terminar_(lineas, falla) {
+  lineas.push('', falla ? 'LO PRIMERO QUE HAY QUE ARREGLAR:\n' + falla
+    : 'No encontré nada roto en el camino.');
+  var texto = lineas.join('\n');
+  avisar_('Diagnóstico', texto);
+  Logger.log(texto);
+  return texto;
+}
+
+/**
  * Manda uno de prueba y dice en voz alta qué pasó.
  *
  * Los avisos van envueltos a propósito, y eso los vuelve mudos: no llega nada

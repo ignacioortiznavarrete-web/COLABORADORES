@@ -136,6 +136,45 @@ revisan— pero el permiso queda más ancho de lo necesario.
 
 ## Si no llega el correo
 
+**Corre `diagnostico` desde el editor.** Revisa el camino entero en orden y
+nombra **el primer eslabón roto**, en vez de dejarte adivinar:
+
+```
+✓ Disparador instalado (1)
+✓ Abre el spreadsheet: Maderas
+✓ La columna "Estado" es la 5 de "Registro"
+✓ La última solicitud está en "Finalizado", que sí manda correo
+   ✓ Le llegaría a: barbara@masisa.com
+✓ Corre con: jose.ortiz@masisa.com
+
+Simulando el cambio de estado…
+  Corrió sin reventar.
+```
+
+Al final **simula la edición**: llama al mismo `alEditarRegistro` que llamaría
+Google, con la última solicitud. Si el correo llega, el camino está completo y
+lo que falla es el disparador; si no llega pero el diagnóstico dice a quién le
+llegaría, mira **Ejecuciones** en el menú de la izquierda del editor.
+
+Lo que más falla, en orden:
+
+| Dice | Qué pasa |
+|---|---|
+| `NO hay disparador instalado` | nunca se corrió `instalarAlertas` |
+| `Hay 2 disparadores` | se corrió dos veces: mandarían dos correos iguales |
+| `NO tiene una columna rotulada "Correo"` | la hoja es anterior a esa columna |
+| `está en "Creando", que NO manda correo` | el estado no es uno de los configurados |
+
+### El permiso del spreadsheet
+
+El manifiesto pide `spreadsheets`, no `spreadsheets.readonly`, aunque este
+proyecto **no escriba ni una celda** —eso lo revisan las pruebas, mirando el
+código—. Con el permiso de solo lectura el disparador de edición no queda
+funcionando: es el mismo permiso que tiene el proyecto de entrada, cuyo
+disparador sí anda.
+
+### Lo demás
+
 Correr **`probarCorreo`** desde el editor. Dice cinco cosas:
 
 - con qué cuenta corre
