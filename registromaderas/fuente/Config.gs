@@ -21,11 +21,11 @@
  * LAS CONDICIONALES
  * -----------------
  * · El carácter 4 decide TODO lo de arriba: si es H el material se compra a
- *   terceros, así que es Trading, entra por TCD2 y no lleva hoja de ruta.
+ *   terceros, así que es Trading, entra por TCD2 y no lleva Ruta.
  * · El carácter 1 decide si hay etapa de CEPILLADO (solo si es C).
  * · El carácter 2 decide si hay etapa de SECADO (no la hay si es V, verde).
  * · La etapa de ASERRADERO va siempre, salvo en Trading.
- * Las hojas de ruta salen de BD_Maderas, que es la única hoja que se consulta.
+ * Las Rutas salen de BD_Maderas, que es la única hoja que se consulta.
  *
  * LO QUE SE ESCRIBE
  * -----------------
@@ -74,10 +74,18 @@ const CLASES = [
  * tanda, o derechamente no tiene forma de código. En los dos quien pega
  * tiene que volver a escribirlo, y contarle que falló el largo o la forma
  * no lo ayuda a arreglarlo. Los demás avisos sí dicen qué pasó —que ya
- * existe, que falta la hoja de ruta— porque de eso depende qué corregir.
+ * existe, que falta la Ruta— porque de eso depende qué corregir.
  */
 const MENSAJES = {
   TIPO_QUE_NO_CALZA: 'El tipo de material No corresponde al tipo de solicitud. Vuelve a ingresar',
+  /**
+   * Cuando el código ya está en la base no hay nada que pedir.
+   *
+   * Antes se le seguían abriendo las columnas de ruta y el PAK, y encima de
+   * decirle que ya existía le reclamaba las rutas que faltaban. Nada de eso
+   * sirve: ese material no se va a crear, así que no hay qué completar.
+   */
+  YA_REGISTRADO: 'Ya está registrado en la base de datos',
   MEZCLA_DE_ORIGEN: 'En una misma solicitud no se puede mezclar Trading (especie H) con planta. ' +
     'Deja uno solo y pide el otro en otra solicitud.'
 };
@@ -187,7 +195,7 @@ const MEDIDAS = {
 };
 
 /**
- * La hoja de ruta de cada etapa es un material que YA existe en BD_Maderas:
+ * La Ruta de cada etapa es un material que YA existe en BD_Maderas:
  * el prefijo más la escuadría, sin largo (RVFD032X180, RSN 032X240).
  */
 const RUTAS = {
@@ -214,12 +222,12 @@ const TRADING = {
 /**
  * Lo que el código dice por sí solo, sin preguntar nada:
  *
- *   RVMH032X180X3960   especie H  -> Trading, centro TCD2, y sin hoja de ruta
+ *   RVMH032X180X3960   especie H  -> Trading, centro TCD2, y sin Ruta
  *                      con largo  -> producto terminado, PT
  *   RVM 032X180        3 letras y sin largo -> producto de proceso, PP
  *   CSF 019X075        3 letras, empieza en C -> cepillado en proceso, PCP
  *
- * Solo queda por escribir lo que no está en el código: las hojas de ruta.
+ * Solo queda por escribir lo que no está en el código: las Rutas.
  */
 const DEDUCCION = {
   CENTRO_PLANTA: 'TCP1',

@@ -24,7 +24,7 @@
     <section class="pegar" id="elegirTipo">
       <p class="pegar-nota" style="margin:0 0 14px">
         ¿Qué vas a pedir? Toda la tanda va del mismo tipo, porque de él dependen
-        las hojas de ruta que se abren.
+        las Rutas que se abren.
       </p>
       <div class="tipos" id="tipos" role="radiogroup" aria-label="Tipo de solicitud"></div>
     </section>
@@ -821,6 +821,23 @@
       : '<td class="falta">falta</td>';
   }
 
+  /**
+   * La celda del PAK.
+   *
+   * Que no se pida puede ser por dos razones distintas, y decir la equivocada
+   * es peor que no decir nada: lo de proceso va en m3, y lo que ya está
+   * registrado no se va a crear aunque se cuente por piezas.
+   */
+  function celdaPak(fila) {
+    if (fila.pidePak) return esc(fila.piezas || '—');
+    if (fila.umb === 'M3') {
+      return '<span class="no-aplica" title="Va en m3: el PAK es solo para ' +
+        'producto terminado.">m3</span>';
+    }
+    var motivo = (fila.problemas || [])[0] || '';
+    return '<span class="no-aplica" title="' + esc(motivo) + '">—</span>';
+  }
+
   function dibujarTabla() {
     FILAS.forEach(function (f) {
       f.guardada = f.codigo ? (REGISTRADAS[f.codigo] || null) : null;
@@ -836,9 +853,7 @@
         '<td class="col-n">' + f.n + '</td>' +
         '<td><span class="mono fuerte">' + esc(f.codigo) + '</span>' +
         '<small>' + esc(f.clase) + ' · ' + esc(f.agrupacionTexto || '') + '</small></td>' +
-        '<td class="col-pak mono">' +
-          (f.pidePak ? esc(f.piezas || '—') : '<span class="no-aplica" title="' +
-            'Va en m3: el PAK es solo para producto terminado.">m3</span>') + '</td>' +
+        '<td class="col-pak mono">' + celdaPak(f) + '</td>' +
         celdaRuta(f, 'aserradero') + celdaRuta(f, 'secado') + celdaRuta(f, 'cepillado') +
         '<td class="estado">' + (f.guardada
           ? '<span class="ok">Registrada en ' + esc(f.guardada.hoja) +
@@ -893,14 +908,13 @@
         var fuera = FILAS.filter(function (f) {
           return f.codigo && !f.ok && !f.guardada;
         });
+        // El servidor marca el "ya registrado"; acá no se adivina leyendo el
+        // mensaje, que cambia de palabras y dejaría estas tres listas mal
+        // repartidas sin que nada avise.
         var existian = fuera.filter(function (f) { return f.existe; })
-          .concat(fallidas.filter(function (x) {
-            return (x.mensaje || '').toLowerCase().indexOf('ya existe') !== -1;
-          }));
+          .concat(fallidas.filter(function (x) { return x.yaExiste; }));
         var pendientes = fuera.filter(function (f) { return !f.existe; });
-        var otrosFallos = fallidas.filter(function (x) {
-          return (x.mensaje || '').toLowerCase().indexOf('ya existe') === -1;
-        });
+        var otrosFallos = fallidas.filter(function (x) { return !x.yaExiste; });
 
         avisoDelResultado(r, buenas, existian, pendientes, otrosFallos);
 

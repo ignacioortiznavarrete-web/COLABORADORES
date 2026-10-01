@@ -267,11 +267,16 @@ function alEditarRegistro(evento) {
       return;
     }
 
+    // La fecha de creación va antes de tocar la base: si el alta falla, la
+    // columna ya quedó escrita y se ve en la hoja y en el monitor.
+    var creado = anotarFechaDeCreacion_(hoja, fila);
+
     // Acá NO se manda ningún correo a propósito: el aviso de finalizado tiene
     // que salir de codificación y vive en el proyecto `alertas`. Queda escrito
     // para que no parezca que este disparador se lo tragó.
     var puesto = cerrarSolicitud_(hoja, fila);
-    Logger.log(numero + ' · ' + estado + ': ' + puesto.codigos + ' códigos y ' +
+    Logger.log(numero + ' · ' + estado + ': fecha de creación ' +
+      (creado || 'NO se pudo escribir') + ', ' + puesto.codigos + ' códigos y ' +
       puesto.rutas + ' rutas a ' + CFG.HOJA_BD +
       '. El correo al solicitante NO sale de acá: lo manda el proyecto "alertas".');
   } catch (err) {
@@ -283,6 +288,35 @@ function alEditarRegistro(evento) {
 function numeroDeFila_(hojaRegistro, fila) {
   return String(hojaRegistro.getRange(fila, COL_REGISTRO.indexOf('N° Solicitud') + 1)
     .getDisplayValue()).trim();
+}
+
+/**
+ * Pone la fecha de creación en la fila de `Registro`.
+ *
+ * Es el día en que codificación dio el material por creado, así que se escribe
+ * cuando el Estado pasa a Finalizado y no antes: hasta ese momento el material
+ * no existe y la columna no tiene nada que decir.
+ *
+ * Si una solicitud se finaliza de nuevo, se vuelve a escribir: la columna dice
+ * cuándo se creó, no cuándo se intentó por primera vez. La fecha anterior no se
+ * pierde —cada paso quedó anotado en Registro Estados, que es la bitácora—.
+ *
+ * Escribir acá vuelve a disparar el onEdit, pero esa segunda vuelta cae en otra
+ * columna y se corta en la primera pregunta de `alEditarRegistro`.
+ *
+ * @return {string} la fecha que quedó escrita, o '' si no se pudo.
+ */
+function anotarFechaDeCreacion_(hojaRegistro, fila) {
+  try {
+    var columna = COL_REGISTRO.indexOf('Fecha de creación') + 1;
+    if (!columna) return '';
+    var hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), CFG.FORMATO_FECHA);
+    hojaRegistro.getRange(fila, columna).setValue(hoy);
+    return hoy;
+  } catch (err) {
+    Logger.log('anotarFechaDeCreacion_: ' + err.message);
+    return '';
+  }
 }
 
 /** Anota en la bitácora de estados el paso que se acaba de hacer en la hoja. */
@@ -319,9 +353,9 @@ function quienEdito_(evento) {
 /**
  * Da por terminada una solicitud: sus materiales entran a BD_Maderas.
  *
- * Entran dos cosas: los códigos que se pidieron y las hojas de ruta que
- * nombraron. Lo que ya está no se vuelve a agregar —la base no debería tener
- * un material dos veces— y por eso se lee entera una vez antes de escribir.
+ * Entran dos cosas: los códigos que se pidieron y las Rutas que nombraron. Lo
+ * que ya está no se vuelve a agregar —la base no debería tener un material dos
+ * veces— y por eso se lee entera una vez antes de escribir.
  *
  * El aviso a quien pidió no sale de acá: tiene que salir de codificación, y
  * de eso se encarga el proyecto `alertas`.

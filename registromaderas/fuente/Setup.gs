@@ -121,7 +121,8 @@ function instalarDisparador() {
     'solicitud en "' + CFG.HOJA_REGISTRO + '" queda anotado en "' + CFG.HOJA_ESTADOS +
     '" con su fecha y hora, y el monitor lo muestra.\n\n' +
     'Y al poner "' + NUMERACION.ESTADO_FINAL + '" en esa columna, además:\n' +
-    '· los códigos de esa solicitud y sus hojas de ruta se agregan a ' + CFG.HOJA_BD +
+    '· se escribe la fecha del día en "Fecha de creación"\n' +
+    '· los códigos de esa solicitud y sus Rutas se agregan a ' + CFG.HOJA_BD +
     ' (los que ya estén, no)\n' +
     '· se le avisa por correo a quien la pidió\n\n' +
     'Ese correo sale de TU cuenta (' + usuario_() + '), porque es la que acaba de ' +

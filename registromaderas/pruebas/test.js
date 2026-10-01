@@ -55,7 +55,7 @@ const FILA2 = ['País', 'Centro', 'Clase Requerimiento ', 'Tipo Requerimiento',
 // BD_Maderas guarda lo que YA existe. De ahí las dos comprobaciones opuestas:
 // las rutas tienen que estar, y el producto que se pide no.
 const MATERIALES = [
-  // Hojas de ruta: materiales de proceso de 11 caracteres.
+  // Rutas: materiales de proceso de 11 caracteres.
   ['RVM 032X180', 'X9000', 'TPAS', 'Rústico Verde Médula 032X180', 'X'],
   ['RVFD032X180', 'X9000', 'TPAS', 'Rústico Verde Col Mix 032X180', 'X'],
   ['RSFD032X180', 'X9000', 'TPAS', 'Rús. Seco COL MIX Radiata 032X180', 'X'],
@@ -124,7 +124,7 @@ const CEPILLADO = {
   piezas: 60, umb: 'PZA', stockPedido: 'S'
 };
 
-// De Trading: se compra hecha, no lleva ninguna hoja de ruta.
+// De Trading: se compra hecha, no lleva ninguna Ruta.
 const TRADING_LISTA = {
   clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
   agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960',
@@ -363,7 +363,7 @@ seccion('Trading elige centro, Planta no');
 
 seccion('Lo que no se puede guardar');
 {
-  ok(error(() => guardarUna(con({ largo: '3600' }))).indexOf('ya existe') !== -1,
+  ok(error(() => guardarUna(con({ largo: '3600' }))).indexOf(MENSAJES.YA_REGISTRADO) === 0,
     'un código que ya está creado');
   ok(error(() => guardarUna(con({
     origen: 'Trading', centro: 'TCP1', tipoMaterial: 'TTAS', agrupacion: 'RSFR',
@@ -374,8 +374,8 @@ seccion('Lo que no se puede guardar');
 
   ok(error(() => guardarUna(con({ agrupacion: 'X X' }))).indexOf('no tiene la forma') !== -1,
     'una agrupación con una forma imposible');
-  ok(error(() => guardarUna(con({ desglose: {} }))).indexOf('Falta la hoja de ruta') !== -1,
-    'sin hoja de ruta');
+  ok(error(() => guardarUna(con({ desglose: {} }))).indexOf('Falta la Ruta') !== -1,
+    'sin Ruta');
   ok(error(() => guardarUna(con({ desglose: { aserradero: { ruta: 'RSF 037X130' } } })))
     .indexOf('es de secado, no de Aserradero') !== -1,
     'una ruta de secado puesta en el aserradero');
@@ -389,7 +389,7 @@ seccion('Lo que no se puede guardar');
     'clase inventada');
 
   ok(guardarUna(TRADING_LISTA).ok,
-    'y en cambio uno de Trading se guarda sin ninguna hoja de ruta');
+    'y en cambio uno de Trading se guarda sin ninguna Ruta');
 
   const antes = SS.getSheetByName('PT').getLastRow();
   error(() => guardarUna(con({ piezas: 0 })));
@@ -446,7 +446,7 @@ seccion('El lote: se pegan códigos y salen sus filas');
   // La tanda es de PT: un código de proceso no cabe en ella.
   ok(!r.filas[1].codigo && r.filas[1].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
     'la segunda es de proceso y se rechaza por no ser del tipo de la tanda');
-  ok(r.filas[2].problemas[0].indexOf('Ya existe') !== -1, 'la tercera ya existe en la base');
+  ok(r.filas[2].problemas[0] === MENSAJES.YA_REGISTRADO, 'la tercera ya existe en la base');
   ok(!r.filas[3].codigo && r.filas[3].problemas[0].indexOf('no existe en BD_Maderas') !== -1,
     'la cuarta no se pudo leer, y dice por qué');
   ok(r.conProblemas === 3 && r.listas === 1, 'el resumen cuenta lo que falta');
@@ -509,7 +509,7 @@ seccion('Las columnas van por línea');
 {
   const r = lote_({ codigos: 'RSJR032X180X3200' });
   ok(!r.filas[0].rutas.aserradero &&
-     r.filas[0].problemas.some(p => p.indexOf('Falta la hoja de ruta de Aserradero') !== -1),
+     r.filas[0].problemas.some(p => p.indexOf('Falta la Ruta de Aserradero') !== -1),
     'sin ruta escrita, la pide y no la inventa');
 }
 
@@ -563,9 +563,9 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
   // Los demás avisos sí dicen qué pasó, porque de eso depende qué corregir.
   ok(lote_('ZZZZ032X180X3960', 'PT').filas[0].problemas[0].indexOf('nomenclatura') !== -1,
     'un prefijo desconocido sigue diciendo que no está en la nomenclatura');
-  ok(lote_('RVMH032X180X4000', 'PT').filas[0].problemas[0].indexOf('Ya existe') !== -1,
+  ok(lote_('RVMH032X180X4000', 'PT').filas[0].problemas[0] === MENSAJES.YA_REGISTRADO,
     'en cambio "ya existe" se sigue diciendo: eso hay que saberlo');
-  ok(lote_('RSJR032X180X3200', 'PT').filas[0].problemas[0].indexOf('Falta la hoja de ruta') !== -1,
+  ok(lote_('RSJR032X180X3200', 'PT').filas[0].problemas[0].indexOf('Falta la Ruta') !== -1,
     'y lo que falta completar, también');
 
   // En proceso, el que empieza con C va a su propia hoja.
@@ -585,8 +585,12 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
 seccion('PE Terminado (m3): qué abre y en qué unidad');
 {
   const abre = (t, tipo) => {
-    const e = lote_(t, tipo).filas[0].etapas;
-    return ETAPAS.filter(x => e[x.id]).map(x => x.id).join('+') || 'ninguna';
+    const f = lote_(t, tipo).filas[0];
+    // Un codigo que ya esta en la base no abre nada. Si la prueba usara uno de
+    // esos mediria el "ya registrado" y no la regla de rutas que dice medir,
+    // asi que se delata en vez de pasar por el motivo equivocado.
+    if (f.existe) return 'YA EXISTE EN LA BASE: ' + t;
+    return ETAPAS.filter(x => f.etapas[x.id]).map(x => x.id).join('+') || 'ninguna';
   };
 
   ok(abre('RSFR037X130X3200', 'PE') === 'aserradero+secado',
@@ -597,9 +601,9 @@ seccion('PE Terminado (m3): qué abre y en qué unidad');
 
   // Aunque venga sin largo sigue siendo producto, no etapa: un RS de proceso
   // abriria solo el aserradero, y acá abre los dos.
-  ok(abre('RSF 037X130', 'PE') === 'aserradero+secado',
+  ok(abre('RSF 037X131', 'PE') === 'aserradero+secado',
     'y sin largo también, porque es producto y no etapa');
-  ok(abre('RSF 037X130', 'PP') === 'aserradero',
+  ok(abre('RSF 037X131', 'PP') === 'aserradero',
     'que es justo lo que lo distingue de uno de proceso');
 
   const pe = lote_('RSFR037X130X3200', 'PE');
@@ -614,13 +618,17 @@ seccion('PE Terminado (m3): qué abre y en qué unidad');
 seccion('Qué rutas abre cada tipo de código');
 {
   const abre = (t, tipo) => {
-    const e = lote_(t, tipo).filas[0].etapas;
-    return ETAPAS.filter(x => e[x.id]).map(x => x.id).join('+') || 'ninguna';
+    const f = lote_(t, tipo).filas[0];
+    // Un codigo que ya esta en la base no abre nada. Si la prueba usara uno de
+    // esos mediria el "ya registrado" y no la regla de rutas que dice medir,
+    // asi que se delata en vez de pasar por el motivo equivocado.
+    if (f.existe) return 'YA EXISTE EN LA BASE: ' + t;
+    return ETAPAS.filter(x => f.etapas[x.id]).map(x => x.id).join('+') || 'ninguna';
   };
 
   ok(abre('C4JR019X100X2440') === 'aserradero+secado+cepillado',
     'cepillado terminado: la ruta completa');
-  ok(abre('CSF 019X100', 'PP') === 'aserradero+secado+cepillado',
+  ok(abre('CSF 019X101', 'PP') === 'aserradero+secado+cepillado',
     'y cepillado de proceso también, que sigue siendo cepillado');
   ok(abre('RSJR032X180X3200') === 'aserradero+secado', 'terminado seco: aserradero y secado');
   ok(abre('RVMR032X180X3200') === 'aserradero', 'terminado verde: solo aserradero');
@@ -638,10 +646,41 @@ seccion('Qué rutas abre cada tipo de código');
   ok(abre('C23R019X125X4005') === 'aserradero+secado+cepillado',
     'el mismo cepillado, pero de planta, sí abre la ruta completa');
 
-  ok(abre('RSF 037X130', 'PP') === 'aserradero',
+  ok(abre('RSF 037X131', 'PP') === 'aserradero',
     'proceso seco: solo la de verde, que es de donde sale');
-  ok(abre('RVF 037X130', 'PP') === 'ninguna',
+  ok(abre('RVF 037X131', 'PP') === 'ninguna',
     'proceso verde: ninguna, es el principio de la cadena');
+}
+
+// El formulario crea materiales: uno que ya esta creado no se vuelve a pedir,
+// asi que no hay rutas ni piezas que completar. Antes se le abrian igual y
+// encima de avisarle que ya existia le reclamaba lo que le faltaba.
+seccion('Un codigo que ya existe no abre ningun campo');
+{
+  const ya = lote_('RVMH032X180X4000', 'PT').filas[0];
+
+  ok(ya.existe, 'el codigo esta en BD_Maderas');
+  ok(ya.problemas.length === 1 && ya.problemas[0] === MENSAJES.YA_REGISTRADO,
+    'y lo unico que se dice es que ya esta registrado');
+  ok(MENSAJES.YA_REGISTRADO === 'Ya está registrado en la base de datos',
+    'con esas palabras y nada mas');
+  ok(ETAPAS.every(e => !ya.etapas[e.id]), 'ninguna etapa queda abierta');
+  ok(Object.keys(ya.rutas).length === 0, 'ni queda una ruta escrita de antes');
+  ok(!ya.pidePak, 'tampoco se le piden piezas, aunque sea terminado');
+  ok(ETAPAS.every(e => ya.motivos[e.id] === MENSAJES.YA_REGISTRADO),
+    'y cada columna cerrada dice por que lo esta');
+  ok(!ya.ok, 'la fila no queda lista: no hay nada que crear');
+
+  // Uno cepillado abre las tres etapas; si ya existe, ninguna.
+  const existeCepillado = lote_('CSF 019X100', 'PP').filas[0];
+  ok(ETAPAS.every(e => !existeCepillado.etapas[e.id]),
+    'un cepillado que ya existe tampoco abre sus tres etapas');
+
+  // La tanda no muestra columnas de rutas si lo unico que trae ya existe.
+  const tanda = lote_('RVMH032X180X4000', 'PT');
+  ok(ETAPAS.every(e => !tanda.etapasUsadas[e.id]),
+    'y la pantalla no dibuja ninguna columna de ruta');
+  ok(!tanda.pideAlgunPak, 'ni la de PAK');
 }
 
 // Trading se compra hecho y planta se fabrica: distinto centro, distinto
@@ -683,12 +722,12 @@ seccion('Proceso va en m3, y no se le piden piezas');
   ok(pt.filas[0].umb === 'PZA' && pt.filas[0].pidePak, 'el terminado se cuenta por piezas');
   ok(pt.pideAlgunPak, 'y la pantalla muestra la columna de PAK');
 
-  const proceso = lote_('RSF 037X130', 'PP');
+  const proceso = lote_('RSF 037X131', 'PP');
   ok(proceso.filas[0].umb === 'M3', 'el de proceso va en m3');
   ok(!proceso.filas[0].pidePak, 'así que no se le pide PAK');
   ok(!proceso.pideAlgunPak, 'y la columna no aparece');
 
-  const cepilladoProceso = lote_('CSF 019X100', 'PP');
+  const cepilladoProceso = lote_('CSF 019X101', 'PP');
   ok(cepilladoProceso.filas[0].umb === 'M3', 'el cepillado de proceso, igual');
 
   const especial = lote_('RVMH032X180X3960', 'PE');
@@ -836,8 +875,10 @@ seccion('Guardar el lote completo');
 {
   const lote = lote_('RVMH032X180X4000\tRVM 032X180');
   const r = apiGuardarLote(lote.filas);
-  ok(r.fallidas === 1 && r.resultados[0].mensaje.indexOf('ya existe') !== -1,
+  ok(r.fallidas === 1 && r.resultados[0].mensaje.indexOf(MENSAJES.YA_REGISTRADO) === 0,
     'una fila que ya existe se rechaza y el lote sigue');
+  ok(r.resultados[0].yaExiste === true,
+    'y viene marcada, para que la pantalla no tenga que leer el mensaje');
 }
 
 // Registro es la cabecera —una fila por solicitud— y Registro Detalle guarda
@@ -991,6 +1032,11 @@ seccion('La bitácora de estados: cada paso con su fecha');
      'Solicitando > Validando información > Creando > Pendiente > Creando',
     'y volver atrás y retomar deja las dos pasadas');
 
+  // Mientras no se finalice, la fecha de creación va en blanco: el material
+  // todavía no existe y la columna no tiene nada que decir.
+  ok(registro(r.filaResumen, 'Fecha de creación') === '',
+    'pasando por los demás estados, la fecha de creación sigue en blanco');
+
   // Al finalizar se anota el paso Y se cierra: las dos cosas, en ese orden.
   const bd = SS.getSheetByName('BD_Maderas');
   const antesBd = bd.getLastRow();
@@ -998,6 +1044,21 @@ seccion('La bitácora de estados: cada paso con su fecha');
   const finales = pasosDe(r.solicitud);
   ok(finales[finales.length - 1].estado === 'Finalizado', 'Finalizado también queda anotado');
   ok(bd.getLastRow() > antesBd, 'y además cierra la solicitud, como antes');
+
+  // Y queda la fecha en que se creó, que es justo este paso.
+  const hoy = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), CFG.FORMATO_FECHA);
+  ok(registro(r.filaResumen, 'Fecha de creación') === hoy,
+    'al finalizar se escribe la fecha de creación: ' +
+    registro(r.filaResumen, 'Fecha de creación'));
+
+  // Esa escritura vuelve a disparar el onEdit. Esa segunda vuelta cae en otra
+  // columna, así que se corta antes de anotar un paso o de cerrar de nuevo.
+  const cFecha = COL_REGISTRO.indexOf('Fecha de creación') + 1;
+  const pasosYa = pasosDe(r.solicitud).length;
+  const bdYa = bd.getLastRow();
+  alEditarRegistro({ range: hoja.getRange(r.filaResumen, cFecha), value: hoy });
+  ok(pasosDe(r.solicitud).length === pasosYa && bd.getLastRow() === bdYa,
+    'y el onEdit que dispara esa escritura no anota otro paso ni cierra de nuevo');
 
   // Lo que no es la columna Estado no se anota.
   const antes = pasosDe(r.solicitud).length;
@@ -1074,7 +1135,7 @@ seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
 
   const enBd = bd.getRange(antesBd + 1, 1, 2, BD.COLUMNAS).getValues().map(f => f[0]);
   ok(enBd.indexOf('RSJR032X180X4400') !== -1, 'está el material pedido');
-  ok(enBd.indexOf('RSN 032X180') !== -1, 'y la hoja de ruta nueva');
+  ok(enBd.indexOf('RSN 032X180') !== -1, 'y la Ruta nueva');
   ok(enBd.indexOf('RVM 032X180') === -1,
     'la ruta que ya existía NO se agrega de nuevo');
 
@@ -1274,6 +1335,58 @@ seccion('Reparar pide permiso antes de tocar nada');
   // Correrlo de nuevo no vuelve a correr nada.
   ok(repararDetalle() === 'nada que hacer', 'con todo en su sitio, no hace nada');
   delete global.__RESPUESTA;
+}
+
+// La fila dibujada es lo único que la persona ve. Con un código que ya existe
+// las dos celdas que podrían pedirle algo —la Ruta y el PAK— tienen que salir
+// cerradas y diciendo por qué, no pidiendo lo que no corresponde.
+seccion('La fila que se dibuja de un codigo que ya existe');
+{
+  const fs = require('fs');
+  const masivo = fs.readFileSync(__dirname + '/../fuente/Masivo.html', 'utf8');
+
+  // Se saca el codigo de la pantalla y se corre de verdad: una prueba que
+  // busca el texto de un `if` pasa igual cuando la condicion quedo al reves.
+  const trozo = nombre => {
+    const i = masivo.indexOf('function ' + nombre + '(');
+    if (i === -1) throw new Error('no esta ' + nombre + ' en Masivo.html');
+    let hondo = 0, j = masivo.indexOf('{', i);
+    for (let k = j; k < masivo.length; k++) {
+      if (masivo[k] === '{') hondo++;
+      else if (masivo[k] === '}' && --hondo === 0) return masivo.slice(i, k + 1);
+    }
+    throw new Error('no cierra ' + nombre);
+  };
+  // `esc` se declara acá dentro para que las dos funciones la encuentren igual
+  // que en la página, sin tocarles una letra.
+  const pantalla = new Function(
+    'var esc = function (t) { return String(t == null ? "" : t); };\n' +
+    trozo('celdaPak') + '\n' + trozo('celdaRuta') + '\n' +
+    'return { celdaPak: celdaPak, celdaRuta: celdaRuta };')();
+
+  const ya = lote_('RVMH032X180X4000', 'PT').filas[0];
+
+  ok(pantalla.celdaRuta(ya, 'aserradero').indexOf('no-aplica') !== -1,
+    'la celda de la Ruta sale cerrada');
+  ok(pantalla.celdaRuta(ya, 'aserradero').indexOf(MENSAJES.YA_REGISTRADO) !== -1,
+    'y al pasar el mouse dice que ya esta registrado');
+  ok(pantalla.celdaRuta(ya, 'aserradero').indexOf('falta') === -1,
+    'y no le reclama una Ruta que no hace falta');
+
+  // Es un terminado: se cuenta por piezas, asi que decir "m3" seria mentira.
+  ok(ya.umb === 'PZA', 'el codigo es de los que van por piezas');
+  ok(pantalla.celdaPak(ya).indexOf('m3') === -1,
+    'la celda del PAK no dice m3, que es la razon equivocada');
+  ok(pantalla.celdaPak(ya).indexOf(MENSAJES.YA_REGISTRADO) !== -1,
+    'dice la razon que corresponde: ya esta registrado');
+
+  // Y la razon de siempre sigue saliendo donde si corresponde.
+  const proceso = lote_('RSF 037X131', 'PP').filas[0];
+  ok(proceso.umb === 'M3' && pantalla.celdaPak(proceso).indexOf('m3') !== -1,
+    'lo de proceso sigue diciendo m3');
+  const conPak = lote_('RSJR032X180X3200', 'PT').filas[0];
+  conPak.piezas = '248';
+  ok(pantalla.celdaPak(conPak) === '248', 'y al que si lleva PAK se le muestra el numero');
 }
 
 // Tres cosas tienen que caer en la misma altura para que se vea qué línea es

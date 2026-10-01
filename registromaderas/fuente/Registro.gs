@@ -4,8 +4,8 @@
  *
  * Dos comprobaciones opuestas contra la misma base, y conviene no confundirlas:
  *   · el CÓDIGO que se registra NO debe existir todavía (se está creando);
- *   · las HOJAS DE RUTA que referencia SÍ deben existir (son materiales de
- *     proceso que ya están dados de alta).
+ *   · las RUTAS que referencia SÍ deben existir (son materiales de proceso
+ *     que ya están dados de alta).
  *
  * Todo lo que manda el formulario se vuelve a validar acá: el navegador ayuda,
  * pero no decide.
@@ -120,18 +120,7 @@ function armarCodigo_(agrupacion, espesor, ancho, largo) {
 }
 
 /**
- * Qué etapas del proceso tiene el producto, leídas del propio prefijo:
- *
- *   carácter 1 = C  -> es cepillado: se procesó acá, así que lleva las TRES
- *                      hojas de ruta, aunque la madera venga de terceros;
- *   carácter 4 = H  -> si no es cepillado, es madera comprada hecha a
- *                      terceros y no lleva ninguna ruta;
- *   carácter 2 = V  -> es verde, no pasa por secado.
- *
- * En el resto de los casos el aserradero va siempre.
- */
-/**
- * Qué hojas de ruta abre una solicitud.
+ * Qué Rutas abre una solicitud.
  *
  * La diferencia de fondo es qué ES el código: un producto terminado se pide
  * con toda su cadena, y un código de proceso ES una etapa, asi que solo abre
@@ -369,9 +358,14 @@ function validar_(datos) {
   var codigo = armarCodigo_(agrupacion, espesor, ancho, largo);
   var ficha = buscarEnBD_(codigo);
   if (ficha && MEDIDAS.EXIGIR_NUEVO) {
-    throw new Error('El código ' + codigo + ' ya existe en ' + CFG.HOJA_BD +
-      (ficha.descripcion ? ' (' + ficha.descripcion + ')' : '') +
-      '. Este formulario crea materiales nuevos: no hace falta pedirlo de nuevo.');
+    // El mismo aviso que da la carga masiva, con la descripción de lo que ya
+    // está para que se reconozca. Va marcado además de dicho: quien lo atrapa
+    // tiene que poder separar este caso de un error cualquiera sin leer el
+    // texto, que es lo que se cambia cuando cambia la forma de decirlo.
+    var yaEsta = new Error(MENSAJES.YA_REGISTRADO +
+      (ficha.descripcion ? ' (' + ficha.descripcion + ')' : ''));
+    yaEsta.yaExiste = true;
+    throw yaEsta;
   }
 
   var piezas = '';
@@ -399,18 +393,18 @@ function validar_(datos) {
         desglose[etapa.id] = { ruta: '', plantilla: '', dimension: '', espesor: '', ancho: '' };
         return;
       }
-      throw new Error('Falta la hoja de ruta de ' + etapa.titulo + '.');
+      throw new Error('Falta la Ruta de ' + etapa.titulo + '.');
     }
 
     var escuadria = escuadriaDeRuta_(ruta);
     if (!escuadria) {
-      throw new Error('La hoja de ruta de ' + etapa.titulo + ' ("' + ruta + '") no tiene la ' +
+      throw new Error('La Ruta de ' + etapa.titulo + ' ("' + ruta + '") no tiene la ' +
         'forma de una ruta: cuatro caracteres de prefijo más la escuadría, como RVFD032X180.');
     }
 
     var enBD = buscarEnBD_(ruta);
     if (!enBD && exigeRuta) {
-      throw new Error('La hoja de ruta ' + ruta + ' de ' + etapa.titulo + ' no existe en ' +
+      throw new Error('La Ruta ' + ruta + ' de ' + etapa.titulo + ' no existe en ' +
         CFG.HOJA_BD + ', y en ' + clase.id + ' la ruta tiene que existir.');
     }
 

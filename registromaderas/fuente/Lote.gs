@@ -5,7 +5,7 @@
  * Todo lo que el código dice, se deduce y no se pregunta:
  *   · especie H  -> Trading, y su centro es TCD2
  *   · con largo  -> PT · sin largo -> PP, o PCP si el producto es cepillado
- * Lo único que hay que escribir son las hojas de ruta de las etapas que apliquen.
+ * Lo único que hay que escribir son las Rutas de las etapas que apliquen.
  */
 
 /* ---------------------------------------------------------------- lectura */
@@ -243,9 +243,20 @@ function validarFila_(fila, existe) {
   var existente = existe(fila.codigo);
   fila.existe = !!existente;
   fila.descripcionExistente = existente ? existente.descripcion : '';
+
+  // Un código que ya está en la base no se va a crear, así que no hay nada que
+  // completar: se le cierran las rutas y el PAK y se dice eso y nada más. Antes
+  // se le abrían igual, y encima de avisarle que ya existía le reclamaba las
+  // rutas que le faltaban.
   if (fila.existe && MEDIDAS.EXIGIR_NUEVO) {
-    fila.problemas.push('Ya existe en ' + CFG.HOJA_BD +
-      (existente.descripcion ? ': ' + existente.descripcion : '') + '.');
+    fila.problemas = [MENSAJES.YA_REGISTRADO];
+    fila.etapas = { aserradero: false, secado: false, cepillado: false };
+    fila.motivos = {};
+    ETAPAS.forEach(function (etapa) { fila.motivos[etapa.id] = MENSAJES.YA_REGISTRADO; });
+    fila.rutas = {};
+    fila.pidePak = false;
+    fila.ok = false;
+    return fila;
   }
 
   var exigeEnBD = RUTAS.DEBE_EXISTIR_EN.indexOf(fila.clase) !== -1;
@@ -256,7 +267,7 @@ function validarFila_(fila, existe) {
     var ruta = normalizarRuta_(fila.rutas[etapa.id]);
     fila.rutas[etapa.id] = ruta;
     if (!ruta) {
-      if (RUTAS.OBLIGATORIA) fila.problemas.push('Falta la hoja de ruta de ' + etapa.titulo + '.');
+      if (RUTAS.OBLIGATORIA) fila.problemas.push('Falta la Ruta de ' + etapa.titulo + '.');
       return;
     }
     if (!escuadriaDeRuta_(ruta)) {
@@ -490,7 +501,8 @@ function apiGuardarLote(filas, observacion) {
       } catch (err) {
         return {
           n: fila.n || (i + 1), ok: false,
-          codigo: fila.codigo || fila.entrada, mensaje: err.message
+          codigo: fila.codigo || fila.entrada, mensaje: err.message,
+          yaExiste: !!err.yaExiste
         };
       }
     });

@@ -5,7 +5,7 @@ Apps Script sobre el spreadsheet **Maderas**
 
 Se pegan los códigos, uno por línea, y salen sus filas de batch input listas
 para SAP. Del código se deduce todo lo que el código ya dice; lo único que hay
-que completar son las hojas de ruta.
+que completar son las Rutas.
 
 ```
 RVMH  +  032 X 180 X 3960   ->   RVMH032X180X3960
@@ -65,8 +65,8 @@ Nada de esto se pregunta:
 |---|---|
 | Especie `H` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2** |
 | Cualquier otra especie | **Planta**, centro **TCP1** |
-| Especie `H` | Se compra hecha: **sin ninguna** hoja de ruta, solo piezas |
-| Empieza en `C` y **no** es `H` | Cepillado de planta: pide **las tres** hojas de ruta |
+| Especie `H` | Se compra hecha: **sin ninguna** Ruta, solo piezas |
+| Empieza en `C` y **no** es `H` | Cepillado de planta: pide **las tres** Rutas |
 | Lleva largo (16 caracteres) | Producto terminado: **PT** |
 | Tres letras y sin largo | Producto de proceso: **PP** |
 | Tres letras, sin largo y empieza en `C` | Cepillado en proceso: **PCP** |
@@ -127,13 +127,13 @@ Todo lo que el formulario decide solo sale de tus propias hojas:
 | Decisión | De dónde sale |
 |---|---|
 | Si el material es de **Trading** | Carácter 4 = `H`, Radiata Terceros: se compra a terceros |
-| Si lleva **hoja de ruta** | Trading no lleva ninguna, porque se compra hecha. La especie manda sobre todo lo demás |
+| Si lleva **Ruta** | Trading no lleva ninguna, porque se compra hecha. La especie manda sobre todo lo demás |
 | Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` y no es Trading, y entonces van las tres |
 | Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
 | Etapa de **aserradero** | Va siempre, salvo en Trading |
 | Si una ruta **sirve** para el producto | Su escuadría no puede ser más chica que la del producto |
 | Si el prefijo vale | Si ya hay materiales de esa familia en `BD_Maderas`; si no, basta con que la nomenclatura explique sus cuatro caracteres |
-| Qué hojas de ruta se ofrecen | Las que `BD_Maderas` tiene para esa escuadría |
+| Qué Rutas se ofrecen | Las que `BD_Maderas` tiene para esa escuadría |
 | A qué etapa pertenece una ruta | Sus dos primeros caracteres: `RV` aserradero, `RS` secado, `C` cepillado |
 
 ## Las dos comprobaciones contra la base
@@ -144,10 +144,14 @@ confundirlas:
 | Qué | Regla | Por qué |
 |---|---|---|
 | El **código** que se pide | **No** debe existir | El batch input lo crea. Si ya está, no hay nada que crear |
-| Las **hojas de ruta** que referencia | **Sí** deben existir | Son materiales de proceso ya dados de alta |
+| Las **Rutas** que referencia | **Sí** deben existir | Son materiales de proceso ya dados de alta |
 
-Si el código ya existe, el formulario lo dice con su descripción y no deja
-seguir. Y para no chocar, muestra qué largos de esa escuadría ya están creados.
+Si el código ya existe, la fila dice **“Ya está registrado en la base de
+datos”** y **no se le abre ningún campo**: ni Rutas ni PAK. No hay nada que
+completar —el material ya está—, así que tampoco se le reclama lo que le
+falta. En el formulario de uno en uno el aviso es el mismo, con la descripción
+de lo que ya hay. Y para no chocar, muestra qué largos de esa escuadría ya
+están creados.
 
 La ruta se escribe como **tres letras, un espacio y la escuadría**: `RVM 019X020`.
 Así es el 89% de las que hay en la base. Las de cuatro letras (`RVFD032X180`)
@@ -183,7 +187,7 @@ Qué habilita cada combinación, hoy:
 ## La carga masiva
 
 **Primero se elige el tipo: PT, PP o PE.** Toda la tanda va de ese tipo, y no es
-un rótulo: de él dependen las hojas de ruta que se abren. Mezclar terminados con
+un rótulo: de él dependen las Rutas que se abren. Mezclar terminados con
 material de proceso pediría rutas distintas línea por línea, así que un código
 que no sea del tipo elegido se rechaza y dice por qué.
 
@@ -341,13 +345,14 @@ estas nueve columnas, en este orden:
 | 3 | `Usuario` | el correo de quien la pidió |
 | 4 | `Tipo Solicitud` | `PT`, `PP` o `PE` |
 | 5 | `Estado` | nace en `Solicitando`, y la celda trae su lista |
-| 6 | `Fecha de creación` | **en blanco**: la llena codificación |
+| 6 | `Fecha de creación` | **en blanco**: se escribe sola al pasar a `Finalizado` |
 | 7 | `SKU` | los códigos de la solicitud, separados por coma |
 | 8 | `Observación` | la del solicitante |
 | 9 | `Observación codificación` | **en blanco**: la llena codificación |
 
 Las dos columnas en blanco nacen vacías a propósito: son de codificación, y el
-formulario no tiene nada que poner ahí todavía.
+formulario no tiene nada que poner ahí todavía. `Fecha de creación` se llena
+sola cuando el estado pasa a `Finalizado`, que es cuando el material existe.
 
 ### Si los rótulos del detalle se corrieron
 
@@ -622,7 +627,7 @@ corre en cada apertura.
 
 ## Decisiones que conviene revisar
 
-**Las hojas de ruta salen de la base, no de un catálogo.** Para `032X180` la base
+**Las Rutas salen de la base, no de un catálogo.** Para `032X180` la base
 tiene `RVFD032X180` (aserradero) y `RSFD032X180` (secado), que son justo las que
 usaba tu fila de ejemplo. Si una etapa tiene una sola ruta posible, se pone sola;
 si hay varias, se elige.
@@ -761,9 +766,17 @@ que instaló el disparador.
 
 ### Al finalizar, los materiales entran a BD_Maderas
 
-Poner **Finalizado** en la columna `Estado` de `Registro` da de alta en
-`BD_Maderas` los códigos de esa solicitud **y las hojas de ruta que
-nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
+Poner **Finalizado** en la columna `Estado` de `Registro` hace dos cosas.
+
+Primero escribe la fecha del día en **`Fecha de creación`**: hasta ese momento
+el material no existía, y recién ahí la columna tiene algo que decir. Se escribe
+antes de tocar la base, así que queda igual aunque el alta falle. Si una
+solicitud se finaliza de nuevo, se vuelve a escribir —la columna dice cuándo se
+creó, no cuándo se intentó la primera vez— y la fecha anterior sigue en
+`Registro Estados`, que es la bitácora.
+
+Después da de alta en `BD_Maderas` los códigos de esa solicitud **y las Rutas
+que nombraron**. Lo que ya está **no se vuelve a agregar** —la base no debería
 tener un material dos veces—, y cerrar la misma solicitud otra vez no agrega
 nada.
 
