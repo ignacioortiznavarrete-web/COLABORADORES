@@ -661,6 +661,40 @@ function ultimoEstadoAnotado_(hoja, numero) {
   return '';
 }
 
+/**
+ * Qué le falta a los rótulos de una hoja para ser los que el código espera.
+ *
+ * Esto existe por un error que no se ve: `encabezados_` no toca una hoja que
+ * ya tiene datos —y hace bien, no vaya a pisar lo de alguien— pero entonces
+ * una hoja creada antes de que se agregara una columna se queda para siempre
+ * con los rótulos viejos. El código escribe los valores en su orden nuevo, y
+ * quien lee POR RÓTULO no encuentra la columna y se lleva un vacío.
+ *
+ * Pasó con `Correo` en el detalle: la columna está escrita, pero sin su rótulo
+ * el aviso de finalizado no encontraba a quién escribirle y no mandaba nada,
+ * sin decir una palabra.
+ *
+ * @return {string[]} Un problema por línea. Vacío si está todo en su sitio.
+ */
+function revisarEncabezados_(hoja, columnas) {
+  if (!hoja || hoja.getLastRow() < 1) return [];
+
+  var actuales = hoja.getRange(1, 1, 1, Math.max(hoja.getLastColumn(), 1))
+    .getDisplayValues()[0].map(function (h) { return String(h).trim(); });
+
+  var problemas = [];
+  columnas.forEach(function (rotulo, i) {
+    var donde = actuales.map(normalizar_).indexOf(normalizar_(rotulo));
+    if (donde === -1) {
+      problemas.push('falta la columna "' + rotulo + '" (debería ser la ' + (i + 1) + ')');
+    } else if (donde !== i) {
+      problemas.push('"' + rotulo + '" está en la columna ' + (donde + 1) +
+        ' y se espera en la ' + (i + 1));
+    }
+  });
+  return problemas;
+}
+
 function encabezados_(hoja, columnas) {
   var ultima = hoja.getLastRow();
   if (ultima > 1) return;  // ya tiene datos: no se toca

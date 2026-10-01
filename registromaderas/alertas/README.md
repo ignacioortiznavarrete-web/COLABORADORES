@@ -136,7 +136,7 @@ revisan— pero el permiso queda más ancho de lo necesario.
 
 ## Si no llega el correo
 
-Correr **`probarCorreo`** desde el editor. Dice cuatro cosas:
+Correr **`probarCorreo`** desde el editor. Dice cinco cosas:
 
 - con qué cuenta corre
 - **de qué dirección va a salir el correo** — y si no es la de codificación,
@@ -144,6 +144,23 @@ Correr **`probarCorreo`** desde el editor. Dice cuatro cosas:
 - cuánta cuota de correo queda hoy
 - cuántos disparadores hay instalados — si dice **0**, nunca se corrió
   `instalarAlertas` y por eso no pasa nada
+- **un ensayo sobre la última solicitud**, sin mandar nada: sigue el mismo
+  camino que el disparador y dice en qué paso se corta
+
+El ensayo es el que contesta de verdad. El corte más común:
+
+```
+✗ "Registro Detalle" NO tiene una columna rotulada "Correo".
+  Sus rótulos son: N° Solicitud | Fecha | Solicitante | Clase Requerimiento | …
+  Por eso no sale el aviso: no hay de dónde sacar a quién escribirle.
+```
+
+La columna `Correo` se agregó al detalle después de que la hoja ya existía, y
+los rótulos no se tocan cuando una hoja tiene datos —así no se pisa lo de
+nadie—. El dato **sí está escrito** en su columna; lo que falta es el rótulo, y
+quien lee por rótulo se lleva un vacío. Se arregla con **Registro Maderas ›
+Preparar hojas** en el spreadsheet, que ahora dice exactamente qué rótulo falta
+y en qué columna va.
 
 Un correo que no sale no tumba nada: la solicitud ya está finalizada y los
 materiales ya entraron a la base desde el otro proyecto. Pero el error de

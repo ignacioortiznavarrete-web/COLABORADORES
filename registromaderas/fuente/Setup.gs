@@ -62,6 +62,25 @@ function instalarRegistro() {
   asegurarEncabezadosEstados_(hojaEstados_());
   hechos.push('La hoja "' + CFG.HOJA_ESTADOS + '" quedó lista (una fila por cambio de estado).');
 
+  // Los rótulos de las bitácoras, uno por uno. Una hoja creada antes de que se
+  // agregara una columna se queda con los rótulos viejos —`encabezados_` no
+  // pisa una hoja con datos— y quien lee por rótulo no la encuentra. Eso no da
+  // error: simplemente devuelve vacío, y el aviso que dependía de esa columna
+  // no sale sin decir nada.
+  [
+    [hojaRegistro_(), COL_REGISTRO, CFG.HOJA_REGISTRO],
+    [hojaDetalle_(), COL_DETALLE, CFG.HOJA_DETALLE],
+    [hojaEstados_(), COL_ESTADOS, CFG.HOJA_ESTADOS]
+  ].forEach(function (x) {
+    var malos = revisarEncabezados_(x[0], x[1]);
+    if (!malos.length) return;
+    problemas.push('En "' + x[2] + '" los rótulos no son los que el código espera:\n    · ' +
+      malos.join('\n    · ') +
+      '\n  Los datos SÍ se escriben en ese orden; lo que falta es el rótulo. ' +
+      'Corrígelo a mano en la fila 1, o si esa hoja no tiene nada que valga la ' +
+      'pena, bórrala entera y vuelve a correr esto.');
+  });
+
   var resumen = hechos.join('\n· ');
   resumen = '· ' + resumen;
   if (problemas.length) resumen += '\n\nRevisa esto:\n· ' + problemas.join('\n· ');

@@ -282,6 +282,58 @@ seccion('Ningún nombre declarado dos veces');
     'y se revisaron de verdad: ' + cuantosNombres(carpeta) + ' nombres');
 }
 
+// El ensayo es lo único que contesta "¿por qué no llegó?". Tiene que señalar
+// el paso exacto donde se corta, no decir "algo falló".
+seccion('El ensayo dice dónde se corta');
+{
+  const registro = SS.getSheetByName('Registro');
+  const detalle = SS.getSheetByName('Registro Detalle');
+  const cCorreo = DET.indexOf('Correo') + 1;
+
+  // La última del fixture es SOL-00003, que a propósito no tiene detalle.
+  ok(ensayoDeLaUltima_().join('\n').indexOf('No tiene ninguna línea') !== -1,
+    'una solicitud sin detalle: lo dice');
+
+  // Se le da una línea para probar el camino completo.
+  const fila = detalle.getLastRow() + 1;
+  detalle.getRange(fila, 1, 1, DET.length).setValues([DET.map(h => ({
+    'N° Solicitud': 'SOL-00003', 'Correo': 'ana@masisa.com',
+    'Código': 'RSFR037X130X3200'
+  }[h] || ''))]);
+
+  ok(ensayoDeLaUltima_().join('\n').indexOf('Le llegaría a: ana@masisa.com') !== -1,
+    'con todo en su lugar dice a quién le llegaría');
+
+  // El caso real: la hoja se creó antes de que existiera la columna Correo,
+  // así que el dato está escrito pero sin rótulo, y nadie lo encuentra.
+  detalle.getRange(1, cCorreo).setValue('Mail');
+  const sinRotulo = ensayoDeLaUltima_().join('\n');
+  ok(sinRotulo.indexOf('NO tiene una columna rotulada "Correo"') !== -1,
+    'sin el rótulo lo dice con todas sus letras');
+  ok(sinRotulo.indexOf('Preparar hojas') !== -1, 'y adónde ir a arreglarlo');
+  ok(sinRotulo.indexOf('Mail') !== -1, 'mostrando los rótulos que sí tiene');
+
+  // Y el aviso tampoco sale, que es el síntoma que se veía.
+  global.__CORREOS = [];
+  const r = mandarAviso_(avisoDe_('Finalizado'), 'SOL-00001');
+  ok(!r.ok && global.__CORREOS.length === 0,
+    'y por eso el aviso no sale: ' + r.mensaje);
+  detalle.getRange(1, cCorreo).setValue('Correo');
+
+  // El otro caso: el rótulo está, pero esa solicitud es vieja y no lo tiene.
+  detalle.getRange(fila, cCorreo).setValue('');
+  ok(ensayoDeLaUltima_().join('\n').indexOf('existe pero está VACÍA') !== -1,
+    'si el rótulo está pero el dato no, también lo distingue');
+  detalle.getRange(fila, cCorreo).setValue('ana@masisa.com');
+
+  ok(ensayoDeLaUltima_().join('\n').indexOf('Le llegaría a: ') !== -1,
+    'y arreglado, vuelve a decir a quién');
+
+  // Sin ninguna solicitud todavía tampoco revienta.
+  ok(typeof ensayoDeLaUltima_ === 'function' && ensayoDeLaUltima_().length > 1,
+    'y siempre devuelve algo que leer');
+}
+
 // Sin el disparador instalado no pasa NADA al poner Finalizado: no hay error,
 // no hay correo, no hay nada. Es el modo de fallar más fácil de no notar, así
 // que instalarAlertas tiene que dejarlo puesto y no duplicado.

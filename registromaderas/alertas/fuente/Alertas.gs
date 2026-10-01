@@ -32,9 +32,17 @@ function alEditarRegistro(evento) {
     if (!aviso) return;
 
     var numero = valorDe_(hoja, evento.range.getRow(), COL.NUMERO);
-    if (!numero) return;
+    if (!numero) {
+      Logger.log('Sin N° Solicitud en esa fila: no hay a quién avisarle.');
+      return;
+    }
 
-    mandarAviso_(aviso, numero);
+    // Lo que pase queda escrito. Antes, un "no hay correo de quien pidió" se
+    // perdía en silencio y desde afuera se veía igual que si todo hubiera
+    // andado bien.
+    var r = mandarAviso_(aviso, numero);
+    Logger.log(numero + ' · ' + aviso.estado + ': ' + (r.ok ? 'OK' : 'NO SALIÓ') +
+      ' · ' + r.mensaje);
   } catch (err) {
     Logger.log('alEditarRegistro: ' + err.message);
   }
@@ -302,13 +310,83 @@ function probarCorreo() {
   pasos.push('Disparadores instalados: ' + disparadores +
     (disparadores ? '' : '  ← sin esto no se manda nada; corre instalarAlertas'));
 
+  // La prueba que importa: sobre una solicitud de verdad. Mandar un correo a
+  // uno mismo demuestra que el correo anda, no que este aviso vaya a salir.
+  pasos.push('');
+  pasos.push(ensayoDeLaUltima_().join('\n'));
+
   pasos.push('');
   var r = enviar_(cuenta_(), 'Prueba · alertas de codificación',
     'Esto es una prueba. Si te llegó, los avisos de codificación pueden salir.');
-  pasos.push(r.ok ? 'Salió. ' + r.mensaje : 'NO salió: ' + r.mensaje);
+  pasos.push(r.ok ? 'El correo de prueba salió. ' + r.mensaje
+    : 'El correo de prueba NO salió: ' + r.mensaje);
 
   avisar_('Probar correo', pasos.join('\n'));
   return pasos.join('\n');
+}
+
+/**
+ * Un ensayo sobre la última solicitud, sin mandar nada.
+ *
+ * Es lo único que contesta "¿por qué no llegó?". Sigue el mismo camino que el
+ * disparador —busca la solicitud, busca sus líneas, busca el correo de quien
+ * pidió— y dice en cuál de esos pasos se corta.
+ *
+ * El que más falla: la columna `Correo` de `Registro Detalle`. Se agregó
+ * después, y una hoja que ya existía se quedó con los rótulos viejos. El dato
+ * está escrito, pero sin el rótulo nadie lo encuentra.
+ */
+function ensayoDeLaUltima_() {
+  var pasos = ['Ensayo sobre la última solicitud (no manda nada):'];
+
+  var registro = libro_().getSheetByName(HOJAS.REGISTRO);
+  if (!registro || registro.getLastRow() < 2) {
+    pasos.push('  No hay ninguna solicitud en "' + HOJAS.REGISTRO + '" todavía.');
+    return pasos;
+  }
+
+  var numero = valorDe_(registro, registro.getLastRow(), COL.NUMERO);
+  if (!numero) {
+    pasos.push('  La última fila de "' + HOJAS.REGISTRO + '" no tiene N° Solicitud.');
+    return pasos;
+  }
+  pasos.push('  Solicitud: ' + numero);
+
+  var detalle = libro_().getSheetByName(HOJAS.DETALLE);
+  if (!detalle) {
+    pasos.push('  ✗ No existe la hoja "' + HOJAS.DETALLE + '".');
+    return pasos;
+  }
+
+  // El rótulo, antes que nada: sin él no hay de dónde sacar el correo.
+  var rotulos = detalle.getRange(1, 1, 1, Math.max(detalle.getLastColumn(), 1))
+    .getDisplayValues()[0].map(function (h) { return String(h).trim(); });
+  if (rotulos.map(normalizar_).indexOf(normalizar_(COL.CORREO)) === -1) {
+    pasos.push('  ✗ "' + HOJAS.DETALLE + '" NO tiene una columna rotulada "' +
+      COL.CORREO + '".');
+    pasos.push('    Sus rótulos son: ' + rotulos.filter(Boolean).join(' | '));
+    pasos.push('    Por eso no sale el aviso: no hay de dónde sacar a quién escribirle.');
+    pasos.push('    Arréglalo con "Registro Maderas › Preparar hojas" en el spreadsheet,');
+    pasos.push('    que dice exactamente qué rótulo falta y dónde.');
+    return pasos;
+  }
+
+  var lineas = lineasDeSolicitud_(numero);
+  if (!lineas.length) {
+    pasos.push('  ✗ No tiene ninguna línea en "' + HOJAS.DETALLE + '".');
+    return pasos;
+  }
+  pasos.push('  Líneas en el detalle: ' + lineas.length);
+
+  if (!lineas[0].correo) {
+    pasos.push('  ✗ La columna "' + COL.CORREO + '" existe pero está VACÍA en esa solicitud.');
+    pasos.push('    Las guardadas antes de que esa columna existiera no la tienen.');
+    pasos.push('    Registra una solicitud nueva y vuelve a probar.');
+    return pasos;
+  }
+
+  pasos.push('  ✓ Le llegaría a: ' + lineas[0].correo);
+  return pasos;
 }
 
 function cuenta_() {
