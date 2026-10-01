@@ -253,13 +253,27 @@ function alEditarRegistro(evento) {
     var fila = evento.range.getRow();
     anotarPasoDeEstado_(hoja, fila, estado, quienEdito_(evento));
 
+    var numero = numeroDeFila_(hoja, fila) || '(sin número)';
+
     if (normalizar_(estado) === normalizar_(NUMERACION.ESTADO_CREADO)) {
-      var numero = numeroDeFila_(hoja, fila);
-      if (numero) avisarCreado_(numero, lineasDeSolicitud_(numero));
+      var aviso = avisarCreado_(numero, lineasDeSolicitud_(numero));
+      Logger.log(numero + ' · ' + estado + ' · aviso de material creado: ' +
+        (aviso && aviso.ok ? 'OK' : 'NO SALIÓ · ' + ((aviso && aviso.mensaje) || '')));
       return;
     }
-    if (normalizar_(estado) !== normalizar_(NUMERACION.ESTADO_FINAL)) return;
-    cerrarSolicitud_(hoja, fila);
+
+    if (normalizar_(estado) !== normalizar_(NUMERACION.ESTADO_FINAL)) {
+      Logger.log(numero + ' · ' + estado + ': solo se anota el paso, no hay nada más que hacer.');
+      return;
+    }
+
+    // Acá NO se manda ningún correo a propósito: el aviso de finalizado tiene
+    // que salir de codificación y vive en el proyecto `alertas`. Queda escrito
+    // para que no parezca que este disparador se lo tragó.
+    var puesto = cerrarSolicitud_(hoja, fila);
+    Logger.log(numero + ' · ' + estado + ': ' + puesto.codigos + ' códigos y ' +
+      puesto.rutas + ' rutas a ' + CFG.HOJA_BD +
+      '. El correo al solicitante NO sale de acá: lo manda el proyecto "alertas".');
   } catch (err) {
     Logger.log('alEditarRegistro: ' + err.message);
   }

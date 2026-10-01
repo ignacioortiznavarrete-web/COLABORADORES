@@ -23,13 +23,26 @@ function alEditarRegistro(evento) {
     if (hoja.getName() !== HOJAS.REGISTRO) return;
 
     var columna = columnaDe_(hoja, COL.ESTADO);
-    if (!columna || evento.range.getColumn() !== columna) return;
+    if (!columna) {
+      Logger.log('En "' + HOJAS.REGISTRO + '" no hay columna rotulada "' + COL.ESTADO + '".');
+      return;
+    }
+    // Esta sí se calla: el disparador salta con CUALQUIER edición de la hoja,
+    // y anotar cada una llenaría el registro de ruido.
+    if (evento.range.getColumn() !== columna) return;
 
     var estado = String(evento.value == null ? '' : evento.value).trim();
-    if (!estado) return;
+    if (!estado) {
+      Logger.log('Se vació la celda de Estado: no hay a qué estado avisar.');
+      return;
+    }
 
     var aviso = avisoDe_(estado);
-    if (!aviso) return;
+    if (!aviso) {
+      Logger.log('Estado "' + estado + '": no tiene aviso configurado. Mandan correo: ' +
+        AVISOS.map(function (a) { return a.estado; }).join(', ') + '.');
+      return;
+    }
 
     var numero = valorDe_(hoja, evento.range.getRow(), COL.NUMERO);
     if (!numero) {
