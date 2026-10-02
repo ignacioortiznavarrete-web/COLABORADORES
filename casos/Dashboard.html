@@ -386,7 +386,7 @@ button, select, input { font: inherit; color: inherit; }
   transform: translate(-50%, -100%); transition: opacity .12s;
   background: var(--sup); border: 1px solid var(--borde); border-radius: 8px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, .13);
-  padding: 8px 10px; min-width: 150px; max-width: 280px;
+  padding: 8px 10px; min-width: 150px; max-width: 320px;
 }
 .tooltip[data-visible="1"] { opacity: 1; }
 .tooltip__tit { font-size: 12.5px; font-weight: 500; margin-bottom: 5px; }
@@ -404,6 +404,15 @@ td.n, th.n { text-align: right; font-family: var(--tipo-dato); font-variant-nume
 .orden { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; font: inherit; }
 .orden[aria-sort="descending"], .orden[aria-sort="ascending"] { color: var(--tinta); }
 .punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+.asu { max-width: 340px; }
+.asu--abierta { white-space: normal; min-width: 240px; }
+.asu__mas {
+  background: none; border: 0; padding: 0; margin-left: 5px; cursor: pointer;
+  color: var(--tinta-2); font: inherit; font-size: 11.5px;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.asu__mas:hover { color: var(--tinta); }
+.asu__mas:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 3px; }
 
 /* --- Solo lectura: se mira, no se toca ----------------------------------- */
 [data-lectura] .barra__der,
@@ -665,8 +674,8 @@ tr[data-guardando="1"] { opacity: .55; }
         </div>
         <div class="panel">
           <div class="panel__cab">
-            <h3 class="panel__tit">Casos abiertos por responsable</h3>
-            <span class="panel__nota">quién los tiene hoy</span>
+            <h3 class="panel__tit" id="tit-duenos">Casos abiertos por propietario</h3>
+            <span class="panel__nota" id="nota-duenos">quién los tiene hoy</span>
             <div class="panel__acc">
               <button class="boton" type="button" data-tabla="t-duenos" aria-expanded="false">Tabla</button>
             </div>
@@ -924,7 +933,7 @@ tr[data-guardando="1"] { opacity: .55; }
             <option value="todos">Todos</option>
           </select>
           <label class="oculto-visual" for="cola-buscar">Buscar en esta tabla</label>
-          <input id="cola-buscar" type="search" placeholder="Buscar caso, cliente, responsable…" autocomplete="off">
+          <input id="cola-buscar" type="search" placeholder="Buscar caso, cliente, propietario, asunto…" autocomplete="off">
           <button class="boton" type="button" id="btn-copiar">Copiar</button>
           <span class="cola__nota" id="cola-nota"></span>
         </div>
@@ -1164,11 +1173,12 @@ tr[data-guardando="1"] { opacity: .55; }
   }
 
   // ---------------------------------------------------------------------
-  // La tira de espera: cada caso abierto es una marca, puesta en los días
-  // que lleva esperando. La altura de una columna son casos empatados.
+  // La tira: cada caso es una marca, puesta en los días que lleva esperando
+  // —o los que tardó en cerrarse. La altura de una columna son casos
+  // empatados.
   // ---------------------------------------------------------------------
   /**
-   * La espera de los casos abiertos: una marca por caso, siempre.
+   * Un caso, una marca, siempre.
    *
    * Dos cosas la mantienen legible sin achicar la marca:
    *
@@ -1189,9 +1199,15 @@ tr[data-guardando="1"] { opacity: .55; }
   ];
   var CAMPO_MAX = 232;
 
-  function pintaCola(abiertos) {
+  function pintaCola(abiertos, modoCierre) {
     var mt = 26, mb = 27, ml = 12, mr = 14;
-    var maxDato = abiertos.reduce(function (a, c) { return Math.max(a, c.espera || 0); }, 0);
+    // Con el filtro en Cerrados no hay esperas que mostrar: la misma tira pasa
+    // a contar los días que tardó cada cierre.
+    var dias = modoCierre
+      ? function (c) { return c.resol === null ? 0 : c.resol; }
+      : function (c) { return c.espera === null ? 0 : c.espera; };
+    var deQue = modoCierre ? 'hasta el cierre' : 'esperando';
+    var maxDato = abiertos.reduce(function (a, c) { return Math.max(a, dias(c)); }, 0);
     var maxD = Math.max(120, Math.ceil((maxDato + 12) / 30) * 30);
 
     // El ancho manda: se mide antes de decidir el alto y el tamaño de la marca.
@@ -1214,8 +1230,8 @@ tr[data-guardando="1"] { opacity: .55; }
     // Reparto en abanico: cada caso busca su columna, y si está llena, la libre
     // más cercana.
     var cubos = new Map(), alturas = new Map();
-    abiertos.slice().sort(function (a, b) { return a.espera - b.espera; }).forEach(function (c) {
-      var k0 = Math.round(X(c.espera) / pasoPx), k = k0;
+    abiertos.slice().sort(function (a, b) { return dias(a) - dias(b); }).forEach(function (c) {
+      var k0 = Math.round(X(dias(c)) / pasoPx), k = k0;
       for (var d = 0; d <= 80; d++) {
         if ((alturas.get(k0 + d) || 0) < cupo) { k = k0 + d; break; }
         if ((alturas.get(k0 - d) || 0) < cupo) { k = k0 - d; break; }
@@ -1241,7 +1257,7 @@ tr[data-guardando="1"] { opacity: .55; }
     }
     g.appendChild(el('line', { x1: ml, y1: base, x2: L.an - mr, y2: base, class: 'base' }));
 
-    var pasados = abiertos.filter(function (c) { return c.espera > 90; }).length;
+    var pasados = abiertos.filter(function (c) { return dias(c) > 90; }).length;
     var etUmbral = pasados
       ? '90 días · ' + fmt(pasados) + (pasados === 1 ? ' caso más allá' : ' casos más allá')
       : '90 días';
@@ -1254,10 +1270,10 @@ tr[data-guardando="1"] { opacity: .55; }
 
     q('#tit-cola').textContent = 'Un caso, una marca';
     q('#nota-cola').textContent = abiertos.length
-      ? 'cada marca es un caso · eje en días esperando'
+      ? 'cada marca es un caso · eje en días ' + deQue
       : '';
     if (!abiertos.length) {
-      g.appendChild(texto(L.an / 2, base / 2, 'Sin casos abiertos en este filtro', 'et-tx', { 'text-anchor': 'middle' }));
+      g.appendChild(texto(L.an / 2, base / 2, 'Sin casos en este filtro', 'et-tx', { 'text-anchor': 'middle' }));
       tabla('t-cola', [{ t: 'Caso' }], []);
       return;
     }
@@ -1265,10 +1281,10 @@ tr[data-guardando="1"] { opacity: .55; }
     var tarde = css('--tarde'), s1 = css('--s1'), cimas = new Map(), n = 0;
     cubos.forEach(function (lista, k) {
       var cx = k * pasoPx, gc = el('g', { class: 'fila-dato' });
-      lista.sort(function (a, b) { return a.espera - b.espera; });
+      lista.sort(function (a, b) { return dias(a) - dias(b); });
       lista.forEach(function (c, j) {
         var r = barra(cx - anM / 2, base - (j + 1) * unidad + sep, anM, alM, Math.min(anM / 2, alM / 2), 'plano');
-        gc.appendChild(pinta(r, c.espera > 90 ? tarde : s1, 'an-y', Math.min(n * 4, 260) + j * 6));
+        gc.appendChild(pinta(r, dias(c) > 90 ? tarde : s1, 'an-y', Math.min(n * 4, 260) + j * 6));
       });
       var altoCol = lista.length * unidad;
       var hit = el('rect', { x: cx - Math.max(5, pasoPx / 2), y: mt, width: Math.max(10, pasoPx), height: base - mt, class: 'marca-hit' });
@@ -1276,17 +1292,23 @@ tr[data-guardando="1"] { opacity: .55; }
         x: cx - anM / 2 - 2, y: base - altoCol - 2, width: anM + 4, height: altoCol + 4,
         rx: 3, fill: 'none', stroke: css('--tinta-3'), 'stroke-width': 1, class: 'realce'
       });
-      var esp = lista[0].espera, esp2 = lista[lista.length - 1].espera;
+      var esp = dias(lista[0]), esp2 = dias(lista[lista.length - 1]);
+      // Cuando la columna trae varios casos, cada fila se abre con su número:
+      // sin él no habría forma de saber a qué caso mirar en la planilla.
       var filas = lista.slice(0, 4).map(function (c) {
-        return { et: recorta(c.cli, 26), val: c.espera + ' d', color: c.espera > 90 ? tarde : s1 };
+        return {
+          et: 'Caso ' + c.n + (c.cli ? ' · ' + recorta(c.cli, 18) : ''),
+          val: dias(c) + ' d',
+          color: dias(c) > 90 ? tarde : s1
+        };
       });
       if (lista.length === 1) filas.push({ et: recorta(lista[0].due, 26), val: recorta(lista[0].est, 22) });
       if (lista.length > 4) filas.push({ et: 'y ' + fmt(lista.length - 4) + ' más', val: '' });
       gc.appendChild(hit);
       gc.appendChild(realce);
       conTip(hit, lista.length === 1
-        ? 'Caso ' + lista[0].n + ' · ' + esp + ' días esperando'
-        : fmt(lista.length) + ' casos · ' + (esp === esp2 ? esp + ' días' : esp + '–' + esp2 + ' días') + ' esperando', filas);
+        ? 'Caso ' + lista[0].n + ' · ' + esp + ' días ' + deQue
+        : fmt(lista.length) + ' casos · ' + (esp === esp2 ? esp + ' días' : esp + '–' + esp2 + ' días') + ' ' + deQue, filas);
       g.appendChild(gc);
       cimas.set(k, base - altoCol);
       n++;
@@ -1294,10 +1316,10 @@ tr[data-guardando="1"] { opacity: .55; }
 
     // La etiqueta del caso más antiguo, si no pisa la del umbral.
     if (abiertos.length > 3) {
-      var peor = abiertos.reduce(function (a, c) { return (!a || c.espera > a.espera) ? c : a; }, null);
-      var kPeor = Math.round(X(peor.espera) / pasoPx), px = kPeor * pasoPx;
+      var peor = abiertos.reduce(function (a, c) { return (!a || dias(c) > dias(a)) ? c : a; }, null);
+      var kPeor = Math.round(X(dias(peor)) / pasoPx), px = kPeor * pasoPx;
       var derecha = px > L.an * 0.55;
-      var etPeor = fmt(peor.espera) + ' días · ' + recorta(peor.cli, 22);
+      var etPeor = fmt(dias(peor)) + ' días · ' + recorta(peor.cli, 22);
       var desde = derecha ? px - 7 - etPeor.length * 6 : px + 7;
       if (desde > finUmbral) {
         var cima = cimas.has(kPeor) ? cimas.get(kPeor) : mt + 6;
@@ -1307,9 +1329,10 @@ tr[data-guardando="1"] { opacity: .55; }
     }
 
     tabla('t-cola',
-      [{ t: 'Caso' }, { t: 'Cliente' }, { t: 'Responsable' }, { t: 'Estado' }, { t: 'Días esperando', num: true }],
-      abiertos.slice().sort(function (a, b) { return b.espera - a.espera; })
-        .map(function (c) { return [c.n, c.cli, c.due, c.est, fmt(c.espera)]; }));
+      [{ t: 'Caso' }, { t: 'Cliente' }, { t: 'Propietario' }, { t: 'Estado' },
+        { t: modoCierre ? 'Días hasta el cierre' : 'Días esperando', num: true }],
+      abiertos.slice().sort(function (a, b) { return dias(b) - dias(a); })
+        .map(function (c) { return [c.n, c.cli, c.due, c.est, fmt(dias(c))]; }));
   }
 
   // ---------------------------------------------------------------------
@@ -1546,27 +1569,65 @@ tr[data-guardando="1"] { opacity: .55; }
         .concat(causas.map(function (c) { return ['Causa comercial', c.k, fmt(c.n)]; })));
   }
 
-  function pintaDuenos(abiertos) {
+  function pintaDuenos(abiertos, modoCierre) {
+    var dias = modoCierre
+      ? function (c) { return c.resol === null ? 0 : c.resol; }
+      : function (c) { return c.espera === null ? 0 : c.espera; };
+    var etN = modoCierre ? 'Casos cerrados' : 'Casos abiertos';
+    var etExtremo = modoCierre ? 'El más lento' : 'El más antiguo';
     var filas = contar(abiertos, function (c) { return c.due; }).slice(0, 8).map(function (d) {
       var suyos = abiertos.filter(function (c) { return c.due === d.k; });
-      var viejo = suyos.reduce(function (a, c) { return Math.max(a, c.espera); }, 0);
+      var extremo = suyos.reduce(function (a, c) { return Math.max(a, dias(c)); }, 0);
       return {
         k: d.k, n: d.n, tip: [
-          { et: 'Casos abiertos', val: fmt(d.n), color: css('--s1') },
-          { et: 'El más antiguo', val: fmt(viejo) + ' días' },
-          { et: 'Sobre 90 días', val: fmt(suyos.filter(function (c) { return c.espera > 90; }).length) }
+          { et: etN, val: fmt(d.n), color: css('--s1') },
+          { et: etExtremo, val: fmt(extremo) + ' días' },
+          { et: 'Sobre 90 días', val: fmt(suyos.filter(function (c) { return dias(c) > 90; }).length) }
         ]
       };
     });
-    barrasH('g-duenos', filas, { anEt: 150, vacio: 'Sin casos abiertos con este filtro' });
-    tabla('t-duenos', [{ t: 'Responsable' }, { t: 'Casos abiertos', num: true }],
+    q('#tit-duenos').textContent = etN + ' por propietario';
+    q('#nota-duenos').textContent = modoCierre ? 'quién los cerró' : 'quién los tiene hoy';
+    q('#g-duenos').setAttribute('aria-label', etN + ' por propietario');
+    barrasH('g-duenos', filas, { anEt: 150, vacio: 'Sin casos con este filtro' });
+    tabla('t-duenos', [{ t: 'Propietario' }, { t: etN, num: true }],
       contar(abiertos, function (c) { return c.due; }).map(function (d) { return [d.k, fmt(d.n)]; }));
   }
 
   // ---------------------------------------------------------------------
   // Cola de trabajo: tabla ordenable de los casos abiertos
   // ---------------------------------------------------------------------
-  var orden = { col: 6, dir: -1 }, colaAbierta = false, colaAhora = [], TOPE_COLA = 8;
+  // orden.col = -1 significa «por días», la última columna: así la tabla puede
+  // ganar columnas sin que haya que recontar índices.
+  var orden = { col: -1, dir: -1 }, colaAbierta = false, colaAhora = [], TOPE_COLA = 8;
+  var TOPE_ASUNTO = 48;
+
+  // El asunto es el campo más largo de la planilla: se muestra recortado y se
+  // abre entero con «ver más», sin perder la línea de la tabla.
+  function celdaAsunto(c) {
+    var td = document.createElement('td');
+    td.className = 'asu';
+    var txt = (c.asu || '').trim();
+    if (!txt) { td.appendChild(document.createTextNode('—')); return td; }
+    if (txt.length <= TOPE_ASUNTO) { td.appendChild(document.createTextNode(txt)); return td; }
+    var tx = document.createElement('span');
+    tx.textContent = recorta(txt, TOPE_ASUNTO);
+    var b = document.createElement('button');
+    b.className = 'asu__mas';
+    b.type = 'button';
+    b.textContent = 'ver más';
+    b.setAttribute('aria-expanded', 'false');
+    b.addEventListener('click', function () {
+      var abierta = td.className.indexOf('asu--abierta') === -1;
+      td.className = abierta ? 'asu asu--abierta' : 'asu';
+      tx.textContent = abierta ? txt : recorta(txt, TOPE_ASUNTO);
+      b.textContent = abierta ? 'ver menos' : 'ver más';
+      b.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+    });
+    td.appendChild(tx);
+    td.appendChild(b);
+    return td;
+  }
   var HAY_SERVIDOR = typeof google !== 'undefined' && google.script && google.script.run;
 
   function isoDe(f) {
@@ -1688,12 +1749,16 @@ tr[data-guardando="1"] { opacity: .55; }
     var cols = [
       { t: 'Caso', v: function (c) { return c.n; } },
       { t: 'Cliente', v: function (c) { return c.cli; } },
-      { t: 'Responsable', v: function (c) { return c.due; } },
+      { t: 'Propietario', v: function (c) { return c.due; } },
       { t: 'Situación', v: function (c) { return c.est; } },
+      // v devuelve el asunto entero: así se ordena y se copia completo, aunque
+      // en pantalla salga recortado.
+      { t: 'Asunto', v: function (c) { return (c.asu || '').trim(); }, cel: celdaAsunto },
       { t: 'Abierto el', v: function (c) { return c.ap ? c.ap.getTime() : 0; }, txt: function (c) { return fechaCorta(c.ap); } },
       { t: 'Cerrado el', v: function (c) { return c.ci ? c.ci.getTime() : 0; }, txt: function (c) { return c.ci ? fechaCorta(c.ci) : '—'; } },
-      { t: 'Días', num: true, v: diasDeCaso, txt: function (c) { return fmt(diasDeCaso(c)); } }
+      { t: 'Días', num: true, dias: true, v: diasDeCaso, txt: function (c) { return fmt(diasDeCaso(c)); } }
     ];
+    if (orden.col < 0 || orden.col >= cols.length) orden.col = cols.length - 1;
     var filas = lista.slice().sort(function (a, b) {
       var va = cols[orden.col].v(a), vb = cols[orden.col].v(b);
       if (va === vb) return diasDeCaso(b) - diasDeCaso(a);
@@ -1747,7 +1812,7 @@ tr[data-guardando="1"] { opacity: .55; }
       b.textContent = c.t + (orden.col === i ? (orden.dir === 1 ? ' ↑' : ' ↓') : '');
       b.setAttribute('aria-sort', orden.col === i ? (orden.dir === 1 ? 'ascending' : 'descending') : 'none');
       b.addEventListener('click', function () {
-        if (orden.col === i) orden.dir *= -1; else { orden.col = i; orden.dir = i === 6 ? -1 : 1; }
+        if (orden.col === i) orden.dir *= -1; else { orden.col = i; orden.dir = c.num ? -1 : 1; }
         pintaLista(colaAhora);
       });
       th.appendChild(b);
@@ -1762,10 +1827,11 @@ tr[data-guardando="1"] { opacity: .55; }
       if (quietud) fr.style.animation = 'none';
       else fr.style.animationDelay = Math.min(fi, 12) * 18 + 'ms';
       if (!LECTURA) fr.appendChild(celdaEstado(c));
-      cols.forEach(function (col, i) {
+      cols.forEach(function (col) {
+        if (col.cel) { fr.appendChild(col.cel(c)); return; }
         var td = document.createElement('td');
         if (col.num) td.className = 'n';
-        if (i === 6) {
+        if (col.dias) {
           var punto = document.createElement('span');
           punto.className = 'punto';
           punto.style.background = (!c.cerrado && diasDeCaso(c) > 90) ? css('--tarde') : css('--s1');
@@ -1807,23 +1873,39 @@ tr[data-guardando="1"] { opacity: .55; }
     cifraPrevia = destino;
   }
 
-  function pintaResumen(datos, abiertos) {
-    var esperas = abiertos.map(function (c) { return c.espera; });
-    var p50 = percentil(esperas, 0.5), viejo = esperas.length ? Math.max.apply(null, esperas) : 0;
-    var sobre90 = abiertos.filter(function (c) { return c.espera > 90; }).length;
-    var cerrados = datos.filter(function (c) { return c.cerrado; }).length;
+  function pintaResumen(datos, abiertos, cerrados, modoCierre) {
+    // Con el filtro en Cerrados no queda ningún caso abierto que contar, y la
+    // portada marcaba 0 con los cuatro datos en «—». Cuando eso pasa, la
+    // misma portada pasa a contar los cierres del tramo filtrado.
+    var lista = modoCierre ? cerrados : abiertos;
+    var campo = modoCierre ? 'resol' : 'espera';
+    var v = lista.map(function (c) { return c[campo]; });
+    var p50 = percentil(v, 0.5), extremo = v.length ? Math.max.apply(null, v) : 0;
+    var sobre90 = lista.filter(function (c) { return c[campo] > 90; }).length;
+    var pronto = lista.filter(function (c) { return c[campo] <= 30; }).length;
+    var nCerrados = datos.filter(function (c) { return c.cerrado; }).length;
 
-    animaCifra(abiertos.length);
-    q('#cifra-pie').textContent = abiertos.length === 1 ? 'caso abierto al ' + fechaCorta(HOY) : 'casos abiertos al ' + fechaCorta(HOY);
+    animaCifra(lista.length);
+    q('#cifra-pie').textContent = modoCierre
+      ? (lista.length === 1 ? 'caso cerrado en este filtro' : 'casos cerrados en este filtro')
+      : (lista.length === 1 ? 'caso abierto al ' : 'casos abiertos al ') + fechaCorta(HOY);
+    q('#p-cola').textContent = modoCierre
+      ? '¿Cuánto tardó en cerrarse cada caso?'
+      : '¿Cuánto lleva esperando cada caso abierto?';
 
     var caja = q('#datos-clave');
     while (caja.firstChild) caja.removeChild(caja.firstChild);
-    [
-      { et: 'Mediana de espera', val: abiertos.length ? fmt(p50) + ' días' : '—' },
+    (modoCierre ? [
+      { et: 'Mediana de cierre', val: lista.length ? fmt(p50) + ' días' : '—' },
+      { et: 'Tardaron más de 90 días', val: fmt(sobre90) + (sobre90 === 1 ? ' caso' : ' casos'), riesgo: sobre90 > 0 },
+      { et: 'El más lento', val: lista.length ? fmt(extremo) + ' días' : '—' },
+      { et: 'Cerrados en 30 días', val: lista.length ? pct(pronto / lista.length) : '—' }
+    ] : [
+      { et: 'Mediana de espera', val: lista.length ? fmt(p50) + ' días' : '—' },
       { et: 'Sobre 90 días', val: fmt(sobre90) + (sobre90 === 1 ? ' caso' : ' casos'), riesgo: sobre90 > 0 },
-      { et: 'El más antiguo', val: abiertos.length ? fmt(viejo) + ' días' : '—' },
-      { et: 'Cerrados del total', val: datos.length ? pct(cerrados / datos.length) : '—' }
-    ].forEach(function (d) {
+      { et: 'El más antiguo', val: lista.length ? fmt(extremo) + ' días' : '—' },
+      { et: 'Cerrados del total', val: datos.length ? pct(nCerrados / datos.length) : '—' }
+    ]).forEach(function (d) {
       var fila = document.createElement('div');
       fila.className = 'dato';
       var a = document.createElement('span');
@@ -1837,9 +1919,13 @@ tr[data-guardando="1"] { opacity: .55; }
       caja.appendChild(fila);
     });
 
-    if (abiertos.length) {
-      escribe('h-cola', ['Quedan ', { b: fmt(abiertos.length) + ' casos' }, ' esperando respuesta. La mitad lleva más de ',
-        { b: fmt(p50) + ' días' }, ', ', { b: fmt(sobre90) }, ' ya pasaron los 90 y el más antiguo suma ', { b: fmt(viejo) + ' días' }, '.']);
+    if (modoCierre && lista.length) {
+      escribe('h-cola', ['Se cerraron ', { b: fmt(lista.length) + ' casos' }, '. La mitad tomó menos de ',
+        { b: fmt(p50) + ' días' }, ', ', { b: fmt(sobre90) }, ' pasaron de los 90 y el más lento tardó ',
+        { b: fmt(extremo) + ' días' }, '. No queda ninguno abierto en este filtro.']);
+    } else if (lista.length) {
+      escribe('h-cola', ['Quedan ', { b: fmt(lista.length) + ' casos' }, ' esperando respuesta. La mitad lleva más de ',
+        { b: fmt(p50) + ' días' }, ', ', { b: fmt(sobre90) }, ' ya pasaron los 90 y el más antiguo suma ', { b: fmt(extremo) + ' días' }, '.']);
     } else {
       escribe('h-cola', ['No hay casos abiertos con este filtro.']);
     }
@@ -2743,6 +2829,10 @@ tr[data-guardando="1"] { opacity: .55; }
   function render() {
     var datos = filtrar();
     var abiertos = datos.filter(function (c) { return !c.cerrado && c.espera !== null; });
+    var cerrados = datos.filter(function (c) { return c.cerrado && c.resol !== null; });
+    // Filtrar por Cerrados dejaba la portada en cero: si no quedó nada abierto
+    // pero sí casos cerrados, la portada y la tira hablan de cierres.
+    var modoCierre = !abiertos.length && cerrados.length > 0;
     var activos = F.anio.length + F.estado.length + F.tipo.length + F.sub.length +
       F.causa.length + F.req.length + (F.texto ? 1 : 0);
     q('#btn-limpiar').hidden = !activos;
@@ -2753,15 +2843,15 @@ tr[data-guardando="1"] { opacity: .55; }
     estadoVacio(datos.length === 0);
     if (!datos.length) return;
 
-    pintaResumen(datos, abiertos);
-    pintaCola(abiertos);
+    pintaResumen(datos, abiertos, cerrados, modoCierre);
+    pintaCola(modoCierre ? cerrados : abiertos, modoCierre);
     pintaFlujo(datos);
     hallazgoFlujo(datos);
     pintaClientes(datos);
     pintaCausas(datos);
     hallazgoDonde(datos);
     pintaVelocidad(datos.filter(function (c) { return c.resol !== null; }));
-    pintaDuenos(abiertos);
+    pintaDuenos(modoCierre ? cerrados : abiertos, modoCierre);
     hallazgoTiempo(datos, abiertos);
 
     pintaAnalisis(datos);

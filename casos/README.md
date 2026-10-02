@@ -69,11 +69,19 @@ hoja BD en el momento, no guarda copia de nada y responde cinco preguntas:
 
 | Pregunta | Cómo la responde |
 | :-- | :-- |
-| ¿Cuánto lleva esperando cada caso abierto? | Una marca por caso sobre el eje de días, con la línea de los 90 y el más antiguo rotulado |
+| ¿Cuánto lleva esperando cada caso abierto? | Una marca por caso sobre el eje de días, con la línea de los 90 y el más antiguo rotulado. Al pasar el cursor por una columna, cada caso de esa columna se nombra con su número |
 | ¿Entran más de los que cerramos? | Aperturas y cierres por mes, y la cola pendiente al cierre de cada mes |
 | ¿Dónde se concentran? | Clientes ordenados por reclamos, con el peso de los 5 primeros |
 | ¿Por qué reclaman? | Subcategoría y causa comercial, con el error de precio destacado |
-| ¿Cuánto tardamos y quién los tiene? | Mediana y p90 de días hasta el cierre, y los abiertos por responsable |
+| ¿Cuánto tardamos y quién los tiene? | Mediana y p90 de días hasta el cierre, y los abiertos por propietario |
+
+**Si el filtro deja solo casos cerrados** —Estado › *Cerrados*, por ejemplo— la
+portada deja de contar esperas, que serían cero, y cuenta cierres: la cifra
+grande son los casos cerrados del tramo, los cuatro datos pasan a mediana de
+cierre, cuántos tardaron más de 90 días, el más lento y qué parte se cerró
+dentro de 30, y la tira pone cada marca en los días que tardó en cerrarse. El
+panel de propietarios hace lo mismo. Mientras quede algún caso abierto, la
+portada habla de la espera, como siempre.
 
 Y una sección de **análisis a fondo** con tres pestañas, doce gráficos más:
 
@@ -116,10 +124,14 @@ Tiene su propia barra, independiente de los filtros de arriba:
 
 - Un **desplegable** para elegir qué lista: *Abiertos*, *Cerrados* o *Todos*.
 - Un **buscador propio** que mira dentro de la tabla —número, cliente,
-  responsable, situación, tipo, subcategoría, causa y asunto— para llegar a
+  propietario, situación, tipo, subcategoría, causa y asunto— para llegar a
   cualquier caso de los 391 sin tocar los filtros del tablero.
+- Las columnas **Propietario** y **Asunto**, que vienen de la hoja. El asunto
+  es el campo más largo de la planilla: se muestra recortado para no romper la
+  línea de la tabla y se abre entero con **ver más**. Al copiar siempre va
+  completo, aunque en pantalla esté recortado.
 - La columna **Días** dice días esperando si el caso está abierto, y días hasta
-  el cierre si ya cerró.
+  el cierre si ya cerró; es la que ordena la tabla al llegar.
 - Un botón **Copiar** que se lleva al portapapeles **todas** las filas filtradas
   —no solo las ocho a la vista— con encabezados y separadas por tabuladores, que
   es lo que Sheets y Excel entienden como columnas al pegar. El botón dice
