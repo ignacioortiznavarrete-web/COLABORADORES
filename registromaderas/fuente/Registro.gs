@@ -120,6 +120,24 @@ function armarCodigo_(agrupacion, espesor, ancho, largo) {
 }
 
 /**
+ * Si ese carácter 4 es de una especie que se compra hecha a terceros.
+ *
+ * Se pregunta por la lista y no por un valor suelto porque son varias —H, D—
+ * y van a crecer: así agregar una es tocar TRADING.ESPECIES y nada más.
+ */
+function esEspecieTrading_(caracter) {
+  return TRADING.ESPECIES.indexOf(caracter) !== -1;
+}
+
+/** Las especies de Trading con su glosa, como las dice la nomenclatura. */
+function glosaDeEspeciesTrading_() {
+  var especie = NOMENCLATURA.filter(function (n) { return n.posicion === 4; })[0];
+  return TRADING.ESPECIES.map(function (e) {
+    return (especie && especie.valores[e]) || e;
+  }).join(', ');
+}
+
+/**
  * Qué Rutas abre una solicitud.
  *
  * La diferencia de fondo es qué ES el código: un producto terminado se pide
@@ -140,11 +158,11 @@ function etapasAplicables_(agrupacion, esProceso) {
   var p = prefijo_(agrupacion);
   var nada = { aserradero: false, secado: false, cepillado: false };
 
-  // La especie manda sobre todo lo demás: con H el material se compra hecho a
-  // terceros, y lo que no se fabrica no tiene ruta que declarar. También
+  // La especie manda sobre todo lo demás: con H o D el material se compra hecho
+  // a terceros, y lo que no se fabrica no tiene ruta que declarar. También
   // cuando es cepillado —un C24H se compra cepillado— : lleva piezas y nada
   // más. Por eso esta pregunta va antes que la del cepillado y no después.
-  if (p.charAt(3) === TRADING.ESPECIE) return nada;
+  if (esEspecieTrading_(p.charAt(3))) return nada;
 
   if (p.charAt(0) === 'C') {
     return { aserradero: true, secado: true, cepillado: true };
@@ -349,10 +367,22 @@ function validar_(datos) {
 
   // Trading compra a terceros: eso va escrito en la especie del código.
   if (normalizar_(origen.id) === normalizar_(TRADING.ORIGEN) &&
-      prefijo_(agrupacion).charAt(3) !== TRADING.ESPECIE) {
-    throw new Error('En Trading la especie del código tiene que ser ' + TRADING.ESPECIE +
-      ' (Radiata Terceros), y ' + agrupacion + ' termina en "' +
+      !esEspecieTrading_(prefijo_(agrupacion).charAt(3))) {
+    throw new Error('En Trading la especie del código tiene que ser ' +
+      TRADING.ESPECIES.join(' o ') + ' (' + glosaDeEspeciesTrading_() + '), y ' +
+      agrupacion + ' termina en "' +
       prefijo_(agrupacion).charAt(3).replace(' ', '␣') + '".');
+  }
+
+  // Y al revés: lo que es de Trading va a la hoja TD, no a la de lo que se
+  // fabrica. La clase la trae la pantalla, y la pantalla puede ser una versión
+  // vieja —el web app sirve el último despliegue, no lo que está en el
+  // editor—, así que se revisa acá antes de escribir una compra donde no va.
+  if (esEspecieTrading_(prefijo_(agrupacion).charAt(3)) &&
+      clase.id !== DEDUCCION.CLASE_TRADING) {
+    throw new Error('La especie "' + prefijo_(agrupacion).charAt(3) + '" de ' + agrupacion +
+      ' es de Trading, así que su Clase Requerimiento tiene que ser ' +
+      DEDUCCION.CLASE_TRADING + ', no ' + clase.id + '. Vuelve a cargar la página.');
   }
 
   var codigo = armarCodigo_(agrupacion, espesor, ancho, largo);
@@ -881,7 +911,7 @@ function apiContexto() {
     exigeCodigoNuevo: MEDIDAS.EXIGIR_NUEVO,
     rutaObligatoria: RUTAS.OBLIGATORIA,
     clasesConRutaEnBD: RUTAS.DEBE_EXISTIR_EN.slice(),
-    trading: { origen: TRADING.ORIGEN, especie: TRADING.ESPECIE },
+    trading: { origen: TRADING.ORIGEN, especies: TRADING.ESPECIES.slice() },
     usuario: correo,
     identificado: !!correo,
     exigeIdentidad: AUDITORIA.EXIGIR_IDENTIDAD,

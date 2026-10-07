@@ -3,7 +3,7 @@
  *
  * La pantalla web solo registra: deja la fila en la hoja de su clase y en la
  * bitácora. El Excel se baja desde acá, con las filas que estén seleccionadas
- * en PT, PCP o PP, que es donde se ve lo que ya quedó registrado y se puede
+ * en PT, TD o PP, que es donde se ve lo que ya quedó registrado y se puede
  * elegir con el mouse lo que va en cada carga a SAP.
  *
  * Se bajan tal como están escritas en la hoja —no se vuelven a calcular—, así

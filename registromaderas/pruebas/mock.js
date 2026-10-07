@@ -20,7 +20,16 @@ class Sheet {
     return row;
   }
   getName() { return this.name; }
-  setName(n) { this.name = n; return this; }
+  setName(n) {
+    // Renombrar mueve la hoja de llave en el libro: si no, getSheetByName
+    // seguiria encontrandola por el nombre viejo y no por el nuevo.
+    if (this.__libro) {
+      delete this.__libro.sheets[this.name];
+      this.__libro.sheets[n] = this;
+    }
+    this.name = n;
+    return this;
+  }
   getMaxRows() { return MAX_ROWS; }
   getLastRow() {
     let last = 0;
@@ -40,6 +49,25 @@ class Sheet {
       }
     });
     return last;
+  }
+  /**
+   * Borra filas de verdad: las de abajo suben. Es lo que hace que crear una
+   * hoja copiando otra se pueda probar, en vez de confiar en que sirve.
+   */
+  deleteRows(desde, cuantas) {
+    this.data.splice(desde - 1, cuantas === undefined ? 1 : cuantas);
+    return this;
+  }
+  /**
+   * Copia la hoja al libro, como `Sheet.copyTo`: una hoja nueva con los mismos
+   * datos y formatos, al final y con el nombre que le pone Apps Script.
+   */
+  copyTo(libro) {
+    var copia = libro.insertSheet('Copia de ' + this.name);
+    copia.data = this.data.map(function (f) { return f.slice(); });
+    copia.formatos = Object.assign({}, this.formatos);
+    copia.validaciones = Object.assign({}, this.validaciones);
+    return copia;
   }
   setFrozenRows() { return this; }
   setRowHeight() { return this; }
@@ -154,7 +182,15 @@ class Spreadsheet {
       this.__activa.getRange(fila, 1, filas, 1));
   }
   getActiveSheet() { return this.__activa; }
-  insertSheet(n) { this.sheets[n] = new Sheet(n); return this.sheets[n]; }
+  insertSheet(n) {
+    // Apps Script no deja dos hojas con el mismo nombre: le agrega un numero.
+    var nombre = n;
+    for (var i = 1; this.sheets[nombre]; i++) nombre = n + ' ' + i;
+    var hoja = new Sheet(nombre);
+    hoja.__libro = this;
+    this.sheets[nombre] = hoja;
+    return hoja;
+  }
   deleteSheet(hoja) {
     const nombre = (hoja && hoja.getName) ? hoja.getName() : hoja;
     delete this.sheets[nombre];

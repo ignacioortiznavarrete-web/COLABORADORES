@@ -1,10 +1,13 @@
 /**
  * Preparación del spreadsheet y menú.
  *
- * `instalarRegistro` se ejecuta UNA vez desde el editor de Apps Script:
- * revisa que estén BD_Maderas, PT, PCP y PP con sus columnas donde se esperan,
- * y deja listas las tres bitácoras: Registro, Registro Detalle y Registro
- * Estados. No crea ninguna hoja más.
+ * `instalarRegistro` se ejecuta desde el menú o desde el editor: revisa que
+ * estén BD_Maderas, PT, TD y PP con sus columnas donde se esperan —y crea la
+ * que falte, copiando los rótulos de otra— y deja listas las tres bitácoras:
+ * Registro, Registro Detalle y Registro Estados.
+ *
+ * `BD_Maderas` no se crea: esa no es de este formulario, y una vacía sin
+ * códigos haría que todo lo que se pegue parezca no existir.
  */
 
 function onOpen() {
@@ -34,8 +37,22 @@ function instalarRegistro() {
     problemas.push('Falta la hoja "' + CFG.HOJA_BD + '" (la base de códigos).');
   }
 
+  // Una clase nueva llega sin su hoja. Los rótulos del batch input son
+  // veintiséis columnas con "Tamaño dimensión", "EE" y "AA" repetidos tres
+  // veces: escribirlos a mano es equivocarse en uno, y el error no se ve hasta
+  // que SAP rechaza la carga. Así que se copia una hoja que ya esté.
+  var modelo = null;
+  CLASES.forEach(function (clase) {
+    if (!modelo) modelo = libro.getSheetByName(clase.hoja);
+  });
+
   CLASES.forEach(function (clase) {
     var hoja = libro.getSheetByName(clase.hoja);
+    if (!hoja && modelo) {
+      hoja = crearHojaDeClase_(libro, clase.hoja, modelo);
+      hechos.push('Se creó la hoja "' + clase.hoja + '" (' + clase.titulo + '), con los ' +
+        'rótulos de "' + modelo.getName() + '" y ninguna de sus filas.');
+    }
     if (!hoja) {
       problemas.push('Falta la hoja "' + clase.hoja + '" (' + clase.titulo + ').');
       return;
@@ -89,6 +106,23 @@ function instalarRegistro() {
 
   avisar_('Preparar hojas', resumen);
   return resumen;
+}
+
+/**
+ * Crea la hoja de una clase a partir de otra que ya exista.
+ *
+ * Se copia la hoja completa y después se le borran las filas de datos. Copiar
+ * y vaciar, en vez de escribir los rótulos, se lleva también los anchos de
+ * columna, los formatos de texto que salvan los ceros a la izquierda y lo que
+ * tenga la fila de numeración: nada de eso está en el código.
+ */
+function crearHojaDeClase_(libro, nombre, modelo) {
+  var hoja = modelo.copyTo(libro).setName(nombre);
+  var conDatos = hoja.getLastRow();
+  if (conDatos > CFG.FILA_ENCABEZADOS) {
+    hoja.deleteRows(CFG.FILA_ENCABEZADOS + 1, conDatos - CFG.FILA_ENCABEZADOS);
+  }
+  return hoja;
 }
 
 /**

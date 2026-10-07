@@ -20,8 +20,9 @@
  *
  * LAS CONDICIONALES
  * -----------------
- * · El carácter 4 decide TODO lo de arriba: si es H el material se compra a
- *   terceros, así que es Trading, entra por TCD2 y no lleva Ruta.
+ * · El carácter 4 decide TODO lo de arriba: si es H o D el material se compra
+ *   a terceros, así que es Trading, va a la hoja TD, entra por TCD2 y no
+ *   lleva Ruta.
  * · El carácter 1 decide si hay etapa de CEPILLADO (solo si es C).
  * · El carácter 2 decide si hay etapa de SECADO (no la hay si es V, verde).
  * · La etapa de ASERRADERO va siempre, salvo en Trading.
@@ -29,7 +30,7 @@
  *
  * LO QUE SE ESCRIBE
  * -----------------
- * Una fila completa de batch input en la hoja de la clase (PT, PCP o PP) y una
+ * Una fila completa de batch input en la hoja de la clase (PT, TD o PP) y una
  * línea en la bitácora Registro.
  */
 
@@ -44,7 +45,7 @@ const CFG = {
   /** Una fila por cambio de estado: por dónde pasó cada solicitud y cuándo. */
   HOJA_ESTADOS: 'Registro Estados',
 
-  /** En PT/PCP/PP la fila 1 es la numeración y la fila 2 son los rótulos. */
+  /** En PT/TD/PP la fila 1 es la numeración y la fila 2 son los rótulos. */
   FILA_ENCABEZADOS: 2,
   PRIMERA_FILA_DATOS: 3,
 
@@ -59,10 +60,10 @@ const CFG = {
   MAX_LARGOS: 24
 };
 
-/** Las tres clases de requerimiento y la hoja donde cae cada una. */
+/** Las clases de requerimiento y la hoja donde cae cada una. */
 const CLASES = [
   { id: 'PT', hoja: 'PT', titulo: 'Producto Terminado', descripcion: 'Listo para despacho.' },
-  { id: 'PCP', hoja: 'PCP', titulo: 'Producto Cepillado Proceso', descripcion: 'Cepillado que sigue en proceso.' },
+  { id: 'TD', hoja: 'TD', titulo: 'Trading', descripcion: 'Comprado hecho a terceros.' },
   { id: 'PP', hoja: 'PP', titulo: 'Producto de Proceso', descripcion: 'Material en proceso.' },
   { id: 'PE', hoja: 'PE', titulo: 'Producto Especial', descripcion: 'Fuera de la nomenclatura corriente.' }
 ];
@@ -86,7 +87,7 @@ const MENSAJES = {
    * sirve: ese material no se va a crear, así que no hay qué completar.
    */
   YA_REGISTRADO: 'Ya está registrado en la base de datos',
-  MEZCLA_DE_ORIGEN: 'En una misma solicitud no se puede mezclar Trading (especie H) con planta. ' +
+  MEZCLA_DE_ORIGEN: 'En una misma solicitud no se puede mezclar Trading (especie H o D) con planta. ' +
     'Deja uno solo y pide el otro en otra solicitud.'
 };
 
@@ -110,8 +111,6 @@ const TIPOS_SOLICITUD = [
   },
   {
     id: 'PP', titulo: 'Producto de Proceso', exigeLargo: false, clase: 'PP',
-    // Un código de proceso que empieza con C es cepillado, y va a su propia hoja.
-    claseCepillado: 'PCP',
     umb: 'M3', esProceso: true,
     descripcion: 'Sin largo: es una etapa de la cadena. Va en m3.',
     ejemplos: ['RVM 032X180', 'RSF 037X130', 'CSF 019X100']
@@ -173,8 +172,8 @@ const POR_DEFECTO = {
  */
 const UNIDAD_POR_CLASE = {
   PT: 'PZA',
+  TD: 'PZA',
   PP: 'M3',
-  PCP: 'M3',
   PE: 'M3'
 };
 
@@ -202,7 +201,7 @@ const RUTAS = {
   /** Hay que indicar una ruta en cada etapa que aplique. */
   OBLIGATORIA: true,
   /** Clases donde además tiene que existir en BD_Maderas. */
-  DEBE_EXISTIR_EN: ['PP', 'PCP'],
+  DEBE_EXISTIR_EN: ['PP'],
   /** A qué etapa pertenece cada ruta, por sus dos primeros caracteres. */
   FAMILIAS: { aserradero: ['RV'], secado: ['RS'], cepillado: ['C'] },
   /** Tope de rutas que se ofrecen por escuadría. */
@@ -215,24 +214,29 @@ const RUTAS = {
  */
 const TRADING = {
   ORIGEN: 'Trading',
-  ESPECIE: 'H',
+  /**
+   * Las especies que se compran hechas a terceros, en el carácter 4 del
+   * prefijo. Agregar una es agregarla acá: de esta lista salen la hoja a la
+   * que va la fila, el centro, el origen y qué rutas se piden.
+   */
+  ESPECIES: ['H', 'D'],
   CENTRO: 'TCD2'
 };
 
 /**
  * Lo que el código dice por sí solo, sin preguntar nada:
  *
- *   RVMH032X180X3960   especie H  -> Trading, centro TCD2, y sin Ruta
- *                      con largo  -> producto terminado, PT
- *   RVM 032X180        3 letras y sin largo -> producto de proceso, PP
- *   CSF 019X075        3 letras, empieza en C -> cepillado en proceso, PCP
+ *   RVMH032X180X3960   especie H o D -> Trading: hoja TD, centro TCD2, sin Ruta
+ *   RSFR037X130X3200   con largo     -> producto terminado, PT
+ *   RVM 032X180        3 letras y sin largo   -> producto de proceso, PP
+ *   CSF 019X075        empieza en C y sin largo -> cepillado, y también va a PP
  *
  * Solo queda por escribir lo que no está en el código: las Rutas.
  */
 const DEDUCCION = {
   CENTRO_PLANTA: 'TCP1',
   CLASE_CON_LARGO: 'PT',
-  CLASE_PROCESO_CEPILLADO: 'PCP',
+  CLASE_TRADING: 'TD',
   CLASE_PROCESO: 'PP',
   ORIGEN_SIN_TERCEROS: 'Planta'
 };
@@ -263,7 +267,7 @@ const BD = {
 };
 
 /**
- * Cómo se llena la fila de PT/PCP/PP.
+ * Cómo se llena la fila de PT/TD/PP.
  *
  * Va por NÚMERO de columna y no por nombre a propósito: en esas hojas los
  * rótulos "Tamaño dimensión", "EE" y "AA" se repiten tres veces (una por

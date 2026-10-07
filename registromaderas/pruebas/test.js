@@ -39,7 +39,7 @@ function error(fn) {
 
 /* ------------------------------------------------- el spreadsheet de verdad */
 
-// Fila 1 = numeración, fila 2 = rótulos: igual que PT, PCP y PP hoy.
+// Fila 1 = numeración, fila 2 = rótulos: igual que PT, TD y PP hoy.
 const FILA1 = ['1', '2', 'condicionante', '4', 'registro automatico de ingreso', 'solicitante',
   '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22',
   '23', '24', '25', '26', '27', '28', 'Rendimiento Secado', 'Rendimiento Cepillado',
@@ -76,7 +76,7 @@ function crearHojasReales() {
   bd.getRange(1, 1, 1, 5).setValues([['Material', 'Grupo art.', 'TpMt', 'Texto breve de material', 'Ce']]);
   bd.getRange(2, 1, MATERIALES.length, 5).setValues(MATERIALES);
 
-  ['PT', 'PCP', 'PP', 'PE'].forEach(nombre => {
+  ['PT', 'TD', 'PP', 'PE'].forEach(nombre => {
     const hoja = SS.insertSheet(nombre);
     hoja.getRange(1, 1, 1, FILA1.length).setValues([FILA1]);
     hoja.getRange(2, 1, 1, FILA2.length).setValues([FILA2]);
@@ -85,7 +85,7 @@ function crearHojasReales() {
   SS.insertSheet('Registro');  // existe pero vacía, como en el spreadsheet
 }
 
-/** Valor de una columna de PT/PCP/PP, por su número (los rótulos se repiten). */
+/** Valor de una columna de PT/TD/PP, por su número (los rótulos se repiten). */
 function celda(nombreHoja, fila, columna) {
   return SS.getSheetByName(nombreHoja).getRange(fila, columna).getValue();
 }
@@ -124,9 +124,9 @@ const CEPILLADO = {
   piezas: 60, umb: 'PZA', stockPedido: 'S'
 };
 
-// De Trading: se compra hecha, no lleva ninguna Ruta.
+// De Trading: se compra hecha, no lleva ninguna Ruta, y su hoja es TD.
 const TRADING_LISTA = {
-  clase: 'PT', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
+  clase: 'TD', origen: 'Trading', centro: 'TCD2', tipoMaterial: 'TTAS',
   agrupacion: 'RVMH', espesor: '32', ancho: '180', largo: '3960',
   desglose: {}, piezas: 120, umb: 'PZA', stockPedido: 'P'
 };
@@ -149,14 +149,14 @@ crearHojasReales();
 seccion('Contexto que recibe el formulario');
 {
   const ctx = apiContexto();
-  ok(ctx.clases.map(c => c.id).join() === 'PT,PCP,PP,PE', 'ofrece las cuatro clases');
+  ok(ctx.clases.map(c => c.id).join() === 'PT,TD,PP,PE', 'ofrece las cuatro clases');
   ok(ctx.tipos.map(t => t.id).join() === 'PT,PP,PE',
     'y los tres tipos que se eligen antes de pegar');
   ok(ctx.origenes[0].centros.join() === 'TCP1,TCD2', 'Trading elige entre TCP1 y TCD2');
   ok(ctx.origenes[1].centros.join() === 'TCP1', 'Planta tiene un solo centro: TCP1');
   ok(ctx.exigeCodigoNuevo === true, 'el código que se pide tiene que ser nuevo');
-  ok(ctx.clasesConRutaEnBD.join() === 'PP,PCP', 'en PP y PCP la ruta tiene que existir');
-  ok(ctx.trading.especie === 'H', 'Trading exige especie H');
+  ok(ctx.clasesConRutaEnBD.join() === 'PP', 'en PP la ruta tiene que existir');
+  ok(ctx.trading.especies.join() === 'H,D', 'Trading son las especies H y D');
   ok(ctx.hojaBD === 'BD_Maderas', 'y la única hoja que consulta es BD_Maderas');
   ok(ctx.porDefecto.TIPO_REQUERIMIENTO === 'NO', 'Tipo Requerimiento va en NO, como el ejemplo');
   // Al terminar de registrar se pasa al monitor, que es otro proyecto y por
@@ -271,11 +271,20 @@ seccion('La bitácora de detalle: una fila por código');
 
 seccion('Cada clase a su hoja');
 {
-  const pcp = guardarUna(con({ clase: 'PCP' }));
-  ok(pcp.hoja === 'PCP' && pcp.fila === 3, 'PCP se va a la hoja PCP');
   const pp = guardarUna(con({ clase: 'PP' }));
   ok(pp.hoja === 'PP' && pp.fila === 3, 'PP se va a la hoja PP');
   ok(celda('PP', 3, 3) === 'PP', 'y la clase queda escrita en su fila');
+
+  // Lo comprado hecho a terceros va a TD, y su Clase Requerimiento lo dice.
+  const td = guardarUna(TRADING_LISTA);
+  ok(td.hoja === 'TD' && td.fila === 3, 'Trading se va a la hoja TD');
+  ok(celda('TD', 3, 3) === 'TD', 'y en su columna 3 queda escrito TD');
+
+  // Y no se deja escribir una compra en la hoja de lo que se fabrica, aunque
+  // la pantalla lo mande: ahi es donde una version vieja hace dano.
+  ok(error(() => guardarUna(Object.assign({}, TRADING_LISTA, { clase: 'PT' })))
+    .indexOf('tiene que ser TD') !== -1,
+    'un codigo de Trading con clase PT se rechaza en el servidor');
 }
 
 // Nadie deberia tener que acordarse de los ceros para pegar un codigo: se
@@ -328,7 +337,7 @@ seccion('Los ceros se ponen solos');
      fila[COL_DETALLE.indexOf('Largo')] === '3300', 'y el ancho y el largo, enteros');
 }
 
-seccion('En PT la ruta se avisa; en PP y PCP tiene que existir');
+seccion('En PT la ruta se avisa; en PP tiene que existir');
 {
   const inventada = {
     aserradero: { ruta: 'RVF 999X999' },   // no está en la base
@@ -341,8 +350,6 @@ seccion('En PT la ruta se avisa; en PP y PCP tiene que existir');
 
   ok(error(() => guardarUna(con({ clase: 'PP', desglose: inventada })))
     .indexOf('no existe en BD_Maderas') !== -1, 'en PP no: la ruta tiene que existir');
-  ok(error(() => guardarUna(con({ clase: 'PCP', desglose: inventada })))
-    .indexOf('no existe en BD_Maderas') !== -1, 'en PCP tampoco');
 }
 
 seccion('Trading elige centro, Planta no');
@@ -369,8 +376,8 @@ seccion('Lo que no se puede guardar');
     origen: 'Trading', centro: 'TCP1', tipoMaterial: 'TTAS', agrupacion: 'RSFR',
     espesor: '37', ancho: '130', largo: '3200',
     desglose: { aserradero: { ruta: 'RVFD032X180' }, secado: { ruta: 'RSFD032X180' } }
-  }))).indexOf('la especie del código tiene que ser H') !== -1,
-    'una agrupación sin H pedida desde Trading');
+  }))).indexOf('la especie del código tiene que ser H o D') !== -1,
+    'una agrupación sin H ni D pedida desde Trading');
 
   ok(error(() => guardarUna(con({ agrupacion: 'X X' }))).indexOf('no tiene la forma') !== -1,
     'una agrupación con una forma imposible');
@@ -403,15 +410,16 @@ seccion('Del código se deduce todo lo demás');
   const h = deducir('RVMH032X180X3960');
   ok(h.ok && h.origen === 'Trading' && h.centro === 'TCD2',
     'con especie H es Trading y centro TCD2, sin preguntar nada');
-  ok(h.clase === 'PT', 'y con largo es producto terminado');
+  ok(h.clase === 'TD', 'y su fila va a TD, porque es una compra y no una fabricacion');
   ok(h.esTerceros === true, 'queda marcado como madera de terceros');
 
   const proceso = deducir('RVM 032X180');
   ok(proceso.clase === 'PP', 'tres letras y sin largo: producto de proceso');
   ok(proceso.origen === 'Planta' && proceso.centro === 'TCP1', 'y entra por Planta, en TCP1');
 
-  const cepillado = deducir('CSF 019X100');
-  ok(cepillado.clase === 'PCP', 'si además es cepillado, va a PCP');
+  // El cepillado de proceso ya no tiene hoja propia: entra por PP como el resto.
+  const cepillado = deducir('CSF 019X101');
+  ok(cepillado.clase === 'PP', 'el cepillado de proceso tambien va a PP');
 
   ok(deducir('RSFR037X130X3600').origen === 'Planta',
     'un código de Radiata EERR no es de terceros: Planta');
@@ -440,7 +448,8 @@ seccion('El lote: se pegan códigos y salen sus filas');
   ].join('\n'));
 
   ok(r.filas.length === 4, 'las líneas en blanco se saltan');
-  ok(r.filas[0].codigo === 'RVMH032X180X3960' && r.filas[0].clase === 'PT', 'la primera es PT');
+  ok(r.filas[0].codigo === 'RVMH032X180X3960' && r.filas[0].clase === 'TD',
+    'la primera lleva H, así que su clase es TD');
   ok(r.filas[0].ok, 'y queda lista sola: lleva H, es de Trading y no pide rutas');
 
   // La tanda es de PT: un código de proceso no cabe en ella.
@@ -543,7 +552,8 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
 
   const pt = lote_('RVMH032X180X3960', 'PT');
   ok(pt.tipo === 'PT' && pt.tipoTitulo === 'Producto Terminado', 'el lote dice de qué tipo es');
-  ok(pt.filas[0].clase === 'PT', 'y la clase sale del tipo elegido');
+  ok(lote_('RSFR037X130X3200', 'PT').filas[0].clase === 'PT',
+    'y la clase sale del tipo elegido');
 
   ok(lote_('RVM 032X180', 'PT').filas[0].problemas[0] === MENSAJES.TIPO_QUE_NO_CALZA,
     'en una tanda de terminados, uno sin largo se rechaza');
@@ -570,13 +580,18 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
 
   // En proceso, el que empieza con C va a su propia hoja.
   ok(lote_('RVM 032X180', 'PP').filas[0].clase === 'PP', 'proceso rústico entra como PP');
-  ok(lote_('CSF 019X100', 'PP').filas[0].clase === 'PCP', 'y el cepillado de proceso como PCP');
+  ok(lote_('CSF 019X100', 'PP').filas[0].clase === 'PP',
+    'y el cepillado de proceso tambien como PP, que ya no tiene hoja propia');
 
   // El especial no se deduce de la forma del código: es el tipo que se elige,
   // y su fila del batch input va con los terminados.
-  ok(lote_('RVMH032X180X3960', 'PE').filas[0].clase === 'PT',
+  ok(lote_('RSFR037X130X3200', 'PE').filas[0].clase === 'PT',
     'el especial escribe en PT, porque es un producto terminado');
   ok(lote_('RVM 032X180', 'PE').filas[0].clase === 'PT', 'sin largo, igual');
+  // Salvo que sea una compra: la especie manda tambien acá, porque en SAP una
+  // compra entra por otro lado y no deja de serlo por ser especial.
+  ok(lote_('RVMH032X180X3960', 'PE').filas[0].clase === 'TD',
+    'pero un especial de Trading va a TD, que es por donde entra una compra');
   ok(lote_('RVMH032X180X3960', 'PE').tipo === 'PE',
     'pero la solicitud sigue siendo de tipo PE');
 }
@@ -683,6 +698,60 @@ seccion('Un codigo que ya existe no abre ningun campo');
   ok(!tanda.pideAlgunPak, 'ni la de PAK');
 }
 
+// Lo comprado hecho a terceros entra a SAP como compra y no como fabricacion,
+// asi que su fila del batch input va a otra hoja: TD. Quien lo decide es la
+// especie del codigo, el caracter 4 del prefijo.
+seccion('Trading va a la hoja TD, y lo dice su Clase Requerimiento');
+{
+  const clase = (t, tipo) => lote_(t, tipo).filas[0].clase;
+
+  ok(clase('RVMH032X180X3960') === 'TD', 'especie H: TD');
+  ok(clase('RVMD032X180X3960') === 'TD', 'especie D: TD tambien');
+  ok(clase('C23H019X125X4005') === 'TD', 'un cepillado comprado hecho, igual');
+
+  // Y lo que se fabrica no se mueve de donde estaba.
+  ok(clase('RSFR037X130X3200') === 'PT', 'Radiata EERR se sigue fabricando: PT');
+  ok(clase('RVM 032X180', 'PP') === 'PP', 'y lo de proceso, PP');
+
+  // Las dos especies salen de una lista, no de un valor suelto: agregar una es
+  // tocar esa lista y nada mas.
+  ok(TRADING.ESPECIES.join() === 'H,D', 'las especies de Trading son H y D');
+  ok(esEspecieTrading_('H') && esEspecieTrading_('D'), 'las dos se reconocen');
+  ok(!esEspecieTrading_('R') && !esEspecieTrading_(' '),
+    'y Radiata EERR y lo de proceso no son Trading');
+
+  // La hoja existe y es una clase como las otras.
+  ok(CLASES.filter(c => c.id === 'TD').length === 1, 'TD es una de las clases');
+  ok(clasePorId_('TD').hoja === 'TD', 'y su hoja se llama TD');
+
+  // El origen y el centro no cambian: eso ya lo decidia la especie.
+  const td = lote_('RVMD032X180X3960').filas[0];
+  ok(td.origen === 'Trading' && td.centro === 'TCD2', 'sigue siendo Trading, por TCD2');
+  ok(td.esTerceros === true, 'y marcado como madera de terceros');
+  ok(ETAPAS.every(e => !td.etapas[e.id]), 'no pide ninguna Ruta: se compra hecha');
+  ok(td.pidePak && td.umb === 'PZA', 'y lo unico que se le pide son las piezas');
+}
+
+// El cepillado de proceso tenia su propia hoja, PCP, y ya no: entra por PP
+// como el resto de lo que sigue en proceso.
+seccion('PCP ya no existe: el cepillado de proceso entra por PP');
+{
+  ok(CLASES.every(c => c.id !== 'PCP'), 'PCP no es una clase');
+  ok(error(() => clasePorId_('PCP')).indexOf('desconocida') !== -1,
+    'y pedirla por su nombre se rechaza');
+  ok(TIPOS_SOLICITUD.every(t => !t.claseCepillado),
+    'ningun tipo manda el cepillado a una hoja aparte');
+
+  const cepillado = lote_('CSF 019X101', 'PP').filas[0];
+  ok(cepillado.clase === 'PP', 'un cepillado de proceso es de clase PP');
+  ok(cepillado.umb === 'M3' && !cepillado.pidePak, 'y se sigue midiendo en m3, sin PAK');
+  ok(ETAPAS.every(e => cepillado.etapas[e.id]), 'y sigue abriendo sus tres Rutas');
+
+  // La ruta de un PP tiene que existir en la base, y eso no cambio al mover
+  // el cepillado de hoja: antes lo exigia por PCP y ahora por PP.
+  ok(RUTAS.DEBE_EXISTIR_EN.join() === 'PP', 'en PP la ruta tiene que existir');
+}
+
 // Trading se compra hecho y planta se fabrica: distinto centro, distinto
 // origen y distinto costo. Una solicitud termina en una sola carga.
 seccion('Trading y planta no van en la misma solicitud');
@@ -775,7 +844,7 @@ seccion('Una ruta no puede ser más chica que el producto');
 }
 
 // El Excel ya no se baja desde la pantalla: se baja desde el menú del
-// spreadsheet, con lo que esté seleccionado en PT, PCP o PP.
+// spreadsheet, con lo que esté seleccionado en PT, TD o PP.
 seccion('El Excel sale de las filas seleccionadas en la hoja');
 {
   const a = guardarUna(con({ largo: '3100' }));
@@ -855,13 +924,15 @@ seccion('Guardar el lote completo');
 
   const r = apiGuardarLote(lote.filas);
   ok(r.guardadas === 3 && r.fallidas === 0, 'se guardan las tres');
-  ok(celda('PT', r.resultados[0].fila, 24) === 120, 'la primera lleva su PAK');
-  ok(celda('PT', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
-  ok(celda('PT', r.resultados[0].fila, 7) === '' && celda('PT', r.resultados[0].fila, 11) === '',
+  ok(r.resultados.every(x => x.hoja === 'TD'), 'y las tres van a la hoja TD');
+  ok(celda('TD', r.resultados[0].fila, 3) === 'TD', 'con TD en su Clase Requerimiento');
+  ok(celda('TD', r.resultados[0].fila, 24) === 120, 'la primera lleva su PAK');
+  ok(celda('TD', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
+  ok(celda('TD', r.resultados[0].fila, 7) === '' && celda('TD', r.resultados[0].fila, 11) === '',
     'las rústicas de Trading van sin ninguna ruta');
-  ok(celda('PT', r.resultados[2].fila, 7) === '' && celda('PT', r.resultados[2].fila, 15) === '',
+  ok(celda('TD', r.resultados[2].fila, 7) === '' && celda('TD', r.resultados[2].fila, 15) === '',
     'y la cepillada tampoco: se compró cepillada');
-  ok(celda('PT', r.resultados[2].fila, 24) === 60, 'de ella solo se guardan las piezas');
+  ok(celda('TD', r.resultados[2].fila, 24) === 60, 'de ella solo se guardan las piezas');
 }
 {
   // La misma cepillada, pero de planta: ahí sí van sus tres rutas.
@@ -926,7 +997,7 @@ seccion('Una fila por solicitud, y el detalle aparte');
   const filaDetalle = SS.getSheetByName('Registro Detalle').getLastRow();
   ok(detalle(filaDetalle, 'N° Solicitud') === r.solicitud,
     'cada línea del detalle apunta a su solicitud');
-  ok(detalle(filaDetalle, 'Hoja Destino') === 'PT' &&
+  ok(detalle(filaDetalle, 'Hoja Destino') === 'TD' &&
      detalle(filaDetalle, 'Fila Destino') === r.resultados[2].fila,
     'y dice en qué fila del batch input quedó');
   // Lo que salió de Registro no se pierde: baja al detalle.
@@ -1083,7 +1154,7 @@ seccion('Tramos: de la solicitud a sus filas');
   ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }]) === 'PT 3', 'una sola va sola');
   ok(tramosDeDestino_([{ hoja: 'PT', fila: 3 }, { hoja: 'PT', fila: 7 }]) === 'PT 3, 7',
     'y con un hueco, los dos tramos');
-  ok(tramosDeDestino_([{ hoja: 'PP', fila: 3 }, { hoja: 'PCP', fila: 3 }]) === 'PP 3; PCP 3',
+  ok(tramosDeDestino_([{ hoja: 'PP', fila: 3 }, { hoja: 'TD', fila: 3 }]) === 'PP 3; TD 3',
     'una tanda que toca dos hojas las nombra a las dos');
 }
 
@@ -1250,6 +1321,38 @@ seccion('instalarRegistro deja la bitácora lista');
   const resumen = instalarRegistro();
   ok(resumen.indexOf('Registro') !== -1, 'deja la hoja Registro en orden');
   ok(!SS.getSheetByName('SAP'), 'y no inventa ninguna hoja de catálogo');
+}
+
+// Una clase nueva llega sin su hoja, y sus veintiseis rotulos no se escriben a
+// mano sin equivocarse en uno: se copia una hoja que ya este y se le vacian
+// los datos. Esto es lo que trajo TD al spreadsheet.
+seccion('La hoja de una clase que falta se crea copiando otra');
+{
+  const pt = SS.getSheetByName('PT');
+  const filasDePt = pt.getLastRow();
+  ok(filasDePt > CFG.FILA_ENCABEZADOS, 'PT tiene rotulos y filas cargadas: ' + filasDePt);
+
+  SS.deleteSheet(SS.getSheetByName('TD'));
+  ok(!SS.getSheetByName('TD'), 'se borra TD para probarlo');
+
+  const resumen = instalarRegistro();
+  const td = SS.getSheetByName('TD');
+  ok(!!td, 'instalarRegistro la vuelve a crear');
+  ok(td.getName() === 'TD', 'con su nombre, no "Copia de PT"');
+  ok(resumen.indexOf('Se cre\u00f3 la hoja "TD"') !== -1, 'y lo dice en el resumen');
+
+  // Los rotulos son los de PT, columna por columna: eso es lo que no se puede
+  // escribir a mano. Y ni una fila de datos de PT.
+  ok(td.getLastRow() === CFG.FILA_ENCABEZADOS, 'queda con los rotulos y nada mas');
+  ok(MAPEO_DESTINO.every(m =>
+       normalizar_(td.getRange(CFG.FILA_ENCABEZADOS, m.col).getValue()) ===
+       normalizar_(m.encabezado)),
+    'y los veintiseis rotulos quedan donde el codigo los espera');
+  // Y recien creada recibe su primera fila en la 3, debajo de los rotulos.
+  const r = apiGuardarLote(lote_('RVMH032X180X4800').filas, '');
+  ok(r.guardadas === 1 && r.resultados[0].hoja === 'TD' &&
+     r.resultados[0].fila === CFG.FILA_ENCABEZADOS + 1,
+    'y la primera fila de Trading entra justo debajo de los rotulos');
 }
 
 // El caso real: la columna Correo se agregó cuando la hoja ya tenía datos, y

@@ -1,4 +1,4 @@
-# registromaderas — Registro de requerimientos (PT · PCP · PP)
+# registromaderas — Registro de requerimientos (PT · TD · PP)
 
 Apps Script sobre el spreadsheet **Maderas**
 (`15THGajqCDH0YuBaoEUt9uLM8s-6iKsUf9_-vY8bABmE`).
@@ -15,7 +15,7 @@ prefijo  espesor ancho  largo
 
 La pantalla web solo **registra**. El batch input no tiene interfaz: vive en el
 spreadsheet, y se baja como Excel desde su menú con las filas que dejes
-seleccionadas en PT, PCP o PP.
+seleccionadas en PT, TD o PP.
 
 ---
 
@@ -63,13 +63,12 @@ Nada de esto se pregunta:
 
 | En el código | Se deduce |
 |---|---|
-| Especie `H` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2** |
+| Especie `H` o `D` (4º carácter) | Es madera de terceros: **Trading**, centro **TCD2**, y su fila va a **TD** |
 | Cualquier otra especie | **Planta**, centro **TCP1** |
-| Especie `H` | Se compra hecha: **sin ninguna** Ruta, solo piezas |
-| Empieza en `C` y **no** es `H` | Cepillado de planta: pide **las tres** Rutas |
+| Especie `H` o `D` | Se compra hecha: **sin ninguna** Ruta, solo piezas |
+| Empieza en `C` y no es Trading | Cepillado de planta: pide **las tres** Rutas |
 | Lleva largo (16 caracteres) | Producto terminado: **PT** |
-| Tres letras y sin largo | Producto de proceso: **PP** |
-| Tres letras, sin largo y empieza en `C` | Cepillado en proceso: **PCP** |
+| Sin largo | Producto de proceso: **PP**, también si empieza con `C` |
 
 La clase queda editable en la tabla por si algún caso no calza.
 
@@ -126,7 +125,7 @@ Todo lo que el formulario decide solo sale de tus propias hojas:
 
 | Decisión | De dónde sale |
 |---|---|
-| Si el material es de **Trading** | Carácter 4 = `H`, Radiata Terceros: se compra a terceros |
+| Si el material es de **Trading** | Carácter 4 = `H` (Radiata Terceros) o `D` (Encino Rojo Americano): se compra a terceros, y su fila va a la hoja `TD` |
 | Si lleva **Ruta** | Trading no lleva ninguna, porque se compra hecha. La especie manda sobre todo lo demás |
 | Si hay etapa de **cepillado** | Carácter 1 del prefijo: solo si es `C` y no es Trading, y entonces van las tres |
 | Si hay etapa de **secado** | Carácter 2: no la hay si es `V` (verde) |
@@ -157,9 +156,9 @@ La ruta se escribe como **tres letras, un espacio y la escuadría**: `RVM 019X02
 Así es el 89% de las que hay en la base. Las de cuatro letras (`RVFD032X180`)
 también valen.
 
-La exigencia depende de la clase: en **PP** y **PCP** la ruta tiene que existir
-en `BD_Maderas`; en **PT** se puede indicar cualquiera que se recomiende, y el
-formulario solo avisa si todavía no está.
+La exigencia depende de la clase: en **PP** la ruta tiene que existir en
+`BD_Maderas`; en **PT** se puede indicar cualquiera que se recomiende, y el
+formulario solo avisa si todavía no está. En **TD** no se pide ninguna.
 
 **Y ninguna ruta puede ser más chica que el producto.** Bajando por el proceso
 la madera solo se achica, así que una etapa puede ir sobredimensionada pero
@@ -193,15 +192,18 @@ que no sea del tipo elegido se rechaza y dice por qué.
 
 | Tipo | Qué es | Forma del código | Unidad | Escribe en |
 |---|---|---|---|---|
-| **PT** | Producto Terminado | con largo (16 caracteres) | PZA | `PT` |
-| **PP** | Producto de Proceso | sin largo (11) | m3 | `PP` / `PCP` |
-| **PE** | PE Terminado (m3) | no se revisa | m3 | `PT` |
+| **PT** | Producto Terminado | con largo (16 caracteres) | PZA | `PT`, o `TD` si es Trading |
+| **PP** | Producto de Proceso | sin largo (11) | m3 | `PP` |
+| **PE** | PE Terminado (m3) | no se revisa | m3 | `PT`, o `TD` si es Trading |
 
-En **PP**, el que empieza con `C` es cepillado y va a la hoja `PCP`; el resto a
-`PP`.
+**La especie manda sobre el tipo de la tanda.** Da igual qué tipo se eligió: si
+el carácter 4 es `H` o `D`, el material se compró hecho a terceros y en SAP
+entra como compra, no como fabricación. Su fila va a `TD` y su
+`Clase Requerimiento` dice `TD`. Eso incluye a **PE**: un especial de Trading
+también va a `TD`.
 
-**PE es terminado**, y eso decide dos cosas. Su fila del batch input va a la
-hoja `PT`, con los demás terminados. Y abre la cadena completa, como un PT:
+**PE es terminado**, y eso decide dos cosas. Su fila del batch input va con los
+demás terminados, no a `PP`. Y abre la cadena completa, como un PT:
 
 | Empieza con | Abre |
 |---|---|
@@ -267,7 +269,7 @@ material, no un pedido. Para exigirlo, `MEDIDAS.EXIGIR_PIEZAS = true`.
 
 Se baja desde el spreadsheet, no desde la pantalla web:
 
-1. Abre la hoja de la clase (**PT**, **PCP** o **PP**).
+1. Abre la hoja de la clase (**PT**, **TD** o **PP**).
 2. Selecciona las filas que quieras cargar. Valen las selecciones sueltas con
    `Ctrl` + clic, y seleccionar la hoja entera también sirve: los rótulos de las
    filas 1 y 2 y las filas vacías se descartan solas.
@@ -306,7 +308,7 @@ código llegaría mal a SAP.
 
 ## La fila que se escribe
 
-En la hoja de la clase (`PT`, `PCP` o `PP`), desde la fila 3 porque los rótulos
+En la hoja de la clase (`PT`, `TD` o `PP`), desde la fila 3 porque los rótulos
 están en la fila 2:
 
 | Col | Rótulo | Qué recibe |
@@ -330,7 +332,7 @@ Guardar deja cuatro rastros, cada uno con su oficio:
 
 | Dónde | Cuántas filas | Para qué |
 |---|---|---|
-| `PT` · `PCP` · `PP` · `PE` | una por código | la fila de batch input que va a SAP |
+| `PT` · `TD` · `PP` · `PE` | una por código | la fila de batch input que va a SAP |
 | **`Registro`** | **una por solicitud** | la cabecera: quién, cuándo, cuántos códigos |
 | `Registro Detalle` | una por código | qué código es cada uno, y dónde quedó |
 | `Registro Estados` | una por cambio de estado | por dónde pasó, y cuándo |
@@ -573,7 +575,7 @@ Ahí van declarados los permisos que el script necesita:
 
 | Permiso | Para qué |
 |---|---|
-| `spreadsheets` | Leer `BD_Maderas` y escribir en PT, PCP, PP y `Registro` |
+| `spreadsheets` | Leer `BD_Maderas` y escribir en PT, TD, PP y `Registro` |
 | `drive` | Crear la hoja temporal del Excel y mandarla a la papelera |
 | `script.external_request` | Pedirle a Google la exportación a Excel |
 | `script.container.ui` | El menú y los cuadros de diálogo |
@@ -593,9 +595,15 @@ Google pedirá permisos: *Revisar permisos › elige tu cuenta › Configuració
 avanzada › Ir a (nombre del proyecto) › Permitir*. La pantalla de "app no
 verificada" es normal en scripts propios.
 
-Revisa que estén `BD_Maderas`, `PT`, `PCP`, `PP` y `PE` con sus columnas donde
+Revisa que estén `BD_Maderas`, `PT`, `TD`, `PP` y `PE` con sus columnas donde
 se esperan, y deja `Registro`, `Registro Detalle` y `Registro Estados` con sus
-encabezados. **No crea ninguna hoja más.**
+encabezados.
+
+**La hoja de una clase que falte la crea sola**, copiando una que ya esté y
+vaciándole los datos: así se lleva los veintiséis rótulos en su columna, los
+anchos y los formatos de texto que salvan los ceros a la izquierda. Es como
+entró `TD`. **`BD_Maderas` no se crea**: esa no es de este formulario, y una
+vacía haría que todo lo que se pegue parezca no existir.
 
 Después elige **`revisarPermisos`** y **Ejecutar**. Hace el viaje completo de la
 exportación con una fila de mentira y dice dónde se corta, si se corta. Sirve

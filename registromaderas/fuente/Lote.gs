@@ -3,8 +3,8 @@
  * batch input.
  *
  * Todo lo que el código dice, se deduce y no se pregunta:
- *   · especie H  -> Trading, y su centro es TCD2
- *   · con largo  -> PT · sin largo -> PP, o PCP si el producto es cepillado
+ *   · especie H o D -> Trading: va a la hoja TD, y su centro es TCD2
+ *   · con largo     -> PT · sin largo -> PP
  * Lo único que hay que escribir son las Rutas de las etapas que apliquen.
  */
 
@@ -123,13 +123,16 @@ function deducirDeCodigo_(texto, bd, tipo) {
     return { ok: false, mensaje: MENSAJES.TIPO_QUE_NO_CALZA };
   }
 
-  var esTerceros = prefijo.charAt(3) === TRADING.ESPECIE;
+  var esTerceros = esEspecieTrading_(prefijo.charAt(3));
   var centro = esTerceros ? TRADING.CENTRO : DEDUCCION.CENTRO_PLANTA;
-  var clase = tipo
-    ? ((tipo.claseCepillado && prefijo.charAt(0) === 'C') ? tipo.claseCepillado : tipo.clase)
-    : (partes.largo
-        ? DEDUCCION.CLASE_CON_LARGO
-        : (prefijo.charAt(0) === 'C' ? DEDUCCION.CLASE_PROCESO_CEPILLADO : DEDUCCION.CLASE_PROCESO));
+  // La especie manda sobre el tipo de la tanda: lo comprado hecho a terceros va
+  // a su propia hoja, porque en SAP entra como compra y no como fabricación.
+  // Lo demás sigue al tipo elegido, y sin tipo se deduce del largo.
+  var clase = esTerceros
+    ? DEDUCCION.CLASE_TRADING
+    : (tipo
+        ? tipo.clase
+        : (partes.largo ? DEDUCCION.CLASE_CON_LARGO : DEDUCCION.CLASE_PROCESO));
   var unidad = (tipo && tipo.umb) || unidadDeClase_(clase);
 
   return {
@@ -213,7 +216,7 @@ function leerLinea_(linea, numero, bd, tipo) {
 /** Por qué una etapa no pide ruta. Lo usa la pantalla para explicarlo. */
 function motivoSinEtapa_(fila, etapaId) {
   var p = fila.prefijo || '';
-  if (p.charAt(3) === TRADING.ESPECIE) return 'Trading: se compra hecha, no lleva ruta.';
+  if (esEspecieTrading_(p.charAt(3))) return 'Trading: se compra hecha, no lleva ruta.';
   if (etapaId === 'cepillado') return 'Es rústico, no pasa por cepillado.';
   if (etapaId === 'secado') return 'Es verde, no pasa por secado.';
   return 'No aplica.';
