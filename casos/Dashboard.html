@@ -933,7 +933,7 @@ tr[data-guardando="1"] { opacity: .55; }
             <option value="todos">Todos</option>
           </select>
           <label class="oculto-visual" for="cola-buscar">Buscar en esta tabla</label>
-          <input id="cola-buscar" type="search" placeholder="Buscar caso, cliente, propietario, asunto…" autocomplete="off">
+          <input id="cola-buscar" type="search" placeholder="Buscar caso, cliente, propietario, creador, asunto…" autocomplete="off">
           <button class="boton" type="button" id="btn-copiar">Copiar</button>
           <span class="cola__nota" id="cola-nota"></span>
         </div>
@@ -999,7 +999,7 @@ tr[data-guardando="1"] { opacity: .55; }
       n: c.n || '', cli: c.cli || 'Sin cliente', due: c.due || 'Sin asignar',
       est: c.est || '', ori: c.ori || '', tip: c.tip || 'Sin tipo',
       sub: c.sub || 'Sin subcategoría',
-      req: c.req || '', cau: c.cau || '', asu: c.asu || '',
+      req: c.req || '', cau: c.cau || '', asu: c.asu || '', cre: c.cre || '',
       ap: ap, ci: ci, cerrado: cerrado,
       anio: ap ? String(ap.getFullYear()) : '',
       mes: ap ? clave(ap) : '',
@@ -1735,7 +1735,7 @@ tr[data-guardando="1"] { opacity: .55; }
       if (colaEstado === 'abiertos' && c.cerrado) return false;
       if (colaEstado === 'cerrados' && !c.cerrado) return false;
       if (!t) return true;
-      return (c.n + ' ' + c.cli + ' ' + c.due + ' ' + c.est + ' ' + c.sub + ' ' +
+      return (c.n + ' ' + c.cli + ' ' + c.due + ' ' + c.cre + ' ' + c.est + ' ' + c.sub + ' ' +
         c.cau + ' ' + c.tip + ' ' + c.asu).toLowerCase().indexOf(t) !== -1;
     });
   }
@@ -1750,14 +1750,21 @@ tr[data-guardando="1"] { opacity: .55; }
       { t: 'Caso', v: function (c) { return c.n; } },
       { t: 'Cliente', v: function (c) { return c.cli; } },
       { t: 'Propietario', v: function (c) { return c.due; } },
+      { t: 'Creado por', v: function (c) { return c.cre; }, txt: function (c) { return c.cre || '—'; },
+        sihay: function (c) { return !!c.cre; } },
       { t: 'Situación', v: function (c) { return c.est; } },
       // v devuelve el asunto entero: así se ordena y se copia completo, aunque
       // en pantalla salga recortado.
-      { t: 'Asunto', v: function (c) { return (c.asu || '').trim(); }, cel: celdaAsunto },
+      { t: 'Asunto', v: function (c) { return (c.asu || '').trim(); }, cel: celdaAsunto,
+        sihay: function (c) { return !!(c.asu || '').trim(); } },
       { t: 'Abierto el', v: function (c) { return c.ap ? c.ap.getTime() : 0; }, txt: function (c) { return fechaCorta(c.ap); } },
       { t: 'Cerrado el', v: function (c) { return c.ci ? c.ci.getTime() : 0; }, txt: function (c) { return c.ci ? fechaCorta(c.ci) : '—'; } },
       { t: 'Días', num: true, dias: true, v: diasDeCaso, txt: function (c) { return fmt(diasDeCaso(c)); } }
     ];
+    // Si la hoja no trae esa columna, no se muestra vacía: ocuparía ancho sin
+    // decir nada. Se mira sobre todos los casos, no sobre los filtrados, para
+    // que la tabla no cambie de forma al filtrar.
+    cols = cols.filter(function (c) { return !c.sihay || CASOS.some(c.sihay); });
     if (orden.col < 0 || orden.col >= cols.length) orden.col = cols.length - 1;
     var filas = lista.slice().sort(function (a, b) {
       var va = cols[orden.col].v(a), vb = cols[orden.col].v(b);

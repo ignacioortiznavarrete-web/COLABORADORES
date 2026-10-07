@@ -126,10 +126,15 @@ Tiene su propia barra, independiente de los filtros de arriba:
 - Un **buscador propio** que mira dentro de la tabla —número, cliente,
   propietario, situación, tipo, subcategoría, causa y asunto— para llegar a
   cualquier caso de los 391 sin tocar los filtros del tablero.
-- Las columnas **Propietario** y **Asunto**, que vienen de la hoja. El asunto
-  es el campo más largo de la planilla: se muestra recortado para no romper la
-  línea de la tabla y se abre entero con **ver más**. Al copiar siempre va
-  completo, aunque en pantalla esté recortado.
+- Las columnas **Propietario**, **Creado por** y **Asunto**, que vienen de la
+  hoja. Propietario (columna D) es quien tiene el caso hoy; *Creado por*
+  (columna T) es quien lo registró: son dos personas distintas. El asunto es el
+  campo más largo de la planilla: se muestra recortado para no romper la línea
+  de la tabla y se abre entero con **ver más**. Al copiar siempre va completo,
+  aunque en pantalla esté recortado.
+- *Creado por* y *Asunto* solo aparecen si la hoja trae algo en ellas. Una
+  columna vacía ocuparía ancho sin decir nada. Se decide mirando todos los
+  casos, no los filtrados, para que la tabla no cambie de forma al filtrar.
 - La columna **Días** dice días esperando si el caso está abierto, y días hasta
   el cierre si ya cerró; es la que ordena la tabla al llegar.
 - Un botón **Copiar** que se lleva al portapapeles **todas** las filas filtradas

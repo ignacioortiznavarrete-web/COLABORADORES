@@ -305,6 +305,9 @@ var COLUMNAS_TABLERO = [
   // Columna O: el espejo de la anterior. El tablero las escribe juntas.
   { llave: 'abi', busca: ['abierto'], bool: true },
   { llave: 'due', busca: ['propietario del caso', 'propietario'] },
+  // Quien abrió el caso. Es otra persona que el propietario: el propietario
+  // lo tiene hoy, el creador lo registró.
+  { llave: 'cre', busca: ['creado por'] },
   { llave: 'cli', busca: ['nombre de la cuenta', 'cliente'] },
   { llave: 'est', busca: ['estado'] },
   { llave: 'ori', busca: ['origen del caso', 'origen'] },
