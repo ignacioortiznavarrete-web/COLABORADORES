@@ -188,6 +188,11 @@
   var CAMPOS = { aserradero: 'colAserradero', secado: 'colSecado', cepillado: 'colCepillado' };
   var TIMER = null;
   var ULTIMOS_CODIGOS = [];   // para saber en qué líneas cambió el código
+  // Las cuatro cajas que se pegan al lado del código, y lo que lleva cada
+  // código: la ruta de sus tres etapas y su PAK. Va por código y no por línea,
+  // para que lo pegado lo siga si la línea se mueve.
+  var CAMPOS_PEGADOS = COLUMNAS_ETAPA.concat(['piezas']);
+  var PEGADO_POR_CODIGO = {};
   var TIPO = '';              // toda la tanda va de un solo tipo
   // Lo ya registrado en esta sesión, por código. Un código pedido dos veces son
   // dos materiales nuevos en SAP, así que la fila se marca y sale de la selección.
@@ -380,25 +385,33 @@
     });
     ponerValor('colCodigos', codigos.join('\n'));
     // Se refresca la memoria del cambio con lo que quedó de verdad en la caja:
-    // si no, el propio relleno de ceros parecería un código distinto y borraría
-    // las rutas recién puestas.
+    // si no, el propio relleno de ceros parecería un código distinto.
     ULTIMO_TEXTO_CODIGOS = $('colCodigos').value;
-    ULTIMOS_CODIGOS = lineasDe('colCodigos').map(function (t) {
-      return t.trim().toUpperCase();
-    });
-    COLUMNAS_ETAPA.forEach(function (etapa) {
-      var lineas = [];
-      for (var i = 0; i < alto; i++) lineas.push('');
-      FILAS.forEach(function (f) {
-        if (f.n <= alto) lineas[f.n - 1] = (f.rutas && f.rutas[etapa]) || '';
-      });
-      ponerValor(CAMPOS[etapa], lineas.join('\n'));
+    ULTIMOS_CODIGOS = lineasDe('colCodigos').map(claveDeCodigo);
+
+    // Lo que vuelve del servidor es lo mismo que se mandó, ya normalizado:
+    // una línea que no trajo fila —en blanco, o un código que no se entendió—
+    // conserva lo que tiene en vez de quedar vacía, que es lo que la dejaba sin
+    // la ruta justo mientras se la estaba corrigiendo.
+    var deLaFila = {};
+    FILAS.forEach(function (f) { if (f.n <= alto) deLaFila[f.n - 1] = f; });
+
+    CAMPOS_PEGADOS.forEach(function (campo) {
+      var lineas = lineasDe(campoDe(campo));
+      var queda = [];
+      for (var i = 0; i < alto; i++) {
+        var f = deLaFila[i];
+        var suyo = f
+          ? (campo === 'piezas' ? (f.piezas || '') : ((f.rutas && f.rutas[campo]) || ''))
+          : null;
+        queda[i] = (f && suyo) ? suyo : (lineas[i] || '');
+      }
+      ponerValor(campoDe(campo), queda.join('\n'));
     });
 
-    var pak = [];
-    for (var i = 0; i < alto; i++) pak.push('');
-    FILAS.forEach(function (f) { if (f.n <= alto) pak[f.n - 1] = f.piezas || ''; });
-    ponerValor('colPiezas', pak.join('\n'));
+    // Y con los ceros ya puestos se vuelve a recordar: así lo guardado es la
+    // ruta como queda escrita, no como se tecleó.
+    recordarPegado(ULTIMOS_CODIGOS);
   }
 
   /** Toma lo escrito en las columnas y lo pasa a las filas ya analizadas. */
@@ -686,35 +699,101 @@
 
   /* ------------------------------------------------------------- analizar */
 
-  /**
-   * Si en una línea cambió el código, sus rutas ya no son de ese material:
-   * se borran antes de analizar, en vez de arrastrarse a la tanda siguiente.
-   */
   /*
-    Para saber si la línea cambió de código se comparan sin los ceros a la
-    izquierda: RVMH32X180X3800 y RVMH032X180X3800 son el mismo material, y
-    volver a escribirlo corto no es motivo para perder sus rutas.
+    La clave de un código, sin los ceros a la izquierda: RVMH32X180X3800 y
+    RVMH032X180X3800 son el mismo material, y volver a escribirlo corto no es
+    motivo para perder lo que ya se le había puesto.
   */
-  function mismoCodigo(a, b) {
-    var pelado = function (t) {
-      return String(t).replace(/\d+/g, function (n) { return String(Number(n)); });
-    };
-    return pelado(a) === pelado(b);
+  function claveDeCodigo(t) {
+    return String(t == null ? '' : t).trim().toUpperCase()
+      .replace(/\d+/g, function (n) { return String(Number(n)); });
   }
 
-  function soltarRutasDeLineasCambiadas() {
-    var ahora = lineasDe('colCodigos').map(function (t) { return t.trim().toUpperCase(); });
-    if (ULTIMOS_CODIGOS.length) {
-      COLUMNAS_ETAPA.forEach(function (etapa) {
-        var lineas = lineasDe(CAMPOS[etapa]);
-        for (var i = 0; i < lineas.length; i++) {
-          if (ULTIMOS_CODIGOS[i] !== undefined && !mismoCodigo(ULTIMOS_CODIGOS[i], ahora[i])) {
-            lineas[i] = '';
-          }
-        }
-        ponerValor(CAMPOS[etapa], lineas.join('\n'));
+  /*
+    Lo pegado se recuerda por CÓDIGO, no por número de línea.
+
+    Antes se comparaba línea contra línea: si la 5 ya no traía el mismo código
+    que antes, se le borraba la ruta. Eso anda mientras las líneas no se muevan,
+    y basta insertar o borrar UNA para que todas las de abajo corran un lugar:
+    las treinta y siete parecían haber cambiado y se borraban las treinta y
+    siete de una vez. Con la ruta atada al código, se va con él a donde vaya.
+  */
+  /** El textarea de cada cosa que se pega al lado del código. */
+  function campoDe(campo) {
+    return campo === 'piezas' ? 'colPiezas' : CAMPOS[campo];
+  }
+
+  /**
+   * Guarda, por código, la ruta y el PAK que hay en la línea de ese código.
+   *
+   * `claves` es el pareo que vale: las cajas quedaron pareadas con los códigos
+   * de la vuelta anterior, y escribir en una caja de ruta no rompe ese pareo
+   * —escribir en la de códigos sí, y por eso acá se pasan los de antes y no los
+   * de ahora—. Es lo único que sabe de quién es cada ruta, así que se recuerda
+   * ANTES de mover nada.
+   */
+  function recordarPegado(claves) {
+    var puesto = {};
+    CAMPOS_PEGADOS.forEach(function (campo) { puesto[campo] = lineasDe(campoDe(campo)); });
+    claves.forEach(function (clave, i) {
+      if (!clave) return;
+      var suyo = {};
+      CAMPOS_PEGADOS.forEach(function (campo) {
+        suyo[campo] = (puesto[campo][i] || '').trim();
+      });
+      PEGADO_POR_CODIGO[clave] = suyo;
+    });
+  }
+
+  /**
+   * Pone la ruta y el PAK de cada código en la línea donde ese código quedó.
+   *
+   * Cuatro casos, y solo uno vacía una línea:
+   *   · la línea sigue con el mismo código -> se deja lo que hay, que es lo
+   *     último que escribió quien pega y manda sobre lo recordado;
+   *   · el código se movió de línea -> lo suyo lo sigue hasta su línea nueva;
+   *   · el que ocupaba la línea sigue en la tanda, más abajo -> se fue y se
+   *     llevó lo suyo, así que acá no queda nada heredado;
+   *   · cualquier otro caso —un código a medio teclear, o recién escrito— ->
+   *     no se toca. Estar a medio escribir no es motivo para perder una ruta, y
+   *     si al final no le sirve, eso lo dice la validación: avisarlo es mejor
+   *     que borrar lo que costó pegar.
+   */
+  function acomodarPorCodigo() {
+    var ahora = lineasDe('colCodigos').map(claveDeCodigo);
+    if (!ULTIMOS_CODIGOS.length) { ULTIMOS_CODIGOS = ahora; return; }
+
+    // Las cajas siguen pareadas con los códigos de la vuelta anterior: se
+    // guarda ese pareo antes de deshacerlo.
+    recordarPegado(ULTIMOS_CODIGOS);
+
+    var presentes = {};
+    ahora.forEach(function (c) { if (c) presentes[c] = true; });
+
+    var tenia = {};
+    CAMPOS_PEGADOS.forEach(function (campo) { tenia[campo] = lineasDe(campoDe(campo)); });
+
+    var queda = {};
+    CAMPOS_PEGADOS.forEach(function (campo) { queda[campo] = []; });
+
+    for (var i = 0; i < ahora.length; i++) {
+      var clave = ahora[i];
+      var antes = ULTIMOS_CODIGOS[i];
+      var sigueIgual = antes === clave;
+      var recordado = (!sigueIgual && clave) ? PEGADO_POR_CODIGO[clave] : null;
+      // El de antes se mudó a otra línea, no lo estamos sobrescribiendo.
+      var seMudo = !sigueIgual && antes && antes !== clave && presentes[antes];
+
+      CAMPOS_PEGADOS.forEach(function (campo) {
+        if (recordado) queda[campo][i] = recordado[campo] || '';
+        else if (seMudo) queda[campo][i] = '';
+        else queda[campo][i] = tenia[campo][i] || '';
       });
     }
+
+    CAMPOS_PEGADOS.forEach(function (campo) {
+      ponerValor(campoDe(campo), queda[campo].join('\n'));
+    });
     ULTIMOS_CODIGOS = ahora;
   }
 
@@ -727,7 +806,7 @@
       $('barra').hidden = true;
       return;
     }
-    soltarRutasDeLineasCambiadas();
+    acomodarPorCodigo();
     $('analizando').hidden = false;
     aviso($('pegarAviso'), '', '', '');
 
@@ -786,9 +865,27 @@
     }
   }
 
+  /*
+    La espera crece con el tamaño de la tanda.
+
+    Analizar lee la base entera una vez, así que con cuarenta líneas cada pausa
+    al teclear cuesta una vuelta completa al servidor. Con medio segundo fijo,
+    corregir un código salía a preguntar cuatro o cinco veces por el camino.
+    Un poco más de espera cuando hay muchas líneas se nota menos que la pantalla
+    trabada, y con pocas líneas sigue respondiendo igual de rápido que antes.
+  */
+  var ESPERA_MINIMA = 550;
+  var ESPERA_POR_LINEA = 12;
+  var ESPERA_MAXIMA = 1200;
+
+  function esperaDelRepaso() {
+    var lineas = lineasDe('colCodigos').length;
+    return Math.min(ESPERA_MAXIMA, ESPERA_MINIMA + lineas * ESPERA_POR_LINEA);
+  }
+
   function alEditar() {
     if (TIMER) clearTimeout(TIMER);
-    TIMER = setTimeout(repasar, 550);
+    TIMER = setTimeout(repasar, esperaDelRepaso());
   }
 
   /**

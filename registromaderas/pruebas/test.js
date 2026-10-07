@@ -680,7 +680,13 @@ seccion('Un codigo que ya existe no abre ningun campo');
   ok(MENSAJES.YA_REGISTRADO === 'Ya está registrado en la base de datos',
     'con esas palabras y nada mas');
   ok(ETAPAS.every(e => !ya.etapas[e.id]), 'ninguna etapa queda abierta');
-  ok(Object.keys(ya.rutas).length === 0, 'ni queda una ruta escrita de antes');
+  // Lo que estuviera escrito NO se borra: cerrarle las etapas es no pedirle
+  // nada, no quitarle lo pegado. Si el código estaba mal y se corrige, su ruta
+  // tiene que seguir ahí.
+  const conRuta = lote_({ codigos: 'RVMH032X180X4000',
+    rutas: { aserradero: 'RVF 037X130' } }).filas[0];
+  ok(conRuta.rutas.aserradero === 'RVF 037X130',
+    'y lo que ya estaba escrito se conserva, no se le borra de la caja');
   ok(!ya.pidePak, 'tampoco se le piden piezas, aunque sea terminado');
   ok(ETAPAS.every(e => ya.motivos[e.id] === MENSAJES.YA_REGISTRADO),
     'y cada columna cerrada dice por que lo esta');
@@ -1490,6 +1496,170 @@ seccion('La fila que se dibuja de un codigo que ya existe');
   const conPak = lote_('RSJR032X180X3200', 'PT').filas[0];
   conPak.piezas = '248';
   ok(pantalla.celdaPak(conPak) === '248', 'y al que si lleva PAK se le muestra el numero');
+}
+
+// Pegar 37 codigos, pegarles las rutas, y despues corregir UNO. Lo que pasaba
+// es que se borraban las 37 rutas y los 37 PAK quedaban pegados al codigo
+// equivocado, en silencio. Se replica la pantalla de verdad —sus funciones,
+// contra el apiLote de verdad— porque este error no se ve en el servidor: las
+// dos piezas por separado estaban bien.
+seccion('Las rutas y el PAK siguen a su codigo, no a su numero de linea');
+{
+  const fs = require('fs');
+  const html = fs.readFileSync(__dirname + '/../fuente/Masivo.html', 'utf8');
+  const trozo = nombre => {
+    const i = html.indexOf('function ' + nombre + '(');
+    if (i === -1) throw new Error('no esta ' + nombre + ' en Masivo.html');
+    let hondo = 0;
+    for (let k = html.indexOf('{', i); k < html.length; k++) {
+      if (html[k] === '{') hondo++;
+      else if (html[k] === '}' && --hondo === 0) return html.slice(i, k + 1);
+    }
+    throw new Error('no cierra ' + nombre);
+  };
+
+  // Una pantalla de mentira: cinco cajas de texto y nada mas.
+  const IDS = ['colCodigos', 'colPiezas', 'colAserradero', 'colSecado', 'colCepillado',
+    'cajaAserradero', 'cajaSecado', 'cajaCepillado', 'cajaPiezas', 'cajaTabla', 'barra',
+    'analizando', 'pegarAviso', 'resultados'];
+  const EL = {};
+  IDS.forEach(id => { EL[id] = { value: '', hidden: false }; });
+  const doc = { getElementById: id => EL[id] || null, activeElement: null };
+
+  const NOMBRES = ['lineasDe', 'columnas', 'ponerValor', 'escribirColumnas', 'aplicarColumnas',
+    'mostrarColumnas', 'claveDeCodigo', 'campoDe', 'recordarPegado',
+    'acomodarPorCodigo', 'analizar', 'revisar', 'repasar'];
+
+  const corredor = {
+    withSuccessHandler(f) { this._ok = f; return this; },
+    withFailureHandler(f) { this._mal = f; return this; },
+    apiLote(d) { try { this._ok(apiLote(d)); } catch (e) { this._mal(e); } return this; },
+    apiRevisarLote(f) { try { this._ok(apiRevisarLote(f)); } catch (e) { this._mal(e); } return this; }
+  };
+
+  const pantalla = new Function('document', 'google', 'setTimeout', `
+    var FILAS = [], ULTIMOS_CODIGOS = [], ULTIMO_TEXTO_CODIGOS = null, TIMER = null;
+    var TIPO = 'PT', PEGADO_POR_CODIGO = {};
+    var COLUMNAS_ETAPA = ['aserradero', 'secado', 'cepillado'];
+    var CAMPOS = { aserradero: 'colAserradero', secado: 'colSecado', cepillado: 'colCepillado' };
+    var CAJAS = { aserradero: 'cajaAserradero', secado: 'cajaSecado', cepillado: 'cajaCepillado' };
+    var CAMPOS_PEGADOS = COLUMNAS_ETAPA.concat(['piezas']);
+    function $(id) { return document.getElementById(id); }
+    function igualarColumnas() {}
+    function pintarNumeros() {}
+    function dibujarTabla() {}
+    function ocultarColumnas() {}
+    function aviso() {}
+    function volverAlTipo() {}
+    ${NOMBRES.map(trozo).join('\n')}
+    return { repasar: repasar };
+  `)(doc, { script: { run: corredor } }, function () {});
+
+  // 37 cepillados de planta: piden las tres rutas y llevan PAK.
+  const codigos = [];
+  for (let i = 0; i < 37; i++) codigos.push('C4JR019X100X' + (3000 + i));
+  const porLinea = (t, n) => new Array(n).fill(t).join('\n');
+
+  /*
+    Cada linea lleva un valor DISTINTO, y ahi esta la gracia: si las 37 rutas
+    fueran iguales, un corrimiento de una linea se veria exactamente igual que
+    no haberse movido, y la prueba pasaria con el error puesto. El aserradero
+    alterna entre dos escuadrias validas y el PAK va 100, 101, 102...
+  */
+  const suAserradero = i => (i % 2 ? 'RVF 037X130' : 'RVF 019X100');
+  const suPak = i => String(100 + i);
+  const indiceDe = codigo => {
+    const m = String(codigo).match(/X(\d{4})$/);
+    const n = m ? Number(m[1]) - 3000 : -1;
+    return (n >= 0 && n < 37) ? n : -1;
+  };
+
+  const pegarTodo = () => {
+    EL.colCodigos.value = codigos.join('\n');
+    pantalla.repasar();
+    EL.colAserradero.value = codigos.map((c, i) => suAserradero(i)).join('\n');
+    EL.colSecado.value = porLinea('RSF 019X100', 37);
+    EL.colCepillado.value = porLinea('CSF 019X100', 37);
+    EL.colPiezas.value = codigos.map((c, i) => suPak(i)).join('\n');
+    pantalla.repasar();
+  };
+
+  /** Cuantas lineas quedaron con su ruta de cepillado. */
+  const conCepillado = () =>
+    EL.colCepillado.value.split('\n').filter(t => t.trim() === 'CSF 019X100').length;
+
+  /**
+   * Las lineas donde lo pegado no es lo de SU codigo: o se perdio, o quedo
+   * pegado al de al lado. Las dos cosas son el mismo error.
+   */
+  const fueraDeLugar = () => {
+    const cod = EL.colCodigos.value.split('\n');
+    const asr = EL.colAserradero.value.split('\n');
+    const pak = EL.colPiezas.value.split('\n');
+    const malas = [];
+    cod.forEach((c, i) => {
+      const n = indiceDe(c);
+      if (n === -1) return;
+      if ((asr[i] || '').trim() !== suAserradero(n)) {
+        malas.push(c + ' ruta "' + (asr[i] || '') + '" en vez de "' + suAserradero(n) + '"');
+      }
+      if ((pak[i] || '').trim() !== suPak(n)) {
+        malas.push(c + ' PAK "' + (pak[i] || '') + '" en vez de "' + suPak(n) + '"');
+      }
+    });
+    return malas;
+  };
+
+  pegarTodo();
+  ok(conCepillado() === 37, 'pegados los 37 y sus rutas, las 37 quedan puestas');
+  ok(!fueraDeLugar().length, 'y cada ruta y cada PAK en la linea de su codigo');
+
+  // Corregir un codigo se teclea de a una letra, y el repaso sale en el medio.
+  pegarTodo();
+  doc.activeElement = EL.colCodigos;
+  ['C4JR019X100X300', 'C4JR019X100X30', 'C4JR019X100X3', 'C4JR019X100X',
+   'C4JR019X100X3', 'C4JR019X100X31', 'C4JR019X100X310', 'C4JR019X100X3100'].forEach(t => {
+    const l = EL.colCodigos.value.split('\n');
+    l[0] = t;
+    EL.colCodigos.value = l.join('\n');
+    pantalla.repasar();
+  });
+  doc.activeElement = null;
+  ok(conCepillado() === 37,
+    'corregir un codigo tecleando no le quita la ruta a nadie: ' + conCepillado() + '/37');
+  ok(fueraDeLugar().every(m => m.indexOf('X3100') !== -1),
+    'y lo de las otras 36 no se corre de linea: ' + fueraDeLugar().slice(0, 2).join(' | '));
+
+  // Borrar una linea corre TODAS las de abajo: es el caso que borraba todo.
+  pegarTodo();
+  const sinLa1 = EL.colCodigos.value.split('\n');
+  sinLa1.splice(0, 1);
+  EL.colCodigos.value = sinLa1.join('\n');
+  pantalla.repasar();
+  ok(conCepillado() === 36,
+    'borrar una linea deja las otras 36 con su ruta: ' + conCepillado() + '/36');
+  ok(!fueraDeLugar().length,
+    'y nada queda pegado al codigo de al lado: ' + fueraDeLugar().slice(0, 2).join(' | '));
+
+  // Insertar arriba: la nueva nace sin ruta y las demas conservan la suya.
+  pegarTodo();
+  EL.colCodigos.value = 'C4JR019X100X3900\n' + EL.colCodigos.value;
+  pantalla.repasar();
+  ok(conCepillado() === 37, 'insertar una linea arriba no mueve las rutas de las otras');
+  ok(!EL.colCepillado.value.split('\n')[0].trim(),
+    'y la linea nueva nace sin ruta, que es lo que le corresponde');
+  ok(!fueraDeLugar().length,
+    'con cada ruta y cada PAK en su sitio: ' + fueraDeLugar().slice(0, 2).join(' | '));
+
+  // Y si un codigo se va al final, lo suyo se va con el.
+  pegarTodo();
+  const alFinal = EL.colCodigos.value.split('\n');
+  alFinal.push(alFinal.shift());
+  EL.colCodigos.value = alFinal.join('\n');
+  pantalla.repasar();
+  ok(conCepillado() === 37 && !fueraDeLugar().length,
+    'mover un codigo de lugar se lleva su ruta y su PAK con el: ' +
+    fueraDeLugar().slice(0, 2).join(' | '));
 }
 
 // Tres cosas tienen que caer en la misma altura para que se vea qué línea es

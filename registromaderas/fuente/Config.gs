@@ -203,9 +203,7 @@ const RUTAS = {
   /** Clases donde además tiene que existir en BD_Maderas. */
   DEBE_EXISTIR_EN: ['PP'],
   /** A qué etapa pertenece cada ruta, por sus dos primeros caracteres. */
-  FAMILIAS: { aserradero: ['RV'], secado: ['RS'], cepillado: ['C'] },
-  /** Tope de rutas que se ofrecen por escuadría. */
-  MAXIMO: 40
+  FAMILIAS: { aserradero: ['RV'], secado: ['RS'], cepillado: ['C'] }
 };
 
 /**

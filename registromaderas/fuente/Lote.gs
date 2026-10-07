@@ -18,7 +18,11 @@
 function leerBD_() {
   var hoja = hoja_(CFG.HOJA_BD);
   var ultima = hoja.getLastRow();
-  var bd = { codigos: {}, rutas: {}, prefijos: {} };
+  // Dos índices y nada más: qué códigos existen y qué familias existen. Antes
+  // se armaba también uno de rutas por escuadría que no lee nadie, y se armaba
+  // entero en cada análisis —una expresión regular por fila de la base, en cada
+  // tecla que se escribe—.
+  var bd = { codigos: {}, prefijos: {} };
   if (ultima < 2) return bd;
 
   var valores = hoja.getRange(2, 1, ultima - 1, 4).getValues();
@@ -43,17 +47,6 @@ function leerBD_() {
       tipoMaterial: texto_(valores[i][BD.TIPO_MATERIAL - 1]),
       descripcion: descripcion
     };
-
-    var escuadria = escuadriaDeRuta_(codigo);
-    if (!escuadria) continue;
-    if (!bd.rutas[escuadria]) bd.rutas[escuadria] = [];
-    if (bd.rutas[escuadria].length < RUTAS.MAXIMO) {
-      bd.rutas[escuadria].push({
-        codigo: codigo,
-        descripcion: descripcion,
-        etapa: familiaDeRuta_(codigo)
-      });
-    }
   }
   return bd;
 }
@@ -248,15 +241,18 @@ function validarFila_(fila, existe) {
   fila.descripcionExistente = existente ? existente.descripcion : '';
 
   // Un código que ya está en la base no se va a crear, así que no hay nada que
-  // completar: se le cierran las rutas y el PAK y se dice eso y nada más. Antes
+  // completar: se le cierran las etapas y el PAK y se dice eso y nada más. Antes
   // se le abrían igual, y encima de avisarle que ya existía le reclamaba las
   // rutas que le faltaban.
+  //
+  // Lo que SÍ se conserva es lo que ya estuviera escrito en las cajas: cerrarle
+  // las etapas es no pedirle nada, no borrarle lo pegado. Si el código estaba
+  // mal escrito y se corrige, su ruta tiene que seguir ahí.
   if (fila.existe && MEDIDAS.EXIGIR_NUEVO) {
     fila.problemas = [MENSAJES.YA_REGISTRADO];
     fila.etapas = { aserradero: false, secado: false, cepillado: false };
     fila.motivos = {};
     ETAPAS.forEach(function (etapa) { fila.motivos[etapa.id] = MENSAJES.YA_REGISTRADO; });
-    fila.rutas = {};
     fila.pidePak = false;
     fila.ok = false;
     return fila;

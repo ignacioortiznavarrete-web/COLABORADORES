@@ -117,6 +117,41 @@ qué pide el código —una ruta, el PAK— se pone a la altura a la que esté
 Códigos; si se quedara en cero, con cuarenta códigos serían tres o cuatro
 líneas de desfase, y la ruta que se ve al lado de un código sería la de otro.
 
+### Lo pegado sigue al código, no a la línea
+
+Una ruta es de **su material**, y el número de línea es solo donde ese material
+quedó escrito hoy. Por eso lo pegado al lado —las tres rutas y el PAK— se
+recuerda **por código** y lo sigue a donde vaya.
+
+Antes se comparaba línea contra línea: si la 5 ya no traía el mismo código que
+antes, se le borraba la ruta. Eso anda mientras las líneas no se muevan —y basta
+**insertar o borrar una** para que todas las de abajo corran un lugar—. Con 37
+códigos pegados y sus rutas puestas, tocar uno parecía cambiarlas todas y se
+borraban las 37 de una vez. El PAK era peor: no se borraba, se quedaba pegado al
+código de al lado, **en silencio**, y esas cantidades son las que entran a SAP.
+
+Ahora son cuatro casos, y solo uno vacía una línea:
+
+| En la línea | Qué pasa con su ruta y su PAK |
+|---|---|
+| sigue el mismo código | se deja lo que hay: es lo último que se escribió |
+| su código se movió de línea | lo suyo lo sigue hasta su línea nueva |
+| el que la ocupaba sigue en la tanda, más abajo | se fue y se llevó lo suyo: la línea queda vacía |
+| el código está a medio teclear, o es nuevo | **no se toca** |
+
+Ese último caso es el que importa al corregir: el repaso sale solo a los
+600-1200 ms, así que mientras se arregla un código sale varias veces con el
+código a medio escribir. Estar a medio escribir no es motivo para perder una
+ruta. Y si al final no le sirve, **la validación lo dice** —una ruta más chica
+que el producto, o de otra etapa, ya se avisa—: decirlo es mejor que borrar lo
+que costó pegar.
+
+La espera del repaso **crece con el tamaño de la tanda**: 550 ms más 12 por
+línea, hasta 1,2 s. Analizar lee `BD_Maderas` una vez, así que con 40 líneas
+cada pausa al teclear costaba una vuelta completa al servidor, y corregir un
+código salía a preguntar cuatro o cinco veces por el camino. Con pocas líneas
+responde igual de rápido que antes.
+
 ## Las condicionales
 
 Todo lo que el formulario decide solo sale de tus propias hojas:
