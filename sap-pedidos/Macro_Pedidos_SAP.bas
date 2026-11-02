@@ -1,5 +1,6 @@
 ' =====================================================================
-'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v15
+'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v16
+'  v16: macro "PrincipalMesActual" para crear con fechas del mes actual
 '  v15: validez de cabecera (In.per.validez / Fin per.validez) verificada
 '  v14: tolerancia de exceso (Tol.exc.sum.) 99,9 y texto de posicion
 '       (Calidad) en TODAS las posiciones, con verificacion y reintento
@@ -9,7 +10,8 @@
 '  INSTALACION:
 '   1. Alt+F11 > borrar el modulo anterior > Insertar > Modulo
 '   2. Pegar este codigo completo y guardar como .xlsm
-'   3. Ejecutar: Alt+F8 > "Principal"
+'   3. Ejecutar: Alt+F8 > "Principal"          (fechas del mes SIGUIENTE)
+'             o Alt+F8 > "PrincipalMesActual" (fechas del mes ACTUAL)
 ' =====================================================================
 
 Option Explicit
@@ -46,20 +48,34 @@ Dim d1 As String, d2 As String
 Dim mapCampos(0 To 80) As String   ' relacion columna->campo de la grilla ME21N
 
 ' ============================== MAIN =================================
+' Fechas del MES SIGUIENTE (ej: hoy 02.11 -> 01.12 al 31.12)
 Sub Principal()
-    Dim opcion As String
-    opcion = InputBox("Que deseas ejecutar?" & vbCrLf & vbCrLf & _
+    Ejecutar 1
+End Sub
+
+' Fechas del MES ACTUAL (ej: hoy 02.11 -> 01.11 al 30.11)
+Sub PrincipalMesActual()
+    Ejecutar 0
+End Sub
+
+' desfaseMes: 0 = mes actual, 1 = mes siguiente
+Sub Ejecutar(desfaseMes As Long)
+    Dim opcion As String, txtMes As String
+
+    fIni = DateSerial(Year(Date), Month(Date) + desfaseMes, 1)
+    fFin = DateSerial(Year(Date), Month(Date) + desfaseMes + 1, 0)
+    d1 = FSap(fIni)
+    d2 = FSap(fFin)
+    txtMes = IIf(desfaseMes = 0, "MES ACTUAL", "MES SIGUIENTE")
+
+    opcion = InputBox("Fechas: " & txtMes & " (" & d1 & " al " & d2 & ")" & vbCrLf & vbCrLf & _
+                      "Que deseas ejecutar?" & vbCrLf & vbCrLf & _
                       "1 = Crear PEDIDOS ABIERTOS (ME31K)" & vbCrLf & _
                       "2 = Crear PEDIDOS DE COMPRA (ME21N)" & vbCrLf & _
-                      "3 = Ambos", "Pedidos SAP", "1")
+                      "3 = Ambos", "Pedidos SAP - " & txtMes, "1")
     If opcion = "" Then Exit Sub
 
     Set ws = ThisWorkbook.Sheets(HOJA)
-
-    fIni = DateSerial(Year(Date), Month(Date) + 1, 1)
-    fFin = DateSerial(Year(Date), Month(Date) + 2, 0)
-    d1 = FSap(fIni)
-    d2 = FSap(fFin)
 
     If Not ConectarSAP Then Exit Sub
 
@@ -246,7 +262,7 @@ Sub CrearContrato(f1 As Long, f2 As Long)
     TrySelect "wnd[0]/usr/chkRM06E-XOBL"
     TrySelect "wnd[0]/usr/chkRM06E-XOBLK"
 
-    ' Fecha de contrato: 1er dia mes siguiente (cambiar d1 por d2 si va el ultimo)
+    ' Fecha de contrato: 1er dia del mes elegido (cambiar d1 por d2 si va el ultimo)
     SetText "wnd[0]/usr/ctxtRM06E-VEDAT", d1
     SetText "wnd[0]/usr/ctxtRM06E-KDATB", d1
     SetText "wnd[0]/usr/ctxtRM06E-KDATE", d2
