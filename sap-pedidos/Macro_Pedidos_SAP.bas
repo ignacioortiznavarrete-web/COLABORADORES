@@ -1,5 +1,6 @@
 ' =====================================================================
-'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v17
+'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v18
+'  v18: ante advertencias de SAP (validez en el pasado) solo Enter, sin reescribir
 '  v17: ME31K pasa los avisos de fecha en el pasado y siempre pone Fin per.validez
 '  v16: macro "PrincipalMesActual" para crear con fechas del mes actual
 '  v15: validez de cabecera (In.per.validez / Fin per.validez) verificada
@@ -18,7 +19,7 @@
 Option Explicit
 
 ' ============================ CONSTANTES =============================
-Const VERSION_MACRO As String = "v17"
+Const VERSION_MACRO As String = "v18"
 Const HOJA As String = "Hoja1"
 
 Const CLASE_CONTRATO As String = "WK"
@@ -281,10 +282,12 @@ Sub CrearContrato(f1 As Long, f2 As Long)
     Dim colMat As Long, colCtd As Long, colUm As Long, colPrc As Long
     Dim filasVis As Long, pos As Long, filaTbl As Long
 
-    For paso = 1 To 6
+    For paso = 1 To 8
         Set tbl = GetTablaME31K()
         If Not tbl Is Nothing Then Exit For
-        PonerCabeceraME31K valTotal, moneda
+        ' Si SAP muestra una ADVERTENCIA (ej: "inicio de validez en el pasado")
+        ' solo se da Enter: volver a escribir las fechas la haria aparecer de nuevo
+        If TipoMensajeSAP() <> "W" Then PonerCabeceraME31K valTotal, moneda
         session.findById("wnd[0]").sendVKey 0
         EsperarSAP
         ConfirmarPopups
@@ -365,9 +368,18 @@ Function PonerCampo(nombre As String, valor As String) As Boolean
     If o Is Nothing Then Set o = BuscarCtrl(nombre, "GuiTextField")
     If o Is Nothing Then Exit Function
     On Error Resume Next
-    If o.Changeable Then o.Text = valor
+    ' solo si cambia: reescribir el mismo valor hace que SAP repita sus avisos
+    If o.Changeable And Trim(o.Text) <> valor Then o.Text = valor
     On Error GoTo 0
     PonerCampo = True
+End Function
+
+' Tipo del mensaje de la barra de estado: "S" exito, "W" advertencia,
+' "E" error, "I" info, "" sin mensaje
+Function TipoMensajeSAP() As String
+    On Error Resume Next
+    TipoMensajeSAP = session.findById("wnd[0]/sbar").MessageType
+    On Error GoTo 0
 End Function
 
 ' Cabecera de ME31K: fechas de validez, valor previsto y moneda
