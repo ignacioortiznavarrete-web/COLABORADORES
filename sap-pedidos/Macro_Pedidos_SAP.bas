@@ -1,5 +1,6 @@
 ' =====================================================================
-'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v16
+'  MACRO VBA - PEDIDOS ABIERTOS (ME31K) Y PEDIDOS (ME21N) - v17
+'  v17: ME31K pasa los avisos de fecha en el pasado y siempre pone Fin per.validez
 '  v16: macro "PrincipalMesActual" para crear con fechas del mes actual
 '  v15: validez de cabecera (In.per.validez / Fin per.validez) verificada
 '  v14: tolerancia de exceso (Tol.exc.sum.) 99,9 y texto de posicion
@@ -271,33 +272,28 @@ Sub CrearContrato(f1 As Long, f2 As Long)
     session.findById("wnd[0]").sendVKey 0
     WaitSeconds 1
 
-    ' ---- Pantalla cabecera: repetir fechas/valor (como tu script) ----
-    SetText "wnd[0]/usr/ctxtRM06E-KDATB", d1
-    SetText "wnd[0]/usr/ctxtRM06E-KDATE", d2
-    SetText "wnd[0]/usr/ctxtEKKO-KDATB", d1
-    SetText "wnd[0]/usr/ctxtEKKO-KDATE", d2
-    SetText "wnd[0]/usr/txtEKKO-KTWRT", valTotal
-    SetText "wnd[0]/usr/txtRM06E-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtEKKO-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtRM06E-KTWRT", valTotal
-    SetText "wnd[0]/usr/ctxtEKKO-WAERS", moneda
-    SetText "wnd[0]/usr/ctxtRM06E-WAERS", moneda
-    session.findById("wnd[0]").sendVKey 0
-    WaitSeconds 1
-
-    ' ---- Posiciones: escritura DIRECTA en la tabla ----
-    Dim tbl As Object, colMat As Long, colCtd As Long, colUm As Long, colPrc As Long
+    ' ---- Pantalla cabecera: In.per.validez / Fin per.validez / valor ----
+    ' Con fechas del mes actual SAP avisa "fecha en el pasado" y se queda en
+    ' la misma pantalla. Por eso se repite: escribir fechas+valor y Enter,
+    ' hasta que aparece la tabla de posiciones (cada Enter pasa un aviso).
+    Dim tbl As Object, paso As Long
+    Dim colMat As Long, colCtd As Long, colUm As Long, colPrc As Long
     Dim filasVis As Long, pos As Long, filaTbl As Long
 
-    Set tbl = GetTablaME31K()
-    If tbl Is Nothing Then
-        ' quizas la tabla aparece tras otro Enter
-        session.findById("wnd[0]").sendVKey 0
-        WaitSeconds 1
+    For paso = 1 To 6
         Set tbl = GetTablaME31K()
-    End If
+        If Not tbl Is Nothing Then Exit For
+        PonerCabeceraME31K valTotal, moneda
+        session.findById("wnd[0]").sendVKey 0
+        EsperarSAP
+        ConfirmarPopups
+    Next paso
+
+    ' ---- Posiciones: escritura DIRECTA en la tabla ----
     If tbl Is Nothing Then
-        MsgBox "No encontre la tabla de posiciones de ME31K en pantalla." & vbCrLf & _
+        MsgBox "No pude llegar a la tabla de posiciones de ME31K" & vbCrLf & _
+               "(proveedor " & proveedor & ", " & moneda & ")." & vbCrLf & vbCrLf & _
+               "Mensaje SAP: " & session.findById("wnd[0]/sbar").Text & vbCrLf & vbCrLf & _
                "Revisa en que pantalla quedo SAP y avisame.", vbCritical
         Exit Sub
     End If
@@ -358,6 +354,32 @@ Sub CrearContrato(f1 As Long, f2 As Long)
             End If
         End If
     End If
+End Sub
+
+' Escribe un campo buscandolo por NOMBRE en toda la pantalla (sirve sea
+' ctxt o txt y sin importar en que subpantalla este). True si existia.
+Function PonerCampo(nombre As String, valor As String) As Boolean
+    Dim o As Object
+    Set o = BuscarCtrl(nombre, "GuiCTextField")
+    If o Is Nothing Then Set o = BuscarCtrl(nombre, "GuiTextField")
+    If o Is Nothing Then Exit Function
+    On Error Resume Next
+    If o.Changeable Then o.Text = valor
+    On Error GoTo 0
+    PonerCampo = True
+End Function
+
+' Cabecera de ME31K: fechas de validez, valor previsto y moneda
+' (solo escribe los campos que esten en la pantalla actual)
+Sub PonerCabeceraME31K(valTotal As String, moneda As String)
+    PonerCampo "RM06E-KDATB", d1
+    PonerCampo "EKKO-KDATB", d1
+    PonerCampo "RM06E-KDATE", d2
+    PonerCampo "EKKO-KDATE", d2
+    PonerCampo "EKKO-KTWRT", valTotal
+    PonerCampo "RM06E-KTWRT", valTotal
+    PonerCampo "EKKO-WAERS", moneda
+    PonerCampo "RM06E-WAERS", moneda
 End Sub
 
 ' ---------------------------------------------------------------------
