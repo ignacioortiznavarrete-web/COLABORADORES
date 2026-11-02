@@ -18,6 +18,7 @@
 Option Explicit
 
 ' ============================ CONSTANTES =============================
+Const VERSION_MACRO As String = "v17"
 Const HOJA As String = "Hoja1"
 
 Const CLASE_CONTRATO As String = "WK"
@@ -73,7 +74,7 @@ Sub Ejecutar(desfaseMes As Long)
                       "Que deseas ejecutar?" & vbCrLf & vbCrLf & _
                       "1 = Crear PEDIDOS ABIERTOS (ME31K)" & vbCrLf & _
                       "2 = Crear PEDIDOS DE COMPRA (ME21N)" & vbCrLf & _
-                      "3 = Ambos", "Pedidos SAP - " & txtMes, "1")
+                      "3 = Ambos", "Pedidos SAP " & VERSION_MACRO & " - " & txtMes, "1")
     If opcion = "" Then Exit Sub
 
     Set ws = ThisWorkbook.Sheets(HOJA)
