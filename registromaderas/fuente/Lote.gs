@@ -118,10 +118,11 @@ function deducirDeCodigo_(texto, bd, tipo) {
 
   var esTerceros = esEspecieTrading_(prefijo.charAt(3));
   var centro = esTerceros ? TRADING.CENTRO : DEDUCCION.CENTRO_PLANTA;
-  // La especie manda sobre el tipo de la tanda: lo comprado hecho a terceros va
-  // a su propia hoja, porque en SAP entra como compra y no como fabricación.
-  // Lo demás sigue al tipo elegido, y sin tipo se deduce del largo.
-  var clase = esTerceros
+  // Lo comprado hecho a terceros va a su propia hoja, porque en SAP entra como
+  // compra y no como fabricación. Salvo donde el tipo dice que la especie no
+  // manda —PE, cuyo código está fuera de la nomenclatura y tiene su hoja—.
+  var aTrading = esTerceros && (!tipo || tipo.especieManda);
+  var clase = aTrading
     ? DEDUCCION.CLASE_TRADING
     : (tipo
         ? tipo.clase
@@ -156,6 +157,10 @@ function deducirDeCodigo_(texto, bd, tipo) {
     // Qué rutas abre depende de si el código ES una etapa o un producto. Un
     // especial es producto, aunque venga sin largo.
     etapas: etapasAplicables_(partes.agrupacion,
+      tipo ? !!tipo.esProceso : !partes.largo),
+    // La etapa que el material ES: no se pide, se escribe sola con él mismo.
+    // Va a la pantalla para que su columna diga eso y no "No aplica".
+    etapaPropia: etapaPropia_(partes.agrupacion,
       tipo ? !!tipo.esProceso : !partes.largo)
   };
 }
@@ -210,6 +215,13 @@ function leerLinea_(linea, numero, bd, tipo) {
 function motivoSinEtapa_(fila, etapaId) {
   var p = fila.prefijo || '';
   if (esEspecieTrading_(p.charAt(3))) return 'Trading: se compra hecha, no lleva ruta.';
+
+  // La etapa que el material ES no se pide: se escribe sola con él mismo. Sin
+  // esto la columna decía "No aplica", que es lo único que no es.
+  if (fila.etapaPropia === etapaId) {
+    return 'Es su propia etapa: se escribe sola con su prefijo y su escuadría.';
+  }
+
   if (etapaId === 'cepillado') return 'Es rústico, no pasa por cepillado.';
   if (etapaId === 'secado') return 'Es verde, no pasa por secado.';
   return 'No aplica.';
@@ -258,7 +270,6 @@ function validarFila_(fila, existe) {
     return fila;
   }
 
-  var exigeEnBD = RUTAS.DEBE_EXISTIR_EN.indexOf(fila.clase) !== -1;
   ETAPAS.forEach(function (etapa) {
     if (!fila.etapas[etapa.id]) return;
     // Se guarda de vuelta ya completa, para que la columna muestre la ruta
@@ -288,12 +299,14 @@ function validarFila_(fila, existe) {
         'producto (' + fila.espesor + 'X' + fila.ancho + ').');
       return;
     }
-
-    if (!existe(ruta) && exigeEnBD) {
-      fila.problemas.push('La ruta ' + ruta + ' no existe en ' + CFG.HOJA_BD +
-        ', y en ' + fila.clase + ' tiene que existir.');
-    }
   });
+
+  // Lo comprado hecho se compra por cantidad: una fila de Trading sin PAK no
+  // dice qué se compró. Se pide solo donde el PAK se pide: lo que va en m3 no
+  // se cuenta por piezas.
+  if (TRADING.EXIGE_PIEZAS && fila.esTerceros && fila.pidePak && !fila.piezas) {
+    fila.problemas.push('Falta el PAK: en Trading las piezas son obligatorias.');
+  }
 
   fila.ok = !fila.problemas.length;
   return fila;

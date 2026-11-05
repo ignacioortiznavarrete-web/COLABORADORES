@@ -191,9 +191,14 @@ La ruta se escribe como **tres letras, un espacio y la escuadría**: `RVM 019X02
 Así es el 89% de las que hay en la base. Las de cuatro letras (`RVFD032X180`)
 también valen.
 
-La exigencia depende de la clase: en **PP** la ruta tiene que existir en
-`BD_Maderas`; en **PT** se puede indicar cualquiera que se recomiende, y el
-formulario solo avisa si todavía no está. En **TD** no se pide ninguna.
+**Una ruta que todavía no está en `BD_Maderas` vale igual**: SAP la crea sola al
+cargar el batch input. Antes se rechazaba la fila en PP, y eso dejaba fuera
+justo las rutas nuevas, que son las que hay que crear. En **TD** no se pide
+ninguna: lo comprado hecho no tiene ruta que declarar.
+
+Lo que **sí** se revisa de una ruta: que tenga forma de ruta, que sea de la
+etapa donde la pusieron, y que no sea más chica que el producto. Esos tres sí
+son errores de quien escribe.
 
 **Y ninguna ruta puede ser más chica que el producto.** Bajando por el proceso
 la madera solo se achica, así que una etapa puede ir sobredimensionada pero
@@ -229,16 +234,21 @@ que no sea del tipo elegido se rechaza y dice por qué.
 |---|---|---|---|---|
 | **PT** | Producto Terminado | con largo (16 caracteres) | PZA | `PT`, o `TD` si es Trading |
 | **PP** | Producto de Proceso | sin largo (11) | m3 | `PP` |
-| **PE** | PE Terminado (m3) | no se revisa | m3 | `PT`, o `TD` si es Trading |
+| **PE** | PE Terminado (m3) | no se revisa | m3 | `PE` |
 
-**La especie manda sobre el tipo de la tanda.** Da igual qué tipo se eligió: si
-el carácter 4 es `H` o `D`, el material se compró hecho a terceros y en SAP
-entra como compra, no como fabricación. Su fila va a `TD` y su
-`Clase Requerimiento` dice `TD`. Eso incluye a **PE**: un especial de Trading
-también va a `TD`.
+**La especie manda sobre el tipo de la tanda, salvo en PE.** Si el carácter 4 es
+`H` o `D`, el material se compró hecho a terceros y en SAP entra como compra, no
+como fabricación: su fila va a `TD` y su `Clase Requerimiento` dice `TD`.
 
-**PE es terminado**, y eso decide dos cosas. Su fila del batch input va con los
-demás terminados, no a `PP`. Y abre la cadena completa, como un PT:
+En **PE** no. Y es por lo mismo que PE existe: su código está **fuera de la
+nomenclatura**, así que leerle el carácter 4 para elegir la hoja es leer algo
+que no significa lo que significa en los demás. Un PE va a la hoja `PE`, que
+para eso está. El origen y el centro sí siguen saliendo de la especie, como en
+todo lo demás. Queda dicho en el tipo —`especieManda: false`— y no escondido en
+un `if`.
+
+**PE es terminado**, y eso decide dos cosas. Sus columnas de etapa llevan rutas,
+como un PT, no su propia etapa. Y abre la cadena completa:
 
 | Empieza con | Abre |
 |---|---|
@@ -299,6 +309,34 @@ El Excel **no se baja desde acá** — está en el menú del spreadsheet, más a
 
 En la carga masiva el PAK es opcional: el batch input crea el maestro de
 material, no un pedido. Para exigirlo, `MEDIDAS.EXIGIR_PIEZAS = true`.
+
+### Un código de proceso lleva su propia etapa
+
+Un código de proceso no es un producto terminado: **ES la salida de una etapa**.
+Esa etapa la lleva él mismo en su columna del batch input —su prefijo y su
+escuadría— y las que vienen **antes** son las que se le piden como ruta.
+
+La referencia es la fila buena que ya había en `PP`: un `RSM 015X121` lleva
+`RVM 021X121` en Aserradero y **`RSM 015X121` en Secado**. Lo que escribía el
+formulario dejaba esa columna vacía, y la identidad del material aparecía solo
+en Empaquetado: en la hoja no se veía de qué etapa salía.
+
+| Código de proceso | Su etapa | Se le piden |
+|---|---|---|
+| empieza con `RV` (verde) | **Aserradero** | ninguna: es el principio de la cadena |
+| empieza con `RS` (seco) | **Secado** | la de aserradero |
+| empieza con `C` (cepillado) | **Cepillado** | las de aserradero y secado |
+
+Dos casos **no** tienen etapa propia, y en los dos las tres columnas quedan
+vacías:
+
+- un **terminado**: lo que sale de él es el empaquetado, y eso ya va en la
+  columna Empaquetado. Sus tres columnas son rutas;
+- lo **comprado hecho** a terceros (`H` o `D`): no se fabricó acá, no salió de
+  ninguna etapa nuestra. Solo Empaquetado y su PAK.
+
+Que un código no pida ninguna ruta no lo deja a medias: **se registra así**, con
+su propia etapa puesta y nada más.
 
 ## El Excel del batch input
 
@@ -675,15 +713,20 @@ tiene `RVFD032X180` (aserradero) y `RSFD032X180` (secado), que son justo las que
 usaba tu fila de ejemplo. Si una etapa tiene una sola ruta posible, se pone sola;
 si hay varias, se elige.
 
-**Trading exige especie `H`.** Con ese origen la lista de agrupaciones se filtra a
-las que terminan en `H`, y al guardar se vuelve a comprobar. En la práctica eso
-deja Trading en TCD2, que es donde están todas las de terceros. Se cambia en
-`TRADING.ESPECIE` (`Config.gs`).
+**Trading exige especie `H` o `D`.** Con ese origen la lista de agrupaciones se
+filtra a las que terminan en una de esas dos, y al guardar se vuelve a
+comprobar. En la práctica eso deja Trading en TCD2, que es donde están todas las
+de terceros. Se cambia en `TRADING.ESPECIES` (`Config.gs`).
+
+**En Trading el PAK es obligatorio.** Lo que se fabrica se pide por receta y la
+cantidad se define después; lo comprado hecho se compra por cantidad, así que
+una fila de Trading sin piezas no dice qué se compró. Rige solo donde el PAK se
+pide: lo que va en m3 no se cuenta por piezas. Se cambia en
+`TRADING.EXIGE_PIEZAS`.
 
 **Dónde se afloja cada regla.** `MEDIDAS.EXIGIR_NUEVO = false` deja registrar un
-código que ya exista; `RUTAS.DEBE_EXISTIR_EN` decide en qué clases la ruta tiene
-que estar en la base; `RUTAS.OBLIGATORIA = false` permite dejar una etapa sin
-ruta.
+código que ya exista; `RUTAS.OBLIGATORIA = false` permite dejar una etapa sin
+ruta; `MEDIDAS.EXIGIR_PIEZAS = true` exige el PAK en todas, no solo en Trading.
 
 **Los códigos con espacios raros igual se encuentran.** Hay 15 filas en
 `BD_Maderas` con un espacio duro pegado al final (`RSFR037X130X3600 `). El

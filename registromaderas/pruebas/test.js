@@ -155,7 +155,8 @@ seccion('Contexto que recibe el formulario');
   ok(ctx.origenes[0].centros.join() === 'TCP1,TCD2', 'Trading elige entre TCP1 y TCD2');
   ok(ctx.origenes[1].centros.join() === 'TCP1', 'Planta tiene un solo centro: TCP1');
   ok(ctx.exigeCodigoNuevo === true, 'el código que se pide tiene que ser nuevo');
-  ok(ctx.clasesConRutaEnBD.join() === 'PP', 'en PP la ruta tiene que existir');
+  ok(ctx.clasesConRutaEnBD === undefined && RUTAS.DEBE_EXISTIR_EN === undefined,
+    'ninguna clase exige que la ruta ya exista: SAP la crea sola');
   ok(ctx.trading.especies.join() === 'H,D', 'Trading son las especies H y D');
   ok(ctx.hojaBD === 'BD_Maderas', 'y la única hoja que consulta es BD_Maderas');
   ok(ctx.porDefecto.TIPO_REQUERIMIENTO === 'NO', 'Tipo Requerimiento va en NO, como el ejemplo');
@@ -348,8 +349,13 @@ seccion('En PT la ruta se avisa; en PP tiene que existir');
   ok(celda('PT', pt.fila, 7) === 'RVF' && celda('PT', pt.fila, 8) === '999X999',
     'y se escribe igual');
 
-  ok(error(() => guardarUna(con({ clase: 'PP', desglose: inventada })))
-    .indexOf('no existe en BD_Maderas') !== -1, 'en PP no: la ruta tiene que existir');
+  // Y en proceso tampoco: SAP crea sola la ruta que todavia no existe, asi que
+  // rechazar la fila dejaba fuera justo las rutas nuevas, que son las que hay
+  // que crear.
+  const pp = guardarUna(con({ clase: 'PP', largo: '', desglose: inventada }));
+  ok(pp.ok, 'y en proceso tambien: SAP crea sola la que no existe');
+  ok(celda('PP', pp.fila, 7) === 'RVF' && celda('PP', pp.fila, 8) === '999X999',
+    'y queda escrita igual');
 }
 
 seccion('Trading elige centro, Planta no');
@@ -440,7 +446,7 @@ seccion('Del código se deduce todo lo demás');
 seccion('El lote: se pegan códigos y salen sus filas');
 {
   const r = lote_([
-    'RVMH032X180X3960',
+    'RVMH032X180X3960\t120',
     'RVM 032X180',
     'RVMH032X180X4000',
     'ZZZZ032X180X3960',
@@ -479,8 +485,8 @@ seccion('El lote: se pegan códigos y salen sus filas');
 }
 {
   // Trading no pide ninguna ruta, y la pantalla explica por qué.
-  const r = lote_('RVMH032X180X3960');
-  ok(r.filas[0].ok, 'un código de Trading queda listo tal cual');
+  const r = lote_('RVMH032X180X3960\t120');
+  ok(r.filas[0].ok, 'un código de Trading queda listo con solo su PAK');
   ok(r.filas[0].motivos.aserradero.indexOf('Trading') !== -1,
     'y dice que se compra hecha, no que falte algo');
 }
@@ -583,15 +589,23 @@ seccion('El tipo se elige antes, y manda sobre toda la tanda');
   ok(lote_('CSF 019X100', 'PP').filas[0].clase === 'PP',
     'y el cepillado de proceso tambien como PP, que ya no tiene hoja propia');
 
-  // El especial no se deduce de la forma del código: es el tipo que se elige,
-  // y su fila del batch input va con los terminados.
-  ok(lote_('RSFR037X130X3200', 'PE').filas[0].clase === 'PT',
-    'el especial escribe en PT, porque es un producto terminado');
-  ok(lote_('RVM 032X180', 'PE').filas[0].clase === 'PT', 'sin largo, igual');
-  // Salvo que sea una compra: la especie manda tambien acá, porque en SAP una
-  // compra entra por otro lado y no deja de serlo por ser especial.
-  ok(lote_('RVMH032X180X3960', 'PE').filas[0].clase === 'TD',
-    'pero un especial de Trading va a TD, que es por donde entra una compra');
+  // El especial no se deduce de la forma del codigo: es el tipo que se elige,
+  // y tiene su propia hoja.
+  ok(lote_('RSFR037X130X3200', 'PE').filas[0].clase === 'PE',
+    'el especial escribe en PE, que es la hoja que le toca');
+  ok(lote_('RVM 032X180', 'PE').filas[0].clase === 'PE', 'sin largo, igual');
+  /*
+    Y aca la especie NO manda, por lo mismo que existe PE: su codigo esta fuera
+    de la nomenclatura, asi que leerle el caracter 4 para elegir la hoja es leer
+    algo que no significa lo que significa en los demas.
+  */
+  ok(lote_('RVMH032X180X3960', 'PE').filas[0].clase === 'PE',
+    'un especial de Trading tambien va a PE, no a TD');
+  ok(lote_('RVMH032X180X3960', 'PE').filas[0].origen === 'Trading' &&
+     lote_('RVMH032X180X3960', 'PE').filas[0].centro === 'TCD2',
+    'aunque su origen y su centro si siguen saliendo de la especie');
+  ok(TIPOS_SOLICITUD.filter(t => t.id === 'PE')[0].especieManda === false,
+    'y eso queda dicho en el tipo, no escondido en un if');
   ok(lote_('RVMH032X180X3960', 'PE').tipo === 'PE',
     'pero la solicitud sigue siendo de tipo PE');
 }
@@ -643,15 +657,17 @@ seccion('Qué rutas abre cada tipo de código');
 
   ok(abre('C4JR019X100X2440') === 'aserradero+secado+cepillado',
     'cepillado terminado: la ruta completa');
-  ok(abre('CSF 019X101', 'PP') === 'aserradero+secado+cepillado',
-    'y cepillado de proceso también, que sigue siendo cepillado');
+  // Un cepillado de PROCESO es el cepillado: se le piden las dos de antes, y la
+  // suya la lleva el mismo en su columna.
+  ok(abre('CSF 019X101', 'PP') === 'aserradero+secado',
+    'cepillado de proceso: las dos de antes, no la suya');
   ok(abre('RSJR032X180X3200') === 'aserradero+secado', 'terminado seco: aserradero y secado');
   ok(abre('RVMR032X180X3200') === 'aserradero', 'terminado verde: solo aserradero');
   ok(abre('RVMH032X180X3960') === 'ninguna', 'Trading: ninguna, se compra hecho');
 
   // La especie manda sobre el cepillado: un C con H se compra ya cepillado, y
   // lo comprado no tiene ruta que declarar. Solo piezas.
-  const cepilladoH = lote_('C23H019X125X4005').filas[0];
+  const cepilladoH = lote_('C23H019X125X4005\t60').filas[0];
   ok(abre('C23H019X125X4005') === 'ninguna',
     'un cepillado con H no pide ninguna ruta: se compra hecho');
   ok(cepilladoH.origen === 'Trading' && cepilladoH.centro === 'TCD2',
@@ -751,11 +767,8 @@ seccion('PCP ya no existe: el cepillado de proceso entra por PP');
   const cepillado = lote_('CSF 019X101', 'PP').filas[0];
   ok(cepillado.clase === 'PP', 'un cepillado de proceso es de clase PP');
   ok(cepillado.umb === 'M3' && !cepillado.pidePak, 'y se sigue midiendo en m3, sin PAK');
-  ok(ETAPAS.every(e => cepillado.etapas[e.id]), 'y sigue abriendo sus tres Rutas');
-
-  // La ruta de un PP tiene que existir en la base, y eso no cambio al mover
-  // el cepillado de hoja: antes lo exigia por PCP y ahora por PP.
-  ok(RUTAS.DEBE_EXISTIR_EN.join() === 'PP', 'en PP la ruta tiene que existir');
+  ok(cepillado.etapas.aserradero && cepillado.etapas.secado && !cepillado.etapas.cepillado,
+    'y se le piden las dos etapas de antes: la suya la lleva el mismo');
 }
 
 // Trading se compra hecho y planta se fabrica: distinto centro, distinto
@@ -764,13 +777,13 @@ seccion('Trading y planta no van en la misma solicitud');
 {
   const mezcla = f => (f.problemas || []).indexOf(MENSAJES.MEZCLA_DE_ORIGEN) !== -1;
 
-  const soloH = lote_('RVMH032X180X3960\nC23H019X125X4005');
+  const soloH = lote_('RVMH032X180X3960\t120\nC23H019X125X4005\t60');
   ok(!soloH.filas.some(mezcla), 'una tanda toda de Trading no se reclama');
 
   const soloPlanta = lote_('RSJR032X180X3200\nRVMR032X180X3200');
   ok(!soloPlanta.filas.some(mezcla), 'y una toda de planta, tampoco');
 
-  const mezclada = lote_('RVMH032X180X3960\nRSJR032X180X3200');
+  const mezclada = lote_('RVMH032X180X3960\t120\nRSJR032X180X3200');
   ok(mezclada.filas.every(mezcla), 'mezcladas, se marcan las dos: el problema es de la tanda');
   ok(mezclada.filas[0].problemas[0] === MENSAJES.MEZCLA_DE_ORIGEN &&
      MENSAJES.MEZCLA_DE_ORIGEN.indexOf('otra solicitud') !== -1,
@@ -778,7 +791,7 @@ seccion('Trading y planta no van en la misma solicitud');
   ok(mezclada.listas === 0, 'ninguna queda lista, aunque de por sí estuviera completa');
 
   // El cepillado con H pide rutas, pero eso no lo saca de Trading.
-  ok(lote_('C23H019X125X4005\nCSFR019X125X4005').filas.every(mezcla),
+  ok(lote_('C23H019X125X4005\t60\nCSFR019X125X4005').filas.every(mezcla),
     'un cepillado H y uno de planta también se marcan');
 
   // El de proceso no tiene especie —va en blanco— y no entra en la cuenta.
@@ -921,24 +934,181 @@ seccion('El Excel sale de las filas seleccionadas en la hoja');
 seccion('Guardar el lote completo');
 {
   // Una tanda de Trading: nada de esto lleva ruta, ni siquiera la cepillada.
+  // Lo unico que se le pide es el PAK, y ese si es obligatorio.
   const lote = lote_([
     'RVMH032X180X3660\t120',
-    'RVMH032X180X4270',
+    'RVMH032X180X4270\t90',
     'C4JH019X100X3050\t60'
   ].join('\n'));
-  ok(lote.listas === 3, 'las tres líneas quedan listas sin completar nada');
+  ok(lote.listas === 3, 'las tres lineas quedan listas con solo su PAK');
 
   const r = apiGuardarLote(lote.filas);
   ok(r.guardadas === 3 && r.fallidas === 0, 'se guardan las tres');
   ok(r.resultados.every(x => x.hoja === 'TD'), 'y las tres van a la hoja TD');
   ok(celda('TD', r.resultados[0].fila, 3) === 'TD', 'con TD en su Clase Requerimiento');
   ok(celda('TD', r.resultados[0].fila, 24) === 120, 'la primera lleva su PAK');
-  ok(celda('TD', r.resultados[1].fila, 24) === '', 'y la segunda queda sin PAK, que es opcional');
+  ok(celda('TD', r.resultados[1].fila, 24) === 90, 'y la segunda el suyo');
   ok(celda('TD', r.resultados[0].fila, 7) === '' && celda('TD', r.resultados[0].fila, 11) === '',
-    'las rústicas de Trading van sin ninguna ruta');
+    'las rusticas de Trading van sin ninguna ruta');
   ok(celda('TD', r.resultados[2].fila, 7) === '' && celda('TD', r.resultados[2].fila, 15) === '',
-    'y la cepillada tampoco: se compró cepillada');
+    'y la cepillada tampoco: se compro cepillada');
   ok(celda('TD', r.resultados[2].fila, 24) === 60, 'de ella solo se guardan las piezas');
+}
+
+/*
+  Un codigo de proceso no es un producto terminado: ES la salida de una etapa.
+  Esa etapa la lleva el mismo en su columna del batch input, y las que vienen
+  ANTES son las que se le piden como ruta.
+
+  La referencia es la fila buena que hay en la hoja PP del spreadsheet: un
+  RSM 015X121 lleva RVM 021X121 en Aserradero y RSM 015X121 en Secado. Lo que
+  escribia el formulario dejaba esa columna vacia, y la identidad del material
+  aparecia solo en Empaquetado: en la hoja no se veia de que etapa salia.
+
+  Columnas: 7-10 aserradero, 11-14 secado, 15-18 cepillado, 19-23 el producto.
+*/
+seccion('Un codigo de proceso lleva su propia etapa en su columna');
+{
+  /** Las cuatro celdas de una etapa, como quedan escritas. */
+  const etapaEn = (hoja, fila, primera) =>
+    [0, 1, 2, 3].map(i => celda(hoja, fila, primera + i)).join('|');
+  // Verde de proceso: es el principio de la cadena, no pide ninguna ruta, y
+  // su columna es la de aserradero.
+  {
+    const r = apiGuardarLote(lote_('RVF 037X131', 'PP').filas, '');
+    ok(r.guardadas === 1, 'un verde de proceso se guarda sin pedirle ninguna ruta');
+    const f = r.resultados[0].fila;
+    ok(etapaEn('PP', f, 7) === 'RVF|037X131|037|131',
+      'y su columna Aserradero lo lleva a el mismo: ' + etapaEn('PP', f, 7));
+    ok(etapaEn('PP', f, 11) === '|||' && etapaEn('PP', f, 15) === '|||',
+      'secado y cepillado quedan vacias, que es lo que le corresponde');
+    ok(celda('PP', f, 19) === 'RVF' && celda('PP', f, 20) === '037X131',
+      'y Empaquetado sigue llevandolo tambien');
+  }
+
+  // Secado de proceso: su columna es la de secado, y la de antes es la ruta.
+  // Este es el caso exacto de la fila buena de la hoja.
+  {
+    const r = apiGuardarLote(lote_('RSF 037X131\tRVF 037X131', 'PP').filas, '');
+    ok(r.guardadas === 1, 'un secado de proceso se guarda con su ruta de aserradero');
+    const f = r.resultados[0].fila;
+    ok(etapaEn('PP', f, 7) === 'RVF|037X131|037|131',
+      'Aserradero lleva la ruta que se pidio');
+    ok(etapaEn('PP', f, 11) === 'RSF|037X131|037|131',
+      'y Secado lo lleva a el mismo: ' + etapaEn('PP', f, 11));
+    ok(etapaEn('PP', f, 15) === '|||', 'cepillado vacia: no pasa por ahi');
+  }
+
+  // Cepillado de proceso: las dos de antes son rutas, la suya es el.
+  {
+    const r = apiGuardarLote(
+      lote_('CSF 019X101\tRVF 019X101\tRSF 019X101', 'PP').filas, '');
+    ok(r.guardadas === 1, 'un cepillado de proceso se guarda con sus dos rutas');
+    const f = r.resultados[0].fila;
+    ok(etapaEn('PP', f, 7) === 'RVF|019X101|019|101' &&
+       etapaEn('PP', f, 11) === 'RSF|019X101|019|101',
+      'aserradero y secado llevan las rutas que se pidieron');
+    ok(etapaEn('PP', f, 15) === 'CSF|019X101|019|101',
+      'y Cepillado lo lleva a el mismo: ' + etapaEn('PP', f, 15));
+  }
+
+  // Y lo COMPRADO hecho no salio de ninguna etapa nuestra: las tres vacias.
+  // Es la advertencia que importa, porque no todos los codigos piden ruta.
+  {
+    const r = apiGuardarLote(lote_('RVMH032X180X3680\t70').filas, '');
+    const f = r.resultados[0].fila;
+    ok(etapaEn('TD', f, 7) === '|||' && etapaEn('TD', f, 11) === '|||' &&
+       etapaEn('TD', f, 15) === '|||',
+      'lo comprado hecho no lleva ninguna etapa: no se fabrico aca');
+    ok(celda('TD', f, 19) === 'RVMH', 'solo Empaquetado y su PAK');
+  }
+
+  // Un TERMINADO tampoco tiene etapa propia: lo que sale de el es el
+  // empaquetado, y eso ya va en su columna. Sus tres columnas son rutas.
+  {
+    const r = apiGuardarLote(
+      lote_('RSFR037X130X3240\tRVF 037X130\tRSF 037X130').filas, '');
+    const f = r.resultados[0].fila;
+    ok(etapaEn('PT', f, 7) === 'RVF|037X130|037|130' &&
+       etapaEn('PT', f, 11) === 'RSF|037X130|037|130',
+      'un terminado sigue llevando rutas en sus columnas');
+    ok(celda('PT', f, 19) === 'RSFR' && celda('PT', f, 23) === '3240',
+      'y el producto con su largo en Empaquetado');
+  }
+}
+
+// La columna de su propia etapa sale cerrada, y tiene que decir por que: antes
+// decia "No aplica", que es justo lo unico que no es.
+seccion('La columna de su propia etapa dice por que no se pide');
+{
+  const verde = lote_('RVF 037X132', 'PP').filas[0];
+  ok(verde.etapaPropia === 'aserradero', 'un verde de proceso ES el aserradero');
+  ok(!verde.etapas.aserradero, 'asi que no se le pide esa ruta');
+  ok(verde.motivos.aserradero.indexOf('su propia etapa') !== -1,
+    'y su columna lo dice: ' + verde.motivos.aserradero);
+
+  const seco = lote_('RSF 037X132\tRVF 037X132', 'PP').filas[0];
+  ok(seco.etapaPropia === 'secado', 'un seco de proceso ES el secado');
+  ok(seco.motivos.secado.indexOf('su propia etapa') !== -1, 'y su columna tambien lo dice');
+  ok(seco.etapas.aserradero, 'mientras la de aserradero si se le pide');
+
+  const cep = lote_('CSF 019X102', 'PP').filas[0];
+  ok(cep.etapaPropia === 'cepillado', 'un cepillado de proceso ES el cepillado');
+  ok(cep.motivos.cepillado.indexOf('su propia etapa') !== -1, 'y lo dice igual');
+
+  // Un terminado y lo comprado hecho no tienen etapa propia.
+  ok(lote_('RSFR037X130X3270').filas[0].etapaPropia === '',
+    'un terminado no tiene etapa propia: lo que sale de el es el empaquetado');
+  const td = lote_('RVMH032X180X3690\t80').filas[0];
+  ok(td.etapaPropia === '', 'ni lo comprado hecho, que no se fabrico aca');
+  ok(td.motivos.aserradero.indexOf('Trading') !== -1, 'y su columna sigue diciendo eso');
+}
+
+// La hoja PE existe para los especiales, y estaba vacia: el formulario los
+// escribia con los terminados corrientes, en PT.
+seccion('Un PE se escribe en la hoja PE');
+{
+  const antesPt = SS.getSheetByName('PT').getLastRow();
+  const r = apiGuardarLote(
+    lote_('RSFR037X130X3260\tRVF 037X130\tRSF 037X130', 'PE').filas, '');
+
+  ok(r.guardadas === 1 && r.resultados[0].hoja === 'PE', 'su fila va a la hoja PE');
+  ok(SS.getSheetByName('PT').getLastRow() === antesPt, 'y PT no crece');
+  const f = r.resultados[0].fila;
+  ok(celda('PE', f, 3) === 'PE', 'con PE en su Clase Requerimiento');
+  ok(celda('PE', f, 25) === 'M3', 'y se sigue midiendo en m3');
+  ok(celda('PE', f, 7) === 'RVF' && celda('PE', f, 11) === 'RSF',
+    'con sus rutas, porque un especial es terminado');
+}
+
+// Lo que se fabrica se pide por receta y la cantidad se define despues; lo
+// comprado hecho se compra por cantidad, asi que una fila de Trading sin PAK no
+// dice que se compro.
+seccion('En Trading el PAK es obligatorio');
+{
+  const sinPak = lote_('RVMH032X180X3670').filas[0];
+  ok(!sinPak.ok, 'una fila de Trading sin PAK no queda lista');
+  ok(sinPak.problemas.some(x => x.indexOf('en Trading las piezas son obligatorias') !== -1),
+    'y dice exactamente por que: ' + sinPak.problemas.join(' '));
+
+  ok(lote_('RVMH032X180X3670\t120').filas[0].ok, 'con su PAK, queda lista');
+
+  // Y no se guarda aunque la pantalla lo deje pasar.
+  ok(error(() => apiGuardarLote([sinPak], ''))
+    .indexOf('en Trading las piezas son obligatorias') !== -1 ||
+     apiGuardarLote([sinPak], '').fallidas === 1,
+    'y el servidor tampoco la guarda');
+
+  // En planta sigue siendo opcional: el batch input crea el maestro de
+  // material, no un pedido, y la cantidad se define despues.
+  const planta = lote_('RSFR037X130X3210\tRVF 037X130\tRSF 037X130').filas[0];
+  ok(planta.pidePak && !planta.piezas, 'una de planta se cuenta por piezas y va sin PAK');
+  ok(planta.ok, 'y queda lista igual: en planta el PAK es opcional');
+
+  // Lo que va en m3 no se cuenta por piezas, asi que ahi no hay nada que exigir.
+  const tradingM3 = lote_('RVMH032X180X3960', 'PE').filas[0];
+  ok(tradingM3.umb === 'M3' && !tradingM3.pidePak, 'un Trading en m3 no lleva PAK');
+  ok(tradingM3.ok, 'y no se le reclama ninguno');
 }
 {
   // La misma cepillada, pero de planta: ahí sí van sus tres rutas.
@@ -965,7 +1135,7 @@ seccion('Una fila por solicitud, y el detalle aparte');
   const antesRegistro = SS.getSheetByName('Registro').getLastRow();
   const antesDetalle = SS.getSheetByName('Registro Detalle').getLastRow();
 
-  const lote = lote_('RVMH032X180X3800\nRVMH032X180X3850\nRVMH032X180X3900');
+  const lote = lote_('RVMH032X180X3800\t10\nRVMH032X180X3850\t20\nRVMH032X180X3900\t30');
   const r = apiGuardarLote(lote.filas, 'Urgente, va para el pedido de Osorno');
 
   ok(r.guardadas === 3, 'entran los tres códigos');
@@ -1012,7 +1182,7 @@ seccion('Una fila por solicitud, y el detalle aparte');
     'el detalle recoge lo que Registro ya no lleva');
 
   // Los numeros no se repiten ni se saltan.
-  const otra = apiGuardarLote(lote_('RVMH032X180X3950').filas, '');
+  const otra = apiGuardarLote(lote_('RVMH032X180X3950\t40').filas, '');
   ok(Number(otra.solicitud.replace(/\D/g, '')) === Number(r.solicitud.replace(/\D/g, '')) + 1,
     'la siguiente solicitud toma el número siguiente');
   ok(registro(otra.filaResumen, 'Observación') === '', 'sin observación, la celda queda vacía');
@@ -1038,7 +1208,7 @@ seccion('El combo de la columna Estado');
   ok(combo.desplegable === true, 'se muestra como desplegable en la celda');
 
   // La fila que se acaba de agregar también, aunque caiga fuera del rango viejo.
-  const nueva = apiGuardarLote(lote_('RVMH032X180X4200').filas, '');
+  const nueva = apiGuardarLote(lote_('RVMH032X180X4200\t50').filas, '');
   ok(!!hoja.getRange(nueva.filaResumen, columna).getDataValidation(),
     'y cada solicitud nueva nace con su combo puesto');
 
@@ -1079,7 +1249,7 @@ seccion('La bitácora de estados: cada paso con su fecha');
       .map(f => ({ estado: f[1], fecha: f[2], usuario: f[3] }));
   };
 
-  const r = apiGuardarLote(lote_('RVMH032X180X5100').filas, '');
+  const r = apiGuardarLote(lote_('RVMH032X180X5100\t50').filas, '');
 
   // El recorrido empieza al nacer: sin esto el monitor mostraría una
   // solicitud que aparece a la mitad de su camino.
@@ -1148,7 +1318,7 @@ seccion('La bitácora de estados: cada paso con su fecha');
   ok(pasosDe(r.solicitud).length === antes, 'ni vaciar la celda del estado');
 
   // Cada solicitud lleva el suyo, sin mezclarse.
-  const otra = apiGuardarLote(lote_('RVMH032X180X5200').filas, '');
+  const otra = apiGuardarLote(lote_('RVMH032X180X5200\t50').filas, '');
   ok(pasosDe(otra.solicitud).length === 1, 'la solicitud siguiente empieza su propio recorrido');
   ok(pasosDe(r.solicitud).length === antes, 'y el de la anterior queda como estaba');
 }
@@ -1230,7 +1400,7 @@ seccion('Cerrar una solicitud: a la base, y aviso a quien pidió');
 
   // Un correo que no sale no puede dejar los materiales sin dar de alta.
   global.__FALLA_CORREO = true;
-  const conFallo = apiGuardarLote(lote_('RVMH032X180X4700').filas, '');
+  const conFallo = apiGuardarLote(lote_('RVMH032X180X4700\t50').filas, '');
   const puestos = cerrarSolicitud_(hoja, conFallo.filaResumen);
   ok(conFallo.aviso && !conFallo.aviso.ok,
     'si el aviso de ingreso no sale, el guardado lo dice en vez de callarlo');
@@ -1246,7 +1416,7 @@ seccion('Un correo que no sale no tumba nada');
   CORREOS.CODIFICACION = 'codificacion@masisa.com';
   global.__FALLA_CORREO = true;
 
-  const r = apiGuardarLote(lote_('RVMH032X180X4500').filas, '');
+  const r = apiGuardarLote(lote_('RVMH032X180X4500\t50').filas, '');
   delete global.__FALLA_CORREO;
   CORREOS.CODIFICACION = '';
 
@@ -1266,7 +1436,7 @@ seccion('El aviso de ingreso sale de quien pide');
   // Publicado como "el usuario que accede": remitente y solicitante son el
   // mismo, y el correo sale de él.
   global.__CORREOS = [];
-  apiGuardarLote(lote_('RVMH032X180X4500').filas, '');
+  apiGuardarLote(lote_('RVMH032X180X4500\t50').filas, '');
   ok(global.__CORREOS[0].para === 'codificacion.corporativa@masisa.com',
     'con la casilla de verdad, llega ahí');
   ok(global.__CORREOS[0].opciones.replyTo === undefined,
@@ -1276,7 +1446,7 @@ seccion('El aviso de ingreso sale de quien pide');
   // hace falta decir a quién contestar.
   global.__CORREOS = [];
   global.__CUENTA_QUE_CORRE = 'buzon.que.publico@masisa.com';
-  apiGuardarLote(lote_('RVMH032X180X4550').filas, '');
+  apiGuardarLote(lote_('RVMH032X180X4550\t50').filas, '');
   ok(global.__CORREOS[0].opciones.replyTo === 'jose.ortiz@masisa.com',
     'si el script corre con otra cuenta, responder le escribe igual a quien pidió');
   delete global.__CUENTA_QUE_CORRE;
@@ -1286,7 +1456,7 @@ seccion('Sin dirección, no se manda nada');
 {
   global.__CORREOS = [];
   CORREOS.CODIFICACION = '';
-  apiGuardarLote(lote_('RVMH032X180X4600').filas, '');
+  apiGuardarLote(lote_('RVMH032X180X4600\t50').filas, '');
   ok(global.__CORREOS.length === 0, 'con la casilla en blanco no se intenta enviar');
 }
 
@@ -1355,7 +1525,7 @@ seccion('La hoja de una clase que falta se crea copiando otra');
        normalizar_(m.encabezado)),
     'y los veintiseis rotulos quedan donde el codigo los espera');
   // Y recien creada recibe su primera fila en la 3, debajo de los rotulos.
-  const r = apiGuardarLote(lote_('RVMH032X180X4800').filas, '');
+  const r = apiGuardarLote(lote_('RVMH032X180X4800\t50').filas, '');
   ok(r.guardadas === 1 && r.resultados[0].hoja === 'TD' &&
      r.resultados[0].fila === CFG.FILA_ENCABEZADOS + 1,
     'y la primera fila de Trading entra justo debajo de los rotulos');

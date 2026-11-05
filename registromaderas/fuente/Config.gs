@@ -106,12 +106,15 @@ const TIPOS_SOLICITUD = [
   {
     id: 'PT', titulo: 'Producto Terminado', exigeLargo: true, clase: 'PT',
     umb: 'PZA', esProceso: false,
+    // La especie manda: un código de nomenclatura con H o D es una compra y va
+    // a TD, no a la hoja de lo que se fabrica.
+    especieManda: true,
     descripcion: 'Lleva largo y se cuenta por piezas.',
     ejemplos: ['RVMH032X180X3960', 'RSFR037X130X3200', 'C4JR019X100X2440']
   },
   {
     id: 'PP', titulo: 'Producto de Proceso', exigeLargo: false, clase: 'PP',
-    umb: 'M3', esProceso: true,
+    umb: 'M3', esProceso: true, especieManda: true,
     descripcion: 'Sin largo: es una etapa de la cadena. Va en m3.',
     ejemplos: ['RVM 032X180', 'RSF 037X130', 'CSF 019X100']
   },
@@ -122,8 +125,16 @@ const TIPOS_SOLICITUD = [
       forma del código —es especial porque quien pide lo dice— y que se mide en
       metros cúbicos.
     */
-    id: 'PE', titulo: 'PE Terminado (m3)', exigeLargo: null, clase: 'PT',
+    id: 'PE', titulo: 'PE Terminado (m3)', exigeLargo: null, clase: 'PE',
     umb: 'M3', esProceso: false,
+    /*
+      Acá la especie NO manda, y es por lo mismo que existe PE: su código está
+      fuera de la nomenclatura, así que leerle el carácter 4 para decidir a qué
+      hoja va es leer algo que no significa lo que significa en los demás. Un
+      PE va a la hoja PE, que para eso está. El origen y el centro sí siguen
+      saliendo de la especie, como en todo lo demás.
+    */
+    especieManda: false,
     descripcion: 'Terminado fuera de la nomenclatura corriente. Va en m3.',
     ejemplos: ['RSFR037X130X3200', 'RVMR032X180X3960', 'C4JR019X100X2440']
   }
@@ -197,11 +208,18 @@ const MEDIDAS = {
  * La Ruta de cada etapa es un material que YA existe en BD_Maderas:
  * el prefijo más la escuadría, sin largo (RVFD032X180, RSN 032X240).
  */
+/*
+  Una ruta que todavía NO está en BD_Maderas vale igual: SAP la crea sola al
+  cargar el batch input. Antes se rechazaba la fila en PP, y eso dejaba fuera
+  justo las rutas nuevas, que son las que hay que crear.
+
+  De una ruta se siguen revisando tres cosas, que sí son errores de quien
+  escribe: que tenga forma de ruta, que sea de la etapa donde la pusieron, y que
+  no sea más chica que el producto.
+*/
 const RUTAS = {
   /** Hay que indicar una ruta en cada etapa que aplique. */
   OBLIGATORIA: true,
-  /** Clases donde además tiene que existir en BD_Maderas. */
-  DEBE_EXISTIR_EN: ['PP'],
   /** A qué etapa pertenece cada ruta, por sus dos primeros caracteres. */
   FAMILIAS: { aserradero: ['RV'], secado: ['RS'], cepillado: ['C'] }
 };
@@ -218,7 +236,16 @@ const TRADING = {
    * que va la fila, el centro, el origen y qué rutas se piden.
    */
   ESPECIES: ['H', 'D'],
-  CENTRO: 'TCD2'
+  CENTRO: 'TCD2',
+  /**
+   * En Trading el PAK es obligatorio.
+   *
+   * Lo que se fabrica se pide por receta y la cantidad se define después; lo
+   * comprado hecho se compra por cantidad, así que una fila de Trading sin
+   * piezas no dice qué se compró. Solo rige donde el PAK se pide: lo que va en
+   * m3 no se cuenta por piezas y ahí no hay nada que exigir.
+   */
+  EXIGE_PIEZAS: true
 };
 
 /**

@@ -138,6 +138,31 @@ function glosaDeEspeciesTrading_() {
 }
 
 /**
+ * Qué etapa ES el material, cuando su código es de proceso.
+ *
+ * Un código de proceso no es un producto terminado: ES la salida de una etapa.
+ * Esa etapa la lleva él mismo en su columna del batch input —su prefijo y su
+ * escuadría— y las que vienen ANTES son las que se le piden como ruta. Así está
+ * la fila buena que hay en PP: un RSM 015X121 lleva RVM 021X121 en Aserradero y
+ * RSM 015X121 en Secado.
+ *
+ * Dos casos no tienen etapa propia, y en los dos las tres columnas quedan
+ * vacías:
+ *   · un TERMINADO —lo que sale de él es el empaquetado, y eso ya va en la
+ *     columna Empaquetado—;
+ *   · lo COMPRADO hecho a terceros, que no se fabricó acá y no salió de
+ *     ninguna etapa nuestra.
+ */
+function etapaPropia_(agrupacion, esProceso) {
+  if (!esProceso) return '';
+  var p = prefijo_(agrupacion);
+  if (esEspecieTrading_(p.charAt(3))) return '';
+  if (p.charAt(0) === 'C') return 'cepillado';
+  if (p.charAt(1) === 'V') return 'aserradero';
+  return 'secado';
+}
+
+/**
  * Qué Rutas abre una solicitud.
  *
  * La diferencia de fondo es qué ES el código: un producto terminado se pide
@@ -164,13 +189,25 @@ function etapasAplicables_(agrupacion, esProceso) {
   // más. Por eso esta pregunta va antes que la del cepillado y no después.
   if (esEspecieTrading_(p.charAt(3))) return nada;
 
-  if (p.charAt(0) === 'C') {
-    return { aserradero: true, secado: true, cepillado: true };
+  var verde = p.charAt(1) === 'V';
+
+  // Un código de proceso ES una etapa, así que se le piden las que vienen ANTES
+  // de la suya y nada más: la suya la lleva él (etapaPropia_), no una ruta.
+  // Antes el cepillado de proceso abría las tres, incluida la suya, y lo que
+  // quedaba en su columna era una ruta en vez de él mismo.
+  if (esProceso) {
+    var propia = etapaPropia_(agrupacion, true);
+    var abre = { aserradero: false, secado: false, cepillado: false };
+    for (var i = 0; i < ETAPAS.length; i++) {
+      if (ETAPAS[i].id === propia) break;
+      if (ETAPAS[i].id === 'secado' && verde) continue;
+      abre[ETAPAS[i].id] = true;
+    }
+    return abre;
   }
 
-  var verde = p.charAt(1) === 'V';
-  if (esProceso) {
-    return verde ? nada : { aserradero: true, secado: false, cepillado: false };
+  if (p.charAt(0) === 'C') {
+    return { aserradero: true, secado: true, cepillado: true };
   }
   return { aserradero: true, secado: !verde, cepillado: false };
 }
@@ -398,18 +435,34 @@ function validar_(datos) {
     throw yaEsta;
   }
 
+  var umb = unoDe_(datos.umb, UNIDADES, unidadDeClase_(clase.id));
+  // En Trading el PAK es obligatorio, y solo donde el PAK se pide: lo que va en
+  // m3 no se cuenta por piezas.
+  var exigePiezas = MEDIDAS.EXIGIR_PIEZAS ||
+    (TRADING.EXIGE_PIEZAS && esEspecieTrading_(prefijo_(agrupacion).charAt(3)) &&
+     umb === POR_DEFECTO.UMB);
+
   var piezas = '';
   if (datos.piezas !== '' && datos.piezas !== null && datos.piezas !== undefined) {
     piezas = Number(datos.piezas);
     if (!isFinite(piezas) || piezas <= 0 || Math.floor(piezas) !== piezas) {
       throw new Error('La cantidad de piezas debe ser un número entero mayor que cero.');
     }
-  } else if (MEDIDAS.EXIGIR_PIEZAS) {
-    throw new Error('Falta la cantidad de piezas.');
+  } else if (exigePiezas) {
+    throw new Error(MEDIDAS.EXIGIR_PIEZAS
+      ? 'Falta la cantidad de piezas.'
+      : 'Falta el PAK: en Trading las piezas son obligatorias.');
   }
 
-  var aplica = etapasAplicables_(agrupacion, !largo);
-  var exigeRuta = RUTAS.DEBE_EXISTIR_EN.indexOf(clase.id) !== -1;
+  // Si la tanda dijo de qué tipo es, eso manda: un PE es terminado aunque venga
+  // sin largo, y leerle el largo lo trataría como una etapa. Sin tipo —una fila
+  // suelta— no queda más que deducirlo del largo.
+  var deLaTanda = TIPOS_SOLICITUD.filter(function (t) {
+    return t.id === normalizarCodigo_(datos.tipo);
+  })[0];
+  var esProceso = deLaTanda ? !!deLaTanda.esProceso : !largo;
+
+  var aplica = etapasAplicables_(agrupacion, esProceso);
   var pedido = datos.desglose || {};
   var desglose = {};
   ETAPAS.forEach(function (etapa) {
@@ -432,11 +485,10 @@ function validar_(datos) {
         'forma de una ruta: cuatro caracteres de prefijo más la escuadría, como RVFD032X180.');
     }
 
+    // Que todavía no esté en BD_Maderas no la invalida: SAP la crea sola al
+    // cargar el batch input. Se consulta solo para escribirla como está dada
+    // de alta, si ya lo está.
     var enBD = buscarEnBD_(ruta);
-    if (!enBD && exigeRuta) {
-      throw new Error('La Ruta ' + ruta + ' de ' + etapa.titulo + ' no existe en ' +
-        CFG.HOJA_BD + ', y en ' + clase.id + ' la ruta tiene que existir.');
-    }
 
     var familia = familiaDeRuta_(ruta);
     if (familia && familia !== etapa.id) {
@@ -463,6 +515,23 @@ function validar_(datos) {
     };
   });
 
+  // La etapa que el material ES la lleva él mismo. Antes su columna quedaba
+  // vacía y su identidad aparecía solo en Empaquetado, así que en la hoja no se
+  // veía de qué etapa salía. Un terminado y lo comprado hecho no entran acá:
+  // etapaPropia_ devuelve vacío para los dos.
+  var propia = etapaPropia_(agrupacion, esProceso);
+  if (propia) {
+    desglose[propia] = {
+      ruta: codigo,
+      plantilla: prefijo_(agrupacion).trim(),
+      dimension: dimension_(espesor, ancho, ''),
+      espesor: espesor,
+      ancho: ancho,
+      existe: !!ficha,
+      descripcion: ficha ? ficha.descripcion : ''
+    };
+  }
+
   return {
     // Va en la bitácora, no en el batch input: es para codificación, no para SAP.
     observacion: texto_(datos.observacion).substring(0, 500),
@@ -482,7 +551,7 @@ function validar_(datos) {
     largo: largo,
     dimension: dimension_(espesor, ancho, largo),
     piezas: piezas,
-    umb: unoDe_(datos.umb, UNIDADES, unidadDeClase_(clase.id)),
+    umb: umb,
     stockPedido: unoDe_(datos.stockPedido, STOCK_PEDIDO.map(function (o) { return o.id; }),
       POR_DEFECTO.STOCK_PEDIDO),
     desglose: desglose,
@@ -910,7 +979,6 @@ function apiContexto() {
     hojaRegistro: CFG.HOJA_REGISTRO,
     exigeCodigoNuevo: MEDIDAS.EXIGIR_NUEVO,
     rutaObligatoria: RUTAS.OBLIGATORIA,
-    clasesConRutaEnBD: RUTAS.DEBE_EXISTIR_EN.slice(),
     trading: { origen: TRADING.ORIGEN, especies: TRADING.ESPECIES.slice() },
     usuario: correo,
     identificado: !!correo,
